@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "adapters/hyprland" as HyprlandBackend
+import "adapters/niri" as NiriBackend
 import "surfaces"
 
 ShellRoot {
@@ -21,7 +22,7 @@ ShellRoot {
     property bool launcherEnabled: false
     property bool launcherAlive: false
     readonly property Launcher launcher: launcherLoader.item as Launcher
-    readonly property var launcherScreen: Quickshell.screens.find(s => s.name === compositorBackend.outputs.find(o => o.focused)?.name) ?? Quickshell.screens[0]
+    readonly property var launcherScreen: Quickshell.screens.find(s => s.name === (root.compositorBackend?.outputs ?? []).find(o => o.focused)?.name) ?? Quickshell.screens[0]
     LazyLoader {
         id: launcherLoader
         active: root.launcherEnabled
@@ -34,27 +35,58 @@ ShellRoot {
     property bool probeAlive: false
     property int probeCreations: 0
     property int probeDestructions: 0
-    HyprlandBackend.Adapter {
-        id: compositorBackend
+    readonly property var compositorBackend: backendLoader.item
+    Loader {
+        id: backendLoader
+        sourceComponent: Quickshell.env("DF_COMPOSITOR") === "hyprland" ? hyprlandAdapter : niriAdapter
+    }
+    Component {
+        id: niriAdapter
+        NiriBackend.Adapter {}
+    }
+    Component {
+        id: hyprlandAdapter
+        HyprlandBackend.Adapter {}
     }
     // Only the composition root selects a backend. UI receives the interface.
     LazyLoader {
         active: root.probeEnabled
         Probe {
-            compositor: compositorBackend
+            compositor: root.compositorBackend
             lifecycle: root
         }
     }
     IpcHandler {
         target: "foundation"
+        function toggleOverview(): void {
+            root.compositorBackend.toggleOverview();
+        }
+        function toggleFullscreen(id: string): void {
+            root.compositorBackend.toggleFullscreen(id);
+        }
+        function maximizeColumn(): void {
+            root.compositorBackend.maximizeColumn();
+        }
+        function cycleColumnWidth(): void {
+            root.compositorBackend.cycleColumnWidth();
+        }
+        function centerColumn(): void {
+            root.compositorBackend.centerColumn();
+        }
+        function toggleFloating(id: string): void {
+            root.compositorBackend.toggleFloating(id);
+        }
+        function moveDirection(direction: string): void {
+            root.compositorBackend.moveDirection(direction);
+        }
         function screenshotRegion(): void {
-            compositorBackend.screenshotRegion();
+            root.compositorBackend.screenshotRegion();
         }
         function screenshotWindow(): void {
-            compositorBackend.screenshotWindow();
+            root.compositorBackend.screenshotWindow();
         }
         function screenshotOutput(): void {
-            compositorBackend.screenshotOutput();
+            root.compositorBackend.screenshotOutput();
         }
         function toggleClipboard(): void {
             if (root.launcher)
@@ -128,15 +160,21 @@ ShellRoot {
             return JSON.stringify({
                 clipboardAlive: root.clipboardAlive,
                 launcherAlive: root.launcherAlive,
-                ready: compositorBackend.ready,
-                backend: compositorBackend.backend,
-                focusedWindow: compositorBackend.focusedWindow,
-                activeWorkspace: compositorBackend.activeWorkspace,
-                outputs: compositorBackend.outputs,
-                capabilities: compositorBackend.capabilities,
-                eventCount: compositorBackend.eventCount,
-                windows: compositorBackend.windows,
-                workspaces: compositorBackend.workspaces,
+                ready: root.compositorBackend.ready,
+                backend: root.compositorBackend.backend,
+                focusedWindow: root.compositorBackend.focusedWindow,
+                activeWorkspace: root.compositorBackend.activeWorkspace,
+                outputs: root.compositorBackend.outputs,
+                capabilities: root.compositorBackend.capabilities,
+                eventCount: root.compositorBackend.eventCount,
+                backendDiagnostics: {
+                    lastError: root.compositorBackend.lastError ?? "",
+                    overviewOpen: root.compositorBackend.overviewOpen ?? null,
+                    keyboardLayouts: root.compositorBackend.keyboardLayouts ?? null,
+                    configFailed: root.compositorBackend.configFailed ?? false
+                },
+                windows: root.compositorBackend.windows,
+                workspaces: root.compositorBackend.workspaces,
                 probeAlive: root.probeAlive,
                 probeCreations: root.probeCreations,
                 probeDestructions: root.probeDestructions,
@@ -144,37 +182,37 @@ ShellRoot {
             });
         }
         function focusWindow(id: string): void {
-            compositorBackend.focusWindow(id);
+            root.compositorBackend.focusWindow(id);
         }
         function closeWindow(id: string): void {
-            compositorBackend.closeWindow(id);
+            root.compositorBackend.closeWindow(id);
         }
         function focusWorkspace(id: string): void {
-            compositorBackend.focusWorkspace(id);
+            root.compositorBackend.focusWorkspace(id);
         }
         function setFullscreen(id: string, enabled: bool): void {
-            compositorBackend.setFullscreen(id, enabled);
+            root.compositorBackend.setFullscreen(id, enabled);
         }
         function setMaximized(id: string, enabled: bool): void {
-            compositorBackend.setMaximized(id, enabled);
+            root.compositorBackend.setMaximized(id, enabled);
         }
         function setFloating(id: string, enabled: bool): void {
-            compositorBackend.setFloating(id, enabled);
+            root.compositorBackend.setFloating(id, enabled);
         }
         function moveWindowToOutput(id: string, outputId: string): void {
-            compositorBackend.moveWindowToOutput(id, outputId);
+            root.compositorBackend.moveWindowToOutput(id, outputId);
         }
         function moveWorkspaceToOutput(id: string, outputId: string): void {
-            compositorBackend.moveWorkspaceToOutput(id, outputId);
+            root.compositorBackend.moveWorkspaceToOutput(id, outputId);
         }
         function scrollColumns(direction: string): void {
-            compositorBackend.scrollColumns(direction);
+            root.compositorBackend.scrollColumns(direction);
         }
         function focusDirection(direction: string): void {
-            compositorBackend.focusDirection(direction);
+            root.compositorBackend.focusDirection(direction);
         }
         function moveWindow(id: string, workspaceId: string): void {
-            compositorBackend.moveWindow(id, workspaceId);
+            root.compositorBackend.moveWindow(id, workspaceId);
         }
     }
 }

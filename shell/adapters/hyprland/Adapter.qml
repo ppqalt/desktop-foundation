@@ -159,6 +159,31 @@ QtObject {
     function screenshotOutput(): void {
         Quickshell.execDetached([Quickshell.shellDir + "/../scripts/screenshot", "--backend", "hyprland", "output"]);
     }
+    function toggleFullscreen(id: string): void {
+        const window = windows.find(w => w.id === id);
+        if (window)
+            setFullscreen(id, !window.state.fullscreen);
+    }
+    function maximizeColumn(): void {
+        if (focusedWindow)
+            setMaximized(focusedWindow.id, !focusedWindow.state.maximized);
+    }
+    function cycleColumnWidth(): void {
+        Hyprland.dispatch('hl.dsp.layout("colresize +conf")');
+    }
+    function centerColumn(): void {
+        Hyprland.dispatch('hl.dsp.layout("center")');
+    }
+    function toggleFloating(id: string): void {
+        const window = windows.find(w => w.id === id);
+        if (window)
+            setFloating(id, !window.state.floating);
+    }
+    function moveDirection(direction: string): void {
+        if (!["left", "right", "up", "down"].includes(direction))
+            throw new Error("Invalid direction");
+        Hyprland.dispatch('hl.dsp.window.move({direction="' + direction + '"})');
+    }
     function toggleOverview(): bool {
         return false;
     }

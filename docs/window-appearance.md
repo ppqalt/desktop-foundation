@@ -1,3 +1,20 @@
+# Niri visual treatment
+
+Normal active/inactive window opacity is equally 90% for the user's trial. Native
+Niri blur, 14 px corner geometry, muted 1 px border and soft depth translate shared
+config/window-appearance.lua. Native Kitty launches override background_opacity
+with the shared value; a Kitty rule keeps whole-window opacity at 1 so text stays
+opaque. Existing Kitty windows need a fresh launch to use the new override.
+
+Xray blur samples background layers, not other windows. A flat gray background has
+no detail to blur. No wallpaper feature has been introduced. Popup background blur
+is disabled; Niri opacity itself also affects popups. Fullscreen styling is native
+Niri behavior; the Hyprland-specific fullscreen 1.0 rule is not a portable Niri
+state matcher. Niri 26.04 IPC cannot report authoritative fullscreen state.
+
+The sections below document retained Hyprland implementation and historical QA;
+Niri's reference implementation and validation are in niri-port/niri-validation.
+
 # Graphite window treatment
 
 config/window-appearance.lua centralizes compositor-neutral window design intent.
@@ -19,7 +36,7 @@ Current values:
 | Soft shadow | #080b10, range 18 px, downward offset 5 px, falloff power 3 |
 | Active / inactive shadow opacity | 0.42 / 0.12 |
 | Focus edge | 1 px, active #485669 / inactive #2b323d |
-| Active / inactive / fullscreen window opacity | 0.97 / 0.97 / 1.0 |
+| Active / inactive / fullscreen window opacity | 0.90 / 0.90 / 1.0 |
 | Inactive dim | 0.0 (disabled) |
 | Fullscreen | no compositor border, shadow or rounded clipping |
 

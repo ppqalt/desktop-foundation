@@ -1,3 +1,3 @@
--- Shared user input preferences: portable to Tops, lucky38 and other profiles.
--- Host hardware/output files must not select the keyboard layout.
-hl.config({ input = { kb_layout = "fi", resolve_binds_by_sym = true } })
+-- Shared user input, translated only here into Hyprland options.
+local input = dofile(FOUNDATION_ROOT .. "/config/input.lua")
+hl.config({ input = { kb_layout = input.layout, repeat_rate = input.repeatRate, repeat_delay = input.repeatDelay, resolve_binds_by_sym = true } })

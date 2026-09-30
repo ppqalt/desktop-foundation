@@ -1,3 +1,17 @@
+# Niri recovery
+
+Choose Niri at login on Tops. Its packaged systemd graphical session owns runtime
+service shutdown. session-start imports native environment and starts one bounded
+shell service, watchers and packaged polkit. No globally enabled shell affects
+COSMIC. Recovery Kitty/focus/close bindings are entirely compositor-native.
+`scripts/shell-start` and `scripts/doctor` recover/diagnose UI independently.
+Session exit uses native Niri quit. A full logout/login was not forced during this
+migration because user applications are open.
+
+Deployment validates KDL before publish and retains the durable original-config
+backups. Restore returns all owned paths, including both compositor configs if
+both were installed. The notes below cover secondary Hyprland lifecycle.
+
 # Recovery and login
 
 Prefer **Hyprland (UWSM)** at the physical login screen. Current session remains

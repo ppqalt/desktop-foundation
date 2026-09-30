@@ -39,11 +39,20 @@ def save_image(image, config):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--backend', default=os.environ.get('DF_COMPOSITOR', 'hyprland'))
+    parser.add_argument('--backend', default=os.environ.get('DF_COMPOSITOR', 'niri'))
     parser.add_argument('action', choices=['region', 'window', 'output'])
     args = parser.parse_args()
+    if args.backend == 'niri':
+        mapping = {'region': 'screenshot', 'window': 'screenshot-window', 'output': 'screenshot-screen'}
+        try:
+            command = ['niri', 'msg', 'action', mapping[args.action]]
+            if args.action != 'window': command += ['--show-pointer', 'false']
+            return subprocess.run(command, check=True).returncode
+        except (OSError, subprocess.SubprocessError) as error:
+            print(f'Screenshot: {error}', file=sys.stderr)
+            return 1
     if args.backend != 'hyprland':
-        parser.error(f'{args.backend} screenshot backend is not implemented; Niri native actions are planned')
+        parser.error(f'{args.backend} screenshot backend is not implemented')
     from screenshot_backends import hyprland
     os.umask(0o077)
     try:

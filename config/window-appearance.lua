@@ -30,6 +30,6 @@ return {
         activeBorder = "#485669",
         inactiveBorder = "#2b323d",
     },
-    opacity = { active = 0.97, inactive = 0.97, fullscreen = 1.0 },
+    opacity = { active = 0.90, inactive = 0.90, fullscreen = 1.0 },
     fullscreen = { decorated = false },
 }

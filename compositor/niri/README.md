@@ -1,3 +1,6 @@
-# Future Niri integration
+# Primary Niri backend
 
-Planning only; no Niri implementation. Replace the adapter selected in shell/shell.qml with a Niri implementation of docs/compositor-interface.md. Use Niri event-stream IPC, maintain compositor-native workspace/window IDs as opaque strings, and preserve capability differences. Do not assume fixed numbered workspaces, Hyprland addresses, or identical scrolling semantics. Niri overview belongs to the compositor capability; a future shell overview would be a separate on-demand surface.
+Native configuration and bindings live here; deployment renders shared input and
+visual intent into the installed KDL wrapper. Optional host KDL belongs in profiles.
+The real event-driven adapter is shell/adapters/niri/Adapter.qml. See
+../../docs/niri-port.md and ../../docs/niri-validation.md for semantics and limits.

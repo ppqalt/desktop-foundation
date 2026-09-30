@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ -S ${NIRI_SOCKET:-} ]]; then
+	exec niri msg action quit
+fi
 if uwsm check is-active hyprland.desktop; then
 	exec uwsm stop
 fi

@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-case ${DF_COMPOSITOR:-hyprland} in
+case ${DF_COMPOSITOR:-niri} in
+niri)
+	[[ -S ${NIRI_SOCKET:-} ]] || {
+		echo "Niri socket unavailable" >&2
+		exit 1
+	}
+	;;
 hyprland)
 	[[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] || {
 		echo 'Hyprland environment unavailable' >&2
@@ -13,7 +19,7 @@ hyprland)
 	}
 	;;
 *)
-	echo 'Unsupported compositor; Niri is a documented future adapter.' >&2
+	echo 'Unsupported compositor.' >&2
 	exit 1
 	;;
 esac

@@ -7,7 +7,7 @@ mkdir -p "$(dirname "$unit")"
 escaped=${root//%/%%}
 escaped=${escaped//\\/\\\\}
 escaped=${escaped//\"/\\\"}
-printf '[Unit]\nDescription=Desktop foundation shell\nPartOf=graphical-session.target\nStartLimitIntervalSec=60\nStartLimitBurst=3\nConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE\n[Service]\nType=simple\nExecStart="%s/scripts/run-shell"\nRestart=on-failure\nRestartSec=1\n' "$escaped" >"$unit.tmp"
+printf '[Unit]\nDescription=Desktop foundation shell\nPartOf=graphical-session.target\nStartLimitIntervalSec=60\nStartLimitBurst=3\nConditionEnvironment=WAYLAND_DISPLAY\n[Service]\nType=simple\nExecStart="%s/scripts/run-shell"\nRestart=on-failure\nRestartSec=1\n' "$escaped" >"$unit.tmp"
 mv "$unit.tmp" "$unit"
 systemctl --user daemon-reload
 if ! systemctl --user is-active --quiet desktop-foundation-shell.service; then

@@ -1,33 +1,28 @@
 # Small compositor interface
 
-The composition root chooses an adapter and injects it into surfaces. Only shell/adapters/hyprland may import Quickshell.Hyprland. Components must not import it or interpret native IDs. Backend selection is currently explicit at the composition root; add a configuration-selected loader when a second backend exists.
+The shell root loads one adapter and injects normalized state into shared surfaces.
+Default `DF_COMPOSITOR` is niri; hyprland explicitly selects the retained backend.
+Only adapter-local code interprets native IDs or executes native operations.
 
-`ready`, `backend`, `capabilities`; reactive `focusedWindow`, `activeWorkspace`, `windows`, `workspaces`. Window records: opaque string `id`, `title`, `appId`, `focused`, nullable `workspaceId`. Workspace records: opaque string `id`, `name`, `active`, `focused` (activeWorkspace contains id/name). No promise of stable IDs across sessions. Null focus and disappearing objects are normal. The adapter initializes Quickshell's standard Wayland toplevel subscription for initial focus and normalizes its native Hyprland event-driven models into records; bindings track property changes, with no timer refresh or subprocess loop.
+Reactive properties: ready, backend, capabilities, outputs, workspaces, windows,
+focusedWindow, activeWorkspace/focusedWorkspace. IDs are opaque strings and are
+not stable across sessions. Workspace records include name/index/output/active/focus;
+window records include app/title/workspace/output/focus, nullable geometry and
+nullable fullscreen/maximized/floating/urgent state. Null focus and cross-resource
+ordering during removal are normal. Never infer fullscreen from window size.
 
-Requests: `focusWindow(id)`, `closeWindow(id)`, `focusWorkspace(id)`, `moveWindow(id, workspaceId)`. These are asynchronous compositor requests, not confirmation that the operation succeeded; observe the resulting state. IDs must come from current records. Hyprland Lua requests use validated selectors, never interpolate titles or untrusted commands. `toggleOverview()` returns false when unsupported; `capabilities.nativeOverview` is false here. This does not invent an overview UI.
+Asynchronous requests: focus/close window, focus workspace, move window to stable
+workspace ID, window/workspace output moves, explicit floating state, direction
+focus/movement, overview toggle, column width cycle/centering/maximize, fullscreen
+toggle and screenshot region/window/output. Observe events to confirm results.
+Check capabilities before optional requests. Niri fullscreen/maximized state is
+unavailable in 26.04 IPC, so those fields are null and idempotent setters return
+false. Its native maximize action is a column operation. Hyprland retains its
+native state/setters and advertises no native overview.
 
-Niri needs its own event subscription and model normalization. Preserve its dynamic workspace IDs and native overview capabilities rather than forcing Hyprland semantics. Add error/result handling when a real interaction surface requires it.
-
-## Hardened records and requests
-
-IDs are opaque strings. Outputs carry id/name/label, logical geometry, scale,
-focused and workspaceId. Workspaces carry id/name/outputId, active/focused.
-Windows carry id/title/appId/workspaceId/outputId, geometry and nullable state
-(fullscreen/maximized/floating/urgent). Focus may be null on an empty workspace or
-when no application is focused. Placeholder outputs are excluded. Snapshots of
-native window state refresh only on relevant events, coalesced per event-loop turn.
-`DF_DEBUG_EVENTS=1` enables a cheap raw-event count exposed over diagnostic IPC;
-it is disabled by default and never installs a logging timer.
-
-Requests include focus/close/move window, focus workspace, explicit fullscreen,
-maximize and floating state, direction focus, window/workspace output moves.
-Selectors are validated in the adapter before native dispatch. `scrollColumns`
-is a Hyprland extension that navigates columns by focus; no free viewport-offset
-contract is invented. Capabilities must be checked before optional operations.
-Lazy probe lifetime counters measure actual object construction/destruction.
-
-Screenshot requests: screenshotRegion(), screenshotWindow(), screenshotOutput(),
-with corresponding capabilities. They are on-demand asynchronous requests;
-backends own capture UX and native implementation. The common shell root only
-forwards requests. Save-path intent lives in config/screenshots.toml. No common
-QML code assumes grim/slurp or a particular screenshot buffer transport.
+Niri's EventStream supplies initial and incremental state, with one-shot reconnect
+backoff only on failure. Output requests coalesce on relevant events. Action requests
+use a bounded separate FIFO. Hyprland uses native Quickshell event subscriptions
+and coalesced relevant refreshes. No periodic resident subprocess/state poll exists.
+Niri layout and focus timestamps remain namespaced under `niri` in window records.
+Screenshot UX/storage is backend-owned, using common config path intent.

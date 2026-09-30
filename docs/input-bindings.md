@@ -1,4 +1,31 @@
-# Finnish input and iNiR/FEN bindings
+# Finnish input and Niri reference bindings
+
+Shared keyboard settings live in `config/input.lua`, independently of machine
+monitor/GPU overrides. Both native backends use fi, repeat rate 35 and delay 350.
+Niri binds are in `compositor/niri/bindings.kdl`.
+
+| Binding | Niri behavior |
+|---|---|
+| Super+Tab / Space / V | Native overview / launcher / clipboard |
+| Super+comma / Shift+7 / Shift+Q | Reserved controls / cheatsheet / power menu |
+| Super+T or Enter / E / W | Kitty / default file manager / default browser |
+| Super+Q / D / F / A | Close / maximize column / fullscreen / floating |
+| Super+R / C | Cycle 1/3, 1/2, 2/3 column width / center column |
+| Super+arrows or HJKL | Native column/window focus |
+| Super+Shift+arrows or HJKL | Move column/window |
+| Super+1..9 / Ctrl+1..9 | Focus workspace index / move window to workspace |
+| Super+Shift+S / Print | Native region screenshot / current output |
+| PageUp / PageDown | Audio +3% / −3% |
+
+Finnish slash is Shift+7, evdev key 8. The reserved Super+Shift+7 chord is
+explicit, and workspace movement uses Ctrl rather than conflicting Shift.
+Niri's native `always-center-single-column` handles all single-column transitions;
+multiple tiled windows in one column remain centered as a column.
+
+The following is historical Hyprland validation; its secondary bindings remain
+supported and have different native maximization/width semantics.
+
+## Hyprland compatibility history
 
 Shared keyboard preferences live in `compositor/hyprland/input.lua`: `kb_layout = "fi"`, with symbol-based resolution enabled. They load before host profiles. `profiles/*/input.lua` is reserved for optional device overrides; monitor/GPU files do not select keyboard layout. This setting follows the shared checkout to lucky38. The original iNiR/FEN files were not present on Tops; this port follows the explicit binding list supplied by the user, with system-default applications.
 

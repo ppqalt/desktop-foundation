@@ -15,11 +15,17 @@ python3 -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for f
 for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
 cargo clippy --version
 python3 - <<'PYTHON'
-import importlib.util, pathlib, subprocess, tempfile
+import importlib.util, pathlib, subprocess, tempfile, sys
+sys.path.insert(0, "scripts")
 spec = importlib.util.spec_from_file_location("deploy", "scripts/deploy.py")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
+from render_niri import render
 for profile in ["default", "Tops", "missing-profile"]:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".kdl") as niri_candidate:
+        niri_candidate.write(render(m.ROOT, profile))
+        niri_candidate.flush()
+        subprocess.run(["niri", "validate", "-c", niri_candidate.name], check=True)
     with tempfile.NamedTemporaryFile(mode="w", suffix=".lua") as f:
         f.write(f"FOUNDATION_ROOT={m.lua_string(m.ROOT)}\nFOUNDATION_PROFILE={m.lua_string(profile)}\ndofile(FOUNDATION_ROOT .. '/compositor/hyprland/hyprland.lua')\n")
         f.flush()

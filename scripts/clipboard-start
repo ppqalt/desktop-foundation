@@ -7,7 +7,7 @@ escaped=${escaped//\\/\\\\}
 escaped=${escaped//\"/\\\"}
 unit=${XDG_RUNTIME_DIR:?}/systemd/user/desktop-foundation-clipboard@.service
 mkdir -p "$(dirname "$unit")"
-printf '[Unit]\nDescription=Clipboard history (%%i)\nPartOf=graphical-session.target\nStartLimitIntervalSec=60\nStartLimitBurst=3\nConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE\n[Service]\nExecStart="%s/scripts/clipboard-watch" %%i\nRestart=on-failure\nRestartSec=1\nUMask=0077\n' "$escaped" >"$unit.tmp"
+printf '[Unit]\nDescription=Clipboard history (%%i)\nPartOf=graphical-session.target\nStartLimitIntervalSec=60\nStartLimitBurst=3\nConditionEnvironment=WAYLAND_DISPLAY\n[Service]\nExecStart="%s/scripts/clipboard-watch" %%i\nRestart=on-failure\nRestartSec=1\nUMask=0077\n' "$escaped" >"$unit.tmp"
 mv "$unit.tmp" "$unit"
 systemctl --user daemon-reload
 systemctl --user start desktop-foundation-clipboard@text.service desktop-foundation-clipboard@image.service

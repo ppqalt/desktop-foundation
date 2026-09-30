@@ -1,83 +1,42 @@
-# Future Niri adapter
+# Niri primary implementation
 
-No Niri implementation is included. Studied 2026-09-30 against the upstream
-[IPC guide](https://github.com/niri-wm/niri/wiki/IPC) and
-[niri-ipc types](https://niri-wm.github.io/niri/niri_ipc/).
+Implemented and tested against installed Niri 26.04 on Tops. Niri is now the
+behavioral reference; Hyprland remains a separate supported secondary backend.
+The common UI and visual tokens are shared without a Niri-specific fork.
 
-Use `$NIRI_SOCKET`, newline-delimited JSON requests and Ok/Err replies. A dedicated
-EventStream connection supplies initial state then incremental changes. Reconnect
-with a new initial stream after socket loss; clear readiness and focus immediately.
-Ignore unknown additive fields/events and preserve nullable fields. Resource changes
-are not transactional: a window can temporarily refer to a removed workspace.
-Never guess an output or focus target in that interval.
+`compositor/niri/config.kdl` includes native bindings. `scripts/render_niri.py`
+renders shared Finnish input and visual intent into the deployed wrapper, with
+optional host KDL. `always-center-single-column` centers one tiled column, while
+`center-focused-column "on-overflow"` supplies normal multi-column scrolling.
+Floating windows are excluded from the tiled column count by Niri itself.
 
-| Common contract | Niri mapping | Hyprland difference |
-|---|---|---|
-| Output | name as opaque ID; logical geometry/scale | numeric monitor ID; filter pending placeholder monitors |
-| Workspace | stable `id`, optional `name`, `output`, active/focused | named/special workspaces are backend extensions |
-| Window | id, title, app_id, workspace_id, is_focused/floating/urgent, layout | hex address and native fullscreen/maximized snapshot |
-| Focus | WindowFocusChanged nullable id; WorkspaceActivated.focused | separate native/Wayland initial focus and empty workspace handling |
-| Window move | MoveWindowToWorkspace with WorkspaceReferenceArg::Id | never use Niri idx as stable identity |
-| Output move | MoveWindowToMonitor / MoveWorkspaceToMonitor | monitor selector stays adapter-local |
-| Close/fullscreen | CloseWindow / FullscreenWindow actions | Niri fullscreen request semantics must be checked before exposing set operation |
-| Floating | MoveWindowToFloating / MoveWindowToTiling | explicit requests rather than blind toggle |
-| Maximize | unsupported common state/request unless exact equivalent added | MaximizeColumn is a column operation, not window maximize |
-| Direction/scroll | focus-column/window actions | direction translation is layout-aware |
+`shell/adapters/niri/Adapter.qml` uses two native Quickshell sockets. EventStream
+provides initial windows/workspaces and incremental focus, layout, urgency,
+keyboard and overview changes. A separate bounded FIFO request connection sends
+native actions and output snapshots. Relevant config/workspace events coalesce
+output requests. Disconnect clears readiness and state and starts a one-shot
+backoff retry; no periodic state poll runs during normal operation.
 
-WorkspacesChanged and WindowsChanged replace complete collections. Apply
-WindowOpenedOrChanged, WindowClosed, WindowFocusChanged, WorkspaceActivated,
-WorkspaceActiveWindowChanged, WindowLayoutsChanged and urgency updates incrementally.
-Outputs may require a request refreshed by output/config events; assess supported
-versions rather than assume an output snapshot event exists. Capabilities advertise
-only implemented requests, with explicit false/unsupported results elsewhere.
+Output names are opaque IDs; workspace IDs are stable native IDs, distinct from
+changing workspace indices. Windows retain nullable native fields, including
+geometry coordinates unavailable for tiled windows. Native `FullscreenWindow` is
+a toggle. Niri 26.04 IPC does not expose authoritative fullscreen/maximized window
+state, so those normalized fields are null and idempotent setters advertise false.
+Floating state and explicit tiling/floating requests are implemented. Maximize is
+`MaximizeColumn`, not a guessed window maximize flag. Overview, column widths,
+centering, directional focus/movement and stable-ID workspace moves use native
+Niri actions. Screenshot actions delegate directly to native screenshot,
+screenshot-window and screenshot-screen, including disk/clipboard ownership.
 
-Niri-only extensions: dynamic workspace index, columns/tiles, column width and
-full-width state, view offset, consume/expel window, named workspaces and overview.
-Hyprland-only extensions: special workspace, client/internal fullscreen divergence,
-window groups, scrolling layout dispatch strings. Keep these namespaced, never in
-surface code. Both backends expose focus/navigation and optional column-centering/
-width requests behind capability checks; the common model does not invent columns
-for all compositors.
+Native blur, corner geometry, shadow and border properties implement shared visual
+intent. Shadow softness is not numerically equivalent to Hyprland's range/falloff.
+Xray blur samples only background layers, ignoring other windows. There is no
+wallpaper process in the foundation yet; flat gray supplies no visible blur detail.
+Popup blur remains disabled to protect client menu shapes. Niri's normal opacity
+also applies to popup surfaces. Kitty gets compositor opacity 1 and native
+background alpha from the shared value, preserving its glyph opacity.
 
-Future implementation must test initial stream, disconnect/reconnect, unknown
-variants, null focus, cross-resource ordering and workspace reindexing. No Rust
-daemon is currently justified: direct event-driven QML integration remains the
-first option; use a small bridge only if runtime socket parsing demands it.
-
-## Screenshot actions
-
-| Logical action | Hyprland implementation | Planned Niri native implementation |
-|---|---|---|
-| screenshotRegion() | slurp rectangle, grim region | screenshot interactive UI |
-| screenshotWindow() | grim crop of visible focused-window geometry | screenshot-window |
-| screenshotOutput() | grim focused output | screenshot-screen |
-
-Translate config/screenshots.toml directory/name intent into Niri screenshot-path.
-Prefer Niri's built-in disk and clipboard behavior; do not require it to return an
-image to the Hyprland pipeline. Super+Shift+S selects a region and Print captures
-the focused output. Window capture has no extra binding. Check native options and
-cancellation behavior against the chosen Niri version before advertising support.
-
-## Window design intent
-
-config/window-appearance.lua is pure data, separate from Hyprland appearance.lua.
-Translate its graphite palette, 14 px corners, soft active/inactive depth, 1 px
-muted focus edge and opaque/readable content into Niri's native decoration model.
-Do not copy Hyprland rule selectors, fullscreen integer states or blur commands.
-Native shadow color/inactive-color, softness/spread/offset and focus-ring/border
-are the first mappings. Hyprland range/falloff is not a numerical equivalent of
-Niri softness; judge visual results. Niri focus rings can denote an active window
-on each monitor, so check keyboard focus versus output-active semantics on a real
-multi-output setup. Avoid dimming all windows on an unfocused output accidentally.
-
-Use geometry-corner-radius plus appropriate clip-to-geometry behavior, keeping
-client decoration and transparent corner shapes in mind. Disable unnecessary
-fullscreen decoration with native rules. Inspect popup margin treatment natively,
-not by transplanting the Hyprland floating-XWayland blur exclusion wholesale.
-Niri's 26.04 documentation adds background effects and ext-background-effect for
-windows/layers, with global blur passes/offset/noise/saturation. Verify the deployed
-version before implementing this. Older versions may lack background blur; report
-that capability rather than introducing an emulation daemon. Native effects should
-honor app-provided shapes and avoid solid focus-ring backgrounds covering glass.
-Shared strength is a visual intent; Hyprland currently maps it to kernel radius,
-not a blur-alpha control. No focus-dependent blur kernel is requested.
+Use [Niri IPC](https://github.com/niri-wm/niri/wiki/IPC),
+[26.04 IPC definitions](https://github.com/niri-wm/niri/blob/v26.04/niri-ipc/src/lib.rs),
+[native layout](https://niri-wm.github.io/niri/Configuration%3A-Layout.html) and
+[window effects](https://niri-wm.github.io/niri/Window-Effects.html).

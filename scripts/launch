@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ ${1##*/} == kitty ]] && [[ " $* " != *background_opacity=* ]]; then
+	root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+	opacity=$(lua -e 'print(dofile(arg[1]).opacity.active)' /dev/null "$root/config/window-appearance.lua")
+	program=$1
+	shift
+	set -- "$program" --override "background_opacity=$opacity" "$@"
+fi
+if [[ -S ${NIRI_SOCKET:-} ]]; then
+	exec niri msg action spawn -- "$@"
+fi
 if uwsm check is-active hyprland.desktop; then
 	exec uwsm app -- "$@"
 fi

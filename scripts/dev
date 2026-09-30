@@ -10,6 +10,9 @@ deploy) exec python3 scripts/deploy.py install "$@" ;;
 restore) exec python3 scripts/deploy.py restore "$@" ;;
 reload)
 	"$root/scripts/check"
+	if [[ -S ${NIRI_SOCKET:-} ]]; then
+		exec niri msg action load-config-file
+	fi
 	exec hyprctl reload
 	;;
 bench) exec python3 scripts/bench.py "$@" ;;

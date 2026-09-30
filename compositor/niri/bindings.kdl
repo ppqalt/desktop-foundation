@@ -1,0 +1,57 @@
+// Finnish keysyms: slash = Shift+7. Only one binding consumes that chord.
+binds {
+    "Super+Tab" { toggle-overview; }
+    "Super+Space" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launcher\""; }
+    "Super+V" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/clipboard\""; }
+    "Super+Comma" { spawn "true"; }
+    "Super+Shift+7" { spawn "true"; }
+    "Super+Shift+Q" { spawn "true"; }
+    "Super+T" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launch\" kitty"; }
+    "Super+Return" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launch\" kitty"; }
+    "Super+E" { spawn-sh "xdg-open \"$HOME\""; }
+    "Super+W" { spawn "xdg-open" "about:blank"; }
+    "Super+Q" { close-window; }
+    "Super+D" { maximize-column; }
+    "Super+F" { fullscreen-window; }
+    "Super+A" { toggle-window-floating; }
+    "Super+R" { switch-preset-column-width; }
+    "Super+C" { center-column; }
+    "Super+Left" { focus-column-left; }
+    "Super+Shift+Left" { move-column-left; }
+    "Super+H" { focus-column-left; }
+    "Super+Shift+H" { move-column-left; }
+    "Super+Right" { focus-column-right; }
+    "Super+Shift+Right" { move-column-right; }
+    "Super+L" { focus-column-right; }
+    "Super+Shift+L" { move-column-right; }
+    "Super+Up" { focus-window-up; }
+    "Super+Shift+Up" { move-window-up; }
+    "Super+K" { focus-window-up; }
+    "Super+Shift+K" { move-window-up; }
+    "Super+Down" { focus-window-down; }
+    "Super+Shift+Down" { move-window-down; }
+    "Super+J" { focus-window-down; }
+    "Super+Shift+J" { move-window-down; }
+    "Super+1" { focus-workspace 1; }
+    "Super+Ctrl+1" { move-window-to-workspace 1; }
+    "Super+2" { focus-workspace 2; }
+    "Super+Ctrl+2" { move-window-to-workspace 2; }
+    "Super+3" { focus-workspace 3; }
+    "Super+Ctrl+3" { move-window-to-workspace 3; }
+    "Super+4" { focus-workspace 4; }
+    "Super+Ctrl+4" { move-window-to-workspace 4; }
+    "Super+5" { focus-workspace 5; }
+    "Super+Ctrl+5" { move-window-to-workspace 5; }
+    "Super+6" { focus-workspace 6; }
+    "Super+Ctrl+6" { move-window-to-workspace 6; }
+    "Super+7" { focus-workspace 7; }
+    "Super+Ctrl+7" { move-window-to-workspace 7; }
+    "Super+8" { focus-workspace 8; }
+    "Super+Ctrl+8" { move-window-to-workspace 8; }
+    "Super+9" { focus-workspace 9; }
+    "Super+Ctrl+9" { move-window-to-workspace 9; }
+    "Super+Shift+S" { screenshot show-pointer=false; }
+    "Print" { screenshot-screen show-pointer=false; }
+    "Page_Up" { spawn "wpctl" "set-volume" "-l" "1" "@DEFAULT_AUDIO_SINK@" "3%+"; }
+    "Page_Down" { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "3%-"; }
+}

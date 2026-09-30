@@ -1,13 +1,32 @@
 # Deployment and rollback
 
-From the checkout: `scripts/deploy.py install --profile Tops`, then `hyprctl reload`. Use `default` on another host or add a complete host profile. The deployment verifier runs before changing config. Installation modifies exactly:
+Default on Tops: `scripts/deploy.py install --compositor niri --profile Tops`.
+For another host use `default` or an optional host profile. Hyprland remains
+selectable with `--compositor hyprland`. Selection installs configuration, not a
+new running session. Choose the compositor at physical login.
 
-- `$XDG_CONFIG_HOME/hypr/hyprland.lua` (defaults to ~/.config): a link to the generated wrapper.
-- `$XDG_CONFIG_HOME/quickshell/desktop-foundation`: a link to the repository shell.
-- `$XDG_STATE_HOME/desktop-foundation` (defaults to ~/.local/state): wrapper, lock, manifest and renamed original-path backups.
+The Niri installer validates native KDL then atomically publishes a wrapper in
+`$XDG_STATE_HOME/desktop-foundation/niri.kdl` and links
+`$XDG_CONFIG_HOME/niri/config.kdl` to it. Hyprland validates Lua and owns only
+`hypr/hyprland.lua`. Both share one `quickshell/desktop-foundation` link. Config
+and state default to ~/.config and ~/.local/state. No whole directory is replaced.
+Installing another backend preserves the first backend's manifest and original
+backups. Config paths modified outside deployment are refused.
 
-No config directory is replaced wholesale. Existing files/links at those two paths are backed up. Repeated installs preserve the original backups; changed deployed paths cause a clear error. Operations serialize with a lock. The backup manifest stays outside Git. `scripts/deploy.py restore` removes only owned links and puts originals back; it refuses conflicting replacement paths. Run `hyprctl reload` afterward. Stop the foundation Quickshell instance with `quickshell kill --path "$PWD/shell"`. Do not move/remove a deployed checkout without restoring first. Changes in linked repository files are live; run checks before editing/deploying.
+Original files/links are renamed into durable backups, with write-ahead manifest,
+inode identity and exclusive lock. `scripts/deploy.py restore` restores **all**
+foundation-owned config paths, not just one backend. It refuses foreign replacements.
+Never delete the manifest/backups or move a deployed checkout without restoring.
+Niri watches config changes; `scripts/reload` validates and explicitly reloads the
+active compositor. Switching sessions does not require restoring the other config.
 
-`scripts/bootstrap` is optional on Tops: it installs missing packages with pacman's full-upgrade operation (avoiding a partial upgrade), selects Rust stable and installs rustfmt, Clippy and rust-analyzer. It needs interactive sudo when packages are missing. It does not deploy configs or touch COSMIC. No packages are removed. It modifies package/toolchain state and downloads Rust tools to the standard rustup directories.
+`session-start` is invoked at Niri startup, imports native session environment,
+starts the packaged polkit agent and runtime-only shell/clipboard services. Run it
+manually after deploying into an existing session. Niri manages XWayland through
+xwayland-satellite and its systemd graphical session; no extra satellite startup is
+added. The stock Niri portal preference selects GNOME and GTK. No portal preference
+or login-manager configuration is replaced. COSMIC remains untouched.
 
-The phase-one deployment/startup does not globally enable polkit, change login-manager configuration, remove COSMIC, change portal preferences, or install new system services. `session-start` exports the active unmanaged Hyprland display/desktop variables to DBus and the user systemd manager (UWSM handles this for managed sessions), then starts the packaged polkit user service and one invisible Quickshell instance. UWSM tracks its child applications and graphical-session lifecycle. The unmanaged path supports temporary testing; use the documented exit binding so its shell/polkit are cleaned up. A killed unmanaged compositor may require manual cleanup of its user services.
+`bootstrap` installs genuinely missing packages using a full pacman upgrade when
+needed; it never removes COSMIC/Hyprland. Required Niri packages already existed
+on Tops during this migration, so no package installation was necessary.

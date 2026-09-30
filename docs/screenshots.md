@@ -1,3 +1,17 @@
+# Niri-native screenshots
+
+Niri is the default backend. Super+Shift+S opens native region selection; Escape
+cancels and Enter confirms. Print captures the current output. The adapter exposes
+screenshotRegion, screenshotWindow and screenshotOutput directly through Niri IPC.
+Niri owns PNG saving and clipboard copying. The shared driver supports the same
+logical actions: `scripts/screenshot --backend niri region|window|output`.
+
+Deployment translates config/screenshots.toml to native screenshot-path. Niri
+strftime filenames use seconds (Python %f is omitted); native file permissions and
+collision handling belong to Niri, rather than the Hyprland atomic storage driver.
+No resident capture worker is added. Hyprland's original grim/slurp pipeline and
+its stricter storage behavior remain unchanged below.
+
 # On-demand screenshots
 
 Super+Shift+S selects an arbitrary rectangular region with slurp. Escape cancels
@@ -29,14 +43,6 @@ IDs and active-window geometry. Window capture is a screen crop of the visible
 focused window on its owning output, so overlapping surfaces are included and
 scrolled-off columns are clipped. It does not extract hidden window buffers.
 Output and window snapshots are queried once per capture; there is no polling.
-
-Niri is planned, not implemented. Its backend should dispatch native screenshot,
-screenshot-window and screenshot-screen actions and translate the shared path
-intent into screenshot-path. Native Niri capture already owns selection, disk
-saving and clipboard copying; it must bypass the Hyprland capture/storage pipeline
-rather than pretending to produce a grim image. Confirm options against the target
-Niri release. See upstream [screenshot actions](https://github.com/niri-wm/niri/blob/main/docs/wiki/Configuration%3A-Key-Bindings.md)
-and [path configuration](https://github.com/niri-wm/niri/blob/main/resources/default-config.kdl).
 
 Basic live smoke check, without expanding the automated test suite: actual
 Super+Shift+S selection and cancellation, Print output capture, direct window

@@ -13,13 +13,14 @@ def run(*args):
 
 def main():
     failures = []
-    for binary in ['Hyprland', 'hyprctl', 'uwsm', 'quickshell', 'kitty', 'wl-copy', 'wl-paste', 'grim', 'slurp', 'jq', 'dbus-update-activation-environment']:
+    niri = bool(os.environ.get("NIRI_SOCKET"))
+    for binary in ['Hyprland', 'hyprctl', 'uwsm', 'quickshell', 'kitty', 'wl-copy', 'wl-paste', 'grim', 'slurp', 'jq', 'dbus-update-activation-environment', 'niri', 'xwayland-satellite']:
         if not shutil.which(binary):
             failures.append(f'Missing {binary}: run scripts/bootstrap')
-    for variable in ['WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']:
+    for variable in ['WAYLAND_DISPLAY', 'NIRI_SOCKET' if niri else 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']:
         if not os.environ.get(variable):
-            failures.append(f'Missing {variable}: run from the Hyprland session')
-    for unit in ['pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', 'xdg-desktop-portal-hyprland', 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard@text', 'desktop-foundation-clipboard@image']:
+            failures.append(f'Missing {variable}: run from the active compositor session')
+    for unit in ['pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', *(['xdg-desktop-portal-gnome', 'xdg-desktop-portal-gtk'] if niri else ['xdg-desktop-portal-hyprland']), 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard@text', 'desktop-foundation-clipboard@image']:
         code, state = run('systemctl', '--user', 'is-active', unit + '.service')
         print(f'{unit}: {state}')
         if code:
@@ -33,19 +34,40 @@ def main():
                 failures.append('Expected one shell instance: scripts/shell-stop then scripts/shell-start')
         except json.JSONDecodeError:
             failures.append('Unable to parse Quickshell instance list')
-    code, keyboards = run('hyprctl', '-j', 'devices')
-    if not code:
-        devices = json.loads(keyboards)['keyboards']
-        print('Keyboard layouts:', ', '.join(sorted({k['active_keymap'] for k in devices})))
-        if not devices or any(k['active_keymap'] != 'Finnish' for k in devices):
-            failures.append('Finnish layout not active on every keyboard: scripts/reload; check per-device overrides')
+    if niri:
+        code, reply = run('niri', 'msg', '-j', 'outputs')
+        if code:
+            failures.append('Niri IPC unavailable: check NIRI_SOCKET')
+        config = str(__import__('pathlib').Path.home() / '.config/niri/config.kdl')
+        code, errors = run('niri', 'validate', '-c', config)
+        if code:
+            failures.append('Niri config validation failed: ' + errors)
+        code, status = run('quickshell', 'ipc', '--path', str(__import__('pathlib').Path(__file__).resolve().parent.parent / 'shell'), 'call', 'foundation', 'status')
+        try:
+            state = json.loads(status)
+            layout = state['backendDiagnostics']['keyboardLayouts']
+            print('Keyboard layouts:', layout)
+            if not state['ready'] or state['backend'] != 'niri' or state['backendDiagnostics']['configFailed']:
+                failures.append('Niri adapter not ready or config failed')
+            if not layout or not any('Finnish' in name for name in layout.get('names', [])):
+                failures.append('Finnish keyboard layout not reported by Niri')
+        except (ValueError, KeyError, TypeError):
+            failures.append('Niri shell diagnostics unavailable')
+        print('Session: Niri primary/reference')
     else:
-        failures.append('Hyprland IPC unavailable: inspect session environment; shell failure must not restart compositor')
-    code, _ = run('uwsm', 'check', 'is-active', 'hyprland.desktop')
-    print('Session:', 'UWSM managed' if not code else 'direct; select Hyprland (UWSM) at next physical login')
-    code, errors = run('hyprctl', 'configerrors')
-    if code or errors:
-        failures.append('Config errors: ' + errors)
+        code, keyboards = run('hyprctl', '-j', 'devices')
+        if not code:
+            devices = json.loads(keyboards)['keyboards']
+            print('Keyboard layouts:', ', '.join(sorted({k['active_keymap'] for k in devices})))
+            if not devices or any(k['active_keymap'] != 'Finnish' for k in devices):
+                failures.append('Finnish layout not active on every keyboard: scripts/reload; check per-device overrides')
+        else:
+            failures.append('Hyprland IPC unavailable: inspect session environment; shell failure must not restart compositor')
+        code, _ = run('uwsm', 'check', 'is-active', 'hyprland.desktop')
+        print('Session:', 'UWSM managed' if not code else 'direct; select Hyprland (UWSM) at next physical login')
+        code, errors = run('hyprctl', 'configerrors')
+        if code or errors:
+            failures.append('Config errors: ' + errors)
     for message in failures:
         print('FAIL:', message)
     print('HEALTHY' if not failures else f'{len(failures)} issue(s)')
