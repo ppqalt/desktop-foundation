@@ -19,7 +19,7 @@ Current values:
 | Soft shadow | #080b10, range 18 px, downward offset 5 px, falloff power 3 |
 | Active / inactive shadow opacity | 0.42 / 0.12 |
 | Focus edge | 1 px, active #485669 / inactive #2b323d |
-| Active / inactive / fullscreen window opacity | 1.0 / 1.0 / 1.0 |
+| Active / inactive / fullscreen window opacity | 0.97 / 0.97 / 1.0 |
 | Inactive dim | 0.0 (disabled) |
 | Fullscreen | no compositor border, shadow or rounded clipping |
 
@@ -72,3 +72,10 @@ options explicit rather than adding a Hyprland emulation process. See
 [Hyprland decoration options](https://wiki.hypr.land/0.56.0/Configuring/Basics/Variables/),
 [Niri layout and shadows](https://github.com/niri-wm/niri/blob/main/docs/wiki/Configuration%3A-Layout.md)
 and [Niri window effects](https://github.com/niri-wm/niri/wiki/Window-Effects).
+
+First live translucency trial: normal active and inactive windows now both use
+0.97 opacity so opaque app backgrounds expose the existing blur. A finite blur
+on/off comparison on real ChatGPT and Kitty backgrounds confirms the blur
+changes their rendered pixels. Fullscreen remains 1.0, and popup safeguards are
+unchanged. Native application-background transparency tuning is a later step;
+this trial deliberately changes only the normal-window opacity.
