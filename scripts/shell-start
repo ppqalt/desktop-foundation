@@ -13,5 +13,7 @@ systemctl --user daemon-reload
 if ! systemctl --user is-active --quiet desktop-foundation-shell.service; then
 	quickshell kill --path "$root/shell" >/dev/null 2>&1 || true
 fi
-systemctl --user reset-failed desktop-foundation-shell.service || true
+if systemctl --user is-failed --quiet desktop-foundation-shell.service; then
+	systemctl --user reset-failed desktop-foundation-shell.service
+fi
 systemctl --user start desktop-foundation-shell.service

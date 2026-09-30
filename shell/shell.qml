@@ -7,6 +7,18 @@ import "surfaces"
 
 ShellRoot {
     id: root
+    property bool launcherEnabled: false
+    property bool launcherAlive: false
+    readonly property Launcher launcher: launcherLoader.item as Launcher
+    readonly property var launcherScreen: Quickshell.screens.find(s => s.name === compositorBackend.outputs.find(o => o.focused)?.name) ?? Quickshell.screens[0]
+    LazyLoader {
+        id: launcherLoader
+        active: root.launcherEnabled
+        Launcher {
+            lifecycle: root
+            targetScreen: root.launcherScreen
+        }
+    }
     property bool probeEnabled: false
     property bool probeAlive: false
     property int probeCreations: 0
@@ -24,6 +36,33 @@ ShellRoot {
     }
     IpcHandler {
         target: "foundation"
+        function toggleLauncher(): void {
+            if (root.launcherEnabled && !root.launcher.closing)
+                root.launcher.dismiss();
+            else if (root.launcherEnabled)
+                root.launcher.present();
+            else
+                root.launcherEnabled = true;
+        }
+        function showLauncher(): void {
+            if (root.launcher)
+                root.launcher.present();
+            else
+                root.launcherEnabled = true;
+        }
+        function hideLauncher(): void {
+            if (launcherLoader.item)
+                root.launcher.dismiss();
+        }
+        function launcherQuery(query: string): void {
+            if (launcherLoader.item)
+                root.launcher.setQuery(query);
+        }
+        function launcherStatus(): string {
+            return JSON.stringify(launcherLoader.item ? root.launcher.snapshot() : {
+                visible: false
+            });
+        }
         function showProbe(): void {
             root.probeEnabled = true;
         }
@@ -32,6 +71,7 @@ ShellRoot {
         }
         function status(): string {
             return JSON.stringify({
+                launcherAlive: root.launcherAlive,
                 ready: compositorBackend.ready,
                 backend: compositorBackend.backend,
                 focusedWindow: compositorBackend.focusedWindow,

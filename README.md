@@ -1,14 +1,14 @@
 # Desktop foundation (temporary name)
 
-A minimal Hyprland + Quickshell/QML foundation for Tops, portable by host profiles and designed for a future Niri adapter. No permanent bar, no production surfaces, no Rust daemon.
+A minimal Hyprland + Quickshell/QML foundation for Tops, portable by host profiles and designed for a future Niri adapter. The first on-demand surface is an application launcher. No permanent bar or Rust daemon. Clipboard implementation awaits visual review.
 
 ```text
 compositor/hyprland/    shared Lua configuration and temporary binds
 compositor/niri/        interface planning only
 shell/adapters/        native compositor integration
 shell/components/      reusable presentation components
-shell/theme/           temporary probe tokens
-shell/surfaces/        removable validation probe only
+shell/theme/           shared graphite/glass design tokens
+shell/surfaces/        lazy application launcher and diagnostic probe
 backend/               justification boundary for future Rust work
 profiles/              hardware, monitor and input configuration
 scripts/               bootstrap, deploy/restore, launch, checks and measurements
@@ -19,7 +19,7 @@ Use the installed **Hyprland (uwsm-managed)** login session for the next login. 
 
 Finnish keyboard layout (`fi`) and your supplied iNiR/FEN bindings are active. Super+T or Super+Enter opens Kitty; Super+Q closes; Super+D maximizes; Super+F enters fullscreen; Super+A toggles floating; Super+R cycles normal tiled-column widths; Super+C centers; Super+arrows navigate. Super+E/W use the default file manager/browser. Shared input lives in compositor/hyprland/input.lua, separately from host monitor/GPU configuration.
 
-Overview, launcher, clipboard, settings, cheatsheet and power-menu chords are reserved and inactive until those surfaces exist. Finnish Super+/ is Super+Shift+7 and cannot move a window to workspace 7. The temporary direct session exit remains Super+Shift+M. See [input and binding details](docs/input-bindings.md) for the complete mapping, supplemental controls and real keyboard-event validation. Upstream appearance/blur/animation defaults remain until visual design begins.
+Super+Space toggles the application launcher. Overview, clipboard, settings, cheatsheet and power-menu chords remain reserved. Finnish Super+/ is Super+Shift+7 and cannot move a window to workspace 7. The temporary direct session exit remains Super+Shift+M. See [input and binding details](docs/input-bindings.md) for the complete mapping, supplemental controls and real keyboard-event validation. The launcher establishes the shared visual language; its blur rule is scoped to its layer.
 
 From this checkout:
 
@@ -41,4 +41,4 @@ Git commits use repository-local `Codex Foundation <codex@localhost>` because no
 
 Foundation hardening: [workflow](docs/workflow.md), [recovery](docs/recovery.md),
 [Niri port plan](docs/niri-port.md). Shared animations now inherit a 300 ms global
-timing with the existing upstream easing. No desktop surface has been implemented.
+timing with the existing upstream easing. See [launcher](docs/launcher.md) for behavior, design and validation.

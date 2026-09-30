@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const code = fs.readFileSync(new URL('../shell/utils/Search.js', import.meta.url), 'utf8').replace('.pragma library', '');
+const ctx = vm.createContext({});
+vm.runInContext(code, ctx);
+const app = (id, name, extra = {}) => ({id, name, command: ['app'], genericName: '', comment: '', keywords: [], noDisplay: false, ...extra});
+const entries = [app('kitty', 'kitty'), app('terminal', 'Console', {genericName:'Terminal emulator'}), app('hidden','Kitty hidden',{noDisplay:true}), app('noexec','Kitty missing',{command:[]}), app('code','Visual Studio Code'), app('network','Network',{comment:'activity connectivity terminal system'})];
+assert.equal(ctx.rank(entries,'kitty')[0].id, 'kitty');
+assert.equal(ctx.rank(entries,' KITTY ').length, 1);
+assert.equal(ctx.rank(entries,'term')[0].id, 'terminal');
+assert.equal(ctx.rank(entries,'vsc')[0].id, 'code');
+assert.equal(ctx.rank(entries,'visual code')[0].id, 'code');
+assert.equal(ctx.rank(entries,'no-such-app').length, 0);
+assert.equal(ctx.rank(entries,'$(touch /tmp/unsafe)').length, 0);
+assert.equal(ctx.rank(entries,'').length, 4);
+console.log('PASS: exact/prefix/keyword/fuzzy/multi-token search, hidden/invalid entries and literal input');
