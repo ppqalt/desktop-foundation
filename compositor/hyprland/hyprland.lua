@@ -14,6 +14,7 @@ for _, name in ipairs({ "hardware", "monitors", "input" }) do
 end
 hl.config({ general = { layout = "scrolling" } })
 dofile(FOUNDATION_ROOT .. "/compositor/hyprland/animations.lua")
+dofile(FOUNDATION_ROOT .. "/compositor/hyprland/surfaces.lua")
 -- Appearance, blur and gaps use upstream defaults until designed.
 local function command(script)
     -- Quote paths for sh, including spaces and single quotes.

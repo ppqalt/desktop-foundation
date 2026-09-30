@@ -2,42 +2,54 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    // TEMPORARY test colors; no desktop visual design selected.
+    // Shared surface language. Clipboard implementation waits for launcher review.
     readonly property var spacing: ({
-            small: 4,
-            medium: 8,
-            large: 16
+            small: 6,
+            medium: 12,
+            large: 24
         })
     readonly property var radii: ({
-            small: 2,
-            medium: 4
+            small: 8,
+            medium: 12,
+            surface: 24
         })
     readonly property var typography: ({
-            family: "",
-            small: 12,
+            family: "Adwaita Sans",
+            mono: "Adwaita Mono",
+            small: 11,
             body: 14,
-            heading: 18
+            heading: 22
         })
     readonly property var timing: ({
             fast: 100,
-            normal: 150,
+            normal: 160,
+            exit: 120,
             compositor: 300
         })
     readonly property int easing: Easing.OutCubic
     readonly property var opacity: ({
-            disabled: 0.5,
-            background: 1.0
+            disabled: 0.45,
+            background: 0.94
         })
-    readonly property int blurRadius: 0
+    readonly property int blurRadius: 8
     readonly property var dimensions: ({
             probeWidth: 440,
-            probeHeight: 100
+            probeHeight: 100,
+            launcherWidth: 640,
+            rowHeight: 62
         })
     readonly property var colors: ({
-            background: "#202020",
-            foreground: "#eeeeee",
-            muted: "#aaaaaa",
-            error: "#ff7777"
+            background: "#ed171b22",
+            elevated: "#222832",
+            foreground: "#eef1f6",
+            muted: "#939eae",
+            subtle: "#616e80",
+            border: "#38414e",
+            accent: "#b8ceee",
+            selected: "#293649",
+            hover: "#222b38",
+            error: "#f1a5a5",
+            scrim: "#50080b10"
         })
     readonly property color testBackground: "#202020"
     readonly property color testForeground: "#eeeeee"
