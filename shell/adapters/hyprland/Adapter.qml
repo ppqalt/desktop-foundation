@@ -1,8 +1,10 @@
 import QtQuick
 import Quickshell.Hyprland
+import Quickshell.Wayland
 
 QtObject {
     id: root
+    readonly property var waylandFocused: ToplevelManager.activeToplevel
     readonly property string backend: "hyprland"
     readonly property bool ready: Hyprland.focusedMonitor !== null
     readonly property var capabilities: ({
@@ -24,7 +26,7 @@ QtObject {
                 id: w.address.startsWith("0x") ? w.address : "0x" + w.address,
                 title: w.title,
                 appId: (w.wayland ? w.wayland.appId : (w.lastIpcObject.class ?? "")),
-                focused: Hyprland.activeToplevel === w,
+                focused: Hyprland.activeToplevel === w || (root.waylandFocused !== null && w.wayland === root.waylandFocused),
                 workspaceId: w.workspace ? String(w.workspace.id) : null
             }))
     readonly property var focusedWindow: windows.find(w => w.focused) ?? null

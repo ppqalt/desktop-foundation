@@ -4,6 +4,12 @@ if uwsm check is-active; then
 	exec uwsm stop
 fi
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-quickshell kill --path "$root/shell"
+instances=$(quickshell list --json --path "$root/shell")
+count=$(jq 'length' <<<"$instances")
+if ((count > 0)); then
+	if ! quickshell kill --path "$root/shell"; then
+		printf 'Quickshell cleanup failed; continuing session exit.\n' >&2
+	fi
+fi
 systemctl --user stop hyprpolkitagent.service
 exec hyprctl dispatch 'hl.dsp.exit()'
