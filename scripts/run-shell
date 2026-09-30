@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+case ${DF_COMPOSITOR:-hyprland} in
+hyprland)
+	[[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] || {
+		echo 'Hyprland environment unavailable' >&2
+		exit 1
+	}
+	hyprctl -j monitors >/dev/null || {
+		echo 'Hyprland IPC unavailable' >&2
+		exit 1
+	}
+	;;
+*)
+	echo 'Unsupported compositor; Niri is a documented future adapter.' >&2
+	exit 1
+	;;
+esac
+exec quickshell --no-duplicate --path "$root/shell"

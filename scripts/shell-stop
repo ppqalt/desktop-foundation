@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+systemctl --user stop desktop-foundation-shell.service
+quickshell kill --path "$root/shell" >/dev/null 2>&1 || true
