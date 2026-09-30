@@ -24,6 +24,10 @@ Arch logo accompanies dynamic machine information. Host hardware is included
 when firmware exposes it; hostname is always reported separately. Disk uses the
 portable root mount, never a machine-specific device name.
 
+Interactive abbreviation `c` expands to `clear`. The native `fast` function
+clears the terminal, then runs `fastfetch`. Both live in the tracked Fish
+configuration and deploy through the same reversible system on either machine.
+
 ## Deployment and rollback
 
 `scripts/deploy` validates and deploys the terminal along with the desktop.

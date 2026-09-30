@@ -4,6 +4,7 @@ if not status is-interactive
 end
 source (path dirname (status filename))/theme.fish
 set -g fish_greeting
+abbr -a -- c clear
 abbr -a -- .. 'cd ..'
 abbr -a -- ... 'cd ../..'
 abbr -a -- gs 'git status --short --branch'
