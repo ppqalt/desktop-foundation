@@ -1,4 +1,4 @@
 # Niri-only wallpaper. Change image here, then run scripts/niri-wallpaper-start.
 # fill preserves aspect ratio and crops excess edges; fit shows the whole image.
-image = "~/Downloads/1228050.png"
+image = "~/.local/share/wallpapers/graphite-blue.png"
 mode = "fill"
