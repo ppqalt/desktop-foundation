@@ -4,7 +4,9 @@ import Quickshell.Io
 
 QtObject {
     id: root
-    readonly property string backendScript: decodeURIComponent(Qt.resolvedUrl("../../scripts/clipboard.py").toString().replace(/^file:\/\//, ""))
+    // Keep external executables as filesystem paths; resolvedUrl blackholes paths
+    // outside the Quickshell config directory. Override only for isolated tests.
+    readonly property string backendScript: Quickshell.env("DF_CLIPBOARD_WORKER") || Quickshell.shellDir + "/../scripts/clipboard.py"
     readonly property string stateDirectory: Quickshell.env("DF_CLIPBOARD_STATE") || (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/desktop-foundation/clipboard"
     property var entries: []
     property bool loading: true

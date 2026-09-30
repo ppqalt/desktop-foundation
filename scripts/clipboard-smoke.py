@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import struct
+import sqlite3
 import subprocess
 import tempfile
 import time
@@ -36,9 +37,11 @@ def main():
     original = run('wl-paste', '--no-newline', '--type', original_type).stdout if original_type else b''
     processes = []
     fd = None
+    mouse_fd = None
+    original_cursor = tuple(map(int, run('hyprctl', 'cursorpos').stdout.decode().strip().split(', ')))
     shell = None
-    def resident(method):
-        return run('quickshell', 'ipc', '--path', str(ROOT / 'shell'), 'call', 'foundation', method).stdout
+    def resident(method, *args):
+        return run('quickshell', 'ipc', '--path', str(ROOT / 'shell'), 'call', 'foundation', method, *args).stdout
     def key(code, mods=()):
         def emit(keycode, value):
             os.write(fd, struct.pack('llHHi', 0, 0, 1, keycode, value))
@@ -48,7 +51,31 @@ def main():
         emit(code, 1); emit(code, 0)
         for modifier in reversed(mods): emit(modifier, 0)
         time.sleep(.15)
+    def move_cursor(x, y, verify=True):
+        run('hyprctl', 'dispatch', f'hl.dsp.cursor.move({{x={round(x)},y={round(y)}}})')
+        time.sleep(.1)
+        current = tuple(map(int, run('hyprctl', 'cursorpos').stdout.decode().strip().split(', ')))
+        if verify:
+            assert abs(current[0] - x) <= 1 and abs(current[1] - y) <= 1
+
+    def click_first(count):
+        monitor = next(m for m in json.loads(run('hyprctl', '-j', 'monitors').stdout) if m['focused'])
+        width, height = monitor['width'] / monitor['scale'], monitor['height'] / monitor['scale']
+        panel_height = min(182 + max(2, min(6, count)) * 66, height - 64)
+        move_cursor(monitor['x'] + width / 2, monitor['y'] + (height - panel_height) / 2 + 157)
+        for value in (1, 0):
+            os.write(mouse_fd, struct.pack('llHHi', 0, 0, 1, 272, value))
+            os.write(mouse_fd, struct.pack('llHHi', 0, 0, 0, 0, 0))
+            time.sleep(.03)
+
     try:
+        mouse_fd = os.open('/dev/uinput', os.O_WRONLY | os.O_NONBLOCK)
+        fcntl.ioctl(mouse_fd, 0x40045564, 1)
+        fcntl.ioctl(mouse_fd, 0x40045564, 2)
+        fcntl.ioctl(mouse_fd, 0x40045565, 272)
+        for axis in (0, 1): fcntl.ioctl(mouse_fd, 0x40045566, axis)
+        fcntl.ioctl(mouse_fd, 0x405c5503, struct.pack('HHHH80sI', 3, 0x1209, 3, 1, b'foundation-clipboard-click-validation', 0))
+        fcntl.ioctl(mouse_fd, 0x5501)
         fd = os.open('/dev/uinput', os.O_WRONLY | os.O_NONBLOCK)
         fcntl.ioctl(fd, 0x40045564, 1)
         for code in range(1, 256): fcntl.ioctl(fd, 0x40045565, code)
@@ -62,10 +89,25 @@ def main():
         key(1)
         wait(lambda: not json.loads(resident('status'))['clipboardAlive'])
         run('systemctl', '--user', 'stop', 'desktop-foundation-clipboard@text.service', 'desktop-foundation-clipboard@image.service')
+        # Exercise the deployed config's default worker path, not the test override.
+        # Reuse an existing item without inserting fixtures or pruning real history.
+        resident_state = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'desktop-foundation/clipboard'
+        with sqlite3.connect(resident_state / 'history.sqlite') as db:
+            recent = db.execute('SELECT id,mime,payload FROM clips ORDER BY updated DESC LIMIT 1').fetchone()
+        if recent:
+            resident('showClipboard')
+            state_now = wait(lambda: (value if (value := json.loads(resident('clipboardStatus'))).get('count', 0) > 0 else None))
+            assert state_now['selected'] == recent[0]
+            time.sleep(.3)
+            click_first(state_now['count'])
+            wait(lambda: json.loads(resident('clipboardStatus')).get('visible') is False)
+            assert run('wl-paste', '--no-newline', '--type', recent[1]).stdout == recent[2]
+        else:
+            raise RuntimeError('Deployed click regression requires an existing history item')
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             state = base / 'history'
-            env = {**os.environ, 'DF_CLIPBOARD_STATE': str(state)}
+            env = {**os.environ, 'DF_CLIPBOARD_STATE': str(state), 'DF_CLIPBOARD_WORKER': str(ROOT / 'scripts/clipboard.py')}
             run('python3', str(ROOT / 'scripts/clipboard.py'), '--state', str(state), 'init')
             def entries(): return json.loads((state / 'index.json').read_text())
             for kind in ['text', 'image']:
@@ -96,7 +138,7 @@ ShellRoot {
  LazyLoader { id: loader; active: root.clipboardEnabled; Surfaces.Clipboard { lifecycle: root; targetScreen: Quickshell.screens[0] } }
  IpcHandler {
  target: "clipboardTest"
- function openSurface(): void { root.clipboardEnabled = true; }
+ function openSurface(): void { if (root.surface) root.surface.present(); else root.clipboardEnabled = true; }
  function query(value: string): void { root.surface.setQuery(value); }
  function status(): string { return JSON.stringify(root.surface ? root.surface.snapshot() : {visible:false}); }
  function confirmClear(): void { root.surface.confirmClear = true; }
@@ -125,7 +167,7 @@ ShellRoot {
                     raise RuntimeError(str(status()) + '\n' + (base / 'qml.log').read_text())
                 ipc('query', 'Finnish')
                 wait(lambda: status().get('count') == 1)
-                key(28)
+                click_first(1)
                 wait(lambda: status().get('visible') is False)
                 assert run('wl-paste', '--no-newline').stdout == payload
                 ipc('openSurface'); wait(lambda: status().get('visible'))
@@ -152,7 +194,7 @@ ShellRoot {
                 time.sleep(.4)
                 run('grim', '-g', '640,251 640x578', '/home/ppq/Documents/Codex/2026-09-30/f/outputs/clipboard-preview.png')
                 ipc('hide'); wait(lambda: status().get('visible') is False)
-            print('PASS: Super+V, sensitive exclusion, dedup, exact Unicode/newline/image copy, search, delete, clear confirmation/cancel and lazy teardown')
+            print('PASS: deployed one-click copy/close, isolated one-click copy/close, Super+V, sensitive exclusion, dedup, exact Unicode/newline/image copy, search, delete, clear confirmation/cancel and lazy teardown')
     finally:
         if shell and shell.poll() is None: shell.terminate(); shell.wait(timeout=5)
         for process in processes:
@@ -160,6 +202,9 @@ ShellRoot {
         if original_type: run('wl-copy', *(['--sensitive'] if 'x-kde-passwordManagerHint' in types else []), '--type', original_type, input=original)
         else: run('wl-copy', '--clear')
         run('systemctl', '--user', 'start', 'desktop-foundation-clipboard@text.service', 'desktop-foundation-clipboard@image.service')
+        if mouse_fd is not None:
+            move_cursor(*original_cursor, verify=False)
+            fcntl.ioctl(mouse_fd, 0x5502); os.close(mouse_fd)
         if fd is not None:
             fcntl.ioctl(fd, 0x5502); os.close(fd)
 

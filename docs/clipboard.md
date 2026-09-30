@@ -31,7 +31,8 @@ use Wayland clipboard tools without depending on Hyprland; a future Niri adapter
 only needs to provide the same composition-root screen and binding contract.
 
 Validation: six storage unit tests plus seven existing tests pass. The finite
-live smoke test uses isolated history, preserves the current clipboard's primary
+live smoke test checks a real mouse click on an existing item in the deployed
+config before exercising isolated history. It preserves the current clipboard's primary
 format and sensitive hint, and restores the real watchers. It verifies Super+V,
 sensitive exclusion, deduplication, exact Finnish Unicode/newline and PNG copies,
 search, deletion, clear confirmation/cancellation and destruction after dismissal.
@@ -54,3 +55,9 @@ at 0% CPU ticks, roughly 2.2 MiB RSS each and 0.2 MiB PSS each. The warm residen
 shell measured 218 MiB RSS / 167 MiB PSS and 0% CPU ticks in that interval. These
 are finite observations, not guarantees of zero wakeups or a clipboard-only
 increment; the shell also contains the launcher and compositor adapter.
+
+The clipboard worker uses Quickshell.shellDir plus a filesystem-relative path,
+like the launcher executable. Qt.resolvedUrl must not resolve executables outside
+the config tree: Quickshell redirects these URLs to qrc:/qs-blackhole. The isolated
+harness overrides DF_CLIPBOARD_WORKER explicitly, and the deployed click check
+covers the default path so that override cannot hide a production path failure.
