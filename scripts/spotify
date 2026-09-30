@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+app_root=${XDG_DATA_HOME:-$HOME/.local/share}/desktop-foundation/apps/spotify
+export LD_LIBRARY_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/desktop-foundation/apps/spotify-libs/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$app_root/usr/share/spotify/spotify" --ozone-platform=wayland "$@"

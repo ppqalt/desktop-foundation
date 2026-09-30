@@ -1,0 +1,48 @@
+{
+  "spotify": {
+    "version": "1.2.95.453.g0eeebbed",
+    "url": "https://repository.spotify.com/pool/non-free/s/spotify-client/spotify-client_1.2.95.453.g0eeebbed_amd64.deb",
+    "sha256": "256e2eb1ec96fbc0c51afab247298e4e6eabfabbafafd4617584f44cca2fb31f"
+  },
+  "spicetify": {
+    "version": "2.45.1",
+    "url": "https://github.com/spicetify/cli/releases/download/v2.45.1/spicetify-2.45.1-linux-amd64.tar.gz",
+    "sha256": "994381833cf09e708ff961f8f26b5b944e61f7c66e7af93a4ae2889341ca6c32"
+  },
+  "marketplace": {
+    "version": "1.0.11",
+    "url": "https://github.com/spicetify/marketplace/releases/download/v1.0.11/marketplace.zip",
+    "sha256": "ea90ea292621c9d1643a71c5eb939e89f068f3558e0d2b789eb46f90a933122f"
+  },
+  "runtime_libraries": [
+    {
+      "name": "libayatana-appindicator",
+      "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/libayatana-appindicator-0.6.0-2-x86_64.pkg.tar.zst",
+      "sha256": "6fa93768d009176a8cf084f89c541967bdbc3b3af97c76290435b423436932f1"
+    },
+    {
+      "name": "libayatana-indicator",
+      "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/libayatana-indicator-0.9.5-1-x86_64.pkg.tar.zst",
+      "sha256": "33de4365b572e3ac03a9058019834110c7521bda2241b8e4574d34a7d20c2d8f"
+    },
+    {
+      "name": "ayatana-ido",
+      "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/ayatana-ido-0.10.4-1-x86_64.pkg.tar.zst",
+      "sha256": "394bf0a6c90cfaaa8e1ea5b4545637a1c70765b8a0036f69224242206832b6c7"
+    },
+    {
+      "name": "libdbusmenu-glib",
+      "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/libdbusmenu-glib-18.10.20180917-2-x86_64.pkg.tar.zst",
+      "sha256": "cd95a3dd2ab7de4a1f0295bcdbe4db1ae7b35771e195faf2696bc94659c6bd60"
+    },
+    {
+      "name": "libdbusmenu-gtk3",
+      "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/libdbusmenu-gtk3-18.10.20180917-2-x86_64.pkg.tar.zst",
+      "sha256": "4b5ce5d42a2357ddc6924259df2579f4f231813fdf6fe42f00059bfe75d8b10d"
+    }
+  ],
+  "marketplace_color": {
+    "url": "https://raw.githubusercontent.com/spicetify/marketplace/ec6f772891bad4bf08b645447c2ade6b06c4f991/resources/color.ini",
+    "sha256": "802c83f4f822eb254f60ef34ea8c53ea9d97889b9e886ac532e42953b9548fb2"
+  }
+}

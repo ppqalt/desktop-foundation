@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+app_root=${XDG_DATA_HOME:-$HOME/.local/share}/desktop-foundation/apps/spicetify
+exec "$app_root/spicetify" "$@"
