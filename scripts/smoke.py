@@ -46,6 +46,13 @@ try:
     hypr('hl.dsp.layout("move +col")')
     ipc('focusWindow', second)
     wait_for(lambda s: s['focusedWindow'] is not None and s['focusedWindow']['id'] == second)
+    for method, field in [('setFullscreen', 'fullscreen'), ('setMaximized', 'maximized'), ('setFloating', 'floating')]:
+        ipc(method, second, 'true')
+        wait_for(lambda s: any(w['id'] == second and w['state'][field] for w in s['windows']))
+        ipc(method, second, 'true')
+        wait_for(lambda s: any(w['id'] == second and w['state'][field] for w in s['windows']))
+        ipc(method, second, 'false')
+        wait_for(lambda s: any(w['id'] == second and not w['state'][field] for w in s['windows']))
     ipc('moveWindow', first, original['activeWorkspace']['id'])
     wait_for(lambda s: any(w['id'] == first and w['workspaceId'] == original['activeWorkspace']['id'] for w in s['windows']))
     ipc('closeWindow', first)

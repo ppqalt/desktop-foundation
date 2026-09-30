@@ -9,8 +9,9 @@ import "../theme"
 PanelWindow {
     id: probe
     required property var compositor
-    implicitWidth: 440
-    implicitHeight: 100
+    required property var lifecycle
+    implicitWidth: Theme.dimensions.probeWidth
+    implicitHeight: Theme.dimensions.probeHeight
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "desktop-foundation-probe"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -19,6 +20,12 @@ PanelWindow {
         anchors.fill: parent
         text: "Temporary foundation probe\n" + (probe.compositor.activeWorkspace ? "Workspace: " + probe.compositor.activeWorkspace.name : "Connecting…") + "\n" + (probe.compositor.focusedWindow ? probe.compositor.focusedWindow.title : "No focused window")
     }
-    Component.onCompleted: console.info("PROBE_CREATED")
-    Component.onDestruction: console.info("PROBE_DESTROYED")
+    Component.onCompleted: {
+        lifecycle.probeAlive = true;
+        lifecycle.probeCreations++;
+    }
+    Component.onDestruction: {
+        lifecycle.probeAlive = false;
+        lifecycle.probeDestructions++;
+    }
 }
