@@ -17,7 +17,9 @@ docs/                  architecture, interface, deployment, performance, validat
 
 Use the installed **Hyprland (uwsm-managed)** login session for the next login. COSMIC remains in the session chooser. Do not run a second real compositor on the active seat. From a TTY outside a graphical session, `uwsm start hyprland.desktop` is an alternative. The current unmanaged Hyprland session works for validation, but does not prove a complete UWSM login/logout cycle.
 
-Temporary binds: Super+Q opens Kitty; Super+arrows focus; Super+Shift+arrows move windows; Super+period/comma scroll columns; Super+digits change workspace; Super+Shift+digits move windows; Super+Shift+C closes; Super+mouse buttons move/resize; Super+Shift+M exits the session (save work first). Launch test applications by entering commands in Kitty; there is no launcher UI yet. Upstream appearance/blur/animation defaults remain until visual design begins. Input currently matches the original US keyboard default.
+Finnish keyboard layout (`fi`) and your supplied iNiR/FEN bindings are active. Super+T or Super+Enter opens Kitty; Super+Q closes; Super+D maximizes; Super+F enters fullscreen; Super+A toggles floating; Super+R cycles normal tiled-column widths; Super+C centers; Super+arrows navigate. Super+E/W use the default file manager/browser. Shared input lives in compositor/hyprland/input.lua, separately from host monitor/GPU configuration.
+
+Overview, launcher, clipboard, settings, cheatsheet and power-menu chords are reserved and inactive until those surfaces exist. Finnish Super+/ is Super+Shift+7 and cannot move a window to workspace 7. The temporary direct session exit remains Super+Shift+M. See [input and binding details](docs/input-bindings.md) for the complete mapping, supplemental controls and real keyboard-event validation. Upstream appearance/blur/animation defaults remain until visual design begins.
 
 From this checkout:
 

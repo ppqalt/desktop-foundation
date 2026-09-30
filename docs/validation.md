@@ -1,4 +1,6 @@
-# Validation on Tops — 2026-09-30
+# Initial foundation validation on Tops — 2026-09-30
+
+Subsequent Finnish input and iNiR/FEN binding validation is recorded in [input-bindings.md](input-bindings.md). The measurements below describe the original foundation phase.
 
 Hyprland 0.56.2, Quickshell 0.3.1, Qt 6.11.2, native scrolling layout. One active 1920×1080 output at ~144 Hz, scale 1, selected through automatic monitor configuration. The current session is ordinary Hyprland, not UWSM managed.
 
