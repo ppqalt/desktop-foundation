@@ -7,6 +7,17 @@ import "surfaces"
 
 ShellRoot {
     id: root
+    property bool clipboardEnabled: false
+    property bool clipboardAlive: false
+    readonly property Clipboard clipboard: clipboardLoader.item as Clipboard
+    LazyLoader {
+        id: clipboardLoader
+        active: root.clipboardEnabled
+        Clipboard {
+            lifecycle: root
+            targetScreen: root.launcherScreen
+        }
+    }
     property bool launcherEnabled: false
     property bool launcherAlive: false
     readonly property Launcher launcher: launcherLoader.item as Launcher
@@ -36,7 +47,40 @@ ShellRoot {
     }
     IpcHandler {
         target: "foundation"
+        function toggleClipboard(): void {
+            if (root.launcher)
+                root.launcher.dismiss();
+            if (root.clipboard && !root.clipboard.closing)
+                root.clipboard.dismiss();
+            else if (root.clipboard)
+                root.clipboard.present();
+            else
+                root.clipboardEnabled = true;
+        }
+        function showClipboard(): void {
+            if (root.launcher)
+                root.launcher.dismiss();
+            if (root.clipboard)
+                root.clipboard.present();
+            else
+                root.clipboardEnabled = true;
+        }
+        function hideClipboard(): void {
+            if (root.clipboard)
+                root.clipboard.dismiss();
+        }
+        function clipboardQuery(query: string): void {
+            if (root.clipboard)
+                root.clipboard.setQuery(query);
+        }
+        function clipboardStatus(): string {
+            return JSON.stringify(root.clipboard ? root.clipboard.snapshot() : {
+                visible: false
+            });
+        }
         function toggleLauncher(): void {
+            if (root.clipboard)
+                root.clipboard.dismiss();
             if (root.launcherEnabled && !root.launcher.closing)
                 root.launcher.dismiss();
             else if (root.launcherEnabled)
@@ -45,6 +89,8 @@ ShellRoot {
                 root.launcherEnabled = true;
         }
         function showLauncher(): void {
+            if (root.clipboard)
+                root.clipboard.dismiss();
             if (root.launcher)
                 root.launcher.present();
             else
@@ -71,6 +117,7 @@ ShellRoot {
         }
         function status(): string {
             return JSON.stringify({
+                clipboardAlive: root.clipboardAlive,
                 launcherAlive: root.launcherAlive,
                 ready: compositorBackend.ready,
                 backend: compositorBackend.backend,

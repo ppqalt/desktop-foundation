@@ -30,12 +30,12 @@ return function(command)
 
     bind("SUPER + space", hl.dsp.exec_cmd(command("launcher")), "Toggle application launcher")
 
+    bind("SUPER + V", hl.dsp.exec_cmd(command("clipboard")), "Toggle clipboard history")
+
     -- Reserved, deliberately inert until the corresponding UI is designed.
     -- Hyprland does not supply a built-in Niri-style overview.
     local reserved = {
         { "SUPER + Tab", "overview" },
-
-        { "SUPER + V", "clipboard" },
         { "SUPER + comma", "settings/control UI" },
         -- Finnish slash = Shift+7. XKB code 16 is <AE07> (evdev code 8 + 8).
         -- Keycode binding avoids shifted-keysym/modifier ambiguity.

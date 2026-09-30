@@ -8,7 +8,7 @@ compositor/niri/        interface planning only
 shell/adapters/        native compositor integration
 shell/components/      reusable presentation components
 shell/theme/           shared graphite/glass design tokens
-shell/surfaces/        lazy application launcher and diagnostic probe
+shell/surfaces/        lazy application launcher, clipboard and diagnostic probe
 backend/               justification boundary for future Rust work
 profiles/              hardware, monitor and input configuration
 scripts/               bootstrap, deploy/restore, launch, checks and measurements
@@ -19,7 +19,7 @@ Use the installed **Hyprland (uwsm-managed)** login session for the next login. 
 
 Finnish keyboard layout (`fi`) and your supplied iNiR/FEN bindings are active. Super+T or Super+Enter opens Kitty; Super+Q closes; Super+D maximizes; Super+F enters fullscreen; Super+A toggles floating; Super+R cycles normal tiled-column widths; Super+C centers; Super+arrows navigate. Super+E/W use the default file manager/browser. Shared input lives in compositor/hyprland/input.lua, separately from host monitor/GPU configuration.
 
-Super+Space toggles the application launcher. Overview, clipboard, settings, cheatsheet and power-menu chords remain reserved. Finnish Super+/ is Super+Shift+7 and cannot move a window to workspace 7. The temporary direct session exit remains Super+Shift+M. See [input and binding details](docs/input-bindings.md) for the complete mapping, supplemental controls and real keyboard-event validation. The launcher establishes the shared visual language; its blur rule is scoped to its layer.
+Super+Space toggles the application launcher; Super+V toggles searchable text/image clipboard history. Overview, settings, cheatsheet and power-menu chords remain reserved. Finnish Super+/ is Super+Shift+7 and cannot move a window to workspace 7. The temporary direct session exit remains Super+Shift+M. See [input and binding details](docs/input-bindings.md) for the complete mapping, supplemental controls and real keyboard-event validation. The launcher establishes the shared visual language; its blur rule is scoped to its layer.
 
 From this checkout:
 
@@ -41,4 +41,4 @@ Git commits use repository-local `Codex Foundation <codex@localhost>` because no
 
 Foundation hardening: [workflow](docs/workflow.md), [recovery](docs/recovery.md),
 [Niri port plan](docs/niri-port.md). Shared animations now inherit a 300 ms global
-timing with the existing upstream easing. See [launcher](docs/launcher.md) for behavior, design and validation.
+timing with the existing upstream easing. See [launcher](docs/launcher.md) and [clipboard](docs/clipboard.md) for behavior, design and validation.

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+exec wl-paste --type "${1:?text or image required}" --watch python3 "$root/scripts/clipboard.py" store "$1"

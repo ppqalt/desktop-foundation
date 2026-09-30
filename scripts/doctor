@@ -13,13 +13,13 @@ def run(*args):
 
 def main():
     failures = []
-    for binary in ['Hyprland', 'hyprctl', 'uwsm', 'quickshell', 'kitty', 'jq', 'dbus-update-activation-environment']:
+    for binary in ['Hyprland', 'hyprctl', 'uwsm', 'quickshell', 'kitty', 'wl-copy', 'wl-paste', 'jq', 'dbus-update-activation-environment']:
         if not shutil.which(binary):
             failures.append(f'Missing {binary}: run scripts/bootstrap')
     for variable in ['WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']:
         if not os.environ.get(variable):
             failures.append(f'Missing {variable}: run from the Hyprland session')
-    for unit in ['pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', 'xdg-desktop-portal-hyprland', 'hyprpolkitagent', 'desktop-foundation-shell']:
+    for unit in ['pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', 'xdg-desktop-portal-hyprland', 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard@text', 'desktop-foundation-clipboard@image']:
         code, state = run('systemctl', '--user', 'is-active', unit + '.service')
         print(f'{unit}: {state}')
         if code:

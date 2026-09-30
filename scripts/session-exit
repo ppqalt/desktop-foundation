@@ -4,6 +4,7 @@ if uwsm check is-active hyprland.desktop; then
 	exec uwsm stop
 fi
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+systemctl --user stop desktop-foundation-clipboard@text.service desktop-foundation-clipboard@image.service || true
 "$root/scripts/shell-stop" || true
 systemctl --user stop hyprpolkitagent.service || true
 exec hyprctl dispatch 'hl.dsp.exit()'

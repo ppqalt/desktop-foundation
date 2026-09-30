@@ -15,8 +15,8 @@ Shared keyboard preferences live in `compositor/hyprland/input.lua`: `kb_layout 
 | Super+C | Center tiled column, or center floating window on the monitor |
 | Super+Arrow | Directional focus/navigation |
 | Super+Tab | Reserved for overview; inactive |
-| Super+Space | Reserved for launcher; inactive |
-| Super+V | Reserved for clipboard; inactive |
+| Super+Space | Application launcher |
+| Super+V | Clipboard history |
 | Super+, | Reserved for settings/control UI; inactive |
 | Super+/ (Finnish: Super+Shift+7) | Reserved for cheatsheet; inactive |
 | Super+Shift+Q | Reserved for power/session menu; inactive |
