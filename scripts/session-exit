@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 if uwsm check is-active; then
-    exec uwsm stop
+	exec uwsm stop
 fi
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+quickshell kill --path "$root/shell"
+systemctl --user stop hyprpolkitagent.service
 exec hyprctl dispatch 'hl.dsp.exit()'

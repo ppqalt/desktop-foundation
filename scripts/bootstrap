@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+packages=(git base-devel rustup clang llvm lld cmake ninja pkgconf quickshell
+	qt6-declarative qt6-tools qt6-shadertools shellcheck shfmt jq hyperfine
+	heaptrack gdb strace kitty hyprland uwsm xdg-desktop-portal-hyprland
+	hyprpolkitagent perf python lua)
+missing=()
+for package in "${packages[@]}"; do
+	if ! pacman -Q "$package" >/dev/null 2>&1; then missing+=("$package"); fi
+done
+if ((${#missing[@]})); then
+	# Full upgrade avoids unsupported partial upgrades on Arch/CachyOS.
+	sudo pacman -Syu --needed "${missing[@]}"
+fi
+rustup default stable
+rustup component add rustfmt clippy rust-analyzer
+for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
+cargo clippy --version
+for tool in qmllint qmlformat qmlls qmlprofiler qsb; do
+	test -x "/usr/lib/qt6/bin/$tool"
+done
+printf 'Toolchain ready. Deploy separately: %s/scripts/deploy.py install --profile default\n' "$root"

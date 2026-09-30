@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$root"
+mapfile -t scripts < <(find scripts -maxdepth 1 -type f ! -name '*.py')
+shellcheck "${scripts[@]}"
+shfmt -d "${scripts[@]}"
+mapfile -t qml < <(find shell -name '*.qml' -type f | sort)
+/usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml "${qml[@]}"
+for file in "${qml[@]}"; do
+	cmp "$file" <(/usr/lib/qt6/bin/qmlformat "$file")
+done
+while IFS= read -r file; do luac -p "$file"; done < <(find compositor profiles -name '*.lua' -type f)
+python3 -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for p in pathlib.Path("scripts").glob("*.py")]'
+for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
+cargo clippy --version
+Hyprland --verify-config -c "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.lua"

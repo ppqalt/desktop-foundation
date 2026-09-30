@@ -9,7 +9,7 @@ hl.config({ general = { layout = "scrolling" } })
 local function command(script)
     -- Quote paths for sh, including spaces and single quotes.
     local path = FOUNDATION_ROOT .. "/scripts/" .. script
-    return "'" .. path:gsub("'", "'\''") .. "'"
+    return "'" .. path:gsub("'", "'\\''") .. "'"
 end
 hl.on("hyprland.start", function()
     hl.exec_cmd(command("session-start"))

@@ -2,7 +2,11 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 if uwsm check is-active; then
-    uwsm finalize HYPRLAND_INSTANCE_SIGNATURE
+	uwsm finalize HYPRLAND_INSTANCE_SIGNATURE
+else
+	vars=(WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP)
+	if [[ -n ${DISPLAY:-} ]]; then vars+=(DISPLAY); fi
+	dbus-update-activation-environment --systemd "${vars[@]}"
 fi
 # No global enable: COSMIC keeps its own authentication agent.
 systemctl --user start hyprpolkitagent.service
