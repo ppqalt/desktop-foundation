@@ -12,6 +12,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
 STATE = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'desktop-foundation'
+DATA = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
 
 
 def lua_string(value):
@@ -66,6 +67,7 @@ def restore(manifest):
         manifest['entries'].remove(entry)
         save(manifest)
     (STATE / 'manifest.json').unlink()
+    subprocess.run(['fc-cache', '-f'], check=True)
     print('Original configuration restored. Reload your active compositor if needed.')
 
 
@@ -121,7 +123,8 @@ def main():
         subprocess.run(['fish', '--no-config', '-n', str(ROOT / 'terminal/fish/config.fish')], check=True)
         targets.extend([(CONFIG / 'kitty', ROOT / 'terminal/kitty'),
                         (CONFIG / 'fish', fish_runtime),
-                        (CONFIG / 'fastfetch', ROOT / 'terminal/fastfetch')])
+                        (CONFIG / 'fastfetch', ROOT / 'terminal/fastfetch'),
+                        (DATA / 'fonts/desktop-foundation', ROOT / 'fonts')])
         for path, src in targets:
             entries = [e for e in manifest['entries'] if e['path'] == str(path)]
             if entries and not owned(entries[0]):
@@ -151,6 +154,7 @@ def main():
         except Exception:
             restore(manifest)
             raise
+        subprocess.run(['fc-cache', '-f'], check=True)
         print(f'Deployed {args.compositor} profile {args.profile}; backups and manifest: {STATE}')
         print('No session restart performed. Config changes may auto-reload in the selected compositor.')
 

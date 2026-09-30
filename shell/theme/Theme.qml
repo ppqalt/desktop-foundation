@@ -14,8 +14,8 @@ QtObject {
             surface: 24
         })
     readonly property var typography: ({
-            family: "Adwaita Sans",
-            mono: "Adwaita Mono",
+            family: "Google Sans",
+            mono: "Google Sans Code",
             small: 11,
             body: 14,
             heading: 22

@@ -2,7 +2,7 @@
 
 Clean Niri-first design; no previous Kitty/Fish/Fastfetch settings are imported.
 Kitty retains its standard URL opening, clipboard shortcuts, tab behavior and
-rendering defaults. Adwaita Mono 11 pt, 5 px padding, steady beam cursor and
+rendering defaults. Google Sans Code Nerd Font Mono 11 pt, 5 px padding, steady beam cursor and
 10,000 lines of scrollback keep it compact. Native Wayland background opacity
 is 0.90; Niri's Kitty rule remains at surface opacity 1.0, preserving glyphs.
 
@@ -58,3 +58,7 @@ In a generated 3,000-file tracked repository, 100 cached prompt repaints took
 67.14 ms total (~0.67 ms each). Native Fish syntax checks, Kitty's actual config
 loader and Fastfetch's actual parser passed. A real Wayland Kitty was opened,
 captured and closed without disturbing existing application windows.
+
+Fonts are bundled with their licenses in `fonts/`, linked through deployment into
+the user font directory, and removed from that location by rollback. Google Sans
+is used by the shared shell; Google Sans Code supplies its monospaced labels.

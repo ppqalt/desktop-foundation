@@ -1,0 +1,72 @@
+[
+  {
+    "file": "googlesans/GoogleSans-Italic[GRAD,opsz,wght].ttf",
+    "url": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/googlesans/GoogleSans-Italic%5BGRAD%2Copsz%2Cwght%5D.ttf",
+    "sha256": "b6662abd2131cad1b248750149a7f2b644f871ebcc9af7fe4cd1135cd290b6d1"
+  },
+  {
+    "file": "googlesans/GoogleSans[GRAD,opsz,wght].ttf",
+    "url": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/googlesans/GoogleSans%5BGRAD%2Copsz%2Cwght%5D.ttf",
+    "sha256": "d0a87d835a944b8b40d0e82a5651bb59ab97b936a2aeed5946eb57e7b2a3a90a"
+  },
+  {
+    "file": "googlesans/OFL.txt",
+    "url": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/googlesans/OFL.txt",
+    "sha256": "2b75ef20f13d83a7514aee452c4782c20cdc9ff2dee17600f44d37a06d4fb958"
+  },
+  {
+    "file": "googlesans/TRADEMARKS.md",
+    "url": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/googlesans/TRADEMARKS.md",
+    "sha256": "215bc8c1ce46d1b81531f33ebb5af201e7a5da76b8f3ae4c705336fd70fc89e1"
+  },
+  {
+    "file": "googlesanscode/GoogleSansCode-Italic[wght].ttf",
+    "url": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/googlesanscode/GoogleSansCode-Italic%5Bwght%5D.ttf",
+    "sha256": "bdf116292f27aca16e2aefb5534042a25f244d3a9187a521ce97fc2117a4a844"
+  },
+  {
+    "file": "googlesanscode/GoogleSansCode[wght].ttf",
+    "url": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/googlesanscode/GoogleSansCode%5Bwght%5D.ttf",
+    "sha256": "c9649573afcd966f61096b1e9c3c3115e7b54315ca2adf9839c6f8b17d5f8e1f"
+  },
+  {
+    "file": "googlesanscode/OFL.txt",
+    "url": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/googlesanscode/OFL.txt",
+    "sha256": "ff8f4fbc4f1a71c7d4c6481c48dc2b21c43f8dc15872536667fee45c15d20928"
+  },
+  {
+    "file": "googlesanscode/TRADEMARKS.md",
+    "url": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/googlesanscode/TRADEMARKS.md",
+    "sha256": "d9c627c968837b4a148195153271ca69e98d4bc750b041e0d98ba7b376b1cf50"
+  },
+  {
+    "file": "googlesanscode-nerd/GoogleSansCodeNerdFontMono-Bold.ttf",
+    "archive_url": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/GoogleSansCode.tar.xz",
+    "archive_sha256": "b5a2a79b6ac0f021049c63b67bb42a1dcf81d5bc4e447fc6205c79d969605f42",
+    "sha256": "2c684b24c02221c4498a616bfb0fec5e1d14ac5e0fe774686e3fc7ecb120bd38"
+  },
+  {
+    "file": "googlesanscode-nerd/GoogleSansCodeNerdFontMono-BoldItalic.ttf",
+    "archive_url": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/GoogleSansCode.tar.xz",
+    "archive_sha256": "b5a2a79b6ac0f021049c63b67bb42a1dcf81d5bc4e447fc6205c79d969605f42",
+    "sha256": "a23f5c057073fe8fb96b79181e0ae90613f5119d197c8a03310ce552eb11bd3a"
+  },
+  {
+    "file": "googlesanscode-nerd/GoogleSansCodeNerdFontMono-Italic.ttf",
+    "archive_url": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/GoogleSansCode.tar.xz",
+    "archive_sha256": "b5a2a79b6ac0f021049c63b67bb42a1dcf81d5bc4e447fc6205c79d969605f42",
+    "sha256": "7ac98359cd2813f8ebe30d48a2735936f0a1eff61e0d88d8d8f2121afc74dcb4"
+  },
+  {
+    "file": "googlesanscode-nerd/GoogleSansCodeNerdFontMono-Regular.ttf",
+    "archive_url": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/GoogleSansCode.tar.xz",
+    "archive_sha256": "b5a2a79b6ac0f021049c63b67bb42a1dcf81d5bc4e447fc6205c79d969605f42",
+    "sha256": "6a0afe60cd75d889e039ab3841d328588355d69ef0283efa84f4edd5b43a7186"
+  },
+  {
+    "file": "googlesanscode-nerd/OFL.txt",
+    "archive_url": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/GoogleSansCode.tar.xz",
+    "archive_sha256": "b5a2a79b6ac0f021049c63b67bb42a1dcf81d5bc4e447fc6205c79d969605f42",
+    "sha256": "2156bc2e78b29281ad7e23cbbb0ed9862c1b5dec7e6e680b945fe6dc11b04ba8"
+  }
+]
