@@ -45,3 +45,7 @@ timing with the existing upstream easing. See [launcher](docs/launcher.md) and [
 
 Screenshots: Super+Shift+S selects a region; Print captures the focused output.
 Both save and copy. See [screenshots](docs/screenshots.md).
+
+Window treatment: centralized [visual intent](config/window-appearance.lua),
+translated by compositor/hyprland/appearance.lua. See [window appearance](docs/window-appearance.md)
+for tuning, native mappings and live inspection limits.

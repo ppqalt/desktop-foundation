@@ -2,7 +2,7 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    // Shared surface language. Clipboard implementation waits for launcher review.
+    // Shared graphite/glass surface language for launcher and clipboard.
     readonly property var spacing: ({
             small: 6,
             medium: 12,
@@ -31,7 +31,6 @@ QtObject {
             disabled: 0.45,
             background: 0.94
         })
-    readonly property int blurRadius: 8
     readonly property var dimensions: ({
             probeWidth: 440,
             probeHeight: 100,

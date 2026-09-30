@@ -57,3 +57,27 @@ Prefer Niri's built-in disk and clipboard behavior; do not require it to return 
 image to the Hyprland pipeline. Super+Shift+S selects a region and Print captures
 the focused output. Window capture has no extra binding. Check native options and
 cancellation behavior against the chosen Niri version before advertising support.
+
+## Window design intent
+
+config/window-appearance.lua is pure data, separate from Hyprland appearance.lua.
+Translate its graphite palette, 14 px corners, soft active/inactive depth, 1 px
+muted focus edge and opaque/readable content into Niri's native decoration model.
+Do not copy Hyprland rule selectors, fullscreen integer states or blur commands.
+Native shadow color/inactive-color, softness/spread/offset and focus-ring/border
+are the first mappings. Hyprland range/falloff is not a numerical equivalent of
+Niri softness; judge visual results. Niri focus rings can denote an active window
+on each monitor, so check keyboard focus versus output-active semantics on a real
+multi-output setup. Avoid dimming all windows on an unfocused output accidentally.
+
+Use geometry-corner-radius plus appropriate clip-to-geometry behavior, keeping
+client decoration and transparent corner shapes in mind. Disable unnecessary
+fullscreen decoration with native rules. Inspect popup margin treatment natively,
+not by transplanting the Hyprland floating-XWayland blur exclusion wholesale.
+Niri's 26.04 documentation adds background effects and ext-background-effect for
+windows/layers, with global blur passes/offset/noise/saturation. Verify the deployed
+version before implementing this. Older versions may lack background blur; report
+that capability rather than introducing an emulation daemon. Native effects should
+honor app-provided shapes and avoid solid focus-ring backgrounds covering glass.
+Shared strength is a visual intent; Hyprland currently maps it to kernel radius,
+not a blur-alpha control. No focus-dependent blur kernel is requested.
