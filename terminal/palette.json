@@ -1,0 +1,26 @@
+{
+  "background": "171b22",
+  "foreground": "dce2ea",
+  "muted": "8993a3",
+  "accent": "79b8d4",
+  "error": "e08b92",
+  "selection": "354454",
+  "ansi": [
+    "242a34",
+    "e08b92",
+    "a5c49c",
+    "d6bd8c",
+    "8fb6da",
+    "b7a0cf",
+    "83bdc1",
+    "c7ced8",
+    "697586",
+    "efa5ac",
+    "b8d7af",
+    "e6cfa2",
+    "a7cdeb",
+    "ceb8e4",
+    "9cd3d6",
+    "edf1f6"
+  ]
+}

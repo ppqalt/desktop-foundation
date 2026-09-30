@@ -3,7 +3,7 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 packages=(git base-devel rustup clang llvm lld cmake ninja pkgconf quickshell
 	qt6-declarative qt6-tools qt6-shadertools shellcheck shfmt jq hyperfine
-	heaptrack gdb strace kitty pipewire pipewire-pulse wireplumber niri swaybg mako xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk hyprland uwsm xdg-desktop-portal-hyprland
+	heaptrack gdb strace kitty fish fastfetch adwaita-fonts pipewire pipewire-pulse wireplumber niri swaybg mako xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk hyprland uwsm xdg-desktop-portal-hyprland
 	hyprpolkitagent perf python lua wl-clipboard grim slurp)
 missing=()
 for package in "${packages[@]}"; do

@@ -1,0 +1,41 @@
+{
+  "logo": {
+    "source": "arch",
+    "padding": {
+      "right": 3
+    },
+    "color": {
+      "1": "38;2;121;184;212",
+      "2": "38;2;121;184;212"
+    }
+  },
+  "display": {
+    "separator": "  ",
+    "color": {
+      "keys": "38;2;121;184;212"
+    }
+  },
+  "modules": [
+    "os",
+    {
+      "type": "title",
+      "key": "Host",
+      "format": "{host-name}"
+    },
+    "host",
+    "kernel",
+    "uptime",
+    "packages",
+    "shell",
+    "terminal",
+    "wm",
+    "display",
+    "cpu",
+    "gpu",
+    "memory",
+    {
+      "type": "disk",
+      "folders": "/"
+    }
+  ]
+}

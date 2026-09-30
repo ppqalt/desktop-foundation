@@ -57,3 +57,9 @@ restores all foundation-owned config paths. See [deployment](docs/deployment.md)
 
 No Rust daemon or extra desktop feature has been added. Git uses repository-local
 `Codex Foundation <codex@localhost>`; no global identity setting was changed.
+
+## Terminal
+
+The portable Kitty, native Fish prompt and on-demand Fastfetch configuration live
+in `terminal/`. See [terminal documentation](terminal/README.md) for palette,
+startup measurements and reversible deployment.

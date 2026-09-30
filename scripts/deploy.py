@@ -111,6 +111,17 @@ def main():
                 subprocess.run(['Hyprland', '--verify-config', '-c', candidate.name], check=True)
             source = STATE / 'hyprland.lua'
             targets = [(CONFIG / 'hypr/hyprland.lua', source), (CONFIG / 'quickshell/desktop-foundation', ROOT / 'shell')]
+        # Fish owns writable universal variables outside the source checkout.
+        fish_runtime = STATE / 'terminal/fish'
+        fish_runtime.mkdir(parents=True, exist_ok=True)
+        for child in (ROOT / 'terminal/fish').iterdir():
+            link = fish_runtime / child.name
+            if not link.exists() and not link.is_symlink():
+                link.symlink_to(child)
+        subprocess.run(['fish', '--no-config', '-n', str(ROOT / 'terminal/fish/config.fish')], check=True)
+        targets.extend([(CONFIG / 'kitty', ROOT / 'terminal/kitty'),
+                        (CONFIG / 'fish', fish_runtime),
+                        (CONFIG / 'fastfetch', ROOT / 'terminal/fastfetch')])
         for path, src in targets:
             entries = [e for e in manifest['entries'] if e['path'] == str(path)]
             if entries and not owned(entries[0]):
