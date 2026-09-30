@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if uwsm check is-active; then
+    uwsm finalize HYPRLAND_INSTANCE_SIGNATURE
+fi
+# No global enable: COSMIC keeps its own authentication agent.
+systemctl --user start hyprpolkitagent.service
+exec "$root/scripts/launch" quickshell --no-duplicate --path "$root/shell"

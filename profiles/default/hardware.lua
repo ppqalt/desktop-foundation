@@ -1,0 +1,1 @@
+-- Hardware-specific overrides belong here; no GPU assumptions by default.
