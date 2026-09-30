@@ -20,8 +20,9 @@ Starship, custom command-not-found hook or inherited aliases are installed.
 
 Run `fastfetch` when wanted. It is intentionally not an automatic greeting:
 new terminals and nested shells remain quiet and immediately usable. The normal
-Arch logo accompanies dynamic machine information. Host hardware is included
-when firmware exposes it; hostname is always reported separately. Disk uses the
+Arch logo sits beside aligned, vertically centered groups for the system, session
+and hardware. Muted labels keep the logo as the primary accent.
+Hostname and hardware are discovered dynamically. Disk uses the
 portable root mount, never a machine-specific device name.
 
 Interactive abbreviation `c` expands to `clear`. The native `fast` function

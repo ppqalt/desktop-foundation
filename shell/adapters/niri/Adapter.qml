@@ -386,20 +386,18 @@ QtObject {
         return true;
     }
     function screenshotRegion(): void {
-        action("Screenshot", {
-            show_pointer: false
-        });
+        Quickshell.execDetached([Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/screenshot", "--backend", "niri", "region"]);
     }
     function screenshotWindow(): void {
         action("ScreenshotWindow", {
             id: null,
-            write_to_disk: true,
+            write_to_disk: false,
             show_pointer: false
         });
     }
     function screenshotOutput(): void {
         action("ScreenshotScreen", {
-            write_to_disk: true,
+            write_to_disk: false,
             show_pointer: false
         });
     }

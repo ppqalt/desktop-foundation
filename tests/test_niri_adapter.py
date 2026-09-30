@@ -65,7 +65,7 @@ class NiriAdapter(unittest.TestCase):
           send(c,{'WindowClosed':{'id':1}});wait(lambda s:not s['windows'] and s['focused'] is None)
           ipc('focus','1');ipc('screenshot');time.sleep(.2)
           assert {'Action':{'FocusWindow':{'id':1}}} in seen
-          shot=next(x['Action']['ScreenshotWindow'] for x in seen if isinstance(x,dict) and 'ScreenshotWindow' in x.get('Action',{}));assert shot['show_pointer'] is False and shot['write_to_disk'] is True
+          shot=next(x['Action']['ScreenshotWindow'] for x in seen if isinstance(x,dict) and 'ScreenshotWindow' in x.get('Action',{}));assert shot['show_pointer'] is False and shot['write_to_disk'] is False
           c.shutdown(socket.SHUT_RDWR);c.close();wait(lambda s:not s['ready'] and not s['windows']);generation[0]=2;wait(lambda s:s['ready'] and s['focused']['id']=='2');assert len(streams)>=2
           print('PASS: initial stream, unknown variant, null focus, stable workspace ID/reindex, urgency, cross-resource ordering, actions and disconnect/reconnect snapshots')
          finally:

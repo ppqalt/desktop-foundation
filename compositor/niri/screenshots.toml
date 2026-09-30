@@ -1,0 +1,7 @@
+# Quiet graphite selector; releases immediately when the drag ends.
+background = "#080b1070"
+border = "#79b8d4b0"
+selection = "#00000000"
+label_background = "#171b22ee"
+font = "Adwaita Sans"
+border_width = 1

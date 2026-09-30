@@ -25,7 +25,8 @@ def render():
     (terminal / 'fish/theme.fish').write_text('\n'.join(fish) + '\n')
     config = json.loads((terminal / 'fastfetch/config.jsonc').read_text())
     rgb = ';'.join(str(int(p['accent'][i:i + 2], 16)) for i in (0, 2, 4))
-    config['display']['color']['keys'] = '38;2;' + rgb
+    muted_rgb = ';'.join(str(int(p['muted'][i:i + 2], 16)) for i in (0, 2, 4))
+    config['display']['color']['keys'] = '38;2;' + muted_rgb
     config['logo']['color'] = {'1': '38;2;' + rgb, '2': '38;2;' + rgb}
     (terminal / 'fastfetch/config.jsonc').write_text(json.dumps(config, indent=2) + '\n')
 

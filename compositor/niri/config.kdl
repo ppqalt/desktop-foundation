@@ -1,5 +1,5 @@
 // Primary/reference compositor. Generated deployment adds shared input/visuals,
-// screenshot path, environment and session startup around this source module.
+// clipboard-only screenshots, environment and session startup around this source module.
 include "bindings.kdl"
 hotkey-overlay { skip-at-startup; }
 prefer-no-csd

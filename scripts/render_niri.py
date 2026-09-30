@@ -2,7 +2,6 @@
 import json
 from pathlib import Path
 import subprocess
-import tomllib
 
 
 def data(path):
@@ -21,11 +20,6 @@ def render(root, profile):
     root = Path(root)
     v = data(root / 'config/window-appearance.lua')
     keyboard = data(root / 'config/input.lua')
-    capture = tomllib.loads((root / 'config/screenshots.toml').read_text())
-    directory = Path(capture['directory']).expanduser()
-    directory.mkdir(parents=True, exist_ok=True)
-    # Niri/strftime supports seconds; no Python-only %f placeholder.
-    filename = capture['filename'].replace('_%f', '')
     color = lambda opacity: v['shadow']['color'] + f'{round(opacity * 255):02x}'
     q = json.dumps
     text = f'''// Generated from repository-managed shared visual/input intent.
@@ -36,7 +30,7 @@ environment {{
 }}
 spawn-at-startup {q(str(root / 'scripts/session-start'))}
 input {{ keyboard {{ xkb {{ layout {q(keyboard['layout'])}; }} repeat-delay {keyboard['repeatDelay']}; repeat-rate {keyboard['repeatRate']}; }} }}
-screenshot-path {q(str(directory / filename))}
+screenshot-path null
 layout {{
     gaps {v['spacing']['betweenWindows']}
     struts {{ left {v['spacing']['desktopEdge']}; right {v['spacing']['desktopEdge']}; top {v['spacing']['desktopEdge']}; bottom {v['spacing']['desktopEdge']}; }}

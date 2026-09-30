@@ -2,7 +2,8 @@
   "logo": {
     "source": "arch",
     "padding": {
-      "right": 3
+      "left": 1,
+      "right": 4
     },
     "color": {
       "1": "38;2;121;184;212",
@@ -12,30 +13,77 @@
   "display": {
     "separator": "  ",
     "color": {
-      "keys": "38;2;121;184;212"
+      "keys": "38;2;137;147;163"
     }
   },
   "modules": [
-    "os",
+    "break",
+    "break",
+    {
+      "type": "os",
+      "key": "OS      ",
+      "format": "{name} {arch}"
+    },
     {
       "type": "title",
-      "key": "Host",
+      "key": "Host    ",
       "format": "{host-name}"
     },
-    "host",
-    "kernel",
-    "uptime",
-    "packages",
-    "shell",
-    "terminal",
-    "wm",
-    "display",
-    "cpu",
-    "gpu",
-    "memory",
+    {
+      "type": "kernel",
+      "key": "Kernel  ",
+      "format": "{release}"
+    },
+    {
+      "type": "uptime",
+      "key": "Uptime  "
+    },
+    {
+      "type": "packages",
+      "key": "Packages"
+    },
+    "break",
+    {
+      "type": "shell",
+      "key": "Shell   ",
+      "format": "{pretty-name} {version}"
+    },
+    {
+      "type": "terminal",
+      "key": "Terminal",
+      "format": "{pretty-name} {version}"
+    },
+    {
+      "type": "wm",
+      "key": "Desktop ",
+      "format": "{pretty-name} {version} \u00b7 {protocol-name}"
+    },
+    {
+      "type": "display",
+      "key": "Display ",
+      "format": "{width} \u00d7 {height} \u00b7 {refresh-rate} Hz"
+    },
+    "break",
+    {
+      "type": "cpu",
+      "key": "CPU     ",
+      "format": "{name}"
+    },
+    {
+      "type": "gpu",
+      "key": "GPU     ",
+      "format": "{name}"
+    },
+    {
+      "type": "memory",
+      "key": "Memory  ",
+      "format": "{used} / {total}"
+    },
     {
       "type": "disk",
-      "folders": "/"
+      "key": "Disk /  ",
+      "folders": "/",
+      "format": "{size-used} / {size-total}"
     }
   ]
 }

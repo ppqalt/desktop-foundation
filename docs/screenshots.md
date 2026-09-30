@@ -1,18 +1,37 @@
-# Niri-native screenshots
+# Niri screenshots: clipboard only
 
-Niri is the default backend. Super+Shift+S opens native region selection; Escape
-cancels and Enter confirms. Print captures the current output. The adapter exposes
-screenshotRegion, screenshotWindow and screenshotOutput directly through Niri IPC.
-Niri owns PNG saving and clipboard copying. The shared driver supports the same
-logical actions: `scripts/screenshot --backend niri region|window|output`.
+Super+Shift+S starts a quiet graphite Wayland region selector, with a thin cyan
+outline and compact dimensions. Every invocation starts empty: there are no
+remembered areas or initial window boxes. Release the drag to copy the selection
+immediately; Escape cancels without changing the clipboard. No Enter step,
+editing toolbar or resident screenshot process is needed.
 
-Deployment translates config/screenshots.toml to native screenshot-path. Niri
-strftime filenames use seconds (Python %f is omitted); native file permissions and
-collision handling belong to Niri, rather than the Hyprland atomic storage driver.
-No resident capture worker is added. Hyprland's original grim/slurp pipeline and
-its stricter storage behavior remain unchanged below.
+The selector is slurp, configured in compositor/niri/screenshots.toml. Grim reads
+Niri's Wayland screencopy buffers after the selector closes and sends PNG bytes
+through memory to wl-copy. This replaces the built-in selection UI for the
+region shortcut and adapter action; it does not patch Niri. The live installed
+Niri build was verified to support this capture path. Output geometry and scale
+are handled by grim, without machine-specific coordinates.
 
-# On-demand screenshots
+Print copies the focused screen through Niri's native screenshot-screen action,
+with write-to-disk=false. Adapter output/window actions also copy only.
+Deployment sets native screenshot-path null, so the optional built-in Niri UI
+also does not persist screenshots. No screenshot directory is created by Niri
+deployment. The clipboard history can retain copied images as it does for any
+other clipboard item; these shortcuts do not create screenshot files.
+
+The common driver exposes region/window/output actions. A runtime advisory lock
+ignores duplicate region requests while a selector is open. Cancellation or a
+capture failure never publishes clipboard data. The selector is started only on
+demand, never at session startup. Hyprland's retained storage policy is documented
+below; its screenshot path has not been changed by this Niri-specific request.
+
+Live validation: actual Super+Shift+S drag-release copied a 441 × 321 PNG without
+Enter, Escape preserved the previous clipboard, and Print copied 1920 × 1080.
+The screenshot directory was unchanged throughout. Previous focus, workspace and
+clipboard were restored after testing.
+
+# Retained Hyprland screenshots
 
 Super+Shift+S selects an arbitrary rectangular region with slurp. Escape cancels
 without creating an image. Print captures the focused screen/output. Both save a

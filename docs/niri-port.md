@@ -25,8 +25,9 @@ state, so those normalized fields are null and idempotent setters advertise fals
 Floating state and explicit tiling/floating requests are implemented. Maximize is
 `MaximizeColumn`, not a guessed window maximize flag. Overview, column widths,
 centering, directional focus/movement and stable-ID workspace moves use native
-Niri actions. Screenshot actions delegate directly to native screenshot,
-screenshot-window and screenshot-screen, including disk/clipboard ownership.
+Niri actions. Screenshot output/window actions use native Niri IPC with clipboard-only
+behavior; region selection uses the repository-styled Wayland slurp/grim driver.
+See screenshots.md for drag-release capture and the disabled save path.
 
 Native blur, corner geometry, shadow and border properties implement shared visual
 intent. Shadow softness is not numerically equivalent to Hyprland's range/falloff.

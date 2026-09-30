@@ -43,10 +43,17 @@ def main():
     parser.add_argument('action', choices=['region', 'window', 'output'])
     args = parser.parse_args()
     if args.backend == 'niri':
-        mapping = {'region': 'screenshot', 'window': 'screenshot-window', 'output': 'screenshot-screen'}
+        if args.action == 'region':
+            from screenshot_backends import niri
+            try:
+                return niri.region()
+            except (OSError, subprocess.SubprocessError) as error:
+                print(f'Screenshot: {error}', file=sys.stderr)
+                return 1
+        mapping = {'window': 'screenshot-window', 'output': 'screenshot-screen'}
         try:
             command = ['niri', 'msg', 'action', mapping[args.action]]
-            if args.action != 'window': command += ['--show-pointer', 'false']
+            command += ['--show-pointer', 'false', '--write-to-disk', 'false']
             return subprocess.run(command, check=True).returncode
         except (OSError, subprocess.SubprocessError) as error:
             print(f'Screenshot: {error}', file=sys.stderr)

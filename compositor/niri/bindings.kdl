@@ -69,8 +69,8 @@ binds {
     "Super+TouchpadScrollLeft" { focus-column-left; }
     "Super+Shift+TouchpadScrollDown" { focus-column-right; }
     "Super+Shift+TouchpadScrollUp" { focus-column-left; }
-    "Super+Shift+S" { screenshot show-pointer=false; }
-    "Print" { screenshot-screen show-pointer=false; }
+    "Super+Shift+S" repeat=false { spawn "sh" "-c" "exec \"$DF_FOUNDATION_ROOT/scripts/screenshot\" region"; }
+    "Print" repeat=false { screenshot-screen write-to-disk=false show-pointer=false; }
     "Page_Up" { spawn "wpctl" "set-volume" "-l" "1" "@DEFAULT_AUDIO_SINK@" "3%+"; }
     "Page_Down" { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "3%-"; }
 }
