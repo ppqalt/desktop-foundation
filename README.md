@@ -38,3 +38,7 @@ The probe is disabled at startup. Hide destroys it. Quickshell remains resident 
 Upstream references: [Hyprland Lua dispatchers](https://wiki.hypr.land/Configuring/Basics/Dispatchers/), [native scrolling](https://wiki.hypr.land/Configuring/Layouts/Scrolling-Layout/), [Quickshell Hyprland API](https://quickshell.org/docs/v0.3.1/types/Quickshell.Hyprland/Hyprland/), [LazyLoader](https://quickshell.org/docs/v0.3.1/types/Quickshell/LazyLoader/), and installed `uwsm --help`. Installed qmltypes and live tests take precedence when generated online docs differ from package behavior.
 
 Git commits use repository-local `Codex Foundation <codex@localhost>` because no user identity was configured. Change that local identity before your own commits; no global Git settings were changed.
+
+Foundation hardening: [workflow](docs/workflow.md), [recovery](docs/recovery.md),
+[Niri port plan](docs/niri-port.md). Shared animations now inherit a 300 ms global
+timing with the existing upstream easing. No desktop surface has been implemented.

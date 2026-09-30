@@ -2,7 +2,7 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
-mapfile -t scripts < <(find scripts -maxdepth 1 -type f ! -name '*.py')
+mapfile -t scripts < <(rg -l '^#!/usr/bin/env bash' scripts)
 shellcheck "${scripts[@]}"
 shfmt -d "${scripts[@]}"
 mapfile -t qml < <(find shell -name '*.qml' -type f | sort)
@@ -11,7 +11,22 @@ for file in "${qml[@]}"; do
 	cmp "$file" <(/usr/lib/qt6/bin/qmlformat "$file")
 done
 while IFS= read -r file; do luac -p "$file"; done < <(find compositor profiles -name '*.lua' -type f)
-python3 -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for p in pathlib.Path("scripts").glob("*.py")]'
+python3 -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for folder in ["scripts","tests"] for p in pathlib.Path(folder).glob("*.py")]'
 for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
 cargo clippy --version
-Hyprland --verify-config -c "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.lua"
+python3 - <<'PYTHON'
+import importlib.util, pathlib, subprocess, tempfile
+spec = importlib.util.spec_from_file_location("deploy", "scripts/deploy.py")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+for profile in ["default", "Tops", "missing-profile"]:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".lua") as f:
+        f.write(f"FOUNDATION_ROOT={m.lua_string(m.ROOT)}\nFOUNDATION_PROFILE={m.lua_string(profile)}\ndofile(FOUNDATION_ROOT .. '/compositor/hyprland/hyprland.lua')\n")
+        f.flush()
+        subprocess.run(["Hyprland", "--verify-config", "-c", f.name], check=True)
+PYTHON
+if [[ -f Cargo.toml ]]; then
+	cargo fmt --check
+	cargo clippy -- -D warnings
+	cargo test
+fi

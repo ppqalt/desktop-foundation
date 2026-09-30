@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$root"
+action=${1:-check}
+shift || true
+case $action in
+bootstrap | check | doctor | shell-start | shell-stop) exec "$root/scripts/$action" "$@" ;;
+deploy) exec python3 scripts/deploy.py install "$@" ;;
+restore) exec python3 scripts/deploy.py restore "$@" ;;
+reload)
+	"$root/scripts/check"
+	exec hyprctl reload
+	;;
+bench) exec python3 scripts/bench.py "$@" ;;
+test) exec python3 -m unittest discover -s tests -v "$@" ;;
+format)
+	while IFS= read -r file; do
+		if head -n 1 "$file" | rg -q '^#!/usr/bin/env bash'; then shfmt -w "$file"; fi
+	done < <(rg --files scripts)
+	while IFS= read -r file; do /usr/lib/qt6/bin/qmlformat -i "$file"; done < <(rg --files shell -g '*.qml')
+	;;
+lint) exec "$root/scripts/check" "$@" ;;
+*)
+	echo "Unknown workflow: $action" >&2
+	exit 2
+	;;
+esac

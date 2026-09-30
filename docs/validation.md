@@ -30,3 +30,29 @@ Zero measured ticks/switches in these short samples does not prove zero CPU/wake
 Remaining verification limits: no full UWSM login/logout or COSMIC fallback login was performed because ending the current desktop would interrupt work. At the next login select **Hyprland (uwsm-managed)**; verify user graphical-session target, portal/polkit, Kitty and shell, then save work and use Super+Shift+M before selecting COSMIC. Multi-monitor hotplug, alternate GPUs and lucky38 hardware are not yet tested. Optional perf installation needs an interactive sudo password; no perf traces, exact wakeup counts or QML frame profiles are claimed. Bootstrap is ready for that optional installation.
 
 Foundation phase ends here. Choose one individual feature/surface before adding any desktop UI.
+
+## Foundation hardening, 2026-09-30
+
+Static check passed for Bash/QML/Python/Lua and default/Tops/missing-profile
+config verification. Six isolated tests passed: interruption before backup, after
+backup, after linking, during restore, foreign replacement refusal and mocked
+unavailable portal diagnosis. Deploying Tops twice was idempotent.
+
+Live smoke passed with owned Kitty windows, targeted focus/workspace/move/close,
+explicit fullscreen/maximize/floating set twice then unset, scrolling operations,
+and actual lazy layer creation/removal. Existing applications were preserved.
+`python3 scripts/failure.py` passed: SIGKILL supervised shell recovery, existing
+client identity preservation, unavailable Hyprland IPC, unsupported compositor,
+and isolated syntax-error config. Doctor reports one shell instance, all services
+active and Finnish on all keyboards. Finnish punctuation/Shift+7 slash and the
+physical cheatsheet binding were already verified in the preceding input pass.
+
+Animation global timing is enabled at speed=3, bezier=default (300 ms, previously
+800 ms). Live config verified and reloaded; continuous angle effects remain
+disabled upstream. No frame-time profiler was available, so subjective smoothness
+and presentation latency are not asserted as benchmark facts.
+
+The current output became Hyprland's FALLBACK while the user was away. Automatic
+portable monitor configuration still works; pending native placeholder outputs
+are excluded from normalized records. Physical monitor reconnection and actual
+UWSM login/logout remain untested and are intentionally deferred.

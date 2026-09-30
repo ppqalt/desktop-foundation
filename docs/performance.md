@@ -11,3 +11,19 @@ For wakeups/scheduling, optional `perf stat -p PID -e task-clock,context-switche
 QML tooling lives in /usr/lib/qt6/bin: qmllint, qmlformat, qmlls, qmlprofiler, qsb. Use `quickshell --debug 3768 --waitfordebug --path shell` in a separate development instance and attach qmlprofiler (`qmlprofiler --attach localhost --port 3768 --output work/profile.qtd`). See tool help for capture controls. Use Qt Creator if a GUI profiler is wanted later. Profile binding evaluations, allocations, animations and scene-graph frames during open/close transitions, then assess p50/p95/p99 frame times against the output's frame budget. Check supported Qt scene-graph logging for the installed release. Keep profiling/debug endpoints development-only.
 
 Heaptrack can launch `heaptrack quickshell --path shell` for native allocations; it cannot by itself explain GPU memory or every QML object. Use Qt QML profiling alongside it. If a Rust backend is added, repeat CPU/PSS/allocations/startup measurements independently and track IPC latency and process count. Keep no invisible menu object trees alive without justification. Animations and blur remain desired; optimize concrete hot paths rather than disabling the visual design.
+
+## Repeatable hardened harness
+
+`scripts/bench` collects multiple fresh-process and warmed-process runs: RSS/PSS,
+CPU ticks, all surviving threads' context-switch deltas, changed thread sets,
+process-family endpoint counts, startup to backend-ready and actual probe object
+creation/destruction request roundtrips. Timing includes IPC overhead and is not
+first-frame presentation latency. Fresh process does not mean cold kernel caches.
+PSS sharing and user workload affect results. Endpoint snapshots cannot rule out
+short-lived subprocesses; attach `strace -f -e trace=process -p PID` for a finite
+window. Continuous runtime polling remains prohibited. Zero CPU ticks at the
+kernel's sampling resolution does not imply zero wakeups.
+
+Use `scripts/bench --trace` to additionally launch an owned shell under finite
+strace process tracing; the resident instance is untouched. Latest finite trace
+observed exactly one exec request (initial launch) and no subprocess execs.
