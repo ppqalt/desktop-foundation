@@ -35,6 +35,18 @@ def main():
         except json.JSONDecodeError:
             failures.append('Unable to parse Quickshell instance list')
     if niri:
+        code, state = run('systemctl', '--user', 'is-active', 'desktop-foundation-wallpaper.service')
+        print('Niri wallpaper:', state)
+        if code:
+            failures.append('Niri wallpaper unavailable: check image in compositor/niri/wallpaper.toml; scripts/niri-wallpaper-start')
+        code, state = run('systemctl', '--user', 'is-active', 'desktop-foundation-notifications.service')
+        print('Niri notifications:', state)
+        if code:
+            failures.append('Niri notifications unavailable: scripts/niri-notifications-start')
+        code, preference = run('gsettings', 'get', 'org.gnome.desktop.interface', 'color-scheme')
+        print('System color preference:', preference)
+        if code or preference != "'prefer-dark'":
+            failures.append('System dark preference inactive: scripts/dark-mode')
         code, reply = run('niri', 'msg', '-j', 'outputs')
         if code:
             failures.append('Niri IPC unavailable: check NIRI_SOCKET')

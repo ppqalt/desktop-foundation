@@ -28,8 +28,10 @@ def wait_for(predicate):
     raise RuntimeError('Timed out waiting for compositor event/state')
 
 original = status()
+niri = original['backend'] == 'niri'
 used = {w['id'] for w in original['workspaces']}
-workspace = next(str(i) for i in range(91, 120) if str(i) not in used)
+workspace = (next(w['id'] for w in original['workspaces'] if not any(v['workspaceId'] == w['id'] for v in original['windows']))
+             if niri else next(str(i) for i in range(91, 120) if str(i) not in used))
 processes = []
 try:
     ipc('focusWorkspace', workspace)
@@ -42,11 +44,17 @@ try:
     first, second = [w['id'] for w in windows]
     ipc('focusWindow', first)
     wait_for(lambda s: s['focusedWindow'] is not None and s['focusedWindow']['id'] == first)
-    hypr('hl.dsp.layout("swapcol r")')
-    hypr('hl.dsp.layout("move +col")')
+    if niri:
+        ipc('moveDirection', 'right')
+        ipc('moveDirection', 'left')
+    else:
+        hypr('hl.dsp.layout("swapcol r")')
+        hypr('hl.dsp.layout("move +col")')
     ipc('focusWindow', second)
     wait_for(lambda s: s['focusedWindow'] is not None and s['focusedWindow']['id'] == second)
     for method, field in [('setFullscreen', 'fullscreen'), ('setMaximized', 'maximized'), ('setFloating', 'floating')]:
+        if method in ('setFullscreen', 'setMaximized') and not original['capabilities'].get(method, False):
+            continue
         ipc(method, second, 'true')
         wait_for(lambda s: any(w['id'] == second and w['state'][field] for w in s['windows']))
         ipc(method, second, 'true')
@@ -61,15 +69,24 @@ try:
     wait_for(lambda s: all(w['id'] != second for w in s['windows']))
     ipc('showProbe')
     time.sleep(0.5)  # Allow compositor animations; this is only a finite test.
-    layers = json.loads(subprocess.check_output(['hyprctl', '-j', 'layers'], text=True))
-    assert any(layer['namespace'] == 'desktop-foundation-probe' and layer['alpha'] > 0 for output in layers.values() for group in output['levels'].values() for layer in group)
+    if niri:
+        assert status()['probeAlive']
+    else:
+        layers = json.loads(subprocess.check_output(['hyprctl', '-j', 'layers'], text=True))
+        assert any(layer['namespace'] == 'desktop-foundation-probe' and layer['alpha'] > 0 for output in layers.values() for group in output['levels'].values() for layer in group)
     ipc('hideProbe')
     time.sleep(0.5)
-    layers = json.loads(subprocess.check_output(['hyprctl', '-j', 'layers'], text=True))
-    assert not any(layer['namespace'] == 'desktop-foundation-probe' for output in layers.values() for group in output['levels'].values() for layer in group)
+    assert not status()['probeAlive']
+    if not niri:
+        layers = json.loads(subprocess.check_output(['hyprctl', '-j', 'layers'], text=True))
+        assert not any(layer['namespace'] == 'desktop-foundation-probe' for output in layers.values() for group in output['levels'].values() for layer in group)
     print('PASS: Kitty launch, event-driven focus/workspace/window state, scrolling swap/move, targeted move/close, lazy probe creation/removal')
 finally:
     ipc('hideProbe')
+    # Native spawn wrappers can exit before the client. Close only our new IDs.
+    for window in status()['windows']:
+        if window['appId'].startswith('foundation-validation-') and window['id'] not in {w['id'] for w in original['windows']}:
+            ipc('closeWindow', window['id'])
     for process in processes:
         if process.poll() is None:
             process.terminate()

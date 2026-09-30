@@ -31,6 +31,8 @@ QtObject {
             maximizeColumn: true,
             setFloating: true,
             focusDirection: true,
+            moveDirection: true,
+            toggleFloating: true,
             nativeOverview: true,
             screenshotRegion: true,
             screenshotWindow: true,

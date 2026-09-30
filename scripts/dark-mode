@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Standard desktop preferences persist globally; no app CSS or forced GTK_THEME.
+gsettings set org.gnome.desktop.interface color-scheme prefer-dark
+gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark

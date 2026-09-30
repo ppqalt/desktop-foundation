@@ -13,6 +13,12 @@ QtObject {
             moveWindowToOutput: true,
             moveWorkspaceToOutput: true,
             setFullscreen: true,
+            toggleFullscreen: true,
+            maximizeColumn: true,
+            cycleColumnWidth: true,
+            centerColumn: true,
+            moveDirection: true,
+            toggleFloating: true,
             setMaximized: true,
             setFloating: true,
             focusDirection: true,
@@ -77,6 +83,7 @@ QtObject {
             id: String(Hyprland.focusedWorkspace.id),
             name: Hyprland.focusedWorkspace.name
         }) : null
+    readonly property var focusedWorkspace: activeWorkspace
     readonly property var windows: Hyprland.toplevels.values.map(w => ({
                 id: w.address.startsWith("0x") ? w.address : "0x" + w.address,
                 title: w.title,

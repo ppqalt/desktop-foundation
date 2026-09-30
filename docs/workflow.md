@@ -14,7 +14,7 @@ Run from this checkout:
 - `scripts/bench --runs 3 --seconds 5 --output work/bench.json`: finite repeated measurements.
 - `scripts/reload`: check then reload compositor.
 - `scripts/shell-start` / `scripts/shell-stop`: independent bounded shell supervision.
-- `python3 scripts/smoke.py`: secondary Hyprland live test with owned temporary Kitty windows; restores focus.
+- `python3 scripts/smoke.py`: native-backend live test with owned temporary Kitty windows; restores focus.
 
 The `scripts/dev ACTION` dispatcher provides the same commands. If a Cargo workspace
 is added later, check also runs fmt/clippy/test. No speculative crate exists today.

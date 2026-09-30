@@ -50,6 +50,25 @@ binds {
     "Super+Ctrl+8" { move-window-to-workspace 8; }
     "Super+9" { focus-workspace 9; }
     "Super+Ctrl+9" { move-window-to-workspace 9; }
+    // Preserve the previous Niri wheel model: workspaces vertically, columns horizontally.
+    "Super+WheelScrollDown" cooldown-ms=150 { focus-workspace-down; }
+    "Super+WheelScrollUp" cooldown-ms=150 { focus-workspace-up; }
+    "Super+Ctrl+WheelScrollDown" cooldown-ms=150 { move-column-to-workspace-down; }
+    "Super+Ctrl+WheelScrollUp" cooldown-ms=150 { move-column-to-workspace-up; }
+    "Super+WheelScrollRight" { focus-column-right; }
+    "Super+WheelScrollLeft" { focus-column-left; }
+    "Super+Ctrl+WheelScrollRight" { move-column-right; }
+    "Super+Ctrl+WheelScrollLeft" { move-column-left; }
+    "Super+Shift+WheelScrollDown" { focus-column-right; }
+    "Super+Shift+WheelScrollUp" { focus-column-left; }
+    "Super+Ctrl+Shift+WheelScrollDown" { move-column-right; }
+    "Super+Ctrl+Shift+WheelScrollUp" { move-column-left; }
+    "Super+TouchpadScrollDown" cooldown-ms=150 { focus-workspace-down; }
+    "Super+TouchpadScrollUp" cooldown-ms=150 { focus-workspace-up; }
+    "Super+TouchpadScrollRight" { focus-column-right; }
+    "Super+TouchpadScrollLeft" { focus-column-left; }
+    "Super+Shift+TouchpadScrollDown" { focus-column-right; }
+    "Super+Shift+TouchpadScrollUp" { focus-column-left; }
     "Super+Shift+S" { screenshot show-pointer=false; }
     "Print" { screenshot-screen show-pointer=false; }
     "Page_Up" { spawn "wpctl" "set-volume" "-l" "1" "@DEFAULT_AUDIO_SINK@" "3%+"; }
