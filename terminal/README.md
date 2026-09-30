@@ -62,3 +62,8 @@ captured and closed without disturbing existing application windows.
 Fonts are bundled with their licenses in `fonts/`, linked through deployment into
 the user font directory, and removed from that location by rollback. Google Sans
 is used by the shared shell; Google Sans Code supplies its monospaced labels.
+
+Ctrl+A highlights all text in the current Kitty viewport, including output and
+the prompt. Ctrl+C copies a selection and otherwise retains interrupt behavior.
+Ctrl+Shift+C also copies as usual. This uses a small tracked no-UI kitten and
+Kitty’s native selection; it does not edit or execute the shell command.

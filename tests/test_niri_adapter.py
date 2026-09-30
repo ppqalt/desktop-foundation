@@ -58,6 +58,17 @@ class NiriAdapter(unittest.TestCase):
           raise RuntimeError('Timed out: '+str(state()))
          try:
           wait(lambda s:s['ready'] and s['focused']['id']=='1');c=streams[-1]
+          time.sleep(.2)
+          centers=lambda:len([x for x in seen if isinstance(x,dict) and 'CenterColumn' in x.get('Action',{})])
+          initial_centers=centers();assert initial_centers==1
+          send(c,{'WindowOpenedOrChanged':{'window':window(2)}});time.sleep(.25)
+          assert centers()==initial_centers, 'Two windows in one column must not auto-center'
+          send(c,{'WindowOpenedOrChanged':{'window':{**window(2),'is_floating':True}}});time.sleep(.25)
+          assert centers()==initial_centers, 'Floating companions also prevent auto-centering'
+          send(c,{'WindowClosed':{'id':2}});send(c,{'WindowFocusChanged':{'id':1}});time.sleep(.25)
+          assert centers()==initial_centers+1, 'Closing to one must recenter'
+          send(c,{'WindowLayoutsChanged':{'changes':[[1,window(1)['layout']]]}});time.sleep(.25)
+          assert centers()==initial_centers+1, 'Layout events must not create a centering loop'
           send(c,{'FutureUnknownEvent':{'new_field':True}});send(c,{'WindowFocusChanged':{'id':None}});wait(lambda s:s['ready'] and s['focused'] is None)
           send(c,{'WorkspacesChanged':{'workspaces':[workspace(5)]}});s=wait(lambda s:s['workspaces'][0]['index']==5);assert s['workspaces'][0]['id']=='70'
           send(c,{'WorkspaceUrgencyChanged':{'id':70,'urgent':True}});wait(lambda s:s['workspaces'][0]['urgent'])

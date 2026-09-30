@@ -68,3 +68,14 @@ Niri behavior rather than a ported Hyprland fullscreen-state selector.
 No full login/logout, multi-output/GPU, physical keyboard, arbitrary region mouse
 drag or sustained compositor socket-loss test is claimed. Hyprland was parsed,
 not live-retested while Niri owned the seat. No new OSD, menu, bar or control UI.
+
+## Strict single-window policy and media update
+
+The latest policy supersedes the earlier single-column config. Native focused
+column centering is never; the adapter uses existing events and native CenterColumn
+only for a sole tiled window, counting floating companions as other windows.
+The IPC fixture verifies that stacked/floating companions suppress requests,
+closing to one recenters, and layout events do not create an action loop.
+Live owned Kitty tests cover one/two/close, stacked windows, floating companions,
+floating/fullscreen return and workspace switching. Actual PageUp/PageDown/End
+input verifies 3% steps and play/pause, restoring original volume/playback.

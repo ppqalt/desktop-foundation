@@ -39,11 +39,16 @@ the column, F toggles fullscreen, A toggles floating, R cycles column widths and
 centers the column. Arrows/HJKL focus; Shift variants move. Super+1..9 switches
 workspace; Ctrl variants move the window. Finnish Super+/ is Super+Shift+7.
 Settings, cheatsheet and power menu remain reserved. Print captures the current
-output; Super+Shift+S uses Niri's native region UI. PageUp/Down changes volume 3%.
+output; Super+Shift+S uses the styled drag-release selector. Both copy only.
+PageUp/Down changes volume 3% with a compact readout; End toggles playback
+(Spotify first, then another available MPRIS player).
 
-A workspace with one tiled column is centered by Niri's native
-`always-center-single-column`; multiple columns retain normal scrolling. There is
-no custom positioning loop. Active/inactive window opacity is equally **90% for
+Automatic centering applies only to a workspace with exactly one window, when
+that window is tiled. The event-driven Niri adapter invokes native CenterColumn;
+multiple windows (including stacked/floating companions) receive no automatic
+centering. Native center-focused-column is never. There is no coordinate-based
+positioning or polling loop. This strict policy needs the shared shell running;
+manual Super+C works independently. Active/inactive window opacity is equally **90% for
 the current trial**. Kitty uses native background transparency with opaque text.
 Native blur currently samples the wallpaper/background; a uniform gray background
 cannot visibly demonstrate its blur kernel.

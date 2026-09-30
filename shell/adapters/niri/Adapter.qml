@@ -21,6 +21,19 @@ QtObject {
     property var currentRequest: null
     property bool outputRefreshPending: false
     property int retryDelay: 1000
+    // Strict single-window policy. Niri's built-in option counts columns.
+    property string centeredSingleWindow: ""
+    onRawWindowsChanged: singleWindowCentering.restart()
+    onRawWorkspacesChanged: singleWindowCentering.restart()
+    onReadyChanged: {
+        centeredSingleWindow = "";
+        if (ready)
+            singleWindowCentering.restart();
+    }
+    property Timer singleWindowCentering: Timer {
+        interval: 80
+        onTriggered: root.centerOnlySingleWindow()
+    }
     readonly property var capabilities: ({
             moveWindow: true,
             moveWindowToOutput: true,
@@ -273,6 +286,25 @@ QtObject {
             refreshOutputs();
         }
         // Unknown additive events intentionally do not reset the model.
+    }
+    function centerOnlySingleWindow(): void {
+        const workspace = rawWorkspaces.find(w => w.is_focused);
+        if (!ready || !workspace) {
+            centeredSingleWindow = "";
+            return;
+        }
+        // Count all windows, including floating ones: a workspace with company
+        // never receives automatic centering. Leave sole floating windows alone.
+        const members = rawWindows.filter(w => w.workspace_id === workspace.id);
+        if (members.length !== 1 || members[0].is_floating || !members[0].is_focused) {
+            centeredSingleWindow = "";
+            return;
+        }
+        const key = String(workspace.id) + ":" + String(members[0].id);
+        if (key === centeredSingleWindow)
+            return;
+        centeredSingleWindow = key;
+        centerColumn();
     }
     function identity(id: string): double {
         if (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(id)))

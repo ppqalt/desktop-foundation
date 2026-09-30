@@ -14,16 +14,26 @@ Niri binds are in `compositor/niri/bindings.kdl`.
 | Super+arrows or HJKL | Native column/window focus |
 | Super+Shift+arrows or HJKL | Move column/window |
 | Super+1..9 / Ctrl+1..9 | Focus workspace index / move window to workspace |
-| Super+Shift+S / Print | Native region screenshot / current output |
+| Super+Shift+S / Print | Drag-release region copy / current output copy |
 | PageUp / PageDown | Audio +3% / −3% |
 
 Finnish slash is Shift+7, evdev key 8. The reserved Super+Shift+7 chord is
 explicit, and workspace movement uses Ctrl rather than conflicting Shift.
-Niri's native `always-center-single-column` handles all single-column transitions;
+The adapter's strict single-window policy uses native CenterColumn on events;
 multiple tiled windows in one column remain centered as a column.
 
 The following is historical Hyprland validation; its secondary bindings remain
 supported and have different native maximization/width semantics.
+
+Page Up increases volume by 3%, Page Down decreases it by 3%, capped at 100%.
+A compact top-center readout shows the actual resulting volume and a thin line
+bar for 1.5 seconds. Successive presses replace the same readout. End toggles
+MPRIS play/pause, preferring Spotify when present. playerctl/libnotify are included
+in bootstrap; the volume helper and notification styling are tracked.
+
+Automatic centering is restricted to exactly one window on the focused workspace,
+with a tiled sole window. Two windows stacked in one column, or a tiled window
+with floating companions, do not trigger it. Super+C still centers explicitly.
 
 ## Hyprland compatibility history
 
