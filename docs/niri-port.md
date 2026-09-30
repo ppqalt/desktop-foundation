@@ -43,3 +43,17 @@ Future implementation must test initial stream, disconnect/reconnect, unknown
 variants, null focus, cross-resource ordering and workspace reindexing. No Rust
 daemon is currently justified: direct event-driven QML integration remains the
 first option; use a small bridge only if runtime socket parsing demands it.
+
+## Screenshot actions
+
+| Logical action | Hyprland implementation | Planned Niri native implementation |
+|---|---|---|
+| screenshotRegion() | slurp rectangle, grim region | screenshot interactive UI |
+| screenshotWindow() | grim crop of visible focused-window geometry | screenshot-window |
+| screenshotOutput() | grim focused output | screenshot-screen |
+
+Translate config/screenshots.toml directory/name intent into Niri screenshot-path.
+Prefer Niri's built-in disk and clipboard behavior; do not require it to return an
+image to the Hyprland pipeline. Super+Shift+S selects a region and Print captures
+the focused output. Window capture has no extra binding. Check native options and
+cancellation behavior against the chosen Niri version before advertising support.

@@ -47,6 +47,15 @@ ShellRoot {
     }
     IpcHandler {
         target: "foundation"
+        function screenshotRegion(): void {
+            compositorBackend.screenshotRegion();
+        }
+        function screenshotWindow(): void {
+            compositorBackend.screenshotWindow();
+        }
+        function screenshotOutput(): void {
+            compositorBackend.screenshotOutput();
+        }
         function toggleClipboard(): void {
             if (root.launcher)
                 root.launcher.dismiss();

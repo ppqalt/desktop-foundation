@@ -42,3 +42,6 @@ The synthetic test validates actual compositor/client key processing, but cannot
 References: [Hyprland binds/keycode syntax](https://wiki.hypr.land/configuring/core/binds/), [native scrolling messages](https://wiki.hypr.land/Configuring/Layouts/Scrolling-Layout/), [Lua snippets and native window access](https://wiki.hypr.land/configuring/code-snippets/). API behavior was checked against the installed version and upstream v0.56.2 source, then tested live.
 
 Launcher phase: Super+Space is now active and toggles the lazy launcher. Its other UI chords remain reserved.
+
+Super+Shift+S selects a screenshot region; Print captures the focused output.
+Both save a PNG in ~/Pictures/Screenshots and copy it to the clipboard.

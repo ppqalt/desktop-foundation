@@ -42,3 +42,6 @@ Git commits use repository-local `Codex Foundation <codex@localhost>` because no
 Foundation hardening: [workflow](docs/workflow.md), [recovery](docs/recovery.md),
 [Niri port plan](docs/niri-port.md). Shared animations now inherit a 300 ms global
 timing with the existing upstream easing. See [launcher](docs/launcher.md) and [clipboard](docs/clipboard.md) for behavior, design and validation.
+
+Screenshots: Super+Shift+S selects a region; Print captures the focused output.
+Both save and copy. See [screenshots](docs/screenshots.md).

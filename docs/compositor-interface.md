@@ -25,3 +25,9 @@ Selectors are validated in the adapter before native dispatch. `scrollColumns`
 is a Hyprland extension that navigates columns by focus; no free viewport-offset
 contract is invented. Capabilities must be checked before optional operations.
 Lazy probe lifetime counters measure actual object construction/destruction.
+
+Screenshot requests: screenshotRegion(), screenshotWindow(), screenshotOutput(),
+with corresponding capabilities. They are on-demand asynchronous requests;
+backends own capture UX and native implementation. The common shell root only
+forwards requests. Save-path intent lives in config/screenshots.toml. No common
+QML code assumes grim/slurp or a particular screenshot buffer transport.

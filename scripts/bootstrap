@@ -4,7 +4,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 packages=(git base-devel rustup clang llvm lld cmake ninja pkgconf quickshell
 	qt6-declarative qt6-tools qt6-shadertools shellcheck shfmt jq hyperfine
 	heaptrack gdb strace kitty hyprland uwsm xdg-desktop-portal-hyprland
-	hyprpolkitagent perf python lua wl-clipboard)
+	hyprpolkitagent perf python lua wl-clipboard grim slurp)
 missing=()
 for package in "${packages[@]}"; do
 	if ! pacman -Q "$package" >/dev/null 2>&1; then missing+=("$package"); fi

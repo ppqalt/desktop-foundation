@@ -16,6 +16,9 @@ QtObject {
             setMaximized: true,
             setFloating: true,
             focusDirection: true,
+            screenshotRegion: true,
+            screenshotWindow: true,
+            screenshotOutput: true,
             nativeOverview: false
         })
     property bool focusCleared: false
@@ -146,6 +149,15 @@ QtObject {
         if (!["left", "right"].includes(direction))
             throw new Error("Invalid column direction");
         Hyprland.dispatch('hl.dsp.focus({direction="' + direction + '"})');
+    }
+    function screenshotRegion(): void {
+        Quickshell.execDetached([Quickshell.shellDir + "/../scripts/screenshot", "--backend", "hyprland", "region"]);
+    }
+    function screenshotWindow(): void {
+        Quickshell.execDetached([Quickshell.shellDir + "/../scripts/screenshot", "--backend", "hyprland", "window"]);
+    }
+    function screenshotOutput(): void {
+        Quickshell.execDetached([Quickshell.shellDir + "/../scripts/screenshot", "--backend", "hyprland", "output"]);
     }
     function toggleOverview(): bool {
         return false;

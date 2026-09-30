@@ -32,6 +32,9 @@ return function(command)
 
     bind("SUPER + V", hl.dsp.exec_cmd(command("clipboard")), "Toggle clipboard history")
 
+    bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(command("screenshot") .. " --backend hyprland region"), "Screenshot region: save and copy")
+    bind("Print", hl.dsp.exec_cmd(command("screenshot") .. " --backend hyprland output"), "Screenshot focused output: save and copy")
+
     -- Reserved, deliberately inert until the corresponding UI is designed.
     -- Hyprland does not supply a built-in Niri-style overview.
     local reserved = {

@@ -13,7 +13,7 @@ def run(*args):
 
 def main():
     failures = []
-    for binary in ['Hyprland', 'hyprctl', 'uwsm', 'quickshell', 'kitty', 'wl-copy', 'wl-paste', 'jq', 'dbus-update-activation-environment']:
+    for binary in ['Hyprland', 'hyprctl', 'uwsm', 'quickshell', 'kitty', 'wl-copy', 'wl-paste', 'grim', 'slurp', 'jq', 'dbus-update-activation-environment']:
         if not shutil.which(binary):
             failures.append(f'Missing {binary}: run scripts/bootstrap')
     for variable in ['WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']:
