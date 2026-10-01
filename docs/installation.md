@@ -63,7 +63,10 @@ load the fragment normally.
 The tracked XDG autostart override suppresses Blueman's permanent applet only in
 Niri. Blueman Manager can activate its applet for pairing/passkeys and stops it on
 exit when it started it. Blueman itself and its D-Bus activation are retained.
-See [implementation and validation](bluetooth.md).
+Connected Nothing/CMF models have native device controls. The installer also
+provisions Rust 1.98.1 and builds the locked RFCOMM helper; no resident service or
+upstream clone is needed. See [native controls](nothing-controls.md) and
+[Bluetooth implementation and validation](bluetooth.md).
 
 ## Backup and recovery
 

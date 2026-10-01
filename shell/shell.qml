@@ -108,7 +108,8 @@ ShellRoot {
             });
         }
         function togglePower(): void {
-            root.bluetoothEnabled = false;
+            if (bluetoothLoader.item)
+                bluetoothLoader.item.dismiss();
             if (powerLoader.item?.busy)
                 return;
             if (root.launcher)
@@ -156,7 +157,8 @@ ShellRoot {
             root.compositorBackend.screenshotOutput();
         }
         function toggleClipboard(): void {
-            root.bluetoothEnabled = false;
+            if (bluetoothLoader.item)
+                bluetoothLoader.item.dismiss();
             root.powerEnabled = false;
             if (root.launcher)
                 root.launcher.dismiss();
@@ -168,7 +170,8 @@ ShellRoot {
                 root.clipboardEnabled = true;
         }
         function showClipboard(): void {
-            root.bluetoothEnabled = false;
+            if (bluetoothLoader.item)
+                bluetoothLoader.item.dismiss();
             if (root.launcher)
                 root.launcher.dismiss();
             if (root.clipboard)
@@ -190,7 +193,8 @@ ShellRoot {
             });
         }
         function toggleLauncher(): void {
-            root.bluetoothEnabled = false;
+            if (bluetoothLoader.item)
+                bluetoothLoader.item.dismiss();
             root.powerEnabled = false;
             if (root.clipboard)
                 root.clipboard.dismiss();
@@ -202,7 +206,8 @@ ShellRoot {
                 root.launcherEnabled = true;
         }
         function showLauncher(): void {
-            root.bluetoothEnabled = false;
+            if (bluetoothLoader.item)
+                bluetoothLoader.item.dismiss();
             if (root.clipboard)
                 root.clipboard.dismiss();
             if (root.launcher)

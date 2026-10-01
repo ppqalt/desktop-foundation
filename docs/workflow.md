@@ -16,8 +16,9 @@ Run from this checkout:
 - `scripts/shell-start` / `scripts/shell-stop`: independent bounded shell supervision.
 - `python3 scripts/smoke.py`: native-backend live test with owned temporary Kitty windows; restores focus.
 
-The `scripts/dev ACTION` dispatcher provides the same commands. If a Cargo workspace
-is added later, check also runs fmt/clippy/test. No speculative crate exists today.
+The `scripts/dev ACTION` dispatcher provides the same commands. The native Nothing crate is checked with
+Cargo fmt/clippy/test by scripts/check. Build it with scripts/build-nothing; its
+source, lockfile and license live under native/nothing.
 Perf is optional and absent on Tops: install with
 `sudo pacman -Syu --needed perf`. Optional formatters: `sudo pacman -Syu --needed ruff stylua`.
 Missing sudo credentials block package changes only. Existing Qt profiler, heaptrack,

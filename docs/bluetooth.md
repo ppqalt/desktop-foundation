@@ -22,7 +22,7 @@ No discovery, pairing, forgetting, PIN agent, adapter polling or bluetoothctl.
 codec/profile reporting. Battery is BlueZ Battery1 through Quickshell, only shown
 when supplied. Missing battery/codec information is omitted, never invented.
 
-No native/Rust backend was added. Quickshell's device connect API returns void and
+Generic Bluetooth does not require a native backend. Quickshell's device connect API returns void and
 has no detailed error signal; its PipeWire API does not expose card profile lists.
 A finite `scripts/bluetooth-action.py` fills these two gaps: `busctl` invokes BlueZ
 Device1 methods directly over D-Bus, awaits method completion and verifies Connected.
@@ -100,3 +100,9 @@ a real microphone recording/return cycle has not been validated in this pass.
 References: [Quickshell BluetoothDevice](https://quickshell.org/docs/v0.3.1/types/Quickshell.Bluetooth/BluetoothDevice/),
 [WirePlumber 0.5 settings](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/settings.html),
 [WirePlumber Bluetooth configuration](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/bluetooth.html).
+
+## Nothing / CMF extension
+
+Connected supported devices offer Controls rather than immediate Disconnect. The
+Controls page retains an explicit Disconnect action. The generic list/connection
+helper remains the same. See [native controls, licensing and validation](nothing-controls.md).

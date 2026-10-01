@@ -20,6 +20,10 @@ PanelWindow {
         if (!root.closing)
             root.entered = true;
     })
+    property bool closeAfterControls: false
+    property var controlDevice: null
+    property var controlPaths: []
+    property var unsupportedPaths: []
     property bool busy: false
     property var pendingDevice: null
     property string pendingAction: ""
@@ -69,10 +73,19 @@ PanelWindow {
             list.positionViewAtIndex(selected, ListView.Contain);
     }
     function dismiss(): void {
+        if (controlDevice && controlsLoader.item) {
+            closeAfterControls = true;
+            controlsLoader.item.leaving = true;
+            controlsLoader.item.stop();
+            return;
+        }
         closing = true;
         closeTimer.start();
     }
-    function activate(index: int): void {
+    function supportsControls(device): bool {
+        return controlPaths.includes(device.dbusPath) && !unsupportedPaths.includes(device.dbusPath);
+    }
+    function activate(index: int, forceDisconnect = false): void {
         if (busy || closing)
             return;
         selected = index;
@@ -88,6 +101,11 @@ PanelWindow {
             error = device.blocked ? "Device blocked. Open Bluetooth Manager to change this." : "Bluetooth is off. Open Bluetooth Manager to turn it on.";
             return;
         }
+        if (device.connected && supportsControls(device) && !forceDisconnect) {
+            error = "";
+            controlDevice = device;
+            return;
+        }
         pendingDevice = device;
         pendingAction = device.connected ? "disconnect" : "connect";
         busy = true;
@@ -100,6 +118,13 @@ PanelWindow {
         return {
             visible: !closing,
             busy: busy,
+            controls: controlsLoader.item ? {
+                page: controlsLoader.item.page,
+                ready: controlsLoader.item.ready,
+                state: controlsLoader.item.earState,
+                error: controlsLoader.item.error,
+                selected: controlsLoader.item.selected
+            } : null,
             selected: selected,
             error: error,
             devices: devices.map(d => ({
@@ -111,6 +136,50 @@ PanelWindow {
         };
     }
     onDevicesChanged: selected = Math.min(selected, devices.length)
+    Process {
+        command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/nothing-backend", "--discover"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.controlPaths = JSON.parse(text).devices || [];
+                } catch (_) {}
+            }
+        }
+    }
+    Loader {
+        id: controlsLoader
+        z: 2
+        anchors.centerIn: parent
+        active: root.controlDevice !== null
+        sourceComponent: NothingControls {
+            availableWidth: root.width
+            availableHeight: root.height
+            device: root.controlDevice
+            audio: root.audioDetail(root.controlDevice)
+            onBack: {
+                root.controlDevice = null;
+                if (root.closeAfterControls)
+                    root.dismiss();
+                else
+                    card.forceActiveFocus();
+            }
+            onFailed: message => {
+                if (root.controlDevice)
+                    root.unsupportedPaths = [...root.unsupportedPaths, root.controlDevice.dbusPath];
+                root.error = message;
+                root.controlDevice = null;
+                card.forceActiveFocus();
+            }
+            onDisconnect: {
+                const index = root.devices.indexOf(root.controlDevice);
+                root.controlDevice = null;
+                card.forceActiveFocus();
+                if (index >= 0)
+                    root.activate(index, true);
+            }
+        }
+    }
     Timer {
         id: closeTimer
         interval: Theme.timing.exit
@@ -159,6 +228,7 @@ PanelWindow {
     }
     SurfaceCard {
         id: card
+        visible: root.controlDevice === null
         anchors.centerIn: parent
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
         height: Math.min(226 + Math.max(1, Math.min(6, root.devices.length)) * 66 + (root.error ? 38 : 0), root.height - 64)
@@ -267,7 +337,7 @@ PanelWindow {
                     })
                 iconSource: root.deviceIcon(modelData)
                 selected: root.selected === index
-                actionLabel: root.busy && root.pendingDevice === modelData ? "…" : modelData.connected ? "Disconnect" : "Connect"
+                actionLabel: root.busy && root.pendingDevice === modelData ? "…" : modelData.connected ? root.supportsControls(modelData) ? "Controls" : "Disconnect" : "Connect"
                 onHovered: root.selected = index
                 onChosen: root.activate(index)
             }
@@ -360,7 +430,7 @@ PanelWindow {
             y: card.height - 35
             spacing: 7
             Text {
-                text: root.selected === root.devices.length ? "Open manager" : root.devices[root.selected]?.connected ? "Disconnect device" : "Connect device"
+                text: root.selected === root.devices.length ? "Open manager" : root.devices[root.selected]?.connected ? root.supportsControls(root.devices[root.selected]) ? "Device controls" : "Disconnect device" : "Connect device"
                 color: Theme.colors.accent
                 font.family: Theme.typography.family
                 font.pixelSize: 11

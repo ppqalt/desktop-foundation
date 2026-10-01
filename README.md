@@ -2,7 +2,7 @@
 
 A Niri-first Arch/CachyOS desktop with a restrained graphite/glass theme. Includes
 an application launcher, searchable text/image clipboard with persistence, session
-power menu, paired-device Bluetooth popup, compact volume feedback, clipboard-only screenshots, and a portable
+power menu, paired-device Bluetooth popup with native Nothing/CMF controls, compact volume feedback, clipboard-only screenshots, and a portable
 Kitty/Fish/Fastfetch environment. No permanent bar.
 
 ## Install
@@ -88,3 +88,8 @@ remains a separate acceptance pass. See [contributing](CONTRIBUTING.md),
 [deployment](docs/deployment.md), [terminal](terminal/README.md) and
 [font sources](fonts/README.md). Asset provenance and publication decisions are in
 [publication notes](docs/publication.md).
+
+Native earbud controls: [implementation, hardware validation and limits](docs/nothing-controls.md).
+The optional device-control helper contains AGPL-derived code; its full
+[license](native/nothing/LICENSE) and [source attribution](native/nothing/NOTICE.md)
+are included. No browser or web server is involved.
