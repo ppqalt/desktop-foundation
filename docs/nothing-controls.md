@@ -98,8 +98,9 @@ restores the parent selection. Tab and Shift+Tab both navigate.
 
 The references expose advanced-EQ **enabled status**, not a reliable advanced-band
 read/write codec. This is reported in information, with no fake advanced editor.
-Spatial audio is also set-only in the references and is not presented as a verified
-toggle. Super Mic, personalized ANC, fit tests and case controls are not implemented.
+The newer deployed ear (web) protocol supplies a spatial-state query on B173;
+this is now read and confirmed after changes. Personalized ANC and case gesture
+editing remain outside this implementation.
 Other models' capabilities remain based on upstream mappings plus valid queries;
 only B173 has been hardware-validated here.
 
@@ -176,3 +177,28 @@ The vendor channel permits one control client at a time. An active ear (web)
 Web Serial connection in Brave reproduced BlueZ `br-connection-create-socket`;
 the popup now explains that other earbud-control applications should be closed.
 It leaves that application and audio session alone and keeps the generic list usable.
+
+## Additional Ear (3) quick settings
+
+After the reliability checkpoint, B173 gained Dual connection, Personal sound
+profile, Super Mic and Auto-transparency during calls. Each uses a supported
+query/write pair and strict actual readback. Personal sound toggles an existing
+Audiodo hearing profile; creating/calibrating a profile is not implemented.
+Spatial audio supports Off/Fixed; head tracking is not offered for these earbuds.
+Audio quality exposes AAC/LDAC preference separately from PipeWire's actual codec.
+Changing it reboots the earbuds: the UI labels this before activation, discards
+unconfirmed state and asks for reconnection/reopening to verify. It never claims
+that sending a command confirms the new codec.
+
+The ear-tip fit page explains the audible test and shows separate left/right
+results. The F014 start command delivers an unsolicited E00D result, bounded to
+20 seconds. Values 0/1/2 mean good seal/adjust tip/check worn state. Timeout leaves
+results unavailable and the page usable. The actual user-approved UI test returned
+**good seal on both sides**. Quick-setting toggles and spatial modes changed and
+read back through real UI input, then restored. EQ/Bass/spatial/personal state is
+synchronized after related changes because firmware can couple these settings.
+
+These newer features are gated to B173 and valid replies rather than assumed from
+the Bluetooth name. Protocol research used the public deployed ear (web) scripts;
+source provenance and hashes are recorded in native/nothing/NOTICE.md. No web UI
+or assets are copied. Firmware remains an actual device report in Information.

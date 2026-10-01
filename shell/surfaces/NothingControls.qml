@@ -93,6 +93,9 @@ SurfaceCard {
         const b = earState.battery;
         return ["left", "right", "case", "headphone"].filter(k => b?.[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1) + " " + b[k].percent + "%" + (b[k].charging ? " ↑" : "")).join("    ") || "Battery unavailable";
     }
+    function fitLabel(value): string {
+        return value === 0 ? "Good seal" : value === 1 ? "Adjust ear tip" : value === 2 ? "Check earbuds are worn" : "Not tested";
+    }
     function row(name, value, key, extra): var {
         return {
             name: name,
@@ -106,6 +109,10 @@ SurfaceCard {
         let result = [];
         if (page === "info")
             return [row("Model", s.modelCode || "Unknown", "none"), row("Firmware", s.firmware || "Unavailable", "none"), row("Bluetooth address", device.address, "none"), row("Advanced equalizer", s.advanced === undefined ? "No reliable response" : "Band controls unavailable in the reference protocol", "none"), row("Back", "Earbud controls", "back")];
+        if (page === "quality")
+            return [row("AAC", (s.quality === 0 ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 0), row("LDAC", (s.quality === 2 ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 2), row("Current playback", audio || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")];
+        if (page === "fit")
+            return [row("Wear both earbuds", "The test plays sound for about 10 seconds", "none"), row("Start fit test", "Check the seal of each ear tip", "fitStart"), row("Left earbud", fitLabel(s.fit?.left), "none"), row("Right earbud", fitLabel(s.fit?.right), "none"), row("Back", "Earbud controls", "back")];
         if (page === "find")
             return [row("Remove earbuds from your ears", "Earbuds will emit sound for 3 seconds. Remove them first.", "none"), ...[2, 3].filter(side => s.battery?.[side === 2 ? "left" : "right"]).map(side => row(side === 2 ? "Ring left earbud" : "Ring right earbud", "Emit sound · remove from ears first", "ring", side)), row("Back", "Earbud controls", "back")];
         if (page === "custom")
@@ -135,12 +142,23 @@ SurfaceCard {
             result.push(row("Gestures", "Pinch controls", "gesturesPage"));
         if (s.findAvailable && s.modelCode !== "B181")
             result.push(row("Find earbuds", "Emit sound · remove from ears first", "find"));
+        for (const entry of [["dual", "Dual connection", "Connect two devices"], ["personal", "Personal sound profile", "Use your existing hearing profile"], ["superMic", "Super Mic", "Use the case microphone"], ["autoTransparency", "Auto-transparency", "Automatic transparency during calls"]]) {
+            if (s[entry[0]] != null)
+                result.push(row(entry[1], (s[entry[0]] ? "On" : "Off") + " · " + entry[2], entry[0]));
+        }
+        if (s.quality != null)
+            result.push(row("Audio quality", (s.quality === 2 ? "LDAC" : "AAC") + " · Playback: " + (audio || "unavailable"), "qualityPage"));
+        if (s.spatial != null)
+            result.push(row("Spatial audio", s.spatial === 1 ? "Fixed" : "Off", "spatial"));
+        if (s.fitAvailable)
+            result.push(row("Ear-tip fit test", "Check left and right seal", "fit"));
         result.push(row("Device information", "Model · Firmware", "info"));
         result.push(row("Refresh battery", "Request current values", "refresh"));
         result.push(row("Disconnect", "Return to paired devices", "disconnect"));
         return result;
     }
     onRowsChanged: {
+        hoverNavigationEnabled = false;
         const old = previousRows[selected];
         if (previousPage === page && old) {
             const index = rows.findIndex(r => r.key === old.key && r.extra === old.extra);
@@ -165,6 +183,7 @@ SurfaceCard {
         backend.signal(15);
     }
     function goBack(): void {
+        hoverNavigationEnabled = false;
         if (page !== "main") {
             page = "main";
             selected = Math.min(mainSelection, rows.length - 1);
@@ -182,6 +201,7 @@ SurfaceCard {
         pendingRowId = entry.key + ":" + String(entry.extra ?? "");
         error = "";
         backend.write(JSON.stringify(value) + "\n");
+        commandDeadline.interval = value.action === "fit" ? 24000 : 6000;
         commandDeadline.restart();
     }
     function cycle(values, current, delta): var {
@@ -195,9 +215,10 @@ SurfaceCard {
         if (!entry)
             return;
         const key = entry.key;
-        if (["info", "custom", "gesturesPage", "find"].includes(key)) {
+        if (["info", "custom", "gesturesPage", "find", "qualityPage", "fit"].includes(key)) {
+            hoverNavigationEnabled = false;
             mainSelection = selected;
-            page = key === "gesturesPage" ? "gestures" : key;
+            page = key === "gesturesPage" ? "gestures" : key === "qualityPage" ? "quality" : key;
             selected = 0;
             list.positionViewAtBeginning();
         } else if (key === "back")
@@ -243,7 +264,21 @@ SurfaceCard {
                     level: delta ? Math.max(1, Math.min(5, earState.bass.level + delta)) : earState.bass.level
                 }
             });
-        else if (key === "inEar" || key === "latency")
+        else if (key === "fitStart")
+            send({
+                action: "fit"
+            });
+        else if (key === "quality")
+            send({
+                setting: "quality",
+                value: entry.extra
+            });
+        else if (key === "spatial")
+            send({
+                setting: "spatial",
+                value: earState.spatial === 1 ? 0 : 1
+            });
+        else if (["inEar", "latency", "dual", "personal", "superMic", "autoTransparency"].includes(key))
             send({
                 setting: key,
                 value: !earState[key]
@@ -344,6 +379,8 @@ SurfaceCard {
                     }
                     if (message.event === "error")
                         root.error = message.message;
+                    if (message.event === "restart")
+                        root.failed(message.message);
                     if (message.fatal)
                         root.failed(message.message);
                 } catch (_) {

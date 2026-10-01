@@ -152,6 +152,8 @@ PanelWindow {
                 selected: controlsLoader.item.selected,
                 busy: controlsLoader.item.busy,
                 scrollY: controlsLoader.item.scrollY,
+                hoverNavigationEnabled: controlsLoader.item.hoverNavigationEnabled,
+                lastPointer: controlsLoader.item.lastPointer,
                 bounds: controlsLoader.item.bounds,
                 backendPid: controlsLoader.item.backendPid,
                 rows: controlsLoader.item.rows

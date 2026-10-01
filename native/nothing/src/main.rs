@@ -112,6 +112,30 @@ impl Ear {
         }
         Ok(())
     }
+    async fn synchronize_sound(&mut self) {
+        for (get, response, key) in [
+            (0xc01e, 0x401e, "anc"),
+            (0xc01f, 0x401f, "eq"),
+            (0xc050, 0x4050, "listening"),
+            (0xc04e, 0x404e, "bass"),
+            (0xc044, 0x4044, "customEq"),
+            (0xc04c, 0x404c, "advanced"),
+            (0xc04f, 0x404f, "spatial"),
+            (0xc05a, 0x405a, "personal"),
+        ] {
+            if !self.state[key].is_null() {
+                let replies = if get == 0xc01e {
+                    vec![response, 0xe003]
+                } else {
+                    vec![response]
+                };
+                if self.query(get, &replies).await.is_err() {
+                    self.state[key] = Value::Null;
+                    emit(json!({"event":"state","state":self.state}));
+                }
+            }
+        }
+    }
     async fn action(&mut self, v: Value) -> Result<()> {
         let key = v["setting"].as_str().ok_or("Missing setting")?;
         if self.state[key].is_null() {
@@ -165,6 +189,40 @@ impl Ear {
                     json!(value),
                 )
                 .await
+            }
+            "dual" | "personal" | "superMic" | "autoTransparency" => {
+                let value = v["value"].as_bool().ok_or("Invalid toggle")?;
+                let (set, get, response) = match key {
+                    "dual" => (0xf01a, 0xc027, 0x4027),
+                    "personal" => (0xf05c, 0xc05a, 0x405a),
+                    "superMic" => (0xf05f, 0xc05e, 0x405e),
+                    _ => (0xf060, 0xc05f, 0x405f),
+                };
+                self.change(set, &[u8::from(value)], get, response, key, json!(value))
+                    .await
+            }
+            "spatial" => {
+                let value = v["value"]
+                    .as_u64()
+                    .filter(|n| *n <= 1)
+                    .ok_or("Invalid spatial mode")? as u8;
+                self.change(0xf052, &[value, 0], 0xc04f, 0x404f, key, json!(value))
+                    .await
+            }
+            "quality" => {
+                let value = v["value"]
+                    .as_u64()
+                    .filter(|n| [0, 2].contains(n))
+                    .ok_or("Invalid audio quality")? as u8;
+                if self.state[key] == json!(value) {
+                    return Ok(());
+                }
+                self.send(0xf01c, &[value]).await?;
+                self.state[key] = Value::Null;
+                emit(
+                    json!({"event":"restart","message":"Earbuds restarting for audio quality. Reconnect, then reopen Bluetooth to verify the new setting."}),
+                );
+                Ok(())
             }
             "bass" => {
                 let enabled = v["value"]["enabled"].as_bool().ok_or("Invalid toggle")?;
@@ -383,6 +441,18 @@ async fn run() -> Result<()> {
     if model.base.supports_custom_eq() {
         requests.push((0xc044, 0x4044));
     }
+    // Newer ear (web) read/write pairs, gated to the validated Ear (3) model.
+    if model.base.as_str() == "B173" {
+        requests.extend([
+            (0xc027, 0x4027),
+            (0xc029, 0x4029),
+            (0xc05a, 0x405a),
+            (0xc05e, 0x405e),
+            (0xc05f, 0x405f),
+            (0xc04f, 0x404f),
+        ]);
+        ear.state["fitAvailable"] = json!(true);
+    }
     // The references only expose advanced-EQ enabled state, not a reliable band codec.
     requests.push((0xc04c, 0x404c));
     for (get, response) in requests {
@@ -432,6 +502,24 @@ async fn run() -> Result<()> {
                         ringing=Some((side,Instant::now()+Duration::from_secs(3)));
                         emit(json!({"event":"ringing","side":side}));
                     }
+                } else if value["action"]=="fit" {
+                    ear.state["fit"]=Value::Null;
+                    emit(json!({"event":"state","state":ear.state}));
+                    let result: Result<()> = async {
+                        if model.base.as_str()!="B173" { return Err("Fit test unavailable for this model".into()); }
+                        ear.send(0xf014,&[1]).await?;
+                        let end=Instant::now()+Duration::from_secs(20);
+                        loop {
+                            let packet=timeout_at(end,ear.next()).await.map_err(|_| "Fit test timed out; check that both earbuds are worn")??;
+                            ear.update(&packet);
+                            if packet.command==0xe00d {
+                                settings::decode(packet.command,&packet.payload).ok_or("Invalid fit result")?;
+                                return Ok(());
+                            }
+                        }
+                    }.await;
+                    if result.is_ok() { ear.synchronize_sound().await; }
+                    emit(match result {Ok(())=>json!({"event":"complete","success":true}),Err(e)=>json!({"event":"error","message":e.to_string()})});
                 } else if value["action"]=="refresh" {
                     // User-requested refresh, not a polling timer.
                     let result=ear.query(0xc007,&[0x4007,0xe001]).await;
@@ -446,14 +534,10 @@ async fn run() -> Result<()> {
                 } else {
                     let setting=value["setting"].as_str().unwrap_or("").to_owned();
                     let result=ear.action(value).await;
-                    if result.is_ok() && ["eq","listening","bass","customEq"].contains(&setting.as_str()) {
+                    if result.is_ok() && setting=="quality" && ear.state["quality"].is_null() { break; }
+                    if result.is_ok() && ["eq","listening","bass","customEq","spatial","personal"].contains(&setting.as_str()) {
                         // EQ/bass modes can affect each other. Synchronize after this user event.
-                        for (get,response,key) in [(0xc01f,0x401f,"eq"),(0xc050,0x4050,"listening"),(0xc04e,0x404e,"bass"),(0xc044,0x4044,"customEq"),(0xc04c,0x404c,"advanced")] {
-                            if !ear.state[key].is_null() && ear.query(get,&[response]).await.is_err() {
-                                ear.state[key]=Value::Null;
-                                emit(json!({"event":"state","state":ear.state}));
-                            }
-                        }
+                        ear.synchronize_sound().await;
                     }
                     emit(match result {Ok(())=>json!({"event":"complete","success":true}),Err(e)=>json!({"event":"error","message":e.to_string()})});
                 }

@@ -11,6 +11,7 @@ import signal
 import struct
 import subprocess
 import time
+import argparse
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -114,8 +115,9 @@ def test_keyboard():
         event(3,0,int(bounds['x']+280))
         event(3,1,int(bounds['y']+bounds['listY']+128))
         time.sleep(0.3)
-        for _ in range(12):
+        for _ in range(len(c()['rows'])):
             key(103)
+        assert c()['selected']==0, 'Pointer/input moved during the navigation setup'
         for i in range(len(c()['rows']) - 1):
             before = c()['selected']
             key(108)
@@ -222,6 +224,60 @@ def test_keyboard():
             key(1)
             time.sleep(0.5)
             key(1)
+
+def test_extended(audible_fit=False):
+    try:
+        open_controls()
+        original=json.loads(json.dumps(c()['state']))
+        for name in ['dual','personal','superMic','autoTransparency','spatial']:
+            value=original[name]
+            target=(1-value) if name=='spatial' else not value
+            press_setting(name,28,target)
+            press_setting(name,28,value)
+        print('PASS new quick settings through actual UI, readback and restore',flush=True)
+        choose('qualityPage');assert c()['page']=='quality'
+        key(108);key(108);key(103);key(1)
+        assert c()['rows'][c()['selected']]['key']=='qualityPage'
+        choose('fit');assert c()['page']=='fit'
+        key(28);assert not c()['busy']
+        if audible_fit:
+            select_key('fitStart');key(28)
+            waitp(lambda s:s.get('controls') and not s['controls']['busy'],24)
+            assert c()['state'].get('fit') and not c()['error'],c()
+            print('PASS actual ear-tip test response: '+json.dumps(c()['state']['fit']),flush=True)
+        key(1);assert c()['rows'][c()['selected']]['key']=='fit'
+        key(1);key(1)
+    finally:
+        if bt()['visible']:ipc('toggleBluetooth')
+
+
+def test_audio_quality():
+    open_controls()
+    original=c()['state']['quality']
+    try:
+        for value in [0 if original==2 else 2,original]:
+            choose('qualityPage')
+            selected=0 if value==0 else 1
+            while c()['selected']!=selected:key(108 if c()['selected']<selected else 103)
+            key(28)
+            waitp(lambda v:v.get('controls') is None,8)
+            time.sleep(2)
+            end=time.monotonic()+12
+            while time.monotonic()<end and not next(d for d in bt()['devices'] if d['dbusPath']==device_path)['connected']:time.sleep(.2)
+            if not next(d for d in bt()['devices'] if d['dbusPath']==device_path)['connected']:
+                index=next(i for i,d in enumerate(bt()['devices']) if d['dbusPath']==device_path)
+                while bt()['selected']!=index:key(108 if bt()['selected']<index else 103)
+                key(28);waitp(lambda v:not v['visible'],40)
+            if bt()['visible']:ipc('toggleBluetooth');waitp(lambda v:not v['visible'],5)
+            time.sleep(.5);open_controls()
+            assert c()['state']['quality']==value,c()
+            expected='LDAC' if value==2 else 'AAC'
+            waitp(lambda v: next(d for d in v['devices'] if d['dbusPath']==device_path)['audio']==expected,20)
+            print('PASS audio-quality reboot, fresh readback and actual playback: '+expected,flush=True)
+        assert c()['state']['quality']==original
+    finally:
+        if bt()['visible']:ipc('toggleBluetooth')
+
 
 def test_mouse():
     original = None
@@ -367,7 +423,7 @@ def restore_settings():
         message=response({'ready','error'})
         if message['event']=='error':raise RuntimeError(message)
         current=message['state']
-        changes=[{'setting':k,'value':baseline[k]} for k in ['anc','bass','eq','customEq','inEar','latency'] if k in baseline and current.get(k)!=baseline[k]]
+        changes=[{'setting':k,'value':baseline[k]} for k in ['anc','bass','eq','customEq','inEar','latency','dual','personal','superMic','autoTransparency','spatial'] if k in baseline and current.get(k)!=baseline[k]]
         changes += [{'setting':'gestures','slot':i,'value':slot['action']} for i,slot in enumerate(baseline.get('gestures',[])) if i<len(current.get('gestures',[])) and current['gestures'][i]['action']!=slot['action']]
         for change in changes:
             helper.stdin.write(json.dumps(change)+'\n');helper.stdin.flush()
@@ -379,9 +435,15 @@ def restore_settings():
         if helper.poll() is None:helper.terminate();helper.wait(timeout=5)
 
 if __name__ == '__main__':
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--fit',action='store_true',help='Play the fit-test sound; wear both earbuds')
+    parser.add_argument('--reboot-quality',action='store_true',help='Change AAC/LDAC, reboot earbuds and restore the original preference')
+    options=parser.parse_args()
     source=run('pactl','get-default-source').stdout
     try:
-        for phase in (test_keyboard,test_mouse,test_lifecycle,test_disconnect):
+        phases=[test_keyboard,lambda: test_extended(options.fit),test_mouse,test_lifecycle,test_disconnect]
+        if options.reboot_quality:phases.append(test_audio_quality)
+        for phase in phases:
             fd=input_device()
             try:phase()
             finally:

@@ -78,6 +78,38 @@ pub fn decode(command: u16, p: &[u8]) -> Option<(&'static str, Value)> {
             }
             ("latency", json!(value == 1))
         }
+        0x4027 | 0x405a | 0x405e | 0x405f => {
+            let value = *p.first()?;
+            if p.len() != 1 || value > 1 {
+                return None;
+            }
+            let key = match command {
+                0x4027 => "dual",
+                0x405a => "personal",
+                0x405e => "superMic",
+                _ => "autoTransparency",
+            };
+            (key, json!(value == 1))
+        }
+        0x4029 => {
+            let value = *p.first()?;
+            if p.len() != 1 || ![0, 2].contains(&value) {
+                return None;
+            }
+            ("quality", json!(value))
+        }
+        0x404f => {
+            if p.len() != 2 || p[1] != 0 || p[0] > 1 {
+                return None;
+            }
+            ("spatial", json!(p[0]))
+        }
+        0xe00d => {
+            if p.len() != 2 || p.iter().any(|v| *v > 2) {
+                return None;
+            }
+            ("fit", json!({"left":p[0],"right":p[1]}))
+        }
         0x404e => {
             let enabled = *p.first()?;
             let level = *p.get(1)?;
@@ -143,6 +175,29 @@ pub fn custom_eq(bands: &[f32]) -> Vec<u8> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn extended_settings_validate_actual_wire_values() {
+        for command in [0x4027, 0x405a, 0x405e, 0x405f] {
+            assert_eq!(
+                super::decode(command, &[1]).unwrap().1,
+                serde_json::json!(true)
+            );
+            assert!(super::decode(command, &[2]).is_none());
+            assert!(super::decode(command, &[]).is_none());
+        }
+        assert_eq!(
+            super::decode(0x404f, &[1, 0]).unwrap().1,
+            serde_json::json!(1)
+        );
+        assert!(super::decode(0x404f, &[1, 1]).is_none());
+        assert!(super::decode(0x4029, &[1]).is_none());
+        assert_eq!(
+            super::decode(0xe00d, &[0, 1]).unwrap().1,
+            serde_json::json!({"left":0,"right":1})
+        );
+        assert!(super::decode(0xe00d, &[9, 0]).is_none());
+    }
+
     use super::*;
     #[test]
     fn all_reported_batteries_and_charging() {
