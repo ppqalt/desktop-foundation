@@ -1,0 +1,20 @@
+# One Arch package per line.
+git
+base-devel
+clang
+llvm
+lld
+cmake
+ninja
+pkgconf
+qt6-declarative
+qt6-tools
+qt6-shadertools
+shellcheck
+shfmt
+jq
+hyperfine
+heaptrack
+gdb
+strace
+perf

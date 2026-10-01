@@ -77,12 +77,32 @@ def restore(manifest):
     print('Original configuration restored. Reload your active compositor if needed.')
 
 
+def common_targets():
+    return [(CONFIG / 'gtk-3.0/settings.ini', ROOT / 'theme/gtk-3.0/settings.ini'),
+            (CONFIG / 'gtk-4.0/settings.ini', ROOT / 'theme/gtk-4.0/settings.ini'),
+            (CONFIG / 'wireplumber/wireplumber.conf.d/60-desktop-foundation-bluetooth.conf', ROOT / 'audio/wireplumber/60-desktop-foundation-bluetooth.conf'),
+            (CONFIG / 'kitty', ROOT / 'terminal/kitty'),
+            (CONFIG / 'fish', STATE / 'terminal/fish'),
+            (CONFIG / 'fastfetch', ROOT / 'terminal/fastfetch'),
+            (DATA / 'fonts/desktop-foundation', ROOT / 'fonts')]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['install', 'restore'])
     parser.add_argument('--profile', default='default')
     parser.add_argument('--compositor', choices=['niri', 'hyprland'], default='niri')
+    parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
+    if args.dry_run:
+        from session_units import targets as session_targets
+        paths = session_targets(ROOT, CONFIG, STATE, DATA, write=False)
+        paths.extend([(CONFIG / 'niri/config.kdl', STATE / 'niri.kdl'),
+                      (CONFIG / 'quickshell/desktop-foundation', ROOT / 'shell')])
+        paths.extend(common_targets())
+        for path, source in paths:
+            print(f'Deploy with backup: {path} <- {source}')
+        return
     STATE.mkdir(parents=True, exist_ok=True)
     with (STATE / 'lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -130,13 +150,7 @@ def main():
             if not link.exists() and not link.is_symlink():
                 link.symlink_to(child)
         subprocess.run(['fish', '--no-config', '-n', str(ROOT / 'terminal/fish/config.fish')], check=True)
-        targets.extend([(CONFIG / 'gtk-3.0/settings.ini', ROOT / 'theme/gtk-3.0/settings.ini'),
-                        (CONFIG / 'gtk-4.0/settings.ini', ROOT / 'theme/gtk-4.0/settings.ini'),
-                        (CONFIG / 'wireplumber/wireplumber.conf.d/60-desktop-foundation-bluetooth.conf', ROOT / 'audio/wireplumber/60-desktop-foundation-bluetooth.conf'),
-                        (CONFIG / 'kitty', ROOT / 'terminal/kitty'),
-                        (CONFIG / 'fish', fish_runtime),
-                        (CONFIG / 'fastfetch', ROOT / 'terminal/fastfetch'),
-                        (DATA / 'fonts/desktop-foundation', ROOT / 'fonts')])
+        targets.extend(common_targets())
         for path, src in targets:
             entries = [e for e in manifest['entries'] if e['path'] == str(path)]
             if entries and not owned(entries[0]):

@@ -40,12 +40,15 @@ def main():
                 raise RuntimeError('Modified outside deployment: ' + name)
             if name not in entries:
                 backup = STATE / path.name
-                shutil.copy2(path, backup)
-                entries[name] = {'backup': str(backup), 'original': digest(backup), 'managed': digest(source)}
+                if path.exists():
+                    shutil.copy2(path, backup)
+                entries[name] = {'backup': str(backup) if path.exists() else None,
+                                 'original': digest(backup) if path.exists() else None, 'managed': digest(source)}
             entries[name]['managed'] = digest(source)
             temporary = journal.with_suffix('.tmp')
             temporary.write_text(json.dumps(entries, indent=2) + '\n')
             temporary.replace(journal)
+            path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, path)
             path.chmod(0o644)
         subprocess.run(['systemctl', 'enable', 'greetd.service', '--force'], check=True)
@@ -57,7 +60,10 @@ def main():
             if digest(Path(name)) not in {entry['managed'], entry.get('original')}:
                 raise RuntimeError('Refusing to overwrite modified file: ' + name)
         for name, entry in entries.items():
-            shutil.copy2(entry['backup'], name)
+            if entry['backup']:
+                shutil.copy2(entry['backup'], name)
+            else:
+                Path(name).unlink(missing_ok=True)
         journal.unlink(missing_ok=True)
         print('Previous greetd/PAM files restored. Display manager service unchanged.')
 

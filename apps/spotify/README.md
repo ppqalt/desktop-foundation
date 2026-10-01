@@ -1,7 +1,8 @@
 # Spotify, Spicetify and Marketplace
 
 Optional, user-local application setup. This is separate from foundation config
-deployment and is never silently installed when deploying the desktop.
+deployment. The canonical `scripts/install` includes it by default in the personal
+profile; `scripts/install --core` excludes it.
 
 Run `scripts/spotify-setup install`. It downloads the official Spotify Debian
 client, official Spicetify CLI release and official Marketplace release using
@@ -20,7 +21,7 @@ state and are never checked into Git.
 Open Spotify, log in normally, and leave it open for at least a minute, as
 Spicetify's first-run instructions require. Then close Spotify and run:
 
-    scripts/spotify-setup apply
+    scripts/post-install spotify
 
 This uses Spicetify's native backup/apply mechanism. Marketplace is registered as
 a custom app with its required upstream placeholder theme. No decorative theme,

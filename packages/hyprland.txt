@@ -1,0 +1,4 @@
+# One Arch package per line.
+hyprland
+uwsm
+xdg-desktop-portal-hyprland

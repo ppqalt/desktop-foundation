@@ -2,9 +2,10 @@
 from niri_wallpaper import quote
 
 
-def targets(root, config, state, data):
+def targets(root, config, state, data, write=True):
     generated = state / 'session-units'
-    generated.mkdir(parents=True, exist_ok=True)
+    if write:
+        generated.mkdir(parents=True, exist_ok=True)
     result = [(data / 'wallpapers/wallhaven-135w7w.png', root / 'wallpapers/wallhaven-135w7w.png')]
     for name, command in {
         'wallpaper': [str(root / 'scripts/niri-wallpaper-start')],
@@ -12,7 +13,8 @@ def targets(root, config, state, data):
     }.items():
         unit = 'desktop-foundation-' + name + '.service'
         source = generated / unit
-        source.write_text('[Unit]\nDescription=Desktop foundation Niri ' + name + '\n'
+        if write:
+            source.write_text('[Unit]\nDescription=Desktop foundation Niri ' + name + '\n'
                           'PartOf=niri.service graphical-session.target\nAfter=niri.service\n'
                           'ConditionEnvironment=NIRI_SOCKET\nStartLimitIntervalSec=60\nStartLimitBurst=3\n'
                           '[Service]\nExecStart=' + ' '.join(map(quote, command)) + '\n'

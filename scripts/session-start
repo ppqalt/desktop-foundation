@@ -26,3 +26,5 @@ fi
 systemctl --user start hyprpolkitagent.service
 "$root/scripts/clipboard-start"
 exec "$root/scripts/shell-start"
+
+"$root/scripts/dark-mode"

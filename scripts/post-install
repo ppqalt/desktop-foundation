@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+case ${1:-spotify} in
+spotify) "$root/scripts/spotify-setup" apply ;;
+*)
+	echo 'Usage: scripts/post-install spotify' >&2
+	exit 2
+	;;
+esac

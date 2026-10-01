@@ -1,0 +1,3 @@
+# One Arch package per line.
+greetd
+greetd-tuigreet

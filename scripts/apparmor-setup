@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Install an owned GRUB drop-in; never edit live boot entries by guesswork."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+ROOT = Path(__file__).resolve().parent.parent
+TARGET = Path('/etc/default/grub.d/60-desktop-foundation.cfg')
+STATE = Path('/var/lib/desktop-foundation/apparmor')
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['install', 'restore'])
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error('Run with sudo')
+    if not Path('/sys/module/apparmor').exists():
+        raise RuntimeError('Running kernel lacks AppArmor capability; install a supported kernel first. No boot files changed.')
+    generator = Path('/usr/bin/grub-mkconfig')
+    if not generator.exists() or 'default/grub.d/' not in generator.read_text():
+        raise RuntimeError('Automatic AppArmor boot configuration requires GRUB with drop-in support. See docs/APPARMOR.md; no boot files changed.')
+    if not Path('/boot/grub/grub.cfg').is_file():
+        raise RuntimeError('GRUB output path missing; mount the installed boot filesystem first. No boot files changed.')
+    STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    journal = STATE / 'manifest.json'
+    entry = json.loads(journal.read_text()) if journal.exists() else None
+    if args.action == 'restore':
+        if not entry:
+            return
+        if not TARGET.exists() or digest(TARGET) != entry['managed']:
+            raise RuntimeError('AppArmor drop-in modified outside installation; refusing restore')
+        if entry['existed']:
+            shutil.copy2(STATE / 'original.cfg', TARGET)
+        else:
+            TARGET.unlink()
+        subprocess.run(['grub-mkconfig', '-o', '/boot/grub/grub.cfg'], check=True)
+        journal.unlink()
+        return
+    source = ROOT / 'session/apparmor/60-desktop-foundation.cfg'
+    if entry and (not TARGET.exists() or digest(TARGET) != entry['managed']):
+        raise RuntimeError('AppArmor drop-in modified outside installation')
+    if not entry:
+        entry = {'existed': TARGET.exists(), 'managed': digest(source)}
+        if TARGET.exists():
+            shutil.copy2(TARGET, STATE / 'original.cfg')
+    entry['managed'] = digest(source)
+    temporary = journal.with_suffix('.tmp')
+    temporary.write_text(json.dumps(entry) + '\n')
+    temporary.replace(journal)
+    TARGET.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, TARGET)
+    TARGET.chmod(0o644)
+    subprocess.run(['grub-mkconfig', '-o', '/boot/grub/grub.cfg'], check=True)
+    subprocess.run(['systemctl', 'enable', 'apparmor.service'], check=True)
+    print('AppArmor boot configuration installed. Enforcement must be checked after reboot with scripts/doctor.')
+
+
+if __name__ == '__main__':
+    main()

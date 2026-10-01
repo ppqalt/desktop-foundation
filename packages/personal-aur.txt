@@ -1,0 +1,2 @@
+# One Arch package per line.
+brave-origin-nightly-bin

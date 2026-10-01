@@ -2,59 +2,132 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 profile=default
+personal=true
 greeter=true
 packages=true
-plan=false
+dry_run=false
+stage=arguments
+begin_stage() {
+	stage=$1
+	printf "\n%s\n" "$stage"
+}
+trap 'printf "Installation stopped during %s (line %s). Fix the reported error and rerun the same command; owned config backups are retained.\n" "$stage" "$LINENO" >&2' ERR
 while (($#)); do
 	case $1 in
-	--profile)
-		[[ $# -ge 2 ]] || {
-			echo '--profile needs a name' >&2
-			exit 2
-		}
-		profile=$2
+	--profile | --hardware-profile)
+		profile=${2:?Missing hardware profile}
 		shift
 		;;
-	--greeter) greeter=true ;;
+	--core) personal=false ;;
+	--personal) personal=true ;;
 	--no-greeter) greeter=false ;;
+	--greeter) greeter=true ;;
 	--no-packages) packages=false ;;
-	--plan) plan=true ;;
+	--dry-run | --plan) dry_run=true ;;
 	-h | --help)
-		printf 'Usage: %s [--profile NAME] [--no-greeter] [--no-packages] [--plan]\n' "$0"
+		echo 'Usage: scripts/install [--core|--personal] [--hardware-profile NAME] [--no-greeter] [--no-packages] [--dry-run]'
 		exit 0
 		;;
 	*)
-		printf 'Unknown option: %s\n' "$1" >&2
+		echo "Unknown option: $1" >&2
 		exit 2
 		;;
 	esac
 	shift
 done
 [[ $profile =~ ^[A-Za-z0-9_-]+$ ]] || {
-	echo 'Invalid profile name' >&2
+	echo 'Invalid hardware profile' >&2
 	exit 2
 }
-if [[ $EUID == 0 ]]; then
-	echo 'Run as your normal login user, not with sudo. Only package/system steps request sudo.' >&2
-	exit 1
-fi
-printf 'Niri install from %s, portable profile: %s\n' "$root" "$profile"
-printf 'Steps: dependencies (%s), locked native earbud build, validate + backed-up deployment, dark preference, application defaults.\n' "$packages"
-if $greeter; then printf 'System login step: greetd/Matrix/keyring PAM with backups; active greeter is not restarted.\n'; fi
-if $plan; then exit 0; fi
-command -v pacman >/dev/null || {
-	echo 'This installer targets Arch/CachyOS.' >&2
+[[ -d $root/profiles/$profile ]] || {
+	echo "Unknown hardware profile: $profile" >&2
+	exit 2
+}
+[[ $EUID != 0 ]] || {
+	echo 'Run as your login user; builds must not run as root.' >&2
 	exit 1
 }
+manifests=(core)
+if $greeter; then manifests+=(greeter); fi
+if $personal; then manifests+=(personal); fi
+printf 'Niri installation: hardware=%s personal=%s\n' "$profile" "$personal"
+if $dry_run; then
+	for manifest in "${manifests[@]}"; do
+		echo "Repository packages ($manifest; package stage=$packages):"
+		sed '/^#/d; /^$/d' "$root/packages/$manifest.txt"
+	done
+	if $personal; then
+		echo "Personal package/download stage enabled=$packages. AUR: bootstrap paru as non-root if missing; review PKGBUILD; then:"
+		sed '/^#/d; /^$/d' "$root/packages/personal-aur.txt"
+		python3 - "$root" <<'PY'
+import json, sys
+from pathlib import Path
+for name, source in json.loads((Path(sys.argv[1]) / 'apps/spotify/sources.json').read_text()).items():
+    if isinstance(source, dict) and 'url' in source:
+        print(name, source['url'], source['sha256'])
+    elif isinstance(source, list):
+        for library in source:
+            print(library['name'], library['url'], library['sha256'])
+PY
+	fi
+	python3 "$root/scripts/deploy.py" install --profile "$profile" --dry-run
+	echo 'Preferences: prefer-dark, adw-gtk3-dark; personal browser: brave-origin-nightly.desktop'
+	echo 'Services: enable Bluetooth and AppArmor; session starts PipeWire, portals, polkit, shell, notifications, clipboard and wallpaper.'
+	if $greeter; then echo 'System files with backups: /etc/greetd/config.toml /etc/pam.d/greetd; enable greetd (no restart). Matrix-capable tuigreet required.'; fi
+	echo 'AppArmor: backed-up /etc/default/grub.d/60-desktop-foundation.cfg; regenerate /boot/grub/grub.cfg; GRUB drop-in support required. Inspect scripts/doctor. Reboot/login required; Spotify login then scripts/post-install spotify.'
+	exit 0
+fi
+command -v pacman >/dev/null || {
+	echo 'Arch/CachyOS required.' >&2
+	exit 1
+}
+begin_stage '[1/8] Network and authentication'
+if $packages || $personal; then
+	python3 - <<'PY'
+import urllib.request
+for url in ['https://static.rust-lang.org/dist/channel-rust-stable.toml', 'https://aur.archlinux.org/rpc/v5/info?arg[]=paru']:
+    try:
+        with urllib.request.urlopen(url, timeout=15) as response:
+            response.read(1)
+    except Exception as error:
+        raise SystemExit(f'Network prerequisite unavailable: {url}: {error}')
+PY
+fi
+sudo -v
+begin_stage '[2/8] Repository dependencies'
 if $packages; then
 	options=()
 	if $greeter; then options+=(--greeter); fi
+	if $personal; then options+=(--personal); fi
 	"$root/scripts/bootstrap" "${options[@]}"
 fi
+begin_stage '[3/8] Personal applications'
+if $personal && $packages; then
+	"$root/scripts/paru-bootstrap"
+	mapfile -t aur < <(sed '/^#/d; /^$/d' "$root/packages/personal-aur.txt")
+	paru -S --needed "${aur[@]}"
+	"$root/scripts/spotify-setup" install
+fi
+begin_stage '[4/8] Locked native backend'
 "$root/scripts/build-nothing"
+begin_stage '[5/8] Capabilities and reversible deployment'
 python3 "$root/scripts/preflight.py" --profile "$profile"
 python3 "$root/scripts/deploy.py" install --compositor niri --profile "$profile"
-python3 "$root/scripts/preferences.py" install
+begin_stage '[6/8] User preferences'
+options=()
+if $personal; then options+=(--browser brave-origin-nightly.desktop); fi
+if [[ -n ${DBUS_SESSION_BUS_ADDRESS:-} ]]; then
+	python3 "$root/scripts/preferences.py" install "${options[@]}"
+else
+	dbus-run-session -- python3 "$root/scripts/preferences.py" install "${options[@]}"
+fi
+begin_stage '[7/8] System services and login'
+sudo systemctl enable bluetooth.service apparmor.service
+sudo "$root/scripts/apparmor-setup" install
 if $greeter; then sudo "$root/scripts/system-setup" install; fi
-printf '\nInstalled. Reboot when ready, then choose Niri at login; the current session was not restarted.\n'
-printf 'After login: %s/scripts/session-acceptance\nRollback: %s/scripts/uninstall\n' "$root" "$root"
+begin_stage '[8/8] Read-only validation'
+options=(--installation)
+if ! $greeter; then options+=(--no-greeter); fi
+if $personal; then options+=(--personal); fi
+"$root/scripts/doctor" "${options[@]}"
+printf '\nReboot when ready, select Niri and run scripts/doctor --personal.\nSpotify: sign in once, close it, then scripts/post-install spotify.\nRollback: scripts/uninstall; applications: scripts/spotify-setup restore.\n'

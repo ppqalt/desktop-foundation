@@ -31,6 +31,7 @@ def set_value(key, value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['install', 'restore'])
+    parser.add_argument('--browser', default=None, help='Explicit verified desktop entry for personal installation')
     args = parser.parse_args()
     STATE.mkdir(parents=True, exist_ok=True)
     path = STATE / 'preferences.json'
@@ -86,7 +87,9 @@ def main():
         current = get(['mime', mime])
         directories = [Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share'))) / 'applications',
                        Path('/usr/local/share/applications'), Path('/usr/share/applications')]
-        if not current or not any((directory / current).is_file() for directory in directories):
+        if args.browser and mime.startswith('x-scheme-handler/'):
+            desktop = args.browser
+        if (args.browser and mime.startswith('x-scheme-handler/')) or not current or not any((directory / current).is_file() for directory in directories):
             subprocess.run(['xdg-mime', 'default', desktop, mime], check=True)
     saved['managed'] = mimefile.read_text() if mimefile.exists() else ''
     record.write_text(json.dumps(saved))

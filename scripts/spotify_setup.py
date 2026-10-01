@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Optional user-local Spotify and Spicetify installation; no sudo required."""
 import argparse
+import configparser
 import fcntl
 import time
 import hashlib
@@ -121,7 +122,8 @@ def install():
                 target.write_bytes(archive.read(member))
     theme = spicetify_config / 'Themes/marketplace'
     theme.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(ROOT / 'apps/spotify/marketplace-color.ini', theme / 'color.ini')
+    if not (theme / 'color.ini').exists():
+        shutil.copyfile(ROOT / 'apps/spotify/marketplace-color.ini', theme / 'color.ini')
     link(Path.home() / '.local/bin/spotify', ROOT / 'scripts/spotify')
     link(Path.home() / '.local/bin/spicetify', ROOT / 'scripts/spicetify')
     desktop = STATE / 'spotify.desktop'
@@ -131,9 +133,22 @@ def install():
                        'Terminal=false\nCategories=AudioVideo;Audio;Music;\n'
                        'MimeType=x-scheme-handler/spotify;\nStartupWMClass=spotify\n')
     link(DATA / 'applications/spotify.desktop', desktop)
-    subprocess.run([str(ROOT / 'scripts/spicetify'), 'config', 'spotify_path', str(APPS / 'spotify/usr/share/spotify'),
-                    'prefs_path', str(CONFIG / 'spotify/prefs'), 'custom_apps', 'marketplace',
-                    'inject_css', '1', 'replace_colors', '1', 'current_theme', 'marketplace'], check=True)
+    configured = STATE / 'portable-config-initialized'
+    if not configured.exists() or not (CONFIG / 'spicetify/config-xpui.ini').exists():
+        subprocess.run([str(ROOT / 'scripts/spicetify'), 'config', 'spotify_path', str(APPS / 'spotify/usr/share/spotify'),
+                        'prefs_path', str(CONFIG / 'spotify/prefs'),
+                        'inject_css', '1', 'replace_colors', '1', 'current_theme', 'marketplace'], check=True)
+        # CLI custom_apps appends; write a deduplicated list to keep reruns convergent.
+        config_path = CONFIG / 'spicetify/config-xpui.ini'
+        portable = configparser.ConfigParser(interpolation=None)
+        portable.read(config_path)
+        if not portable.has_section('AdditionalOptions'):
+            portable.add_section('AdditionalOptions')
+        apps = [item.strip() for item in portable.get('AdditionalOptions', 'custom_apps', fallback='').split('|') if item.strip()]
+        portable.set('AdditionalOptions', 'custom_apps', '|'.join(dict.fromkeys([*apps, 'marketplace'])))
+        with config_path.open('w') as stream:
+            portable.write(stream)
+        configured.write_text('Portable defaults initialized; future user theme choices are preserved.\n')
     subprocess.run(['update-desktop-database', str(DATA / 'applications')], check=False)
     print('Installed Spotify, Spicetify and Marketplace. Open Spotify, log in, then run scripts/spotify-setup apply.')
 
@@ -171,6 +186,7 @@ def restore():
         if backup.exists():
             backup.rename(config)
         (STATE / 'config-created').unlink(missing_ok=True)
+    (STATE / 'portable-config-initialized').unlink(missing_ok=True)
     print('Application links/config restored. Downloaded clients, Spotify account data and caches retained.')
 
 

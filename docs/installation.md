@@ -6,7 +6,7 @@ A TTY is sufficient for preparing the configuration; sign out and choose Niri to
 start the complete setup. Do not run the user installer with sudo.
 
 1. Obtain a Git clone in a permanent location, for example `~/Projects/desktop-foundation`.
-2. Run `./scripts/install --plan` to see the selected steps without mutations.
+2. Run `./scripts/install --dry-run` to see the selected steps without mutations.
 3. Run `./scripts/install`; missing runtime packages are installed with a full
    Pacman upgrade, avoiding partial upgrades. Existing packages are retained.
 4. The default installer configures greetd + tuigreet, Matrix animation and GNOME
@@ -93,3 +93,11 @@ tracked configuration or a host profile; keep backups until satisfied.
 The current desktop was validated on Tops; a pristine lucky38 install has not yet
 been exercised. The portable suite and parser checks reduce that gap but do not
 substitute for a fresh-login acceptance pass on its actual GPU/output setup.
+
+## Fresh test candidate
+
+The canonical installer defaults to personal additions; use `--core` to omit
+Paru, Brave and Spotify/Spicetify. Hardware uses `--hardware-profile NAME`.
+Follow [the first fresh Tops checklist](FRESH_INSTALL_TEST.md), including the
+off-machine bundle and [AppArmor boot requirements](APPARMOR.md). The older
+`--profile` spelling remains an alias for hardware selection.

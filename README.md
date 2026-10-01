@@ -11,14 +11,18 @@ Clone this repository into a permanent directory, then run as your normal user:
 
 ```sh
 cd desktop-foundation
-./scripts/install --plan   # optional: preview the steps
+./scripts/install --dry-run   # optional: inspect without changes
 ./scripts/install
 ```
 
 The installer installs the runtime packages through Pacman (sudo), validates
 your Niri build, backs up replaced configuration, deploys bundled fonts and wallpaper,
-and sets dark mode. It preserves an existing browser/file-manager default; fresh
-hosts receive Firefox and Nautilus. Choose **Niri** at your next login.
+and sets dark mode. The default personal install adds Paru, verified Brave Origin
+Nightly as default browser, and pinned user-local Spotify/Spicetify/Marketplace.
+Use `--core` for the portable desktop with Firefox/Nautilus defaults. Choose
+**Niri** at your next login. AppArmor boot setup requires GRUB with drop-in support.
+See [the fresh Tops procedure](docs/FRESH_INSTALL_TEST.md) and
+[AppArmor](docs/APPARMOR.md) before reinstalling.
 
 The standard install includes greetd/tuigreet with Matrix animation and keyring
 login unlocking. That system step needs sudo, backs up its files, and does not
@@ -29,7 +33,7 @@ a normal user account, networking and sudo already configured.
 Use `./scripts/install --no-greeter` only when deliberately supplying another login
 manager (or starting `niri-session` from a TTY). See
 [installation and compatibility](docs/installation.md). For host-specific monitor
-configuration use `--profile NAME`; the default has no output/GPU assumptions.
+configuration use `--hardware-profile NAME`; the default has no output/GPU assumptions.
 
 **Compatibility:** the exact appearance requires a Niri build supporting the
 configured native blur/background effects. Tested with CachyOS Niri 26.04 and

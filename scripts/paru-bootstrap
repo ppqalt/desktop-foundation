@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $EUID != 0 ]] || {
+	echo 'Do not build AUR packages as root.' >&2
+	exit 1
+}
+if command -v paru >/dev/null; then exit 0; fi
+sudo pacman -Syu --needed base-devel git
+build_dir=$(mktemp -d)
+trap 'rm -rf -- "$build_dir"' EXIT
+git clone --depth 1 https://aur.archlinux.org/paru.git "$build_dir/paru"
+printf 'Review paru PKGBUILD before building:\n'
+cat "$build_dir/paru/PKGBUILD"
+read -r -p 'Build and install this paru recipe? [y/N] ' answer
+[[ $answer == [yY] ]] || {
+	echo 'Stopped before executing the AUR recipe.' >&2
+	exit 1
+}
+(cd "$build_dir/paru" && RUSTUP_TOOLCHAIN=1.98.1 makepkg -si)

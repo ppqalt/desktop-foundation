@@ -7,11 +7,14 @@ import subprocess
 
 
 def run(*args):
-    result = subprocess.run(args, capture_output=True, text=True, timeout=10)
-    return result.returncode, result.stdout.strip()
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=10)
+        return result.returncode, result.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return 127, 'Command unavailable or timed out'
 
 
-def main():
+def session_main():
     failures = []
     niri = bool(os.environ.get("NIRI_SOCKET"))
     for binary in [*([] if niri else ['Hyprland', 'hyprctl', 'uwsm']), 'quickshell', 'kitty', 'wl-copy', 'wl-paste', 'grim', 'slurp', 'jq', 'dbus-update-activation-environment', 'niri', 'xwayland-satellite']:
@@ -108,6 +111,78 @@ def main():
     for message in failures:
         print('FAIL:', message)
     print('HEALTHY' if not failures else f'{len(failures)} issue(s)')
+    return bool(failures)
+
+
+
+def main():
+    import argparse
+    from pathlib import Path
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--installation', action='store_true', help='Check installed state before Niri login')
+    parser.add_argument('--personal', action='store_true')
+    parser.add_argument('--no-greeter', action='store_true')
+    args, _ = parser.parse_known_args()
+    root = Path(__file__).resolve().parent.parent
+    failures = []
+
+    def report(ok, message, warning=False):
+        print(('PASS' if ok else 'WARN' if warning else 'FAIL') + ': ' + message)
+        if not ok and not warning:
+            failures.append(message)
+
+    for group in ['core', *([] if args.no_greeter else ['greeter']), *(['personal'] if args.personal else [])]:
+        for package in (root / 'packages' / (group + '.txt')).read_text().splitlines():
+            if package and not package.startswith('#'):
+                report(run('pacman', '-Q', package)[0] == 0, 'Package ' + package)
+    for unit in ['bluetooth', 'apparmor', *([] if args.no_greeter else ['greetd'])]:
+        report(run('systemctl', 'is-enabled', unit + '.service')[0] == 0, unit + ' enabled')
+    enabled = Path('/sys/module/apparmor/parameters/enabled')
+    report(enabled.exists(), 'Kernel has AppArmor support')
+    report(enabled.exists() and enabled.read_text().strip() == 'Y',
+           'AppArmor kernel enforcement enabled; see docs/APPARMOR.md', warning=args.installation)
+    if not args.installation:
+        report(run('systemctl', 'is-active', 'apparmor.service')[0] == 0, 'AppArmor profile service active')
+    code, failed = run('systemctl', '--failed', '--no-legend', '--plain')
+    report(code == 0 and not failed, 'No failed system services')
+    config = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
+    data = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
+    for name in ['niri/config.kdl', 'quickshell/desktop-foundation', 'kitty', 'fish', 'fastfetch']:
+        report((config / name).exists(), 'Deployed ' + name)
+    report(run('niri', 'validate', '-c', str(config / 'niri/config.kdl'))[0] == 0, 'Niri configuration capabilities')
+    report((root / 'native/nothing/target/release/foundation-nothing').exists(), 'Nothing backend built')
+    report((data / 'wallpapers/wallhaven-135w7w.png').is_file(), 'Stable wallpaper')
+    for family in ['Google Sans', 'Google Sans Code', 'GoogleSansCode Nerd Font Mono']:
+        code, match = run('fc-match', '-f', '%{family}', family)
+        report(code == 0 and family in match, 'Font ' + family)
+    if not args.no_greeter:
+        code, matrix = run('tuigreet', '--background', 'matrix', '--dump-config')
+        report(code == 0 and 'kind = "matrix"' in matrix, 'Matrix-capable tuigreet')
+    if args.personal:
+        for binary in ['paru', 'brave-origin-nightly']:
+            report(bool(shutil.which(binary)), 'Personal executable ' + binary)
+        for name in ['spotify', 'spicetify']:
+            report((data / 'desktop-foundation/apps' / name).is_dir(), 'Pinned application ' + name)
+        report((config / 'spicetify/CustomApps/marketplace/manifest.json').is_file(), 'Marketplace installed')
+        report((config / 'spotify/prefs').exists(), 'Spotify initialized; sign in then scripts/post-install spotify', warning=True)
+        report(run('xdg-mime', 'query', 'default', 'x-scheme-handler/https')[1] == 'brave-origin-nightly.desktop', 'Default browser Brave Origin Nightly')
+    for unit in ['desktop-foundation-wallpaper', 'desktop-foundation-clipboard-persist']:
+        report((config / 'systemd/user/niri.service.wants' / (unit + '.service')).exists(), unit + ' session activation')
+    code, paired = run('bluetoothctl', 'devices', 'Paired')
+    report(code == 0 and bool(paired), 'Bluetooth pairing present; pair devices through Blueman if empty', warning=True)
+    code, failed_user = run('systemctl', '--user', '--failed', '--no-legend', '--plain')
+    report(code == 0 and not failed_user, 'No failed user services', warning=args.installation and code != 0)
+    for name in ['pipewire.socket', 'pipewire-pulse.socket', 'wireplumber.service',
+                 'xdg-desktop-portal.service', 'xdg-desktop-portal-gnome.service',
+                 'xdg-desktop-portal-gtk.service', 'hyprpolkitagent.service']:
+        code, status = run('systemctl', '--user', 'show', name, '--property=LoadState', '--value')
+        report(code == 0 and status == 'loaded', 'Session dependency ' + name, warning=args.installation and code != 0)
+    if args.installation or not (os.environ.get('NIRI_SOCKET') or os.environ.get('HYPRLAND_INSTANCE_SIGNATURE')):
+        print('WARN: Active-session interactions remain to be checked after Niri login.')
+    else:
+        if session_main():
+            failures.append('Active-session diagnostics failed')
+    print('FAIL: installation incomplete' if failures else 'PASS: checked installation state; review warnings and physical-login checklist')
     return bool(failures)
 
 

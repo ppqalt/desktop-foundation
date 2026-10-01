@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-packages=(rustup gcc pkgconf dbus glib2 gsettings-desktop-schemas adw-gtk-theme xdg-utils qt6-svg quickshell kitty fish fastfetch fontconfig playerctl libnotify pipewire pipewire-audio pipewire-pulse wireplumber libpulse bluez bluez-utils blueman niri swaybg mako xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk
-	gnome-keyring nautilus firefox hyprpolkitagent python lua wl-clipboard wl-clip-persist grim slurp)
+mapfile -t packages < <(sed '/^#/d; /^$/d' "$root/packages/core.txt")
+add_manifest() {
+	local manifest
+	mapfile -t manifest < <(sed '/^#/d; /^$/d' "$root/packages/$1.txt")
+	packages+=("${manifest[@]}")
+}
 dev=false
 for option in "$@"; do
 	case $option in
-	--hyprland) packages+=(hyprland uwsm xdg-desktop-portal-hyprland) ;;
-	--greeter) packages+=(greetd greetd-tuigreet) ;;
+	--hyprland) add_manifest hyprland ;;
+	--greeter) add_manifest greeter ;;
+	--personal) add_manifest personal ;;
 	--dev)
 		dev=true
-		packages+=(git base-devel clang llvm lld cmake ninja pkgconf qt6-declarative qt6-tools qt6-shadertools shellcheck shfmt jq hyperfine heaptrack gdb strace perf)
+		add_manifest dev
 		;;
 	*)
 		printf 'Usage: %s [--hyprland] [--greeter] [--dev]\n' "$0" >&2

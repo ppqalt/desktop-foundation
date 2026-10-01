@@ -1,0 +1,10 @@
+# One Arch package per line.
+base-devel
+git
+binutils
+desktop-file-utils
+gtk3
+nss
+alsa-lib
+libxss
+libxtst
