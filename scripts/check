@@ -38,3 +38,7 @@ if [[ -f Cargo.toml ]]; then
 	cargo clippy -- -D warnings
 	cargo test
 fi
+
+cargo fmt --manifest-path native/nothing/Cargo.toml --check
+cargo clippy --locked --manifest-path native/nothing/Cargo.toml -- -D warnings
+cargo test --locked --manifest-path native/nothing/Cargo.toml

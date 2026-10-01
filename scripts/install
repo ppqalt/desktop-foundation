@@ -39,7 +39,7 @@ if [[ $EUID == 0 ]]; then
 	exit 1
 fi
 printf 'Niri install from %s, portable profile: %s\n' "$root" "$profile"
-printf 'Steps: dependencies (%s), validate + backed-up deployment, dark preference, application defaults.\n' "$packages"
+printf 'Steps: dependencies (%s), locked native earbud build, validate + backed-up deployment, dark preference, application defaults.\n' "$packages"
 if $greeter; then printf 'System login step: greetd/Matrix/keyring PAM with backups; active greeter is not restarted.\n'; fi
 if $plan; then exit 0; fi
 command -v pacman >/dev/null || {
@@ -51,6 +51,7 @@ if $packages; then
 	if $greeter; then options+=(--greeter); fi
 	"$root/scripts/bootstrap" "${options[@]}"
 fi
+"$root/scripts/build-nothing"
 python3 "$root/scripts/preflight.py" --profile "$profile"
 python3 "$root/scripts/deploy.py" install --compositor niri --profile "$profile"
 python3 "$root/scripts/preferences.py" install

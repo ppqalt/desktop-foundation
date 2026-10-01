@@ -7,3 +7,5 @@ __pycache__/
 
 # Fontconfig metadata written beside deployed fonts.
 .uuid
+
+/native/nothing/target/

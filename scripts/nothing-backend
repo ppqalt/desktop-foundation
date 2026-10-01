@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+binary="$root/native/nothing/target/release/foundation-nothing"
+if [[ ! -x $binary ]]; then
+	printf '%s\n' '{"event":"error","fatal":true,"message":"Native controls are not built. Run scripts/build-nothing."}'
+	exit 1
+fi
+exec "$binary" "$@"
