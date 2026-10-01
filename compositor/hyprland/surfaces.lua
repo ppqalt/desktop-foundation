@@ -2,7 +2,7 @@
 -- QML owns its short entrance/exit; avoid two independent layer animations.
 hl.layer_rule({
     name = "foundation-launcher",
-    match = { namespace = "^desktop-foundation-(launcher|clipboard)$" },
+    match = { namespace = "^desktop-foundation-(launcher|clipboard|power|bluetooth)$" },
     blur = true,
     ignore_alpha = 0.4,
     no_anim = true,

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Blueman Applet
+Exec=blueman-applet
+# Niri uses the paired-device popup. Other sessions keep their own applet.
+NotShowIn=niri;

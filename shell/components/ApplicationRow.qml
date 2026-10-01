@@ -6,12 +6,15 @@ Rectangle {
     id: root
     required property var entry
     required property bool selected
+    property string iconSource: Quickshell.iconPath(root.entry.icon, true) || "../assets/application.svg"
+    property string actionLabel: "↵"
+    signal hovered
     signal chosen
     implicitHeight: Theme.dimensions.rowHeight
     radius: Theme.radii.medium
     color: selected ? Theme.colors.selected : (mouse.containsMouse ? Theme.colors.hover : "transparent")
     border.width: selected ? 1 : 0
-    border.color: "#485a73"
+    border.color: Theme.colors.selectionBorder
     Behavior on color {
         ColorAnimation {
             duration: Theme.timing.fast
@@ -23,13 +26,13 @@ Rectangle {
         width: 38
         height: 38
         radius: 10
-        color: "#172029"
+        color: Theme.colors.iconTile
         Image {
             id: icon
             anchors.centerIn: parent
             width: 26
             height: 26
-            source: Quickshell.iconPath(root.entry.icon, true) || "../assets/application.svg"
+            source: root.iconSource
             sourceSize.width: 32
             sourceSize.height: 32
             smooth: true
@@ -70,16 +73,18 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: 20
         anchors.verticalCenter: parent.verticalCenter
-        text: "↵"
+        text: root.actionLabel
         color: Theme.colors.accent
-        font.pixelSize: 20
-        visible: root.selected
+        font.family: Theme.typography.family
+        font.pixelSize: root.actionLabel === "↵" ? 20 : 11
+        visible: root.selected || root.actionLabel !== "↵"
     }
     MouseArea {
         id: mouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onEntered: root.hovered()
         onClicked: root.chosen()
     }
 }

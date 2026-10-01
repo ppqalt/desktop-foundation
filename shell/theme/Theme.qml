@@ -46,6 +46,8 @@ QtObject {
             border: "#38414e",
             accent: "#b8ceee",
             selected: "#293649",
+            selectionBorder: "#485a73",
+            iconTile: "#172029",
             hover: "#222b38",
             error: "#f1a5a5",
             scrim: "#50080b10"

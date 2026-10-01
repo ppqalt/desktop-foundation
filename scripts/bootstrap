@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-packages=(dbus glib2 gsettings-desktop-schemas xdg-utils qt6-svg quickshell kitty fish fastfetch fontconfig playerctl libnotify pipewire pipewire-pulse wireplumber niri swaybg mako xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk
+packages=(dbus glib2 gsettings-desktop-schemas xdg-utils qt6-svg quickshell kitty fish fastfetch fontconfig playerctl libnotify pipewire pipewire-audio pipewire-pulse wireplumber libpulse bluez bluez-utils blueman niri swaybg mako xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk
 	gnome-keyring nautilus firefox hyprpolkitagent python lua wl-clipboard wl-clip-persist grim slurp)
 dev=false
 for option in "$@"; do
@@ -33,4 +33,5 @@ if $dev; then
 	cargo clippy --version
 	for tool in qmllint qmlformat qmlls qmlprofiler qsb; do test -x "/usr/lib/qt6/bin/$tool"; done
 fi
+sudo systemctl enable --now bluetooth.service
 printf 'Dependencies ready. Install configuration: %s/scripts/install --no-packages\n' "$root"

@@ -15,6 +15,7 @@ Niri binds are in `compositor/niri/bindings.kdl`.
 | Super+Shift+arrows or HJKL | Move column/window |
 | Super+1..9 / Ctrl+1..9 | Focus workspace index / move window to workspace |
 | Super+Shift+S / Print | Drag-release region copy / current output copy |
+| Super+B | Paired Bluetooth popup; arrows/wheel select, Enter activates, Escape closes |
 | PageUp / PageDown | Audio +3% / −3% |
 
 Finnish slash is Shift+7, evdev key 8. The reserved Super+Shift+7 chord is

@@ -11,7 +11,7 @@ Rectangle {
     radius: Theme.radii.medium
     color: selected ? Theme.colors.selected : (mouse.containsMouse ? Theme.colors.hover : "transparent")
     border.width: selected ? 1 : 0
-    border.color: "#485a73"
+    border.color: Theme.colors.selectionBorder
     Behavior on color {
         ColorAnimation {
             duration: Theme.timing.fast
@@ -23,7 +23,7 @@ Rectangle {
         width: 38
         height: 38
         radius: 10
-        color: "#172029"
+        color: Theme.colors.iconTile
         Image {
             anchors.fill: parent
             anchors.margins: 3

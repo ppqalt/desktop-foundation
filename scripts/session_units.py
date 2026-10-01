@@ -22,6 +22,7 @@ def targets(root, config, state, data):
         result.append((config / 'systemd/user/niri.service.wants' / unit, source))
     for name in ['gnome-keyring-pkcs11.desktop', 'gnome-keyring-secrets.desktop']:
         result.append((config / 'autostart' / name, root / 'session/keyring' / name))
+    result.append((config / 'autostart/blueman.desktop', root / 'session/bluetooth/blueman.desktop'))
     result.append((data / 'dbus-1/services/org.freedesktop.secrets.service',
                    root / 'session/keyring/org.freedesktop.secrets.service'))
     return result

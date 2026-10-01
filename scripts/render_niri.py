@@ -53,7 +53,7 @@ window-rule {{
 // Niri applies opacity to toplevel content; client popups keep their own shape.
 // Keep terminal glyphs opaque; prefer native background alpha in Kitty.
 window-rule {{ match app-id="^kitty$"; opacity 1.0; }}
-layer-rule {{ match namespace="^desktop-foundation-(launcher|clipboard|power)$"; background-effect {{ blur true; xray true; }} }}
+layer-rule {{ match namespace="^desktop-foundation-(launcher|clipboard|power|bluetooth)$"; background-effect {{ blur true; xray true; }} }}
 animations {{
     workspace-switch {{ duration-ms 300; curve "ease-out-cubic"; }}
     horizontal-view-movement {{ duration-ms 300; curve "ease-out-cubic"; }}

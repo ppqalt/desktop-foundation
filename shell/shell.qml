@@ -12,6 +12,15 @@ ShellRoot {
         id: volumeReadout
         targetScreen: root.launcherScreen
     }
+    property bool bluetoothEnabled: false
+    LazyLoader {
+        id: bluetoothLoader
+        active: root.bluetoothEnabled
+        BluetoothPopup {
+            lifecycle: root
+            targetScreen: root.launcherScreen
+        }
+    }
     property bool powerEnabled: false
     LazyLoader {
         id: powerLoader
@@ -81,7 +90,25 @@ ShellRoot {
                 muted: volumeReadout.muted
             });
         }
+        function toggleBluetooth(): void {
+            root.powerEnabled = false;
+            if (root.launcher)
+                root.launcher.dismiss();
+            if (root.clipboard)
+                root.clipboard.dismiss();
+            if (root.bluetoothEnabled)
+                bluetoothLoader.item.dismiss();
+            else
+                root.bluetoothEnabled = true;
+        }
+        function bluetoothStatus(): string {
+            return JSON.stringify(bluetoothLoader.item ? bluetoothLoader.item.snapshot() : {
+                visible: false,
+                alive: false
+            });
+        }
         function togglePower(): void {
+            root.bluetoothEnabled = false;
             if (powerLoader.item?.busy)
                 return;
             if (root.launcher)
@@ -129,6 +156,7 @@ ShellRoot {
             root.compositorBackend.screenshotOutput();
         }
         function toggleClipboard(): void {
+            root.bluetoothEnabled = false;
             root.powerEnabled = false;
             if (root.launcher)
                 root.launcher.dismiss();
@@ -140,6 +168,7 @@ ShellRoot {
                 root.clipboardEnabled = true;
         }
         function showClipboard(): void {
+            root.bluetoothEnabled = false;
             if (root.launcher)
                 root.launcher.dismiss();
             if (root.clipboard)
@@ -161,6 +190,7 @@ ShellRoot {
             });
         }
         function toggleLauncher(): void {
+            root.bluetoothEnabled = false;
             root.powerEnabled = false;
             if (root.clipboard)
                 root.clipboard.dismiss();
@@ -172,6 +202,7 @@ ShellRoot {
                 root.launcherEnabled = true;
         }
         function showLauncher(): void {
+            root.bluetoothEnabled = false;
             if (root.clipboard)
                 root.clipboard.dismiss();
             if (root.launcher)

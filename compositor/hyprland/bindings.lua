@@ -30,6 +30,7 @@ return function(command)
 
     bind("SUPER + space", hl.dsp.exec_cmd(command("launcher")), "Toggle application launcher")
 
+    bind("SUPER + B", hl.dsp.exec_cmd(command("bluetooth-popup")), "Paired Bluetooth devices")
     bind("SUPER + V", hl.dsp.exec_cmd(command("clipboard")), "Toggle clipboard history")
 
     bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(command("screenshot") .. " --backend hyprland region"), "Screenshot region: save and copy")

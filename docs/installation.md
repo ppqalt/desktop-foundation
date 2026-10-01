@@ -38,6 +38,22 @@ Brave account or former file manager. Existing valid defaults are kept. The supp
 wallpaper is deployed from `wallpapers/`. Optional Spotify is documented separately.
 No application credentials or home-directory app data are included.
 
+## Bluetooth
+
+Runtime bootstrap installs BlueZ, Blueman, PipeWire audio/codec support, WirePlumber
+and `libpulse` (`pactl`), and enables/starts `bluetooth.service`. Pair once through
+Blueman Manager, then use **Super+B** to reconnect. Radio rfkill/power state remains
+under the user's control; turn Bluetooth on in Blueman if disabled.
+The tracked WirePlumber 0.5 fragment selects quality policy, permits temporary
+microphone-driven headset switching, and avoids remembering headset mode across
+connections. Deployment backs up/restores that fragment. Existing sessions need
+WirePlumber restarted or the corresponding runtime settings applied; new logins
+load the fragment normally.
+The tracked XDG autostart override suppresses Blueman's permanent applet only in
+Niri. Blueman Manager can activate its applet for pairing/passkeys and stops it on
+exit when it started it. Blueman itself and its D-Bus activation are retained.
+See [implementation and validation](bluetooth.md).
+
 ## Backup and recovery
 
 User deployment journals original config paths under

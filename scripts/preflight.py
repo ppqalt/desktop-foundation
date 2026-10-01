@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--profile', default='default')
 args = parser.parse_args()
-required = ['niri', 'quickshell', 'kitty', 'fish', 'fastfetch', 'lua', 'wl-copy', 'wl-paste',
+required = ['pactl', 'busctl', 'blueman-manager', 'niri', 'quickshell', 'kitty', 'fish', 'fastfetch', 'lua', 'wl-copy', 'wl-paste',
             'wl-clip-persist', 'swaybg', 'mako', 'grim', 'slurp', 'wpctl', 'playerctl', 'notify-send',
             'dbus-update-activation-environment', 'gsettings', 'xdg-mime', 'fc-cache', 'pacman-conf', 'xwayland-satellite']
 missing = [name for name in required if not shutil.which(name)]

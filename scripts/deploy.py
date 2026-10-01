@@ -130,7 +130,8 @@ def main():
             if not link.exists() and not link.is_symlink():
                 link.symlink_to(child)
         subprocess.run(['fish', '--no-config', '-n', str(ROOT / 'terminal/fish/config.fish')], check=True)
-        targets.extend([(CONFIG / 'kitty', ROOT / 'terminal/kitty'),
+        targets.extend([(CONFIG / 'wireplumber/wireplumber.conf.d/60-desktop-foundation-bluetooth.conf', ROOT / 'audio/wireplumber/60-desktop-foundation-bluetooth.conf'),
+                        (CONFIG / 'kitty', ROOT / 'terminal/kitty'),
                         (CONFIG / 'fish', fish_runtime),
                         (CONFIG / 'fastfetch', ROOT / 'terminal/fastfetch'),
                         (DATA / 'fonts/desktop-foundation', ROOT / 'fonts')])

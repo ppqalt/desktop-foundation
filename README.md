@@ -2,7 +2,7 @@
 
 A Niri-first Arch/CachyOS desktop with a restrained graphite/glass theme. Includes
 an application launcher, searchable text/image clipboard with persistence, session
-power menu, compact volume feedback, clipboard-only screenshots, and a portable
+power menu, paired-device Bluetooth popup, compact volume feedback, clipboard-only screenshots, and a portable
 Kitty/Fish/Fastfetch environment. No permanent bar.
 
 ## Install
@@ -44,6 +44,9 @@ compatible Niri package. This is an Arch-native setup, not a cross-distro instal
   Kitty uses native 90% background alpha with opaque text.
 - Super+Space launcher, Super+V clipboard, Super+Shift+Q session actions.
   Scroll moves menu selection; clicks/Enter act immediately.
+- Super+B reconnects paired Bluetooth devices; wheel/arrows select, Enter/click act.
+  Dynamic LDAC → AAC → available A2DP preference, battery reporting and playback
+  routing; [Blueman handles pairing and administration](docs/bluetooth.md).
 - PageUp/PageDown ±3% volume; End play/pause. Small themed feedback fades away.
 - Print copies the current screen; Super+Shift+S captures a dragged area to clipboard.
 - Google Sans, Google Sans Code and Nerd Font Mono bundled with upstream licenses.
