@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import "../theme"
+import "../components"
 
 // qmllint disable uncreatable-type
 PanelWindow {
@@ -51,6 +52,10 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     color: "transparent"
+    function navigate(delta: int): void {
+        if (!busy)
+            selected = Math.max(0, Math.min(actions.length - 1, selected + delta));
+    }
     function dismiss(): void {
         if (!busy)
             lifecycle.powerEnabled = false;
@@ -92,6 +97,9 @@ PanelWindow {
     }
     Rectangle {
         id: card
+        SelectionWheel {
+            onStepped: delta => root.navigate(delta)
+        }
         anchors.centerIn: parent
         width: Math.min(480, root.width - 48)
         height: 396

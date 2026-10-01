@@ -98,6 +98,9 @@ PanelWindow {
     }
     SurfaceCard {
         id: panel
+        SelectionWheel {
+            onStepped: delta => root.navigate(delta)
+        }
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
         height: Math.min(182 + Math.max(2, Math.min(6, root.results.length)) * 66, root.height - 64)
         Behavior on height {
@@ -181,6 +184,9 @@ PanelWindow {
         }
         ListView {
             id: list
+            SelectionWheel {
+                onStepped: delta => root.navigate(delta)
+            }
             x: 16
             y: 126
             width: panel.width - 32

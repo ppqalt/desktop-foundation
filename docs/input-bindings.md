@@ -95,3 +95,8 @@ Escape closes the menu. Key repeat is ignored. The shared shell provides the
 surface; no extra daemon. Native systemctl/logind handles power operations;
 logout uses session-exit. Errors remain visible. `scripts/power-action --check ACTION`
 validates routing without changing the running session.
+
+Mouse wheel and touchpad vertical scrolling move the highlighted selection in
+the power menu, application launcher and clipboard. Wheel notches advance one
+item; touchpad deltas accumulate to avoid erratic jumps. Results stay in view,
+and scrolling alone never launches, copies or executes a power action.
