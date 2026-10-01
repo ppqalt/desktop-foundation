@@ -1,77 +1,87 @@
 # Desktop foundation
 
-Niri 26.04 is the primary compositor and the reference for interaction. Hyprland
-remains a supported secondary backend. The shared Quickshell launcher and clipboard
-manager retain the approved graphite glass design, load only on demand and leave
-no permanent bar. COSMIC is untouched.
+A Niri-first Arch/CachyOS desktop with a restrained graphite/glass theme. Includes
+an application launcher, searchable text/image clipboard with persistence, session
+power menu, compact volume feedback, clipboard-only screenshots, and a portable
+Kitty/Fish/Fastfetch environment. No permanent bar.
 
-```text
-compositor/niri/        native bindings and modular Niri configuration
-compositor/hyprland/    retained Lua compatibility backend
-config/                shared Finnish input, visual intent and screenshot storage
-shell/adapters/        compositor-local event and action translation
-shell/components/      reusable presentation components
-shell/theme/           shared graphite glass tokens
-shell/surfaces/        lazy launcher, clipboard and diagnostic probe
-profiles/              optional machine-specific monitor/GPU/device configuration
-scripts/               deployment, session startup, recovery and checks
-docs/                  architecture, behavior and validation
-```
+## Install
 
-Select **Niri** at login on Tops. From this checkout:
+Clone this repository into a permanent directory, then run as your normal user:
 
 ```sh
-scripts/deploy.py install --compositor niri --profile Tops
-scripts/session-start  # for an already-running session
-scripts/check
-scripts/doctor
+cd desktop-foundation
+./scripts/install --plan   # optional: preview the steps
+./scripts/install
 ```
 
-Niri reloads its configuration automatically. Deployment validates native KDL
-before replacing only its owned config path; originals are backed up. Optional
-`profiles/<host>/niri.kdl` contains hardware overrides. Without it the configuration
-is portable, including on lucky38. Shared Finnish input is in `config/input.lua`.
+The installer installs the runtime packages through Pacman (sudo), validates
+your Niri build, backs up replaced configuration, deploys bundled fonts and wallpaper,
+and sets dark mode. It preserves an existing browser/file-manager default; fresh
+hosts receive Firefox and Nautilus. Choose **Niri** at your next login.
 
-Super+Tab opens Niri overview; Super+Space opens the launcher; Super+V opens the
-clipboard. Selecting history copies it and closes the surface. Super+T/Enter opens
-Kitty; Super+E/W opens the default file manager/browser. Super+Q closes, D maximizes
-the column, F toggles fullscreen, A toggles floating, R cycles column widths and C
-centers the column. Arrows/HJKL focus; Shift variants move. Super+1..9 switches
-workspace; Ctrl variants move the window. Finnish Super+/ is Super+Shift+7.
-Settings, cheatsheet and power menu remain reserved. Print captures the current
-output; Super+Shift+S uses the styled drag-release selector. Both copy only.
-PageUp/Down changes volume 3% with a compact readout; End toggles playback
-(Spotify first, then another available MPRIS player).
+The standard install includes greetd/tuigreet with Matrix animation and keyring
+login unlocking. That system step needs sudo, backs up its files, and does not
+restart the active display manager. Reboot when installation finishes and select
+**Niri**. This is intended for a fresh Arch/CachyOS system with working graphics,
+a normal user account, networking and sudo already configured.
 
-Automatic centering applies only to a workspace with exactly one window, when
-that window is tiled. The event-driven Niri adapter invokes native CenterColumn;
-multiple windows (including stacked/floating companions) receive no automatic
-centering. Native center-focused-column is never. There is no coordinate-based
-positioning or polling loop. This strict policy needs the shared shell running;
-manual Super+C works independently. Active/inactive window opacity is equally **90% for
-the current trial**. Kitty uses native background transparency with opaque text.
-Native blur currently samples the wallpaper/background; a uniform gray background
-cannot visibly demonstrate its blur kernel.
+Use `./scripts/install --no-greeter` only when deliberately supplying another login
+manager (or starting `niri-session` from a TTY). See
+[installation and compatibility](docs/installation.md). For host-specific monitor
+configuration use `--profile NAME`; the default has no output/GPU assumptions.
 
-For Hyprland use `scripts/deploy.py install --compositor hyprland --profile Tops`
-and choose its UWSM login session. Both configs can remain deployed. Switching
-configuration does not switch the running compositor. `scripts/deploy.py restore`
-restores all foundation-owned config paths. See [deployment](docs/deployment.md),
-[recovery](docs/recovery.md), [bindings](docs/input-bindings.md),
-[Niri implementation](docs/niri-port.md) and [validation](docs/niri-validation.md).
+**Compatibility:** the exact appearance requires a Niri build supporting the
+configured native blur/background effects. Tested with CachyOS Niri 26.04 and
+Quickshell 0.3.1. Installation checks the actual config parser before replacing
+files; a version number alone is not sufficient. Plain Arch builds may require a
+compatible Niri package. This is an Arch-native setup, not a cross-distro installer.
 
-No Rust daemon or extra desktop feature has been added. Git uses repository-local
-`Codex Foundation <codex@localhost>`; no global identity setting was changed.
+## What you get
 
-## Terminal
+- Finnish keyboard (`fi`); input stays separate from hardware profiles.
+- Matching active/inactive 90% content opacity, rounded windows and soft depth.
+  Kitty uses native 90% background alpha with opaque text.
+- Super+Space launcher, Super+V clipboard, Super+Shift+Q session actions.
+  Scroll moves menu selection; clicks/Enter act immediately.
+- PageUp/PageDown ±3% volume; End play/pause. Small themed feedback fades away.
+- Print copies the current screen; Super+Shift+S captures a dragged area to clipboard.
+- Google Sans, Google Sans Code and Nerd Font Mono bundled with upstream licenses.
+- Small native Fish prompt; `c` clears and `fast` clears then runs Fastfetch.
+  Pacman/AUR counts are discovered dynamically and foreign counts cached until changes.
+- Wallpaper and clipboard ownership start with the Niri session, one process each.
 
-The portable Kitty, native Fish prompt and on-demand Fastfetch configuration live
-in `terminal/`. See [terminal documentation](terminal/README.md) for palette,
-startup measurements and reversible deployment.
+Overview, window actions, scrolling columns and strict single-window centering are
+covered in [the binding guide](docs/input-bindings.md). Settings and cheatsheet are
+still placeholders. Hyprland code remains as an optional secondary backend;
+`./scripts/bootstrap --hyprland` installs its packages, then deploy explicitly with
+`./scripts/deploy --compositor hyprland`.
 
-Reliability and reboot acceptance: [docs/reliability.md](docs/reliability.md).
-Desktop removal proposal: [docs/desktop-removal-audit.md](docs/desktop-removal-audit.md).
-`bootstrap` defaults to Niri; add `--hyprland` for the retained optional compositor.
-Persistent wallpaper/clipboard units and keyring activation overrides are managed
-by `deploy`. System greetd/PAM changes use the separate reversible
-`sudo scripts/system-setup install` / `restore`; neither restarts the active greeter.
+## Validate and undo
+
+After a fresh login, run `./scripts/session-acceptance`. It inspects without repairing
+missing services. Follow [the cold-login checklist](docs/reliability.md) for actual
+keyboard, clipboard, portal, audio and screenshot checks.
+
+```sh
+./scripts/uninstall             # restore user configurations/preferences
+./scripts/uninstall --greeter   # also restore the optional system files
+```
+
+Packages remain installed. Configuration changed outside deployment is protected
+from being overwritten. Keep the checkout and backups until rollback is complete;
+symlinks point into this checkout. Existing terminals are not forcibly closed.
+
+## Optional extras and development
+
+Spotify/Spicetify/Marketplace is a separate opt-in download:
+[setup instructions](apps/spotify/README.md). Accounts, saved passwords, application
+data, Bluetooth pairings, network connections and machine hardware settings are
+not copied from Tops. Optional apps require their own setup.
+
+Development tools are opt-in: `./scripts/bootstrap --dev`, then `./scripts/check`
+and `./scripts/test`. Portable checks run in GitHub Actions; live compositor testing
+remains a separate acceptance pass. See [contributing](CONTRIBUTING.md),
+[deployment](docs/deployment.md), [terminal](terminal/README.md) and
+[font sources](fonts/README.md). Asset provenance and publication decisions are in
+[publication notes](docs/publication.md).

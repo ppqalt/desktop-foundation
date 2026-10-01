@@ -187,12 +187,12 @@ ShellRoot {
                 # Demonstration uses only controlled fixtures; never screenshot user history.
                 for text in ['Keep the desktop clean. Show only what I need.', 'https://quickshell.org/docs/', 'Finnish layout: ä ö å · Shift+7 → /', 'git status --short', 'A quiet surface. A quick interaction.']:
                     run('python3', str(ROOT / 'scripts/clipboard.py'), '--state', str(state), 'store', 'text', input=text.encode())
-                image = Path('/home/ppq/Documents/Codex/2026-09-30/f/outputs/launcher-search-preview.png')
+                image = ROOT / 'work/launcher-search-preview.png'
                 if image.exists():
                     run('python3', str(ROOT / 'scripts/clipboard.py'), '--state', str(state), 'store', 'image', input=image.read_bytes())
                 wait(lambda: status().get('count', 0) >= 5)
                 time.sleep(.4)
-                run('grim', '-g', '640,251 640x578', '/home/ppq/Documents/Codex/2026-09-30/f/outputs/clipboard-preview.png')
+                run('grim', '-g', '640,251 640x578', str(ROOT / 'work/clipboard-preview.png'))
                 ipc('hide'); wait(lambda: status().get('visible') is False)
             print('PASS: deployed one-click copy/close, isolated one-click copy/close, Super+V, sensitive exclusion, dedup, exact Unicode/newline/image copy, search, delete, clear confirmation/cancel and lazy teardown')
     finally:

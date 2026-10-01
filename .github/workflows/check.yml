@@ -1,0 +1,22 @@
+name: Portable checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test tools
+        run: sudo apt-get update && sudo apt-get install -y ripgrep fish fontconfig shellcheck shfmt
+      - name: Shell syntax and style
+        run: |
+          mapfile -t files < <(rg -l '^#!/usr/bin/env bash' scripts)
+          shellcheck "${files[@]}"
+          shfmt -d "${files[@]}"
+      - name: Python and noninteractive tests
+        run: |
+          python3 -m compileall -q scripts terminal/fastfetch/packages
+          python3 -m unittest discover -s tests -v
+      - name: Fish syntax
+        run: fish --no-config -n terminal/fish/config.fish

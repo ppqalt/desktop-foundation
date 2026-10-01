@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+profile=default
+greeter=true
+packages=true
+plan=false
+while (($#)); do
+	case $1 in
+	--profile)
+		[[ $# -ge 2 ]] || {
+			echo '--profile needs a name' >&2
+			exit 2
+		}
+		profile=$2
+		shift
+		;;
+	--greeter) greeter=true ;;
+	--no-greeter) greeter=false ;;
+	--no-packages) packages=false ;;
+	--plan) plan=true ;;
+	-h | --help)
+		printf 'Usage: %s [--profile NAME] [--no-greeter] [--no-packages] [--plan]\n' "$0"
+		exit 0
+		;;
+	*)
+		printf 'Unknown option: %s\n' "$1" >&2
+		exit 2
+		;;
+	esac
+	shift
+done
+[[ $profile =~ ^[A-Za-z0-9_-]+$ ]] || {
+	echo 'Invalid profile name' >&2
+	exit 2
+}
+if [[ $EUID == 0 ]]; then
+	echo 'Run as your normal login user, not with sudo. Only package/system steps request sudo.' >&2
+	exit 1
+fi
+printf 'Niri install from %s, portable profile: %s\n' "$root" "$profile"
+printf 'Steps: dependencies (%s), validate + backed-up deployment, dark preference, application defaults.\n' "$packages"
+if $greeter; then printf 'System login step: greetd/Matrix/keyring PAM with backups; active greeter is not restarted.\n'; fi
+if $plan; then exit 0; fi
+command -v pacman >/dev/null || {
+	echo 'This installer targets Arch/CachyOS.' >&2
+	exit 1
+}
+if $packages; then
+	options=()
+	if $greeter; then options+=(--greeter); fi
+	"$root/scripts/bootstrap" "${options[@]}"
+fi
+python3 "$root/scripts/preflight.py" --profile "$profile"
+python3 "$root/scripts/deploy.py" install --compositor niri --profile "$profile"
+python3 "$root/scripts/preferences.py" install
+if $greeter; then sudo "$root/scripts/system-setup" install; fi
+printf '\nInstalled. Reboot when ready, then choose Niri at login; the current session was not restarted.\n'
+printf 'After login: %s/scripts/session-acceptance\nRollback: %s/scripts/uninstall\n' "$root" "$root"

@@ -1,6 +1,6 @@
 # Deployment and rollback
 
-Default on Tops: `scripts/deploy.py install --compositor niri --profile Tops`.
+Portable default: `scripts/deploy.py install --compositor niri --profile default`.
 For another host use `default` or an optional host profile. Hyprland remains
 selectable with `--compositor hyprland`. Selection installs configuration, not a
 new running session. Choose the compositor at physical login.
@@ -24,8 +24,8 @@ active compositor. Switching sessions does not require restoring the other confi
 starts the packaged polkit agent and runtime-only shell/clipboard services. Run it
 manually after deploying into an existing session. Niri manages XWayland through
 xwayland-satellite and its systemd graphical session; no extra satellite startup is
-added. The stock Niri portal preference selects GNOME and GTK. No portal preference
-or login-manager configuration is replaced. COSMIC remains untouched.
+added. The stock Niri portal preference selects GNOME and GTK. No portal preference is replaced. Optional login-manager/PAM configuration uses
+the default `scripts/install` (or skip with `--no-greeter`) and the separate reversible system installer.
 
 `bootstrap` installs genuinely missing packages using a full pacman upgrade when
 needed; it never removes COSMIC/Hyprland. Required Niri packages already existed

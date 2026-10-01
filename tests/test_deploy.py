@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location('deploy', Path(__file__).resolve().parents[1] / 'scripts/deploy.py')
 deploy = importlib.util.module_from_spec(SPEC)
@@ -10,6 +11,9 @@ SPEC.loader.exec_module(deploy)
 
 class Recovery(unittest.TestCase):
     def setUp(self):
+        commands = patch.object(deploy.subprocess, 'run')
+        commands.start()
+        self.addCleanup(commands.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)

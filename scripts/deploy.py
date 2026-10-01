@@ -80,7 +80,7 @@ def restore(manifest):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['install', 'restore'])
-    parser.add_argument('--profile', default='Tops')
+    parser.add_argument('--profile', default='default')
     parser.add_argument('--compositor', choices=['niri', 'hyprland'], default='niri')
     args = parser.parse_args()
     STATE.mkdir(parents=True, exist_ok=True)

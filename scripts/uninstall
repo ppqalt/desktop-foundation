@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ ${1:-} == --greeter ]]; then
+	sudo "$root/scripts/system-setup" restore
+elif [[ $# != 0 ]]; then
+	printf 'Usage: %s [--greeter]\n' "$0" >&2
+	exit 2
+fi
+python3 "$root/scripts/preferences.py" restore
+exec python3 "$root/scripts/deploy.py" restore

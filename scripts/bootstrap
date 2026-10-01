@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-packages=(git base-devel rustup clang llvm lld cmake ninja pkgconf quickshell
-	qt6-declarative qt6-tools qt6-shadertools shellcheck shfmt jq hyperfine
-	heaptrack gdb strace kitty fish fastfetch fontconfig playerctl libnotify pipewire pipewire-pulse wireplumber niri swaybg mako xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk
-	greetd greetd-tuigreet gnome-keyring cosmic-files hyprpolkitagent perf python lua wl-clipboard wl-clip-persist grim slurp)
-if [[ ${1:-} == --hyprland ]]; then
-	packages+=(hyprland uwsm xdg-desktop-portal-hyprland)
-elif [[ $# != 0 ]]; then
-	printf 'Usage: %s [--hyprland]\n' "$0" >&2
-	exit 2
-fi
+packages=(dbus glib2 gsettings-desktop-schemas xdg-utils qt6-svg quickshell kitty fish fastfetch fontconfig playerctl libnotify pipewire pipewire-pulse wireplumber niri swaybg mako xwayland-satellite xdg-desktop-portal-gnome xdg-desktop-portal-gtk
+	gnome-keyring nautilus firefox hyprpolkitagent python lua wl-clipboard wl-clip-persist grim slurp)
+dev=false
+for option in "$@"; do
+	case $option in
+	--hyprland) packages+=(hyprland uwsm xdg-desktop-portal-hyprland) ;;
+	--greeter) packages+=(greetd greetd-tuigreet) ;;
+	--dev)
+		dev=true
+		packages+=(git base-devel rustup clang llvm lld cmake ninja pkgconf qt6-declarative qt6-tools qt6-shadertools shellcheck shfmt jq hyperfine heaptrack gdb strace perf)
+		;;
+	*)
+		printf 'Usage: %s [--hyprland] [--greeter] [--dev]\n' "$0" >&2
+		exit 2
+		;;
+	esac
+done
 missing=()
 for package in "${packages[@]}"; do
 	if ! pacman -Q "$package" >/dev/null 2>&1; then missing+=("$package"); fi
@@ -19,11 +26,11 @@ if ((${#missing[@]})); then
 	# Full upgrade avoids unsupported partial upgrades on Arch/CachyOS.
 	sudo pacman -Syu --needed "${missing[@]}"
 fi
-rustup default stable
-rustup component add rustfmt clippy rust-analyzer
-for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
-cargo clippy --version
-for tool in qmllint qmlformat qmlls qmlprofiler qsb; do
-	test -x "/usr/lib/qt6/bin/$tool"
-done
-printf 'Toolchain ready. Deploy separately: %s/scripts/deploy.py install --profile default\n' "$root"
+if $dev; then
+	rustup default stable
+	rustup component add rustfmt clippy rust-analyzer
+	for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
+	cargo clippy --version
+	for tool in qmllint qmlformat qmlls qmlprofiler qsb; do test -x "/usr/lib/qt6/bin/$tool"; done
+fi
+printf 'Dependencies ready. Install configuration: %s/scripts/install --no-packages\n' "$root"
