@@ -3,8 +3,8 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
 mapfile -t scripts < <(rg -l '^#!/usr/bin/env bash' scripts)
-shellcheck "${scripts[@]}" terminal/fastfetch/packages
-shfmt -d "${scripts[@]}" terminal/fastfetch/packages
+shellcheck "${scripts[@]}"
+shfmt -d "${scripts[@]}"
 mapfile -t qml < <(find shell -name '*.qml' -type f | sort)
 /usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml "${qml[@]}"
 for file in "${qml[@]}"; do

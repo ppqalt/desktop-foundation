@@ -68,9 +68,12 @@ the prompt. Ctrl+C copies a selection and otherwise retains interrupt behavior.
 Ctrl+Shift+C also copies as usual. This uses a small tracked no-UI kitten and
 Kitty’s native selection; it does not edit or execute the shell command.
 
-The Packages line combines Fastfetch's own native `{pacman}` count with the
-number of `pacman -Qqm` entries, labelled AUR (foreign/local builds, not proof of
-AUR origin). `terminal/fastfetch/packages` runs only on demand from the configured
-Command module. No resident worker, cache or hardcoded count; zero remains visible.
-A minimal `fastfetch --config packages.jsonc` invocation avoids recursive
-configuration loading and retains the normal local database count.
+The Packages line combines Fastfetch's native `{pacman}` total with the number
+of `pacman -Qqm` entries, labelled AUR (foreign/local builds, not proof of AUR
+origin). Zero remains visible. The tracked `terminal/fastfetch/packages` helper
+caches only the foreign count under `$XDG_CACHE_HOME/desktop-foundation`.
+It invalidates on local package database directory changes, configured repository
+changes, and repository database changes. Pacman's DBPath and repository list are
+discovered dynamically. During a Pacman transaction it bypasses caching. Errors
+are not recorded as zero. No daemon, polling, TTL or startup refresh is needed.
+The native total still runs fresh from the minimal `packages.jsonc` each time.
