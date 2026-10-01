@@ -21,6 +21,12 @@ PanelWindow {
             root.entered = true;
     })
     property bool closeAfterControls: false
+    property bool discoveryDone: false
+    property string pendingActivation: ""
+    property var pendingControls: null
+    property var batteryDevice: null
+    property var batteryQueue: []
+    property var deviceBatteries: ({})
     property var controlDevice: null
     property var controlPaths: []
     property var unsupportedPaths: []
@@ -63,7 +69,18 @@ PanelWindow {
         const parts = [device.connected ? "Connected" : "Not connected"];
         if (device.connected && audioDetail(device))
             parts.push(audioDetail(device));
-        if (device.batteryAvailable)
+        const entry = deviceBatteries[device.dbusPath];
+        if (device.connected && entry && Date.now() - entry.at < 120000) {
+            const b = entry.battery;
+            const values = ["left", "right", "case", "headphone"].filter(k => b[k]).map(k => ({
+                        left: "L",
+                        right: "R",
+                        case: "Case",
+                        headphone: "Battery"
+                    })[k] + " " + b[k].percent + "%");
+            if (values.length)
+                parts.push(values.join(" · "));
+        } else if (device.batteryAvailable && !controlPaths.includes(device.dbusPath))
             parts.push(Math.round(device.battery * 100) + "%");
         return parts.join(" · ");
     }
@@ -101,9 +118,18 @@ PanelWindow {
             error = device.blocked ? "Device blocked. Open Bluetooth Manager to change this." : "Bluetooth is off. Open Bluetooth Manager to turn it on.";
             return;
         }
+        if (device.connected && !discoveryDone && !forceDisconnect) {
+            pendingActivation = device.dbusPath;
+            return;
+        }
         if (device.connected && supportsControls(device) && !forceDisconnect) {
             error = "";
-            controlDevice = device;
+            batteryQueue = [];
+            if (batteryProbe.running) {
+                pendingControls = device;
+                batteryProbe.signal(15);
+            } else
+                controlDevice = device;
             return;
         }
         pendingDevice = device;
@@ -123,29 +149,102 @@ PanelWindow {
                 ready: controlsLoader.item.ready,
                 state: controlsLoader.item.earState,
                 error: controlsLoader.item.error,
-                selected: controlsLoader.item.selected
+                selected: controlsLoader.item.selected,
+                busy: controlsLoader.item.busy,
+                scrollY: controlsLoader.item.scrollY,
+                bounds: controlsLoader.item.bounds,
+                backendPid: controlsLoader.item.backendPid,
+                rows: controlsLoader.item.rows
             } : null,
             selected: selected,
             error: error,
             devices: devices.map(d => ({
                         name: d.name,
+                        dbusPath: d.dbusPath,
                         connected: d.connected,
                         battery: d.batteryAvailable ? Math.round(d.battery * 100) : null,
-                        audio: audioDetail(d)
+                        audio: audioDetail(d),
+                        detail: detail(d)
                     }))
         };
     }
     onDevicesChanged: selected = Math.min(selected, devices.length)
     Process {
+        id: discovery
         command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/nothing-backend", "--discover"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
                     root.controlPaths = JSON.parse(text).devices || [];
+                    root.batteryQueue = root.devices.filter(d => d.connected && root.controlPaths.includes(d.dbusPath));
+                    root.nextBattery();
                 } catch (_) {}
             }
         }
+        onExited: root.finishDiscovery()
+    }
+    function finishDiscovery(): void {
+        discoveryDone = true;
+        if (pendingActivation) {
+            const index = devices.findIndex(d => d.dbusPath === pendingActivation);
+            pendingActivation = "";
+            if (index >= 0 && !closing)
+                activate(index);
+        }
+    }
+    function forgetBattery(device): void {
+        const values = Object.assign({}, deviceBatteries);
+        delete values[device.dbusPath];
+        deviceBatteries = values;
+    }
+    function rememberBattery(device, battery): void {
+        if (!device)
+            return;
+        const values = Object.assign({}, deviceBatteries);
+        values[device.dbusPath] = {
+            battery: battery,
+            at: Date.now()
+        };
+        deviceBatteries = values;
+        batteryExpiry.restart();
+    }
+    function nextBattery(): void {
+        if (closing || controlDevice || pendingControls || !batteryQueue.length)
+            return;
+        batteryDevice = batteryQueue[0];
+        batteryQueue = batteryQueue.slice(1);
+        batteryProbe.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/nothing-backend", "--battery", batteryDevice.dbusPath];
+        batteryProbe.running = true;
+    }
+    Process {
+        id: batteryProbe
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                try {
+                    const message = JSON.parse(data);
+                    if (message.event === "battery" && root.batteryDevice?.connected)
+                        root.rememberBattery(root.batteryDevice, message.state.battery);
+                } catch (_) {}
+            }
+        }
+        onExited: {
+            if (root.pendingControls) {
+                const device = root.pendingControls;
+                root.pendingControls = null;
+                if (!root.closing && device.connected)
+                    root.controlDevice = device;
+            } else
+                Qt.callLater(root.nextBattery);
+        }
+    }
+    Timer {
+        id: batteryExpiry
+        interval: 120000
+        running: false
+        repeat: false
+        onTriggered: root.deviceBatteries = ({})
     }
     Loader {
         id: controlsLoader
@@ -157,6 +256,7 @@ PanelWindow {
             availableHeight: root.height
             device: root.controlDevice
             audio: root.audioDetail(root.controlDevice)
+            onBatteryReported: battery => root.rememberBattery(root.controlDevice, battery)
             onBack: {
                 root.controlDevice = null;
                 if (root.closeAfterControls)
@@ -167,7 +267,7 @@ PanelWindow {
             onFailed: message => {
                 if (root.controlDevice)
                     root.unsupportedPaths = [...root.unsupportedPaths, root.controlDevice.dbusPath];
-                root.error = message;
+                root.error = message.includes("br-connection-create-socket") || message.includes("br-connection-busy") ? "Control channel unavailable. Close other earbud control apps, then reopen Bluetooth." : message;
                 root.controlDevice = null;
                 card.forceActiveFocus();
             }
@@ -258,8 +358,8 @@ PanelWindow {
                 root.dismiss();
             else if (event.key === Qt.Key_Up)
                 root.navigate(-1);
-            else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab)
-                root.navigate(event.modifiers & Qt.ShiftModifier ? -1 : 1);
+            else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+                root.navigate(event.key === Qt.Key_Backtab || event.modifiers & Qt.ShiftModifier ? -1 : 1);
             else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !event.isAutoRepeat)
                 root.activate(root.selected);
             else
@@ -328,6 +428,14 @@ PanelWindow {
                 font.pixelSize: Theme.typography.body
             }
             delegate: ApplicationRow {
+                id: deviceRow
+                Connections {
+                    target: deviceRow.modelData
+                    function onConnectedChanged() {
+                        if (!deviceRow.modelData.connected)
+                            root.forgetBattery(deviceRow.modelData);
+                    }
+                }
                 required property var modelData
                 required property int index
                 width: list.width

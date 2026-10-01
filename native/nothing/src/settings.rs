@@ -145,6 +145,14 @@ pub fn custom_eq(bands: &[f32]) -> Vec<u8> {
 mod tests {
     use super::*;
     #[test]
+    fn all_reported_batteries_and_charging() {
+        let (_, value) = decode(0xe001, &[3, 2, 45, 3, 60, 4, 0x80 | 80]).unwrap();
+        assert_eq!(value["left"]["percent"], 45);
+        assert_eq!(value["right"]["percent"], 60);
+        assert_eq!(value["case"]["percent"], 80);
+        assert_eq!(value["case"]["charging"], true);
+    }
+    #[test]
     fn missing_batteries_are_null() {
         let (_, v) = decode(0xe001, &[2, 2, 80, 3, 255]).unwrap();
         assert_eq!(v["left"]["percent"], 80);

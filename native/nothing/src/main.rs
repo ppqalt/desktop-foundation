@@ -249,8 +249,9 @@ impl Ear {
     }
 }
 async fn run() -> Result<()> {
+    let battery_only = std::env::args().nth(1).as_deref() == Some("--battery");
     let path = std::env::args()
-        .nth(1)
+        .nth(if battery_only { 2 } else { 1 })
         .ok_or("Usage: foundation-nothing /org/bluez/hciN/dev_XX...")?;
     if path == "--discover" {
         let session = bluer::Session::new().await?;
@@ -302,7 +303,25 @@ async fn run() -> Result<()> {
             ..Default::default()
         })
         .await?;
-    let connect = device.connect_profile(&uuid);
+    let connect = async {
+        let mut attempt = 0;
+        loop {
+            match device.connect_profile(&uuid).await {
+                Ok(()) => return Ok(()),
+                Err(error)
+                    if matches!(
+                        error.kind,
+                        bluer::ErrorKind::InProgress | bluer::ErrorKind::AlreadyConnected
+                    ) && attempt < 5 =>
+                {
+                    // Finite backoff after a user-requested connection, never idle polling.
+                    tokio::time::sleep(Duration::from_millis(100_u64 << attempt)).await;
+                    attempt += 1;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    };
     let accept = async {
         while let Some(request) = profile.next().await {
             if request.device() == address {
@@ -336,6 +355,11 @@ async fn run() -> Result<()> {
     ear.state["model"] = json!(model.name);
     ear.state["modelCode"] = json!(model.base.as_str());
     emit(json!({"event":"identified","state":ear.state}));
+    if battery_only {
+        ear.query(0xc007, &[0x4007, 0xe001]).await?;
+        emit(json!({"event":"battery","state":ear.state}));
+        return Ok(());
+    }
     let mut requests = vec![
         (0xc007, 0x4007),
         (0xc042, 0x4042),
@@ -420,7 +444,17 @@ async fn run() -> Result<()> {
                         }
                     }
                 } else {
+                    let setting=value["setting"].as_str().unwrap_or("").to_owned();
                     let result=ear.action(value).await;
+                    if result.is_ok() && ["eq","listening","bass","customEq"].contains(&setting.as_str()) {
+                        // EQ/bass modes can affect each other. Synchronize after this user event.
+                        for (get,response,key) in [(0xc01f,0x401f,"eq"),(0xc050,0x4050,"listening"),(0xc04e,0x404e,"bass"),(0xc044,0x4044,"customEq"),(0xc04c,0x404c,"advanced")] {
+                            if !ear.state[key].is_null() && ear.query(get,&[response]).await.is_err() {
+                                ear.state[key]=Value::Null;
+                                emit(json!({"event":"state","state":ear.state}));
+                            }
+                        }
+                    }
                     emit(match result {Ok(())=>json!({"event":"complete","success":true}),Err(e)=>json!({"event":"error","message":e.to_string()})});
                 }
             },

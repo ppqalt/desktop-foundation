@@ -16,10 +16,27 @@ SurfaceCard {
     signal disconnect
     property var earState: ({})
     property bool ready: false
+    property string pendingRowId: ""
     property bool busy: false
     property bool leaving: false
     property string error: ""
     property string page: "main"
+    property int mainSelection: 0
+    property bool hoverNavigationEnabled: false
+    property point lastPointer: Qt.point(-1, -1)
+    readonly property var bounds: ({
+            x: (availableWidth - width) / 2,
+            y: (availableHeight - height) / 2,
+            width: width,
+            height: height,
+            listY: list.y,
+            listHeight: list.height,
+            rowHeight: 66
+        })
+    readonly property var backendPid: backend.processId
+    property var previousRows: []
+    property string previousPage: ""
+    readonly property real scrollY: list.contentY
     property int selected: 0
     property bool entered: false
     readonly property var ancModes: ["B155", "B171", "B173", "B170"].includes(earState.modelCode) ? [3, 1, 2, 4, 7, 5] : [3, 1, 7, 5]
@@ -123,27 +140,46 @@ SurfaceCard {
         result.push(row("Disconnect", "Return to paired devices", "disconnect"));
         return result;
     }
-    onRowsChanged: selected = Math.max(0, Math.min(selected, rows.length - 1))
+    onRowsChanged: {
+        const old = previousRows[selected];
+        if (previousPage === page && old) {
+            const index = rows.findIndex(r => r.key === old.key && r.extra === old.extra);
+            selected = index >= 0 ? index : Math.max(0, Math.min(selected, rows.length - 1));
+        } else
+            selected = Math.max(0, Math.min(selected, rows.length - 1));
+        previousRows = rows;
+        previousPage = page;
+    }
     function navigate(delta: int): void {
+        hoverNavigationEnabled = false;
         selected = Math.max(0, Math.min(rows.length - 1, selected + delta));
         list.positionViewAtIndex(selected, ListView.Contain);
     }
+    onEarStateChanged: {
+        if (earState.battery)
+            batteryReported(earState.battery);
+    }
+    signal batteryReported(var battery)
     function stop(): void {
+        shutdownDeadline.restart();
         backend.signal(15);
     }
     function goBack(): void {
         if (page !== "main") {
             page = "main";
-            selected = 0;
+            selected = Math.min(mainSelection, rows.length - 1);
+            Qt.callLater(() => list.positionViewAtIndex(root.selected, ListView.Contain));
         } else {
             leaving = true;
-            backend.signal(15);
+            stop();
         }
     }
     function send(value): void {
         if (!ready || busy || leaving)
             return;
         busy = true;
+        const entry = rows[selected];
+        pendingRowId = entry.key + ":" + String(entry.extra ?? "");
         error = "";
         backend.write(JSON.stringify(value) + "\n");
         commandDeadline.restart();
@@ -160,8 +196,10 @@ SurfaceCard {
             return;
         const key = entry.key;
         if (["info", "custom", "gesturesPage", "find"].includes(key)) {
+            mainSelection = selected;
             page = key === "gesturesPage" ? "gestures" : key;
             selected = 0;
+            list.positionViewAtBeginning();
         } else if (key === "back")
             goBack();
         else if (key === "disconnect") {
@@ -232,8 +270,8 @@ SurfaceCard {
             goBack();
         else if (event.key === Qt.Key_Up)
             navigate(-1);
-        else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab)
-            navigate(event.modifiers & Qt.ShiftModifier ? -1 : 1);
+        else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+            navigate(event.key === Qt.Key_Backtab || event.modifiers & Qt.ShiftModifier ? -1 : 1);
         else if (event.key === Qt.Key_Left)
             activate(selected, -1);
         else if (event.key === Qt.Key_Right)
@@ -247,8 +285,22 @@ SurfaceCard {
     MouseArea {
         anchors.fill: parent
     }
+    HoverHandler {
+        onPointChanged: {
+            const p = point.scenePosition;
+            if (Math.abs(p.x - root.lastPointer.x) + Math.abs(p.y - root.lastPointer.y) > 1) {
+                root.lastPointer = p;
+                root.hoverNavigationEnabled = true;
+            }
+        }
+    }
     SelectionWheel {
         onStepped: delta => root.navigate(delta)
+    }
+    Timer {
+        id: shutdownDeadline
+        interval: 1500
+        onTriggered: backend.signal(9)
     }
     Timer {
         id: commandDeadline
@@ -257,6 +309,7 @@ SurfaceCard {
             root.busy = false;
             root.error = "Earbuds did not respond. Reopen Controls to reconnect.";
             backend.signal(15);
+            root.failed(root.error);
         }
     }
     Timer {
@@ -266,6 +319,7 @@ SurfaceCard {
         onTriggered: {
             root.error = "Earbud controls timed out.";
             backend.signal(15);
+            root.failed(root.error);
         }
     }
     Process {
@@ -354,20 +408,31 @@ SurfaceCard {
         clip: true
         interactive: false
         spacing: 4
-        model: root.rows
+        // A numeric model keeps delegates and scroll position alive across state updates.
+        model: root.rows.length
         SelectionWheel {
             onStepped: delta => root.navigate(delta)
         }
         delegate: ApplicationRow {
-            required property var modelData
             required property int index
             width: list.width
-            entry: modelData
+            entry: root.rows[index] || {
+                name: "",
+                genericName: "",
+                key: "none"
+            }
             iconSource: "../assets/bluetooth-headphones.svg"
             selected: root.selected === index
-            actionLabel: root.busy && root.selected === index ? "…" : ["anc", "eq", "listening", "bass", "customEq", "gestures"].includes(modelData.key) ? "‹  ›" : "↵"
+            actionLabel: root.busy && root.pendingRowId === entry.key + ":" + String(entry.extra ?? "") ? "…" : ["anc", "eq", "listening", "bass", "customEq", "gestures"].includes(entry.key) ? "‹  ›" : "↵"
             opacity: root.ready ? 1 : Theme.opacity.disabled
-            onHovered: root.selected = index
+            onHovered: {
+                if (root.hoverNavigationEnabled && index < root.rows.length)
+                    root.selected = index;
+            }
+            onPointerMoved: {
+                if (root.hoverNavigationEnabled && index < root.rows.length)
+                    root.selected = index;
+            }
             onChosen: root.activate(index, 0)
         }
     }

@@ -23,4 +23,8 @@ hyprland)
 	exit 1
 	;;
 esac
+# Use the installed GTK dark palette for Quickshell's native diagnostic windows.
+# Scope these overrides to this process; custom QML surfaces keep their own theme.
+export QT_QPA_PLATFORMTHEME=gtk3
+export GTK_THEME=adw-gtk3-dark
 exec quickshell --no-duplicate --path "$root/shell"

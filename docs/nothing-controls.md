@@ -19,7 +19,11 @@ list with an explanation and generic Disconnect; closing/reopening permits retry
 `native/nothing` builds `foundation-nothing`, a Rust JSON-lines stdio helper. The
 shell calls `scripts/nothing-backend`; nothing is installed as a system daemon or
 HTTP service. A finite `--discover` process reads paired devices' advertised UUIDs
-once when the list opens (no name/hostname/address assumption). Controls starts a
+once when the list opens (no name/hostname/address assumption). Sequential finite
+`--battery` probes identify connected supported devices and populate separate left,
+right and case percentages in the paired list. Missing components stay absent;
+reports expire after two minutes and are discarded on disconnect. Controls reports
+refresh the same cache when returning to the list. No background polling. Controls starts a
 separate helper lazily, registers a BlueZ ProfileManager1 **client** profile for
 `aeac4a03-dff5-498f-843a-34487cf133eb`, asks Device1.ConnectProfile, and accepts its
 RFCOMM descriptor. BlueZ resolves SDP/channel; no hardcoded channel or sdptool.
@@ -47,13 +51,14 @@ Packets use `55 60 01`, little-endian command/length, operation id, payload and
 CRC16/Modbus. Parsing handles fragmented/coalesced input and resynchronizes past
 corrupt frames, with a 4096-byte payload bound. Requests have an absolute two-second
 read deadline, so asynchronous notifications cannot keep a request alive forever.
-Connect has a ten-second bound; startup also has a 35-second UI bound. Writes and
+Connect retries transient BlueZ busy/previous-connection errors with bounded
+exponential backoff, within a ten-second bound; startup also has a 35-second UI bound. Writes and
 UI commands are bounded. Ordinary responses correlate command and operation id;
 unsolicited battery/ANC notifications update state while queries are in progress.
 
 Controls appear only for a recognized model and a valid feature response. Known
 model restrictions gate probes. Setting writes are followed by the corresponding
-read query; equality is required for confirmation. Actual reported state is always
+read query, plus related EQ/Bass/listening state where applicable; equality is required for confirmation. Actual reported state is always
 shown even when it differs from the request. Readback failure invalidates that
 setting until reopening, rather than pretending the requested value was applied.
 Battery response IDs 2/3/4/6 represent left/right/case/headphones, with a charging
@@ -68,7 +73,11 @@ list and discard control values. Reconnection uses the established connect/audio
 flow, then fresh Controls initialization. A transient failure disables Controls
 only for that popup lifetime. No resident Nothing process or once-per-second CLI
 invocations. SIGTERM/stdio-close completes normal cleanup; explicit process exit
-avoids Tokio's blocking-stdin reader delaying shutdown.
+avoids Tokio's blocking-stdin reader delaying shutdown. The UI enforces a
+1.5-second forced-shutdown fallback and returns to the generic list on command
+timeout or helper crash. Numeric delegate models preserve scrolling across live
+updates. Keyboard/wheel navigation ignores stationary-pointer hover; page Back
+restores the parent selection. Tab and Shift+Tab both navigate.
 
 ## Implemented controls and limits
 
@@ -142,7 +151,28 @@ count as validation of this new extension. Find was not activated audibly.
 Release helper measured **2874 KiB PSS / 5716 KiB RSS**, zero CPU ticks across a
 three-second idle sample. Shell PSS was 152251 KiB hidden, 170307 KiB with Controls,
 155243 KiB after close (allocator/service caches retain a small amount). Helper
-exited on close: **no resident Nothing process**. Seven Rust tests cover framing,
+exited on close: **no resident Nothing process**. Eight Rust tests cover framing,
 missing/invalid batteries, safe decoding, custom EQ, correlation, failed readback
 and absolute timeout under continuous asynchronous events. Repository static
 checks, 28 Python tests and live Niri adapter regression passed.
+
+The opt-in `python3 tests/live_nothing_surface.py` exercises the actual kernel-input
+user surface on connected Ear (3): mouse, wheel, arrows, Tab/Shift+Tab, all ANC/EQ
+presets, setting readbacks, page/Back behavior, rapid open/close, frozen/crashed
+helpers, UI Disconnect/reconnect and fresh battery state. It restores original
+settings in a final independent helper pass and checks capture routing. It moves
+the pointer and temporarily changes settings; run manually, never in normal CI.
+Find sound is deliberately excluded. Three consecutive UI reconnections also
+passed with LDAC and separate battery values retained.
+
+Quickshell diagnostics use the installed `adw-gtk3-dark` palette through the GTK
+Qt platform theme, scoped by `scripts/run-shell` to the shell process. This fixes
+white reload-error windows without suppressing errors or changing custom QML
+surfaces. An isolated intentionally invalid config confirmed dark background,
+readable error text, log access and the retained error border. No extra daemon or
+Qt theme configuration is needed; the existing GTK theme dependency is reused.
+
+The vendor channel permits one control client at a time. An active ear (web)
+Web Serial connection in Brave reproduced BlueZ `br-connection-create-socket`;
+the popup now explains that other earbud-control applications should be closed.
+It leaves that application and audio session alone and keeps the generic list usable.

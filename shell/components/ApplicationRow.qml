@@ -8,6 +8,7 @@ Rectangle {
     required property bool selected
     property string iconSource: Quickshell.iconPath(root.entry.icon, true) || "../assets/application.svg"
     property string actionLabel: "↵"
+    signal pointerMoved(real x, real y)
     signal hovered
     signal chosen
     implicitHeight: Theme.dimensions.rowHeight
@@ -78,6 +79,12 @@ Rectangle {
         font.family: Theme.typography.family
         font.pixelSize: root.actionLabel === "↵" ? 20 : 11
         visible: root.selected || root.actionLabel !== "↵"
+    }
+    HoverHandler {
+        onPointChanged: {
+            if (hovered)
+                root.pointerMoved(point.scenePosition.x, point.scenePosition.y);
+        }
     }
     MouseArea {
         id: mouse
