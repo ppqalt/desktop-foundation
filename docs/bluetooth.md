@@ -77,8 +77,9 @@ playback and closes; reopening shows LDAC and 90% reported battery. Escape unloa
 the popup. A real BlueZ restart was performed by the user; the existing Quickshell
 process recovered paired/connected state without restarting the shell. Playback
 and capture defaults were checked independently. The adapter-off state and helper
-error mapping were checked; an actually powered-off/out-of-range headset failure
-has not been exercised. No pairings or account data were modified.
+error mapping were checked. A later attempt to reconnect the real disconnected
+headset failed: the popup stayed open with a concise on/nearby hint, and Escape
+unloaded it afterward. No pairings or account data were modified.
 
 A fresh-shell measurement showed about 8 MiB additional PSS while open (12 MiB
 RSS); after hiding, memory returned to the prior range. There is one existing
