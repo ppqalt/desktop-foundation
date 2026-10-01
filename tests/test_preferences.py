@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -42,6 +43,16 @@ class Preferences(unittest.TestCase):
         self.invoke('restore')
         self.assertEqual(self.values['color-scheme'], "'default'")
         self.assertEqual(self.mimefile.read_text(), 'original defaults\n')
+
+    def test_managed_theme_upgrade_preserves_original_for_rollback(self):
+        prefs.STATE.mkdir()
+        self.values['gtk-theme'] = "'Adwaita-dark'"
+        (prefs.STATE / 'preferences.json').write_text(json.dumps([
+            {'key': ['gsettings', 'gtk-theme'], 'original': "'Adwaita'", 'managed': "'Adwaita-dark'"}]))
+        self.invoke('install')
+        self.assertEqual(self.values['gtk-theme'], "'adw-gtk3-dark'")
+        self.invoke('restore')
+        self.assertEqual(self.values['gtk-theme'], "'Adwaita'")
 
     def test_absent_original_is_removed(self):
         self.invoke('install')

@@ -56,16 +56,18 @@ def main():
         path.unlink(missing_ok=True)
         return
     changes = [(['gsettings', 'color-scheme'], "'prefer-dark'"),
-               (['gsettings', 'gtk-theme'], "'Adwaita-dark'")]
+               (['gsettings', 'gtk-theme'], "'adw-gtk3-dark'")]
     for key, value in changes:
         entry = next((e for e in entries if e['key'] == key), None)
         if entry and get(key) != entry['managed']:
             raise RuntimeError('Preference changed outside installation: ' + key[1])
         if not entry:
             entries.append({'key': key, 'original': get(key), 'managed': value})
-            temporary = path.with_suffix('.tmp')
-            temporary.write_text(json.dumps(entries, indent=2) + '\n')
-            temporary.replace(path)
+        else:
+            entry['managed'] = value
+        temporary = path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(entries, indent=2) + '\n')
+        temporary.replace(path)
         set_value(key, value)
     mimefile = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'mimeapps.list'
     backup = STATE / 'mimeapps.original'

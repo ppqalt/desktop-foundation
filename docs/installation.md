@@ -38,6 +38,17 @@ Brave account or former file manager. Existing valid defaults are kept. The supp
 wallpaper is deployed from `wallpapers/`. Optional Spotify is documented separately.
 No application credentials or home-directory app data are included.
 
+## Native dark dialogs
+
+`adw-gtk-theme` is installed by bootstrap. Tracked GTK 3 settings select
+`adw-gtk3-dark` and the shared Google Sans font; GTK 4 gets native dark preference
+and font settings, alongside the portal's `prefer-dark` value. This fixes GTK 3
+dialogs that remained light on the tested build despite reporting `Adwaita-dark`.
+Configuration files and global preferences are backed up and restored by the
+normal installer. Existing applications may need reopening to adopt the settings.
+No app CSS overrides are installed. Notification toasts continue using the tracked
+Niri graphite/top-center/two-second Mako configuration.
+
 ## Bluetooth
 
 Runtime bootstrap installs BlueZ, Blueman, PipeWire audio/codec support, WirePlumber
