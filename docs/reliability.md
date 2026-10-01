@@ -139,7 +139,7 @@ restarted. The same installer also applies the previously prepared keyring hooks
 Matrix is a native tuigreet animation, not an added background process.
 
 Super+Shift+Q now opens the shared graphite power menu: Suspend, Log out, Reboot,
-Power off, keyboard navigation and an explicit confirmation state. No destructive
+Power off, keyboard navigation and immediate click/Enter execution as requested. No destructive
 operation was executed during validation; native helper command routing and real
-keybinding/navigation/cancellation were checked. No lock action is advertised
+keybinding/navigation/cancellation were checked before switching to immediate execution. No lock action is advertised
 because this project does not yet configure a session locker.

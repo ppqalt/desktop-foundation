@@ -90,9 +90,8 @@ is used. No additional daemon or glyph-based progress bar.
 
 Super+Shift+Q toggles the graphite session menu in Niri and the retained Hyprland
 configuration. Actions: 1 Suspend, 2 Log out, 3 Reboot, 4 Power off. Arrows select;
-Enter opens confirmation, then Enter confirms. Escape backs out of confirmation
-or closes the menu; clicking the background closes it. Key repeat cannot confirm
-an action. The shared shell provides the surface; no extra daemon. Actual power
-operations use native systemctl/logind and logout uses the existing session-exit
-helper. Errors remain visible. `scripts/power-action --check ACTION` validates
-routing without changing the running session.
+a single click, Enter or the action number executes immediately, as requested.
+Escape closes the menu. Key repeat is ignored. The shared shell provides the
+surface; no extra daemon. Native systemctl/logind handles power operations;
+logout uses session-exit. Errors remain visible. `scripts/power-action --check ACTION`
+validates routing without changing the running session.

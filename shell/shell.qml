@@ -95,7 +95,6 @@ ShellRoot {
             return JSON.stringify({
                 visible: root.powerEnabled,
                 selected: menu?.selected ?? -1,
-                confirming: menu?.confirming ?? false,
                 busy: menu?.busy ?? false
             });
         }
