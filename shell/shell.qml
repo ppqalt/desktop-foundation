@@ -8,6 +8,10 @@ import "surfaces"
 
 ShellRoot {
     id: root
+    Volume {
+        id: volumeReadout
+        targetScreen: root.launcherScreen
+    }
     property bool clipboardEnabled: false
     property bool clipboardAlive: false
     readonly property Clipboard clipboard: clipboardLoader.item as Clipboard
@@ -58,6 +62,16 @@ ShellRoot {
     }
     IpcHandler {
         target: "foundation"
+        function showVolume(percent: string, muted: bool): void {
+            volumeReadout.present(Number(percent), muted);
+        }
+        function volumeStatus(): string {
+            return JSON.stringify({
+                visible: volumeReadout.visible,
+                level: volumeReadout.level,
+                muted: volumeReadout.muted
+            });
+        }
         function toggleOverview(): void {
             root.compositorBackend.toggleOverview();
         }

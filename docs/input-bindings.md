@@ -82,3 +82,8 @@ Launcher phase: Super+Space is now active and toggles the lazy launcher. Its oth
 
 Super+Shift+S selects a screenshot region; Print captures the focused output.
 Both save a PNG in ~/Pictures/Screenshots and copy it to the clipboard.
+
+Volume feedback uses the shared shell theme: one noninteractive top-centre
+readout, 2 px animated bar, no notification stacking, 1.5 s hold then fade.
+If the shell is unavailable, volume still changes and a text-only Mako toast
+is used. No additional daemon or glyph-based progress bar.

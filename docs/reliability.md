@@ -108,3 +108,11 @@ polkit/shell/history/wallpaper/persistence/notifications healthy. Original runti
 shell/history/notification units are recreated by tracked session-start each login;
 they are intentionally session-local, not stale persistent startup dependencies.
 Full post-change cold boot not performed by this agent. No logout or reboot forced.
+
+## Follow-up refinements explicitly requested during this pass
+
+Fastfetch now shows native local Pacman count plus dynamic foreign/AUR count,
+including zero. The existing volume readout was refined to the shared graphite
+QML theme with a 2 px bar, stable percentage alignment, in-place updates and fade.
+It uses the existing shell process; no new daemon or other desktop features.
+Live clipboard tests passed all three cases; static checks and 16 tests passed.

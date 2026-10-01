@@ -24,11 +24,19 @@ def main():
         percent = round(float(match.group(1)) * 100)
         muted = '[MUTED]' in status
         summary = f'Muted · {percent}%' if muted else f'Volume {percent}%'
-        filled = round((0 if muted else min(percent, 100)) * 12 / 100)
-        bar = '━' * filled + '─' * (12 - filled)
-        subprocess.run(['notify-send', '--app-name', 'desktop-foundation-volume',
-                        '--hint', 'string:x-canonical-private-synchronous:desktop-foundation-volume',
-                        '--expire-time', '1500', summary + '  ' + bar], check=True)
+        root = Path(__file__).resolve().parent.parent
+        try:
+            delivered = subprocess.run(['quickshell', 'ipc', '--path', str(root / 'shell'),
+                                        'call', 'foundation', 'showVolume', str(percent),
+                                        'true' if muted else 'false'],
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                       timeout=2).returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            delivered = False
+        if not delivered:
+            subprocess.run(['notify-send', '--app-name', 'desktop-foundation-volume',
+                            '--hint', 'string:x-canonical-private-synchronous:desktop-foundation-volume',
+                            '--expire-time', '1500', summary], check=True)
 
 
 if __name__ == '__main__':
