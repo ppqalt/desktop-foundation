@@ -87,3 +87,12 @@ Volume feedback uses the shared shell theme: one noninteractive top-centre
 readout, 2 px animated bar, no notification stacking, 1.5 s hold then fade.
 If the shell is unavailable, volume still changes and a text-only Mako toast
 is used. No additional daemon or glyph-based progress bar.
+
+Super+Shift+Q toggles the graphite session menu in Niri and the retained Hyprland
+configuration. Actions: 1 Suspend, 2 Log out, 3 Reboot, 4 Power off. Arrows select;
+Enter opens confirmation, then Enter confirms. Escape backs out of confirmation
+or closes the menu; clicking the background closes it. Key repeat cannot confirm
+an action. The shared shell provides the surface; no extra daemon. Actual power
+operations use native systemctl/logind and logout uses the existing session-exit
+helper. Errors remain visible. `scripts/power-action --check ACTION` validates
+routing without changing the running session.

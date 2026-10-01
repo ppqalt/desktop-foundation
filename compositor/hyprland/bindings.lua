@@ -35,6 +35,8 @@ return function(command)
     bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(command("screenshot") .. " --backend hyprland region"), "Screenshot region: save and copy")
     bind("Print", hl.dsp.exec_cmd(command("screenshot") .. " --backend hyprland output"), "Screenshot focused output: save and copy")
 
+    bind("SUPER + SHIFT + Q", hl.dsp.exec_cmd(command("power-menu")), "Power/session menu")
+
     -- Reserved, deliberately inert until the corresponding UI is designed.
     -- Hyprland does not supply a built-in Niri-style overview.
     local reserved = {
@@ -43,7 +45,6 @@ return function(command)
         -- Finnish slash = Shift+7. XKB code 16 is <AE07> (evdev code 8 + 8).
         -- Keycode binding avoids shifted-keysym/modifier ambiguity.
         { "SUPER + SHIFT + code:16", "cheatsheet (Finnish Super+/)" },
-        { "SUPER + SHIFT + Q", "power/session menu" },
     }
     for _, entry in ipairs(reserved) do
         bind(entry[1], hl.dsp.no_op(), "Reserved: " .. entry[2] .. " (not implemented)")

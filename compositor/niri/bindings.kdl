@@ -5,7 +5,7 @@ binds {
     "Super+V" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/clipboard\""; }
     "Super+Comma" { spawn "true"; }
     "Super+Shift+7" { spawn "true"; }
-    "Super+Shift+Q" { spawn "true"; }
+    "Super+Shift+Q" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/power-menu\""; }
     "Super+T" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launch\" kitty"; }
     "Super+Return" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launch\" kitty"; }
     "Super+E" { spawn-sh "xdg-open \"$HOME\""; }

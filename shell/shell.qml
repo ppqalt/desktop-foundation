@@ -12,6 +12,15 @@ ShellRoot {
         id: volumeReadout
         targetScreen: root.launcherScreen
     }
+    property bool powerEnabled: false
+    LazyLoader {
+        id: powerLoader
+        active: root.powerEnabled
+        Power {
+            lifecycle: root
+            targetScreen: root.launcherScreen
+        }
+    }
     property bool clipboardEnabled: false
     property bool clipboardAlive: false
     readonly property Clipboard clipboard: clipboardLoader.item as Clipboard
@@ -72,6 +81,24 @@ ShellRoot {
                 muted: volumeReadout.muted
             });
         }
+        function togglePower(): void {
+            if (powerLoader.item?.busy)
+                return;
+            if (root.launcher)
+                root.launcher.dismiss();
+            if (root.clipboard)
+                root.clipboard.dismiss();
+            root.powerEnabled = !root.powerEnabled;
+        }
+        function powerStatus(): string {
+            const menu = powerLoader.item;
+            return JSON.stringify({
+                visible: root.powerEnabled,
+                selected: menu?.selected ?? -1,
+                confirming: menu?.confirming ?? false,
+                busy: menu?.busy ?? false
+            });
+        }
         function toggleOverview(): void {
             root.compositorBackend.toggleOverview();
         }
@@ -103,6 +130,7 @@ ShellRoot {
             root.compositorBackend.screenshotOutput();
         }
         function toggleClipboard(): void {
+            root.powerEnabled = false;
             if (root.launcher)
                 root.launcher.dismiss();
             if (root.clipboard && !root.clipboard.closing)
@@ -134,6 +162,7 @@ ShellRoot {
             });
         }
         function toggleLauncher(): void {
+            root.powerEnabled = false;
             if (root.clipboard)
                 root.clipboard.dismiss();
             if (root.launcherEnabled && !root.launcher.closing)

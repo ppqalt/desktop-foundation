@@ -128,3 +128,18 @@ This is now an actionable diagnostic failure, rather than a HEALTHY result.
 Apply `sudo /home/ppq/Projects/desktop-foundation/scripts/system-setup install`,
 then log out and password-login. The keyring password must match the login password
 for automatic unlocking. No credential collection was deleted or weakened.
+
+## Matrix login default and session power menu
+
+The greeter's F4 background selection was runtime-only. Repository greetd command
+now includes `--background matrix`; the installed tuigreet parser's `--dump-config`
+confirmed `kind = "matrix"`. Apply with `sudo scripts/system-setup install` to
+persist the default for future greeter starts. The active display manager is never
+restarted. The same installer also applies the previously prepared keyring hooks.
+Matrix is a native tuigreet animation, not an added background process.
+
+Super+Shift+Q now opens the shared graphite power menu: Suspend, Log out, Reboot,
+Power off, keyboard navigation and an explicit confirmation state. No destructive
+operation was executed during validation; native helper command routing and real
+keybinding/navigation/cancellation were checked. No lock action is advertised
+because this project does not yet configure a session locker.
