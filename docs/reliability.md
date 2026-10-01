@@ -116,3 +116,15 @@ including zero. The existing volume readout was refined to the shared graphite
 QML theme with a 2 px bar, stable percentage alignment, in-place updates and fade.
 It uses the existing shell process; no new daemon or other desktop features.
 Live clipboard tests passed all three cases; static checks and 16 tests passed.
+
+## First reboot follow-up
+
+Boot `fa02fe9c-80f0-4e12-846d-cb8d032feb51`: persistent wallpaper and clipboard
+owner started successfully; one keyring daemon, no failed user units, Finnish
+layout/dark preference and existing session services present. The Default Keyring
+prompt still appeared. `/etc/pam.d/greetd` has no keyring hooks, and the system
+installer journal does not exist: the prepared root configuration was not applied.
+This is now an actionable diagnostic failure, rather than a HEALTHY result.
+Apply `sudo /home/ppq/Projects/desktop-foundation/scripts/system-setup install`,
+then log out and password-login. The keyring password must match the login password
+for automatic unlocking. No credential collection was deleted or weakened.
