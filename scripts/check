@@ -3,8 +3,8 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
 mapfile -t scripts < <(rg -l '^#!/usr/bin/env bash' scripts)
-shellcheck "${scripts[@]}"
-shfmt -d "${scripts[@]}"
+shellcheck "${scripts[@]}" terminal/fastfetch/packages
+shfmt -d "${scripts[@]}" terminal/fastfetch/packages
 mapfile -t qml < <(find shell -name '*.qml' -type f | sort)
 /usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml "${qml[@]}"
 for file in "${qml[@]}"; do
@@ -26,6 +26,8 @@ for profile in ["default", "Tops", "missing-profile"]:
         niri_candidate.write(render(m.ROOT, profile))
         niri_candidate.flush()
         subprocess.run(["niri", "validate", "-c", niri_candidate.name], check=True)
+    if not __import__("shutil").which("Hyprland"):
+        continue
     with tempfile.NamedTemporaryFile(mode="w", suffix=".lua") as f:
         f.write(f"FOUNDATION_ROOT={m.lua_string(m.ROOT)}\nFOUNDATION_PROFILE={m.lua_string(profile)}\ndofile(FOUNDATION_ROOT .. '/compositor/hyprland/hyprland.lua')\n")
         f.flush()

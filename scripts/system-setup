@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Reversible greetd/PAM configuration; never restarts the display manager."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+ROOT = Path(__file__).resolve().parent.parent
+STATE = Path('/var/lib/desktop-foundation/system')
+FILES = {'/etc/greetd/config.toml': ROOT / 'session/greetd/config.toml',
+         '/etc/pam.d/greetd': ROOT / 'session/greetd/pam-greetd'}
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['install', 'restore'])
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error('Run with sudo; user deployment does not edit system authentication files')
+    STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    journal = STATE / 'manifest.json'
+    entries = json.loads(journal.read_text()) if journal.exists() else {}
+    if args.action == 'install':
+        subprocess.run(['pacman', '-Q', 'greetd', 'greetd-tuigreet', 'gnome-keyring', 'niri'], check=True)
+        if not Path('/usr/share/wayland-sessions/niri.desktop').is_file():
+            raise RuntimeError('Niri session entry missing')
+        for name, source in FILES.items():
+            path = Path(name)
+            if name in entries and digest(path) != entries[name]['managed']:
+                raise RuntimeError('Modified outside deployment: ' + name)
+            if name not in entries:
+                backup = STATE / path.name
+                shutil.copy2(path, backup)
+                entries[name] = {'backup': str(backup), 'original': digest(backup), 'managed': digest(source)}
+            entries[name]['managed'] = digest(source)
+            temporary = journal.with_suffix('.tmp')
+            temporary.write_text(json.dumps(entries, indent=2) + '\n')
+            temporary.replace(journal)
+            shutil.copyfile(source, path)
+            path.chmod(0o644)
+        subprocess.run(['systemctl', 'enable', 'greetd.service', '--force'], check=True)
+        subprocess.run(['systemctl', 'disable', 'cosmic-greeter.service'], check=False)
+        print('Configured. Active display manager untouched. Log in with your password on next boot.')
+    else:
+        for name, entry in entries.items():
+            if digest(Path(name)) not in {entry['managed'], entry.get('original')}:
+                raise RuntimeError('Refusing to overwrite modified file: ' + name)
+        for name, entry in entries.items():
+            shutil.copy2(entry['backup'], name)
+        journal.unlink(missing_ok=True)
+        print('Previous greetd/PAM files restored. Display manager service unchanged.')
+
+
+if __name__ == '__main__':
+    main()

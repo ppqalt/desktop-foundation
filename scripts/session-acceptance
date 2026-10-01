@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Read-only cold-login acceptance snapshot; never starts missing services."""
+import os
+from pathlib import Path
+import subprocess
+
+root = Path(__file__).resolve().parent.parent
+print('Boot ID:', Path('/proc/sys/kernel/random/boot_id').read_text().strip())
+print('Session:', os.environ.get('XDG_SESSION_ID', 'unknown'))
+result = subprocess.run([str(root / 'scripts/doctor')])
+for command in [
+    ['systemctl', 'is-active', 'greetd.service'],
+    ['systemctl', 'is-enabled', 'cosmic-greeter.service'],
+    ['pgrep', '-a', '-x', 'xwayland-satell'],
+    ['systemctl', '--user', '--failed', '--no-pager'],
+]:
+    subprocess.run(command)
+print('Interactive acceptance still required: see docs/reliability.md. This does not certify a reboot.')
+raise SystemExit(result.returncode)

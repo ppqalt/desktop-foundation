@@ -68,3 +68,10 @@ No Rust daemon or extra desktop feature has been added. Git uses repository-loca
 The portable Kitty, native Fish prompt and on-demand Fastfetch configuration live
 in `terminal/`. See [terminal documentation](terminal/README.md) for palette,
 startup measurements and reversible deployment.
+
+Reliability and reboot acceptance: [docs/reliability.md](docs/reliability.md).
+Desktop removal proposal: [docs/desktop-removal-audit.md](docs/desktop-removal-audit.md).
+`bootstrap` defaults to Niri; add `--hyprland` for the retained optional compositor.
+Persistent wallpaper/clipboard units and keyring activation overrides are managed
+by `deploy`. System greetd/PAM changes use the separate reversible
+`sudo scripts/system-setup install` / `restore`; neither restarts the active greeter.

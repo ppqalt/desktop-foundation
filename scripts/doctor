@@ -14,13 +14,13 @@ def run(*args):
 def main():
     failures = []
     niri = bool(os.environ.get("NIRI_SOCKET"))
-    for binary in ['Hyprland', 'hyprctl', 'uwsm', 'quickshell', 'kitty', 'wl-copy', 'wl-paste', 'grim', 'slurp', 'jq', 'dbus-update-activation-environment', 'niri', 'xwayland-satellite']:
+    for binary in [*([] if niri else ['Hyprland', 'hyprctl', 'uwsm']), 'quickshell', 'kitty', 'wl-copy', 'wl-paste', 'grim', 'slurp', 'jq', 'dbus-update-activation-environment', 'niri', 'xwayland-satellite']:
         if not shutil.which(binary):
             failures.append(f'Missing {binary}: run scripts/bootstrap')
     for variable in ['WAYLAND_DISPLAY', 'NIRI_SOCKET' if niri else 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']:
         if not os.environ.get(variable):
             failures.append(f'Missing {variable}: run from the active compositor session')
-    for unit in ['pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', *(['xdg-desktop-portal-gnome', 'xdg-desktop-portal-gtk'] if niri else ['xdg-desktop-portal-hyprland']), 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard@text', 'desktop-foundation-clipboard@image']:
+    for unit in [*(['desktop-foundation-clipboard-persist'] if niri else []), 'pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', *(['xdg-desktop-portal-gnome', 'xdg-desktop-portal-gtk'] if niri else ['xdg-desktop-portal-hyprland']), 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard@text', 'desktop-foundation-clipboard@image']:
         code, state = run('systemctl', '--user', 'is-active', unit + '.service')
         print(f'{unit}: {state}')
         if code:
@@ -35,10 +35,27 @@ def main():
         except json.JSONDecodeError:
             failures.append('Unable to parse Quickshell instance list')
     if niri:
+        from pathlib import Path
+        for unit in ['desktop-foundation-wallpaper', 'desktop-foundation-clipboard-persist']:
+            code, fragment = run('systemctl', '--user', 'show', unit + '.service', '--property=FragmentPath', '--value')
+            if code or not fragment.startswith(str(Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'systemd/user') + '/'):
+                failures.append(unit + ': persistent deployment unit missing; run scripts/deploy')
+            code, enabled = run('systemctl', '--user', 'is-enabled', unit + '.service')
+            if code or enabled != 'enabled':
+                failures.append(unit + ': Niri session activation missing; run scripts/deploy')
+        for process in ['swaybg', 'wl-clip-persist', 'gnome-keyring-daemon']:
+            code, pids = run('pgrep', '-x', process if len(process) <= 15 else 'gnome-keyring-d')
+            count = len(pids.splitlines()) if not code else 0
+            print(process + ' instances:', count)
+            if process != 'gnome-keyring-daemon' and count != 1 or process == 'gnome-keyring-daemon' and count > 1:
+                failures.append(process + ': unexpected process count')
+        code, failed = run('systemctl', '--user', '--failed', '--no-legend', '--plain')
+        if failed:
+            failures.append('Failed user services: ' + failed)
         code, state = run('systemctl', '--user', 'is-active', 'desktop-foundation-wallpaper.service')
         print('Niri wallpaper:', state)
         if code:
-            failures.append('Niri wallpaper unavailable: check image in compositor/niri/wallpaper.toml; scripts/niri-wallpaper-start')
+            failures.append('Niri wallpaper unavailable: check permanent image in compositor/niri/wallpaper.toml and wallpaper service journal')
         code, state = run('systemctl', '--user', 'is-active', 'desktop-foundation-notifications.service')
         print('Niri notifications:', state)
         if code:
