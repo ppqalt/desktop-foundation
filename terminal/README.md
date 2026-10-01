@@ -67,3 +67,10 @@ Ctrl+A highlights all text in the current Kitty viewport, including output and
 the prompt. Ctrl+C copies a selection and otherwise retains interrupt behavior.
 Ctrl+Shift+C also copies as usual. This uses a small tracked no-UI kitten and
 Kitty’s native selection; it does not edit or execute the shell command.
+
+The Packages line combines Fastfetch's own native `{pacman}` count with the
+number of `pacman -Qqm` entries, labelled AUR (foreign/local builds, not proof of
+AUR origin). `terminal/fastfetch/packages` runs only on demand from the configured
+Command module. No resident worker, cache or hardcoded count; zero remains visible.
+A minimal `fastfetch --config packages.jsonc` invocation avoids recursive
+configuration loading and retains the normal local database count.

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Preserve Fastfetch's native local database count; foreign includes AUR/local builds.
+total=$(fastfetch --config "$(dirname -- "$0")/packages.jsonc" --pipe true)
+# Pacman returns 1 for an empty foreign query. Count zero without hiding real errors.
+if foreign=$(pacman -Qqm); then
+	count=$(printf '%s\n' "$foreign" | wc -l)
+elif [[ -z $foreign ]]; then
+	count=0
+else
+	exit 1
+fi
+printf '%s, %s (AUR)\n' "$total" "$count"

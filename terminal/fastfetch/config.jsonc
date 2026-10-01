@@ -39,8 +39,9 @@
       "key": "Uptime  "
     },
     {
-      "type": "packages",
-      "key": "Packages"
+      "type": "command",
+      "key": "Packages",
+      "text": "exec \"${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/packages\""
     },
     "break",
     {

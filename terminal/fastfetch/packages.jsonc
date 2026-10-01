@@ -1,0 +1,12 @@
+{
+  "logo": {
+    "type": "none"
+  },
+  "modules": [
+    {
+      "type": "packages",
+      "key": " ",
+      "format": "{pacman} (pacman)"
+    }
+  ]
+}
