@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+binary=$(command -v wl-clip-persist || true)
+if [[ -z $binary ]]; then
+	binary=${XDG_STATE_HOME:-$HOME/.local/state}/desktop-foundation/bin/wl-clip-persist
+fi
+exec "$binary" --clipboard regular --selection-size-limit 33554432 --all-mime-type-regex '^(?!x-kde-passwordManagerHint).+' --disable-timestamps

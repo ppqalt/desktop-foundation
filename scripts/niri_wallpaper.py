@@ -2,7 +2,6 @@
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,21 +25,7 @@ def main():
     executable = shutil.which('swaybg') or str(state / 'bin/swaybg')
     if not Path(executable).is_file():
         raise RuntimeError('swaybg unavailable: install it with scripts/bootstrap')
-    unit = Path(os.environ['XDG_RUNTIME_DIR']) / 'systemd/user/desktop-foundation-wallpaper.service'
-    unit.parent.mkdir(parents=True, exist_ok=True)
-    content = ('[Unit]\nDescription=Desktop foundation Niri wallpaper\n'
-               'PartOf=niri.service graphical-session.target\nConditionEnvironment=NIRI_SOCKET\n'
-               'StartLimitIntervalSec=60\nStartLimitBurst=3\n'
-               '[Service]\nType=simple\n'
-               f'ExecStart={quote(executable)} --image {quote(image)} --mode {mode}\n'
-               'Restart=on-failure\nRestartSec=1\n')
-    changed = not unit.exists() or unit.read_text() != content
-    if changed:
-        temporary = unit.with_suffix('.tmp')
-        temporary.write_text(content)
-        temporary.replace(unit)
-        subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
-    subprocess.run(['systemctl', '--user', 'restart' if changed else 'start', 'desktop-foundation-wallpaper.service'], check=True)
+    os.execv(executable, [executable, '--image', str(image), '--mode', mode])
 
 
 if __name__ == '__main__':

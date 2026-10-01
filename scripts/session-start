@@ -9,9 +9,6 @@ if [[ -S ${NIRI_SOCKET:-} ]]; then
 	if [[ -n ${DISPLAY:-} ]]; then vars+=(DISPLAY); fi
 	systemctl --user unset-environment HYPRLAND_INSTANCE_SIGNATURE
 	dbus-update-activation-environment --systemd "${vars[@]}"
-	if ! "$root/scripts/niri-wallpaper-start"; then
-		printf 'Niri wallpaper unavailable; session recovery remains usable.\n' >&2
-	fi
 	if ! "$root/scripts/niri-notifications-start"; then
 		printf 'Niri notification provider unavailable; session remains usable.\n' >&2
 	fi
