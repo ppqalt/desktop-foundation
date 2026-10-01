@@ -168,7 +168,7 @@ def friendly_error(error, action="connect"):
 def main():
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['connect', 'disconnect', 'codecs', 'codec'])
+    parser.add_argument('action', choices=['connect', 'disconnect', 'codecs', 'codec', 'reconnect'])
     parser.add_argument('path')
     parser.add_argument('--codec', choices=['sbc'])
     args = parser.parse_args()
@@ -192,15 +192,32 @@ def main():
                 result = {'success': bool(audio.get('routed')), **audio}
                 if not result['success']:
                     result['error'] = audio.get('error') or audio.get('warning') or 'Playback codec could not be confirmed.'
-        elif args.action == 'connect':
+        elif args.action in ('connect', 'reconnect'):
             if not json.loads(command('busctl', '--system', '--json=short', 'get-property', 'org.bluez', args.path.rsplit('/', 1)[0], 'org.bluez.Adapter1', 'Powered'))['data']:
                 raise RuntimeError('Bluetooth not ready')
             if property_value(args.path, 'Blocked'):
                 raise RuntimeError('Device blocked')
             uuids = property_value(args.path, 'UUIDs')
             address = property_value(args.path, 'Address').upper()
-            command('busctl', '--system', '--timeout=40s', 'call', 'org.bluez', args.path,
-                    'org.bluez.Device1', 'Connect', timeout=45)
+            if args.action == 'reconnect':
+                # Codec preference changes reboot the earbuds. Give that restart
+                # time to finish, then make a bounded set of connection attempts.
+                time.sleep(5)
+                deadline = time.monotonic() + 30
+                while True:
+                    try:
+                        command('busctl', '--system', '--timeout=10s', 'call', 'org.bluez', args.path,
+                                'org.bluez.Device1', 'Connect', timeout=12)
+                        if property_value(args.path, 'Connected'):
+                            break
+                        raise RuntimeError('Device has not reconnected yet')
+                    except (subprocess.SubprocessError, RuntimeError):
+                        if time.monotonic() >= deadline:
+                            raise
+                        time.sleep(2)
+            else:
+                command('busctl', '--system', '--timeout=40s', 'call', 'org.bluez', args.path,
+                        'org.bluez.Device1', 'Connect', timeout=45)
             if not property_value(args.path, 'Connected'):
                 raise RuntimeError('BlueZ did not confirm connection')
             result = {'success': True, 'connected': True}

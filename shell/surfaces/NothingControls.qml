@@ -13,6 +13,7 @@ SurfaceCard {
     required property string audio
     signal back
     signal failed(string message)
+    signal restartRequested
     signal disconnect
     property var earState: ({})
     property bool ready: false
@@ -419,8 +420,10 @@ SurfaceCard {
                     }
                     if (message.event === "error")
                         root.error = message.message;
-                    if (message.event === "restart")
-                        root.failed(message.message);
+                    if (message.event === "restart") {
+                        root.leaving = true;
+                        root.restartRequested();
+                    }
                     if (message.fatal)
                         root.failed(message.message);
                 } catch (_) {

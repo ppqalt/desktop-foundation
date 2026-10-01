@@ -273,6 +273,16 @@ PanelWindow {
                 root.controlDevice = null;
                 card.forceActiveFocus();
             }
+            onRestartRequested: {
+                root.pendingDevice = root.controlDevice;
+                root.controlDevice = null;
+                root.busy = true;
+                root.error = "Reconnecting after codec change…";
+                root.result = ({});
+                action.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-action.py", "reconnect", root.pendingDevice.dbusPath];
+                action.running = true;
+                card.forceActiveFocus();
+            }
             onDisconnect: {
                 const index = root.devices.indexOf(root.controlDevice);
                 root.controlDevice = null;
@@ -304,6 +314,7 @@ PanelWindow {
         onExited: (exitCode, exitStatus) => {
             root.busy = false;
             if (root.result.success && exitCode === 0) {
+                root.error = "";
                 const device = root.pendingDevice;
                 const body = root.result.warning || (root.result.connected ? "Connected" : "Disconnected") + (root.result.codec ? " · " + root.result.codec.toUpperCase().replace(/_/g, " ") : "") + (device?.batteryAvailable ? " · " + Math.round(device.battery * 100) + "%" : "");
                 Quickshell.execDetached(["notify-send", "--app-name=Bluetooth", "--expire-time=2000", device?.name ?? "Bluetooth", body]);

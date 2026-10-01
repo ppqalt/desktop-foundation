@@ -213,3 +213,9 @@ The paired-device entry keeps “Find earbuds”; its subtitle is now “Play a 
 locate your earbuds”. These SBC/text changes were not tested at the user's request.
 The final page-transition hover adjustment also awaits a repeat live pass; prior
 quick-setting readbacks, codec reboot/readbacks and the audible fit result passed.
+
+AAC/LDAC preference changes now trigger automatic reconnect through the existing
+finite Bluetooth/audio helper, with a reboot delay and bounded retries. Successful
+reconnect restores playback routing and closes the popup. SBC switches the live
+PipeWire profile without rebooting or disconnecting. This quick patch was not tested
+at the user's request.
