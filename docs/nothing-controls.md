@@ -202,3 +202,14 @@ These newer features are gated to B173 and valid replies rather than assumed fro
 the Bluetooth name. Protocol research used the public deployed ear (web) scripts;
 source provenance and hashes are recorded in native/nothing/NOTICE.md. No web UI
 or assets are copied. Firmware remains an actual device report in Information.
+
+SBC is exposed when the current PipeWire-Pulse card advertises an available plain
+SBC A2DP profile. It selects playback on this computer through the existing finite,
+event-driven audio helper and confirms the actual sink codec before reporting
+success. It does not invent an earbud preference opcode or reboot the earbuds.
+This choice is per connection; normal reconnect still prefers LDAC/AAC according
+to the available profiles. No extra daemon or host/address hardcoding is added.
+The paired-device entry keeps “Find earbuds”; its subtitle is now “Play a tone to
+locate your earbuds”. These SBC/text changes were not tested at the user's request.
+The final page-transition hover adjustment also awaits a repeat live pass; prior
+quick-setting readbacks, codec reboot/readbacks and the audible fit result passed.

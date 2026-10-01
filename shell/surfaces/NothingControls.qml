@@ -34,6 +34,7 @@ SurfaceCard {
             rowHeight: 66
         })
     readonly property var backendPid: backend.processId
+    property var playbackCodecs: []
     property var previousRows: []
     property string previousPage: ""
     readonly property real scrollY: list.contentY
@@ -110,7 +111,7 @@ SurfaceCard {
         if (page === "info")
             return [row("Model", s.modelCode || "Unknown", "none"), row("Firmware", s.firmware || "Unavailable", "none"), row("Bluetooth address", device.address, "none"), row("Advanced equalizer", s.advanced === undefined ? "No reliable response" : "Band controls unavailable in the reference protocol", "none"), row("Back", "Earbud controls", "back")];
         if (page === "quality")
-            return [row("AAC", (s.quality === 0 ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 0), row("LDAC", (s.quality === 2 ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 2), row("Current playback", audio || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")];
+            return [row("AAC", (s.quality === 0 && audio.toLowerCase() !== "sbc" ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 0), row("LDAC", (s.quality === 2 && audio.toLowerCase() !== "sbc" ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 2)].concat(playbackCodecs.includes("sbc") ? [row("SBC", (audio.toLowerCase() === "sbc" ? "Selected · " : "") + "Playback on this computer · No earbud reboot", "sbc")] : []).concat([row("Current playback", audio || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")]);
         if (page === "fit")
             return [row("Wear both earbuds", "The test plays sound for about 10 seconds", "none"), row("Start fit test", "Check the seal of each ear tip", "fitStart"), row("Left earbud", fitLabel(s.fit?.left), "none"), row("Right earbud", fitLabel(s.fit?.right), "none"), row("Back", "Earbud controls", "back")];
         if (page === "find")
@@ -141,7 +142,7 @@ SurfaceCard {
         if (s.gestures?.length)
             result.push(row("Gestures", "Pinch controls", "gesturesPage"));
         if (s.findAvailable && s.modelCode !== "B181")
-            result.push(row("Find earbuds", "Emit sound · remove from ears first", "find"));
+            result.push(row("Find earbuds", "Play a tone to locate your earbuds", "find"));
         for (const entry of [["dual", "Dual connection", "Connect two devices"], ["personal", "Personal sound profile", "Use your existing hearing profile"], ["superMic", "Super Mic", "Use the case microphone"], ["autoTransparency", "Auto-transparency", "Automatic transparency during calls"]]) {
             if (s[entry[0]] != null)
                 result.push(row(entry[1], (s[entry[0]] ? "On" : "Off") + " · " + entry[2], entry[0]));
@@ -268,7 +269,12 @@ SurfaceCard {
             send({
                 action: "fit"
             });
-        else if (key === "quality")
+        else if (key === "sbc") {
+            busy = true;
+            error = "";
+            pendingRowId = "sbc:";
+            playbackChange.running = true;
+        } else if (key === "quality")
             send({
                 setting: "quality",
                 value: entry.extra
@@ -355,6 +361,40 @@ SurfaceCard {
             root.error = "Earbud controls timed out.";
             backend.signal(15);
             root.failed(root.error);
+        }
+    }
+    Process {
+        id: codecDiscovery
+        command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-action.py", "codecs", root.device.dbusPath]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const result = JSON.parse(text);
+                    if (result.success)
+                        root.playbackCodecs = result.codecs || [];
+                } catch (_) {}
+            }
+        }
+    }
+    Process {
+        id: playbackChange
+        command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-action.py", "codec", root.device.dbusPath, "--codec", "sbc"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const result = JSON.parse(text);
+                    if (!result.success)
+                        root.error = result.error || "Playback codec unavailable.";
+                } catch (_) {
+                    root.error = "Could not read the playback codec result.";
+                }
+            }
+        }
+        onExited: code => {
+            root.busy = false;
+            if (code !== 0 && !root.error)
+                root.error = "Could not change the playback codec.";
         }
     }
     Process {

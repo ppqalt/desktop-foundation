@@ -57,13 +57,26 @@ def address_of(item):
     return match[1].replace('_', ':').upper() if match else ''
 
 
-def profiles(card):
+def profile_codec(name, info):
+    hint = (name + ' ' + info.get('description', '')).lower()
+    if 'ldac' in hint:
+        return 'ldac'
+    if 'aac' in hint:
+        return 'aac'
+    if any(marker in hint for marker in ['sbc_xq', 'sbc-xq', 'sbc xq']):
+        return 'sbc_xq'
+    return 'sbc' if 'sbc' in hint else ''
+
+
+def profiles(card, requested_codec=None):
     candidates = []
     for name, info in card.get('profiles', {}).items():
         if not name.startswith('a2dp-sink') or info.get('available') in (False, 'no'):
             continue
-        codec_hint = (name + ' ' + info.get('description', '')).lower()
-        rank = 0 if 'ldac' in codec_hint else 1 if 'aac' in codec_hint else 2
+        codec = profile_codec(name, info)
+        if requested_codec and codec != requested_codec:
+            continue
+        rank = 0 if codec == 'ldac' else 1 if codec == 'aac' else 2
         candidates.append((rank, -info.get('priority', 0), name))
     return [name for _, _, name in sorted(candidates)]
 
@@ -72,7 +85,7 @@ def codec_of(sink):
     return sink.get('properties', {}).get('api.bluez5.codec', '')
 
 
-def configure_audio(address):
+def configure_audio(address, requested_codec=None):
     # Subscribe before the first snapshot. Wait on events, never repeated timers.
     events = subprocess.Popen(['pactl', 'subscribe'], stdout=subprocess.PIPE,
                               stderr=subprocess.DEVNULL, env=ENV, preexec_fn=parent_death)
@@ -88,7 +101,10 @@ def configure_audio(address):
                 cards = [c for c in snapshot('cards') if address_of(c) == address]
                 if cards and not selected_profile:
                     card = cards[0]
-                    for profile in profiles(card):
+                    candidates = profiles(card, requested_codec)
+                    if requested_codec and not candidates:
+                        return {'routed': False, 'error': 'This device does not currently offer ' + requested_codec.upper() + ' playback.'}
+                    for profile in candidates:
                         if profile in attempted:
                             continue
                         attempted.add(profile)
@@ -96,7 +112,7 @@ def configure_audio(address):
                             command('pactl', 'set-card-profile', card['name'], profile)
                             selected_profile = profile
                             hint = (profile + ' ' + card['profiles'][profile].get('description', '')).lower()
-                            expected_codec = 'ldac' if 'ldac' in hint else 'aac' if 'aac' in hint else ''
+                            expected_codec = requested_codec or ('ldac' if 'ldac' in hint else 'aac' if 'aac' in hint else '')
                             break
                         except (subprocess.SubprocessError, OSError):
                             continue  # Codec preference must never prevent connection.
@@ -142,6 +158,8 @@ def friendly_error(error, action="connect"):
         return 'A connection is already in progress. Try again shortly.'
     if 'authentication' in text or 'notauthorized' in text:
         return 'Connection was refused. Check the device in Bluetooth Manager.'
+    if action in ('codec', 'codecs'):
+        return 'Could not change the playback codec. Check the device and audio service.'
     if action == 'disconnect':
         return 'Could not disconnect. Try again or open Bluetooth Manager.'
     return 'Could not connect. Make sure the device is on and nearby.'
@@ -150,15 +168,31 @@ def friendly_error(error, action="connect"):
 def main():
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['connect', 'disconnect'])
+    parser.add_argument('action', choices=['connect', 'disconnect', 'codecs', 'codec'])
     parser.add_argument('path')
+    parser.add_argument('--codec', choices=['sbc'])
     args = parser.parse_args()
     if not re.fullmatch(r'/org/bluez/[^/]+/dev_(?:[0-9A-Fa-f]{2}_){5}[0-9A-Fa-f]{2}', args.path):
         parser.error('Invalid BlueZ device path')
     try:
         if not (property_value(args.path, 'Paired') or property_value(args.path, 'Bonded')):
             raise RuntimeError('Device is not paired')
-        if args.action == 'connect':
+        if args.action in ('codecs', 'codec'):
+            address = property_value(args.path, 'Address').upper()
+            if args.action == 'codecs':
+                cards = [c for c in snapshot('cards') if address_of(c) == address]
+                available = sorted({profile_codec(name, card['profiles'][name]) for card in cards for name in profiles(card)})
+                result = {'success': True, 'codecs': [c for c in available if c]}
+            else:
+                if not args.codec:
+                    raise RuntimeError('No codec selected')
+                if not property_value(args.path, 'Connected'):
+                    raise RuntimeError('Device disconnected')
+                audio = configure_audio(address, args.codec)
+                result = {'success': bool(audio.get('routed')), **audio}
+                if not result['success']:
+                    result['error'] = audio.get('error') or audio.get('warning') or 'Playback codec could not be confirmed.'
+        elif args.action == 'connect':
             if not json.loads(command('busctl', '--system', '--json=short', 'get-property', 'org.bluez', args.path.rsplit('/', 1)[0], 'org.bluez.Adapter1', 'Powered'))['data']:
                 raise RuntimeError('Bluetooth not ready')
             if property_value(args.path, 'Blocked'):
