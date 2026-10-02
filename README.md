@@ -10,6 +10,7 @@ Kitty/Fish/Fastfetch environment. No permanent bar.
 Clone this repository into a permanent directory, then run as your normal user:
 
 ```sh
+git clone --branch v0.11 https://github.com/ppqalt/desktop-foundation.git
 cd desktop-foundation
 ./scripts/install --dry-run   # optional: inspect without changes
 ./scripts/install
@@ -48,7 +49,7 @@ compatible Niri package. This is an Arch-native setup, not a cross-distro instal
 ## What you get
 
 - Finnish keyboard (`fi`); input stays separate from hardware profiles.
-- Matching active/inactive 90% content opacity, rounded windows and soft depth.
+- Matching active/inactive 96% content opacity, rounded windows and soft depth.
   Kitty uses native 90% background alpha with opaque text.
 - Super+Space launcher, Super+V clipboard, Super+Shift+Q session actions.
   Scroll moves menu selection; clicks/Enter act immediately.

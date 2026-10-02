@@ -19,7 +19,7 @@ Spotify/Spicetify archives are fetched during personal installation, not committ
 Marketplace uses the upstream manual-release installation path:
 https://github.com/spicetify/marketplace/wiki/Installation
 
-PUBLICATION BLOCKERS:
+Redistribution considerations (carried forward from the initial review):
 - `wallpapers/wallhaven-135w7w.png` was user-selected from the existing personal
   wallpaper. Its filename/source identification does not establish redistribution
   rights. Confirm permission or substitute a distributable image before public
@@ -28,6 +28,7 @@ PUBLICATION BLOCKERS:
   shell/configuration code. Choose one before claiming the whole project is
   licensed for public redistribution. The native AGPL obligations remain separate.
 
-Nothing was published, and no remote is configured. Private fresh-install testing
-can use a verified off-machine Git bundle; image publication rights and personal
-backup are separate concerns.
+The repository was subsequently published at
+https://github.com/ppqalt/desktop-foundation. The review above records the initial
+preparation; publication does not establish a repository-wide license or wallpaper
+redistribution rights. Personal backup remains a separate step.

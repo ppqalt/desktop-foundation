@@ -1,8 +1,9 @@
 # Publication preparation
 
-The checkout has no Git remote configured. Publishing/pushing is a separate action;
-installation documentation uses a cloned checkout without inventing a GitHub URL.
-After choosing repository owner/name, add its actual clone URL to the README.
+Published repository: https://github.com/ppqalt/desktop-foundation.
+Version 0.11 includes the completed changes since 0.10; see
+[release notes](releases/0.11.md). Releases remain prerelease installation
+candidates until a complete fresh-machine acceptance pass is recorded.
 
 No top-level source-code license has been chosen by the owner yet. Choose one
 before advertising this as an open-source project. Font families retain their
