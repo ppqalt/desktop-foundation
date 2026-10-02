@@ -8,7 +8,7 @@ return {
         enabled = true,
         radius = 7,
         qualityPasses = 3,
-        strength = 0.96,
+        strength = 1.0,
         noise = 0.012,
         contrast = 1.0,
         brightness = 1.0,
@@ -30,6 +30,6 @@ return {
         activeBorder = "#485669",
         inactiveBorder = "#2b323d",
     },
-    opacity = { active = 0.90, inactive = 0.90, fullscreen = 1.0 },
+    opacity = { active = 0.96, inactive = 0.96, fullscreen = 1.0 },
     fullscreen = { decorated = false },
 }
