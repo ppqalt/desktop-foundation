@@ -63,10 +63,17 @@ Fonts are bundled with their licenses in `fonts/`, linked through deployment int
 the user font directory, and removed from that location by rollback. Google Sans
 is used by the shared shell; Google Sans Code supplies its monospaced labels.
 
-Ctrl+A highlights all text in the current Kitty viewport, including output and
-the prompt. Ctrl+C copies a selection and otherwise retains interrupt behavior.
-Ctrl+Shift+C also copies as usual. This uses a small tracked no-UI kitten and
-Kitty’s native selection; it does not edit or execute the shell command.
+Ctrl+A copies the entire retained Kitty screen and scrollback directly to the
+clipboard using `launch --type=clipboard --stdin-source=@screen_scrollback cat`.
+No selection or second copy action is needed. Kitty intercepts Ctrl+A; applications
+receive their normal Ctrl+A only when Kitty does not intercept it. Ctrl+C retains
+copy-or-interrupt behavior. The scrollback limit remains 10,000 lines.
+
+Validated with Kitty 0.49.2: a real Wayland terminal printed 200 numbered lines,
+only the tail remained visible, and a Ctrl+A keypress copied all 200 lines,
+including the first and last, to a temporary file. Typing and executing a subsequent
+command still worked. The temporary window/files were removed afterward.
+
 
 The Packages line combines Fastfetch's native `{pacman}` total with the number
 of `pacman -Qqm` entries, labelled AUR (foreign/local builds, not proof of AUR
