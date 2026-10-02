@@ -24,7 +24,7 @@ class FreshDeployment(unittest.TestCase):
             config, data, state = base / 'config', base / 'data', base / 'state'
             real_run = subprocess.run
             def isolated_run(command, **kwargs):
-                if command[0] in {'systemctl', 'fc-cache'}:
+                if command[0] in {'systemctl', 'fc-cache'} or (len(command) > 1 and command[1] == str(ROOT / 'scripts/preferences.py')):
                     return subprocess.CompletedProcess(command, 0)
                 return real_run(command, **kwargs)
             with patch.dict(os.environ, {'HOME': str(base), 'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(data), 'XDG_STATE_HOME': str(state)}), patch.multiple(deploy, CONFIG=config, DATA=data, STATE=state), patch.object(deploy.subprocess, 'run', side_effect=isolated_run), contextlib.redirect_stdout(io.StringIO()):

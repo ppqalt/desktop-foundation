@@ -30,3 +30,5 @@ the default `scripts/install` (or skip with `--no-greeter`) and the separate rev
 `bootstrap` installs genuinely missing packages using a full pacman upgrade when
 needed; it never removes COSMIC/Hyprland. Required Niri packages already existed
 on Tops during this migration, so no package installation was necessary.
+
+Startup units are generated at deployment, not login. See [startup architecture and measurements](startup.md).

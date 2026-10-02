@@ -2,29 +2,22 @@
 set -euo pipefail
 DF_FOUNDATION_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 export DF_FOUNDATION_ROOT
-root=$DF_FOUNDATION_ROOT
 if [[ -S ${NIRI_SOCKET:-} ]]; then
 	export DF_COMPOSITOR=niri
 	vars=(WAYLAND_DISPLAY NIRI_SOCKET XDG_CURRENT_DESKTOP DF_COMPOSITOR DF_FOUNDATION_ROOT)
 	if [[ -n ${DISPLAY:-} ]]; then vars+=(DISPLAY); fi
 	systemctl --user unset-environment HYPRLAND_INSTANCE_SIGNATURE
 	dbus-update-activation-environment --systemd "${vars[@]}"
-	if ! "$root/scripts/niri-notifications-start"; then
-		printf 'Niri notification provider unavailable; session remains usable.\n' >&2
-	fi
 else
 	export DF_COMPOSITOR=hyprland
 	if uwsm check is-active hyprland.desktop; then
 		uwsm finalize HYPRLAND_INSTANCE_SIGNATURE
 	fi
-	vars=(WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP DF_COMPOSITOR)
+	vars=(WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP DF_COMPOSITOR DF_FOUNDATION_ROOT)
 	if [[ -n ${DISPLAY:-} ]]; then vars+=(DISPLAY); fi
 	systemctl --user unset-environment NIRI_SOCKET
 	dbus-update-activation-environment --systemd "${vars[@]}"
 fi
-# No global enable: COSMIC keeps its own authentication agent.
-systemctl --user start hyprpolkitagent.service
-"$root/scripts/clipboard-start"
-exec "$root/scripts/shell-start"
-
-"$root/scripts/dark-mode"
+# This target starts independent services together. Only clipboard watchers wait
+# for their database initialization; the shell has no auxiliary-service ordering.
+exec systemctl --user start --no-block desktop-foundation-session.target

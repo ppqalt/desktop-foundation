@@ -119,10 +119,22 @@ def main():
     import argparse
     from pathlib import Path
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--startup', action='store_true', help='Read-only startup timeline')
+    parser.add_argument('--benchmark', action='store_true', help='Explicit resident-popup benchmark; requires --startup')
+    parser.add_argument('--save', metavar='LABEL')
+    parser.add_argument('--compare', action='store_true')
     parser.add_argument('--installation', action='store_true', help='Check installed state before Niri login')
     parser.add_argument('--personal', action='store_true')
     parser.add_argument('--no-greeter', action='store_true')
     args, _ = parser.parse_known_args()
+    if args.startup:
+        from startup_report import main as startup_main
+        import sys
+        sys.argv = [sys.argv[0], *(['--benchmark'] if args.benchmark else []),
+                    *(['--save', args.save] if args.save else []), *(['--compare'] if args.compare else [])]
+        return startup_main()
+    if args.benchmark or args.save or args.compare:
+        parser.error('--benchmark, --save and --compare require --startup')
     root = Path(__file__).resolve().parent.parent
     failures = []
 

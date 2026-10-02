@@ -57,11 +57,13 @@ def restore(manifest):
         if original_present and backup and fingerprint(backup) is not None:
             raise RuntimeError(f'Ambiguous recovery: {path}')
     save(manifest)
-    persistent_units = [Path(e['path']).name for e in manifest['entries']
-                        if '/systemd/user/' in e['path'] and '/niri.service.wants/' not in e['path']
-                        and Path(e['path']).name in {'desktop-foundation-wallpaper.service', 'desktop-foundation-clipboard-persist.service'}]
+    persistent_units = sorted({Path(e['path']).name for e in manifest['entries']
+                               if '/systemd/user/' in e['path'] and '/niri.service.wants/' not in e['path']
+                               and Path(e['path']).name.startswith('desktop-foundation-')
+                               and '@' not in Path(e['path']).name})
     if persistent_units:
-        subprocess.run(['systemctl', '--user', 'stop', *persistent_units], check=True)
+        subprocess.run(['systemctl', '--user', 'stop', *persistent_units,
+                        'desktop-foundation-clipboard@text.service', 'desktop-foundation-clipboard@image.service'], check=True)
     for entry in reversed(manifest['entries'][:]):
         path = Path(entry['path'])
         backup = Path(entry['backup']) if entry['backup'] else None
@@ -96,7 +98,7 @@ def main():
     args = parser.parse_args()
     if args.dry_run:
         from session_units import targets as session_targets
-        paths = session_targets(ROOT, CONFIG, STATE, DATA, write=False)
+        paths = session_targets(ROOT, CONFIG, STATE, DATA, write=False, niri=args.compositor == 'niri')
         paths.extend([(CONFIG / 'niri/config.kdl', STATE / 'niri.kdl'),
                       (CONFIG / 'quickshell/desktop-foundation', ROOT / 'shell')])
         paths.extend(common_targets())
@@ -139,9 +141,8 @@ def main():
                 subprocess.run(['Hyprland', '--verify-config', '-c', candidate.name], check=True)
             source = STATE / 'hyprland.lua'
             targets = [(CONFIG / 'hypr/hyprland.lua', source), (CONFIG / 'quickshell/desktop-foundation', ROOT / 'shell')]
-        if args.compositor == 'niri':
-            from session_units import targets as session_targets
-            targets.extend(session_targets(ROOT, CONFIG, STATE, DATA))
+        from session_units import targets as session_targets
+        targets.extend(session_targets(ROOT, CONFIG, STATE, DATA, niri=args.compositor == 'niri'))
         # Fish owns writable universal variables outside the source checkout.
         fish_runtime = STATE / 'terminal/fish'
         fish_runtime.mkdir(parents=True, exist_ok=True)
@@ -181,6 +182,7 @@ def main():
             restore(manifest)
             raise
         subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
+        subprocess.run(['python3', str(ROOT / 'scripts/preferences.py'), 'install', '--theme-only'], check=True)
         subprocess.run(['fc-cache', '-f'], check=True)
         print(f'Deployed {args.compositor} profile {args.profile}; backups and manifest: {STATE}')
         print('No session restart performed. Config changes may auto-reload in the selected compositor.')

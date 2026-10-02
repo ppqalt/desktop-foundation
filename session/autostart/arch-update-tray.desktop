@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Cachy-Update Systray Applet
+Exec=/bin/sh -c "sleep 3 && arch-update --tray"
+# This desktop has no tray host. Keep the application and its update timer.
+NotShowIn=niri;

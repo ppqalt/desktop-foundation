@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-exec quickshell ipc --path "$root/shell" call foundation togglePower
+exec "$root/scripts/shell-ipc" togglePower

@@ -10,6 +10,7 @@ QtObject {
     readonly property string stateDirectory: Quickshell.env("DF_CLIPBOARD_STATE") || (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/desktop-foundation/clipboard"
     property var entries: []
     property bool loading: true
+    property int startupRetries: 0
     property string error: ""
     readonly property bool busy: actionProcess.running
     signal completed(string action)
@@ -29,8 +30,19 @@ QtObject {
             }
         }
         onLoadFailed: {
-            root.error = "Clipboard history is unavailable.";
-            root.loading = false;
+            root.error = root.startupRetries < 20 ? "Clipboard history is starting…" : "Clipboard history is unavailable.";
+            root.loading = root.startupRetries < 20;
+        }
+    }
+    // Startup may overlap database initialization. Retry only while missing,
+    // for at most three seconds; file watching handles subsequent updates.
+    property Timer startupRetry: Timer {
+        interval: 150
+        running: root.loading && root.startupRetries < 20
+        repeat: true
+        onTriggered: {
+            root.startupRetries++;
+            root.indexFile.reload();
         }
     }
     property var actionProcess: Process {

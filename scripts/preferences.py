@@ -31,6 +31,7 @@ def set_value(key, value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['install', 'restore'])
+    parser.add_argument('--theme-only', action='store_true', help='Apply reversible dark preferences without changing MIME defaults')
     parser.add_argument('--browser', default=None, help='Explicit verified desktop entry for personal installation')
     args = parser.parse_args()
     STATE.mkdir(parents=True, exist_ok=True)
@@ -70,6 +71,8 @@ def main():
         temporary.write_text(json.dumps(entries, indent=2) + '\n')
         temporary.replace(path)
         set_value(key, value)
+    if args.theme_only:
+        return
     mimefile = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'mimeapps.list'
     backup = STATE / 'mimeapps.original'
     record = STATE / 'mimeapps.json'

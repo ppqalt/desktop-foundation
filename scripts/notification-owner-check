@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# A different session's notification provider must not be replaced.
+owner=$(busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus NameHasOwner s org.freedesktop.Notifications)
+[[ $owner == 'b false' ]]

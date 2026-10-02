@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-unit=${XDG_RUNTIME_DIR:?}/systemd/user/desktop-foundation-shell.service
-mkdir -p "$(dirname "$unit")"
-# Runtime unit belongs to this login only; never globally enabled in COSMIC.
-escaped=${root//%/%%}
-escaped=${escaped//\\/\\\\}
-escaped=${escaped//\"/\\\"}
-printf '[Unit]\nDescription=Desktop foundation shell\nPartOf=graphical-session.target\nStartLimitIntervalSec=60\nStartLimitBurst=3\nConditionEnvironment=WAYLAND_DISPLAY\n[Service]\nType=simple\nExecStart="%s/scripts/run-shell"\nRestart=on-failure\nRestartSec=1\n' "$escaped" >"$unit.tmp"
-mv "$unit.tmp" "$unit"
-systemctl --user daemon-reload
-if ! systemctl --user is-active --quiet desktop-foundation-shell.service; then
-	quickshell kill --path "$root/shell" >/dev/null 2>&1 || true
-fi
-if systemctl --user is-failed --quiet desktop-foundation-shell.service; then
-	systemctl --user reset-failed desktop-foundation-shell.service
-fi
-systemctl --user start desktop-foundation-shell.service
+# Units are installed by deployment; login never generates or reloads them.
+exec systemctl --user start desktop-foundation-shell.service

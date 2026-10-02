@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# A keypress during shell initialization must not be lost. Probe without mutating
+# UI state; invoke the requested toggle exactly once when the IPC server is ready.
+for ((attempt = 0; attempt < 60; attempt++)); do
+	if quickshell ipc --path "$root/shell" call foundation status >/dev/null 2>&1; then
+		exec quickshell ipc --path "$root/shell" call foundation "${@:?IPC method required}"
+	fi
+	sleep 0.05
+done
+printf 'Desktop shell did not become ready within three seconds.\n' >&2
+exit 1
