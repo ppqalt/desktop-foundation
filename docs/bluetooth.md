@@ -12,6 +12,13 @@ animations. Portable local device icons avoid depending on the host icon theme.
 Connected state, negotiated codec, and reported battery are compact secondary text.
 Devices are sorted stably by name/address rather than maintaining a second usage DB.
 
+The header switch turns Bluetooth on/off through native BlueZ adapter properties.
+Click it, or navigate upward from the first device and press Enter. Wheel and Tab
+navigation include the switch. It affects all detected adapters; turning it off
+disconnects Bluetooth devices. The switch reflects reported power state, prevents
+overlapping requests, and reports failure after five seconds (including airplane
+mode or unavailable adapters). It does not start another daemon.
+
 ## State and actions
 
 Quickshell 0.3.1 `Quickshell.Bluetooth` watches BlueZ ObjectManager/properties on the

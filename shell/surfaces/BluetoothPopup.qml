@@ -30,6 +30,8 @@ PanelWindow {
     property var controlDevice: null
     property var controlPaths: []
     property var unsupportedPaths: []
+    property bool radioBusy: false
+    property bool radioTarget: false
     property bool busy: false
     property var pendingDevice: null
     property string pendingAction: ""
@@ -84,9 +86,51 @@ PanelWindow {
             parts.push(Math.round(device.battery * 100) + "%");
         return parts.join(" · ");
     }
+    function toggleRadio(): void {
+        if (busy || radioBusy || closing)
+            return;
+        const adapters = Bluetooth.adapters.values;
+        if (!adapters.length) {
+            error = "No Bluetooth adapter is available.";
+            return;
+        }
+        error = "";
+        pendingActivation = "";
+        radioTarget = !adapterAvailable;
+        radioBusy = true;
+        radioTimeout.restart();
+        for (const adapter of adapters)
+            adapter.enabled = radioTarget;
+        Qt.callLater(() => root.checkRadio());
+    }
+    Timer {
+        id: radioTimeout
+        interval: 5000
+        onTriggered: {
+            root.radioBusy = false;
+            root.error = "Bluetooth could not be turned " + (root.radioTarget ? "on. Check the adapter’s airplane-mode switch." : "off. Try again.");
+        }
+    }
+    function checkRadio(): void {
+        const adapters = Bluetooth.adapters.values;
+        if (radioBusy && adapters.length && adapters.every(a => a.enabled === radioTarget)) {
+            radioTimeout.stop();
+            radioBusy = false;
+        }
+    }
+    Instantiator {
+        model: Bluetooth.adapters.values
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onEnabledChanged() {
+                root.checkRadio();
+            }
+        }
+    }
     function navigate(delta: int): void {
-        selected = Math.max(0, Math.min(devices.length, selected + delta));
-        if (selected < devices.length)
+        selected = Math.max(-1, Math.min(devices.length, selected + delta));
+        if (selected >= 0 && selected < devices.length)
             list.positionViewAtIndex(selected, ListView.Contain);
     }
     function dismiss(): void {
@@ -103,9 +147,13 @@ PanelWindow {
         return controlPaths.includes(device.dbusPath) && !unsupportedPaths.includes(device.dbusPath);
     }
     function activate(index: int, forceDisconnect = false): void {
-        if (busy || closing)
+        if (busy || radioBusy || closing)
             return;
         selected = index;
+        if (index === -1) {
+            toggleRadio();
+            return;
+        }
         if (index === devices.length) {
             Quickshell.execDetached(["blueman-manager"]);
             dismiss();
@@ -115,7 +163,7 @@ PanelWindow {
         if (!device)
             return;
         if (!device.adapter?.enabled || device.blocked) {
-            error = device.blocked ? "Device blocked. Open Bluetooth Manager to change this." : "Bluetooth is off. Open Bluetooth Manager to turn it on.";
+            error = device.blocked ? "Device blocked. Open Bluetooth Manager to change this." : "Bluetooth is off. Use the switch above to turn it on.";
             return;
         }
         if (device.connected && !discoveryDone && !forceDisconnect) {
@@ -144,6 +192,8 @@ PanelWindow {
         return {
             visible: !closing,
             busy: busy,
+            radioBusy: radioBusy,
+            powered: adapterAvailable,
             controls: controlsLoader.item ? {
                 page: controlsLoader.item.page,
                 ready: controlsLoader.item.ready,
@@ -407,10 +457,64 @@ PanelWindow {
         Text {
             x: 68
             y: 63
+            width: card.width - 182
+            elide: Text.ElideRight
             text: root.adapterAvailable ? "Paired devices" : "Bluetooth is turned off"
             color: Theme.colors.foreground
             font.family: Theme.typography.family
             font.pixelSize: Theme.typography.heading
+        }
+        Rectangle {
+            anchors.right: parent.right
+            anchors.rightMargin: 24
+            y: 55
+            width: 82
+            height: 38
+            radius: Theme.radii.medium
+            color: root.selected === -1 ? Theme.colors.selected : radioMouse.containsMouse ? Theme.colors.hover : "transparent"
+            border.width: root.selected === -1 ? 1 : 0
+            border.color: Theme.colors.selectionBorder
+            opacity: root.busy || !Bluetooth.adapters.values.length ? 0.5 : 1
+            Text {
+                x: 4
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.radioBusy ? "…" : root.adapterAvailable ? "On" : "Off"
+                color: Theme.colors.muted
+                font.family: Theme.typography.family
+                font.pixelSize: Theme.typography.small
+            }
+            Rectangle {
+                x: 35
+                y: 8
+                width: 40
+                height: 22
+                radius: 11
+                color: root.adapterAvailable ? Theme.colors.selected : Theme.colors.border
+                border.width: 1
+                border.color: root.adapterAvailable ? Theme.colors.accent : Theme.colors.subtle
+                Rectangle {
+                    x: root.adapterAvailable ? 21 : 3
+                    y: 3
+                    width: 16
+                    height: 16
+                    radius: 8
+                    color: root.adapterAvailable ? Theme.colors.accent : Theme.colors.muted
+                    Behavior on x {
+                        NumberAnimation {
+                            duration: Theme.timing.normal
+                            easing.type: Theme.easing
+                        }
+                    }
+                }
+            }
+            MouseArea {
+                id: radioMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: root.selected = -1
+                onClicked: root.activate(-1)
+            }
         }
         Rectangle {
             x: 28
@@ -551,7 +655,7 @@ PanelWindow {
             y: card.height - 35
             spacing: 7
             Text {
-                text: root.selected === root.devices.length ? "Open manager" : root.devices[root.selected]?.connected ? root.supportsControls(root.devices[root.selected]) ? "Device controls" : "Disconnect device" : "Connect device"
+                text: root.selected === -1 ? (root.adapterAvailable ? "Turn Bluetooth off" : "Turn Bluetooth on") : root.selected === root.devices.length ? "Open manager" : root.devices[root.selected]?.connected ? root.supportsControls(root.devices[root.selected]) ? "Device controls" : "Disconnect device" : "Connect device"
                 color: Theme.colors.accent
                 font.family: Theme.typography.family
                 font.pixelSize: 11
