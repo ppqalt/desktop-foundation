@@ -6,6 +6,7 @@ personal=true
 greeter=true
 packages=true
 dry_run=false
+clean_boot=false
 stage=arguments
 begin_stage() {
 	stage=$1
@@ -23,9 +24,10 @@ while (($#)); do
 	--no-greeter) greeter=false ;;
 	--greeter) greeter=true ;;
 	--no-packages) packages=false ;;
+	--clean-boot) clean_boot=true ;;
 	--dry-run | --plan) dry_run=true ;;
 	-h | --help)
-		echo 'Usage: scripts/install [--core|--personal] [--hardware-profile NAME] [--no-greeter] [--no-packages] [--dry-run]'
+		echo 'Usage: scripts/install [--core|--personal] [--hardware-profile NAME] [--no-greeter] [--no-packages] [--clean-boot] [--dry-run]'
 		exit 0
 		;;
 	*)
@@ -52,6 +54,7 @@ if $greeter; then manifests+=(greeter); fi
 if $personal; then manifests+=(personal); fi
 printf 'Niri installation: hardware=%s personal=%s\n' "$profile" "$personal"
 if $dry_run; then
+	if $clean_boot; then echo 'Explicit GRUB/mkinitcpio cleanup enabled: kernel-derived AppArmor, Plymouth removal, fallback images, reversible backups.'; fi
 	for manifest in "${manifests[@]}"; do
 		echo "Repository packages ($manifest; package stage=$packages):"
 		sed '/^#/d; /^$/d' "$root/packages/$manifest.txt"
@@ -125,7 +128,11 @@ fi
 if $personal; then "$root/scripts/brave-config" apply; fi
 begin_stage '[7/8] System services and login'
 sudo systemctl enable bluetooth.service apparmor.service
-sudo "$root/scripts/apparmor-setup" install
+if $clean_boot; then
+	sudo "$root/scripts/boot-setup" install
+else
+	sudo "$root/scripts/apparmor-setup" install
+fi
 if $greeter; then sudo "$root/scripts/system-setup" install; fi
 begin_stage '[8/8] Read-only validation'
 options=(--installation)

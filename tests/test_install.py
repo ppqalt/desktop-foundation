@@ -78,8 +78,11 @@ class ParuBootstrap(unittest.TestCase):
 
     def test_grub_arguments_are_idempotent(self):
         dropin = ROOT / 'session/apparmor/60-desktop-foundation.cfg'
-        script = 'GRUB_CMDLINE_LINUX="rootflag=1"; GRUB_CMDLINE_LINUX_DEFAULT="quiet lsm=yama,apparmor,bpf"; . "$1"; first="$GRUB_CMDLINE_LINUX_DEFAULT"; . "$1"; printf "%s\\n%s\\n" "$first" "$GRUB_CMDLINE_LINUX_DEFAULT"'
+        script = 'GRUB_CMDLINE_LINUX="rootflag=1"; GRUB_CMDLINE_LINUX_DEFAULT="quiet lsm=yama,apparmor,bpf"; . "$1"; first="$GRUB_CMDLINE_LINUX $GRUB_CMDLINE_LINUX_DEFAULT"; . "$1"; printf "%s\\n%s\\n" "$first" "$GRUB_CMDLINE_LINUX $GRUB_CMDLINE_LINUX_DEFAULT"'
         result = subprocess.check_output(['/bin/sh', '-c', script, 'sh', str(dropin)], text=True).splitlines()
         self.assertEqual(result[0].split(), result[1].split())
         self.assertEqual(result[1].count('apparmor=1'), 1)
         self.assertIn('lsm=yama,apparmor,bpf', result[1])
+        common = subprocess.check_output(['/bin/sh', '-c', 'GRUB_CMDLINE_LINUX="rootflag=1"; GRUB_CMDLINE_LINUX_DEFAULT="quiet"; DF_APPARMOR_LSM="yama,apparmor,bpf"; . "$1"; printf "%s" "$GRUB_CMDLINE_LINUX"', 'sh', str(dropin)], text=True)
+        self.assertIn('rootflag=1', common)
+        self.assertIn('apparmor=1 lsm=yama,apparmor,bpf', common)

@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""Explicit, reversible GRUB/mkinitcpio cleanup. Never invoked implicitly at login."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+from boot_policy import installed_lsms, fallback_preset, remove_plymouth
+
+STATE = Path('/var/lib/desktop-foundation/boot')
+JOURNAL = STATE / 'manifest.json'
+DROPIN = Path('/etc/default/grub.d/90-desktop-foundation-boot.cfg')
+PACKAGES = ('cachyos-plymouth-bootanimation', 'cachyos-plymouth-theme', 'plymouth')
+
+
+def run(*args):
+    return subprocess.run(args, check=True, text=True, capture_output=True).stdout
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+def save(entry):
+    temporary = JOURNAL.with_suffix('.tmp')
+    temporary.write_text(json.dumps(entry, indent=2) + '\n')
+    temporary.replace(JOURNAL)
+
+
+def plan():
+    generator = Path('/usr/bin/grub-mkconfig')
+    if not generator.exists() or 'default/grub.d/' not in generator.read_text():
+        raise ValueError('Requires GRUB drop-in support; other bootloaders are not modified')
+    if not Path('/boot/grub/grub.cfg').exists():
+        raise ValueError('Mount the installed boot filesystem before continuing')
+    lsms = installed_lsms()
+    if any('HOOKS' in p.read_text() for p in Path('/etc/mkinitcpio.conf.d').glob('*.conf')):
+        raise ValueError('A mkinitcpio drop-in overrides HOOKS; review it first')
+    config = Path('/etc/mkinitcpio.conf')
+    changes = {str(config): remove_plymouth(config.read_text())}
+    presets = list(Path('/etc/mkinitcpio.d').glob('*.preset'))
+    if not presets:
+        raise ValueError('No mkinitcpio kernel presets found')
+    for preset in presets:
+        changes[str(preset)] = fallback_preset(preset.read_text())
+    # Preserve root, encryption, resume, hardware and all unrelated arguments.
+    changes[str(DROPIN)] = '''# Managed by desktop-foundation boot-setup; root/other OS entries are untouched.
+GRUB_DEFAULT=0
+GRUB_SAVEDEFAULT=false
+GRUB_TIMEOUT=3
+GRUB_TIMEOUT_STYLE=menu
+GRUB_DISABLE_OS_PROBER=false
+GRUB_DISABLE_SUBMENU=false
+GRUB_DISABLE_RECOVERY=false
+GRUB_TERMINAL_INPUT=console
+GRUB_TERMINAL_OUTPUT=console
+GRUB_THEME=""
+GRUB_BACKGROUND=""
+df_boot_common=
+df_boot_normal=
+for df_boot_arg in $GRUB_CMDLINE_LINUX; do
+    case "$df_boot_arg" in lsm=*|apparmor=*) ;; *) df_boot_common="$df_boot_common $df_boot_arg" ;; esac
+done
+for df_boot_arg in $GRUB_CMDLINE_LINUX_DEFAULT; do
+    case "$df_boot_arg" in lsm=*|apparmor=*|quiet|splash|nowatchdog|nvme_load=YES|loglevel=*) ;; *) df_boot_normal="$df_boot_normal $df_boot_arg" ;; esac
+done
+GRUB_CMDLINE_LINUX="$df_boot_common apparmor=1 lsm=''' + lsms + '''"
+GRUB_CMDLINE_LINUX_DEFAULT="$df_boot_normal loglevel=4"
+unset df_boot_arg df_boot_common df_boot_normal
+'''
+    return changes
+
+
+def restore(entry):
+    for name, data in entry['files'].items():
+        if digest(Path(name)) not in (data['original'], data.get('managed')):
+            raise ValueError('Modified outside boot-setup: ' + name)
+    archives = entry.get('packages', [])
+    if archives:
+        print(run('pacman', '-U', '--noconfirm', *archives))
+    for name, data in entry['files'].items():
+        path = Path(name)
+        if data['original'] is None:
+            path.unlink(missing_ok=True)
+        else:
+            shutil.copy2(data['backup'], path)
+    for name, backup in entry['images'].items():
+        shutil.copy2(backup, name)
+    for name in entry.get('new_images', []):
+        Path(name).unlink(missing_ok=True)
+    if not entry['apparmor_enabled']:
+        run('systemctl', 'disable', 'apparmor.service')
+    run('systemctl', 'daemon-reload')
+    entry['status'] = 'restored'
+    save(entry)
+    print('Saved boot configs and images restored. No reboot performed.')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['plan', 'install', 'restore'])
+    args = parser.parse_args()
+    if args.action != 'plan' and os.geteuid() != 0:
+        parser.error('Run installation/restore with sudo')
+    entry = json.loads(JOURNAL.read_text()) if JOURNAL.exists() else None
+    if args.action == 'restore':
+        if not entry or entry['status'] == 'restored':
+            print('Nothing to restore')
+            return
+        restore(entry)
+        return
+    changes = plan()
+    if args.action == 'plan':
+        print('Modify:', '\n'.join(changes))
+        print(changes[str(DROPIN)])
+        print('Remove installed Plymouth packages only; preserve theme-independent GRUB packages and other installations.')
+        return
+    if entry:
+        raise ValueError('A saved boot transaction already exists; review/restore it before creating another')
+    if shutil.disk_usage('/boot').free < 1024**3 or shutil.disk_usage('/var/lib').free < 1024**3:
+        raise ValueError('Need at least 1 GiB free in /boot and /var/lib for backups/fallbacks')
+    STATE.mkdir(parents=True, mode=0o700, exist_ok=True)
+    entry = {'status': 'prepared', 'files': {}, 'images': {}, 'packages': [], 'new_images': [],
+             'apparmor_enabled': subprocess.run(['systemctl', 'is-enabled', '--quiet', 'apparmor.service']).returncode == 0}
+    # Back up configuration and generated menu before touching any files.
+    for index, name in enumerate([*changes, '/boot/grub/grub.cfg', '/etc/plymouth/plymouthd.conf']):
+        path = Path(name)
+        backup = STATE / ('original-' + str(index))
+        if path.exists():
+            shutil.copy2(path, backup)
+        entry['files'][name] = {'backup': str(backup), 'original': digest(path)}
+    for image in Path('/boot').glob('initramfs-*.img'):
+        backup = STATE / image.name
+        shutil.copy2(image, backup)
+        entry['images'][str(image)] = str(backup)
+    for content in changes.values():
+        for name in re.findall(r'^fallback_image=[\'\"]([^\'\"]+)', content, re.M):
+            if not Path(name).exists():
+                entry['new_images'].append(name)
+    installed = []
+    for package in PACKAGES:
+        query = subprocess.run(['pacman', '-Q', package], capture_output=True, text=True)
+        if query.returncode:
+            continue
+        installed.append(package)
+        expected = query.stdout.strip()
+        archive = next((p for p in Path('/var/cache/pacman/pkg').glob(package + '-*.pkg.tar.*')
+                        if not str(p).endswith('.sig') and subprocess.run(['pacman', '-Qp', str(p)], capture_output=True, text=True).stdout.strip() == expected), None)
+        if not archive:
+            raise ValueError('Exact rollback package archive unavailable for ' + expected + '; download it first')
+        backup = STATE / archive.name
+        shutil.copy2(archive, backup)
+        signature = Path(str(archive) + '.sig')
+        if signature.exists():
+            shutil.copy2(signature, Path(str(backup) + '.sig'))
+        entry['packages'].append(str(backup))
+    save(entry)
+    try:
+        for name, content in changes.items():
+            entry['files'][name]['managed'] = hashlib.sha256(content.encode()).hexdigest()
+            save(entry)
+            path = Path(name)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_name(path.name + '.df-tmp')
+            temporary.write_text(content)
+            temporary.chmod(0o644)
+            temporary.replace(path)
+        if installed:
+            # pacman refuses removal if any unlisted dependent still needs these packages.
+            print(run('pacman', '-R', '--noconfirm', *installed))
+        print(run('mkinitcpio', '-P'))
+        print(run('grub-mkconfig', '-o', '/boot/grub/grub.cfg'))
+        entry['files']['/boot/grub/grub.cfg']['managed'] = digest(Path('/boot/grub/grub.cfg'))
+        save(entry)
+        run('grub-script-check', '/boot/grub/grub.cfg')
+        for image in [*entry['images'], *entry['new_images']]:
+            if 'plymouth' in run('lsinitcpio', image).lower():
+                raise ValueError('Plymouth remains in ' + image)
+        generated = Path('/boot/grub/grub.cfg').read_text()
+        if 'apparmor=1' not in generated or 'splash' in '\n'.join(line for line in generated.splitlines() if re.match(r'\s*linux\s+.*linux-cachyos', line)):
+            raise ValueError('Generated CachyOS arguments failed validation')
+        run('systemctl', 'enable', 'apparmor.service')
+        run('systemctl', 'daemon-reload')
+        entry['status'] = 'installed'
+        save(entry)
+        print('Boot setup installed and artifacts checked. Reboot manually; then verify AppArmor and main/LTS boot. Rollback: sudo scripts/boot-setup restore')
+    except Exception:
+        # Preserve partial generated menu hash so the documented restore can recover it.
+        entry['files']['/boot/grub/grub.cfg']['managed'] = digest(Path('/boot/grub/grub.cfg'))
+        entry['status'] = 'failed'
+        save(entry)
+        print('STOP: do not reboot. Restore with sudo scripts/boot-setup restore. Backups retained.')
+        raise
+
+
+if __name__ == '__main__':
+    main()

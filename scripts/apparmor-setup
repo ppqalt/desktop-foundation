@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import shlex
+from boot_policy import installed_lsms
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = Path('/etc/default/grub.d/60-desktop-foundation.cfg')
@@ -45,7 +47,10 @@ def main():
         subprocess.run(['grub-mkconfig', '-o', '/boot/grub/grub.cfg'], check=True)
         journal.unlink()
         return
-    source = ROOT / 'session/apparmor/60-desktop-foundation.cfg'
+    template = ROOT / 'session/apparmor/60-desktop-foundation.cfg'
+    content = 'DF_APPARMOR_LSM=' + shlex.quote(installed_lsms()) + '\n' + template.read_text()
+    source = STATE / 'rendered.cfg'
+    source.write_text(content)
     if entry and (not TARGET.exists() or digest(TARGET) != entry['managed']):
         raise RuntimeError('AppArmor drop-in modified outside installation')
     if not entry:
