@@ -169,7 +169,8 @@ def main():
         parser.error('Run installation/restore with sudo')
     entry = json.loads(JOURNAL.read_text()) if JOURNAL.exists() else None
     if args.action == 'status':
-        report = {'transaction': entry, 'generated_grub': Path('/boot/grub/grub.cfg').read_text(),
+        apparmor = subprocess.run(['aa-status', '--json'], capture_output=True, text=True)
+        report = {'apparmor_status': apparmor.stdout, 'apparmor_error': apparmor.stderr, 'transaction': entry, 'generated_grub': Path('/boot/grub/grub.cfg').read_text(),
                   'images': {str(p): run('lsinitcpio', str(p)) for p in Path('/boot').glob('initramfs-*.img')}}
         user = pwd.getpwnam(os.environ.get('SUDO_USER', 'root'))
         destination = Path(user.pw_dir) / '.cache/desktop-foundation/boot-audit/transaction.json'

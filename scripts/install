@@ -134,6 +134,7 @@ else
 	sudo "$root/scripts/apparmor-setup" install
 fi
 if $greeter; then sudo "$root/scripts/system-setup" install; fi
+if $clean_boot && $greeter; then sudo "$root/scripts/greeter-console-setup" install; fi
 begin_stage '[8/8] Read-only validation'
 options=(--installation)
 if ! $greeter; then options+=(--no-greeter); fi

@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Reversible tty1 greeter / tty8 boot-console separation. No active greeter restart."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tomllib
+
+ROOT = Path(__file__).resolve().parent.parent
+STATE = Path('/var/lib/desktop-foundation/greeter-console')
+FILES = {
+    '/etc/systemd/system/greetd.service.d/20-desktop-foundation-console.conf': ROOT / 'session/greetd/20-console.conf',
+    '/etc/default/grub.d/95-desktop-foundation-console.cfg': ROOT / 'session/greetd/95-console.cfg',
+}
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+def run(*args):
+    subprocess.run(args, check=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['install', 'restore'])
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error('Run with sudo')
+    journal = STATE / 'manifest.json'
+    entry = json.loads(journal.read_text()) if journal.exists() else None
+    if args.action == 'restore':
+        if not entry:
+            return
+        for name, data in entry['files'].items():
+            if digest(Path(name)) != data['managed']:
+                raise ValueError('Modified outside setup: ' + name)
+        for name, data in entry['files'].items():
+            if data['original'] is None:
+                Path(name).unlink()
+            else:
+                shutil.copy2(data['backup'], name)
+        shutil.copy2(STATE / 'grub.cfg', '/boot/grub/grub.cfg')
+        run('systemctl', 'daemon-reload')
+        journal.unlink()
+        print('Previous console setup restored. Active greetd untouched; reboot manually.')
+        return
+    if entry:
+        raise ValueError('Existing console transaction retained; restore before reinstalling')
+    config = tomllib.loads(Path('/etc/greetd/config.toml').read_text())
+    if config.get('terminal', {}).get('vt') != 1:
+        raise ValueError('This profile requires greetd on tty1; custom VT needs review')
+    current = Path('/proc/cmdline').read_text().split()
+    if any(a.startswith('console=') for a in current):
+        raise ValueError('Explicit console configuration exists (possibly serial); review instead of overwriting it')
+    if 'default/grub.d/' not in Path('/usr/bin/grub-mkconfig').read_text():
+        raise ValueError('GRUB drop-in support required')
+    # Check configured arguments too, including drop-ins not yet booted.
+    effective = subprocess.check_output(['/bin/sh', '-c', '. /etc/default/grub; for f in /etc/default/grub.d/*.cfg; do [ ! -f "$f" ] || . "$f"; done; printf "%s" "$GRUB_CMDLINE_LINUX $GRUB_CMDLINE_LINUX_DEFAULT"'], text=True)
+    if any(a.startswith('console=') for a in effective.split()):
+        raise ValueError('Configured console setting exists; review before changing it')
+    STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    entry = {'files': {}}
+    shutil.copy2('/boot/grub/grub.cfg', STATE / 'grub.cfg')
+    for index, (name, source) in enumerate(FILES.items()):
+        path = Path(name)
+        backup = STATE / str(index)
+        if path.exists():
+            shutil.copy2(path, backup)
+        entry['files'][name] = {'original': digest(path), 'managed': digest(source), 'backup': str(backup)}
+    journal.write_text(json.dumps(entry, indent=2) + '\n')
+    try:
+        for name, source in FILES.items():
+            path = Path(name)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, path)
+            path.chmod(0o644)
+        run('systemd-analyze', 'verify', 'greetd.service')
+        run('grub-mkconfig', '-o', '/boot/grub/grub.cfg')
+        run('grub-script-check', '/boot/grub/grub.cfg')
+        grub = Path('/boot/grub/grub.cfg').read_text()
+        if 'console=tty8' not in grub:
+            raise ValueError('Console routing absent from generated menu')
+        run('systemctl', 'daemon-reload')
+        print('Installed. Next boot: greetd tty1, boot diagnostics tty8 (Ctrl+Alt+F8). No active service restart. Rollback: sudo scripts/greeter-console-setup restore')
+    except BaseException:
+        # Roll back this small transaction immediately on failure.
+        for name, data in entry['files'].items():
+            if data['original'] is None:
+                Path(name).unlink(missing_ok=True)
+            else:
+                shutil.copy2(data['backup'], name)
+        shutil.copy2(STATE / 'grub.cfg', '/boot/grub/grub.cfg')
+        journal.unlink()
+        raise
+
+if __name__ == '__main__':
+    main()
