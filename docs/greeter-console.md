@@ -43,3 +43,20 @@ confirm centering and no overwrite, then log in. Confirm /proc/consoles is tty8,
 getty@tty1 stays inactive, greetd unit settings applied, kernel arguments retain
 AppArmor and normal session/keyring startup. Kernel/PID1 output on tty8 should
 remain available. Do not infer visual correctness from unit validation alone.
+
+## Confirmed reboot validation — 2026-10-02
+
+User reports clean login UI after reboot. Runtime /proc/consoles names tty8;
+greetd remains tty1 with reset/hangup/disallocate settings, getty@tty1 inactive.
+NetworkManager wait-online still completes roughly six seconds after greetd starts,
+so success does not come from delaying login or silencing boot output. No separate
+geometry change was needed; the observed offset was resolved with console separation.
+AppArmor remains enabled and its service active; user PAM unlocks the keyring.
+No failed system units. Plymouth references in existing unit dependencies are
+not-found/inactive, not running splash services.
+
+One post-fix boot: firmware 13.939 s, loader 3.084 s, kernel 1.048 s,
+initrd 6.956 s, userspace 9.114 s, total 34.142 s. Before cleanup total was
+39.225 s. Graphical target reached 3.064 s into userspace; user default.target
+1.266 s (includes PSD). This is an observed pair, not a multi-boot median or
+proof that every component sped up. Private timing samples remain outside Git.
