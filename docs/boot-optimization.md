@@ -228,12 +228,49 @@ Niri-launch→QML loaded 788 ms. The latest greetd service start is journal 11.0
 its first visible frame is not instrumented. User password-entry time is excluded
 from software startup comparisons.
 
-Deployment is verified on Tops (2026-10-02); new-boot measurements are pending.
-No actual after improvement is claimed. Use `python3 scripts/boot-report.py --save after-1`
+Deployment is verified on Tops (2026-10-02); the first after boot is recorded below.
+Use `python3 scripts/boot-report.py --save after-1`
 after a manual reboot, then after-2/after-3 if noisy. The collector captures all
 requested stages and available session evidence, with missing visual timestamps
 explicit rather than invented. Firmware changes should be tested separately from
 the software changes to distinguish their effects.
+
+### First after boot — 2026-10-02
+
+Boot ID `a30a9cf27dba424c9160573f7a152a36`, saved as after-1 in the user's cache.
+
+| Stage | Before four-boot median | After 1 |
+| --- | ---: | ---: |
+| Firmware | 13.958 s | 13.993 s |
+| Loader | 3.737 s | 2.325 s |
+| Kernel | 1.034 s | 1.046 s |
+| Initrd | 6.963 s | 7.004 s |
+| Userspace completion | 9.113 s | 2.377 s |
+| Total completion | 34.809 s | 26.747 s |
+
+The reported total is 8.062 s lower than the old median, but most of the
+userspace difference is removal of online-network waiting from boot completion,
+not an equivalent improvement in first usable login. NetworkManager still
+finishes startup at journal 16.436 s, after boot completion at 10.429 s.
+
+greetd starts at journal 10.427 s versus the before median 11.080 s: a measured
+0.653 s earlier on this boot relative to kernel start. Userspace-to-greetd is
+2.375 s versus 3.081 s on the immediately preceding boot. systemd-binfmt skips
+with Result=exec-condition, ExecMainStart=0: its registration program does not
+run. The timer no longer Wants/After network-online. These verify the intended
+behavior; repeat boots are still needed for a stable performance estimate.
+
+Firmware and initrd are unchanged within noise. AMDGPU logged initialization
+remains 2.154 s and initramfs unpack about 92 ms. Loader is 1.412 s below the
+old median, but manual menu interaction contaminated the baseline range; don't
+attribute that entire difference to a precise measured GRUB-only speedup.
+
+Session-open→Niri-ready is 715 ms; Niri-ready→shell launch 35 ms;
+shell launch→QML loaded 400 ms; Niri-launch→QML loaded 816 ms. The desktop shell
+has no demonstrated regression or new speedup relative to the earlier sample.
+Foundation login reload count remains zero. AppArmor reports enabled/active,
+the console remains tty8 and no system units failed. First visual login/menu
+frames remain user-observed, not instrumented by these timestamps.
 
 Live deployment checks: timer Wants is empty and After has no network-online;
 the service still Wants/After network-online. The native binfmt condition exits 1
