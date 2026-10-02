@@ -228,9 +228,33 @@ Niri-launch→QML loaded 788 ms. The latest greetd service start is journal 11.0
 its first visible frame is not instrumented. User password-entry time is excluded
 from software startup comparisons.
 
-Deployment and new-boot measurements are pending at preparation time. No actual
-after improvement is claimed. Use `python3 scripts/boot-report.py --save after-1`
+Deployment is verified on Tops (2026-10-02); new-boot measurements are pending.
+No actual after improvement is claimed. Use `python3 scripts/boot-report.py --save after-1`
 after a manual reboot, then after-2/after-3 if noisy. The collector captures all
 requested stages and available session evidence, with missing visual timestamps
 explicit rather than invented. Firmware changes should be tested separately from
 the software changes to distinguish their effects.
+
+Live deployment checks: timer Wants is empty and After has no network-online;
+the service still Wants/After network-online. The native binfmt condition exits 1
+for the empty effective rule list and DOSWin is absent. `wine --version` still
+reports wine-11.18. No failed system units; only the original Quickshell process
+remains. The installer reported successful candidate-menu validation, including
+both kernels, four normal/fallback paths, Alpine, Arch, EFI entries including
+Endeavour and external recovery, firmware setup and snapshots. The original
+base file/menu backups remain in the optimization transaction. No reboot was
+performed by the agent.
+
+Validation: eight boot-policy/optimization tests (including failed-menu rollback),
+four installer tests, seven session-startup tests, full `scripts/check` including
+nine native Rust tests, candidate unit verification and the isolated QML trace.
+
+## Repository files
+
+- `scripts/boot-optimize`: root transaction, deployment, live checks and rollback.
+- `scripts/boot-report.py`: read-only multi-boot/session measurements.
+- `scripts/shell-profile.py`: opt-in idle/PSS and isolated QML profiling.
+- `scripts/boot-setup`, `scripts/install`: one-second fresh-install policy and integration.
+- `tests/test_boot_optimization.py`: preservation, time parsing and rollback coverage.
+- `shell/services/README.md`: corrected description of current lazy services.
+- `README.md`, `docs/boot-optimization.md`: installation, findings and recovery.
