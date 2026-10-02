@@ -3,8 +3,12 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 case ${1:-spotify} in
 spotify) "$root/scripts/spotify-setup" apply ;;
+brave)
+	"$root/scripts/brave-config" apply
+	"$root/scripts/brave-config" extensions
+	;;
 *)
-	echo 'Usage: scripts/post-install spotify' >&2
+	echo 'Usage: scripts/post-install [spotify|brave]' >&2
 	exit 2
 	;;
 esac

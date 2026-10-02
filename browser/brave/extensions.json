@@ -1,0 +1,37 @@
+[
+  {
+    "id": "eimadpbcbfnmbkopoojfekhnkhdbieeh",
+    "installation": "manual-web-store",
+    "name": "Dark Reader",
+    "source": "chrome-web-store",
+    "url": "https://chromewebstore.google.com/detail/eimadpbcbfnmbkopoojfekhnkhdbieeh"
+  },
+  {
+    "id": "fadndhdgpmmaapbmfcknlfgcflmmmieb",
+    "installation": "manual-web-store",
+    "name": "FrankerFaceZ",
+    "source": "chrome-web-store",
+    "url": "https://chromewebstore.google.com/detail/fadndhdgpmmaapbmfcknlfgcflmmmieb"
+  },
+  {
+    "id": "gebbhagfogifgggkldgodflihgfeippi",
+    "installation": "manual-web-store",
+    "name": "Return YouTube Dislike",
+    "source": "chrome-web-store",
+    "url": "https://chromewebstore.google.com/detail/gebbhagfogifgggkldgodflihgfeippi"
+  },
+  {
+    "id": "hehggadaopoacecdllhhajmbjkdcmajg",
+    "installation": "manual-web-store",
+    "name": "ChatGPT",
+    "source": "chrome-web-store",
+    "url": "https://chromewebstore.google.com/detail/hehggadaopoacecdllhhajmbjkdcmajg"
+  },
+  {
+    "id": "mnjggcdmjocbbbhaepdhchncahnbgone",
+    "installation": "manual-web-store",
+    "name": "SponsorBlock for YouTube - Skip Sponsorships",
+    "source": "chrome-web-store",
+    "url": "https://chromewebstore.google.com/detail/mnjggcdmjocbbbhaepdhchncahnbgone"
+  }
+]

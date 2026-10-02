@@ -60,6 +60,10 @@ Run `./scripts/doctor --personal` and physically check:
 
 Open Spotify, sign in, leave it running about a minute, then close it and run
 `./scripts/post-install spotify`. Restart Spotify and confirm Marketplace.
+Brave preferences are seeded by the personal installer. If it reports an open
+browser, close Brave and run `./scripts/post-install brave`. Install the five
+extensions using the official links it prints; no extension data is restored.
+
 Pair Bluetooth devices via the administrative fallback. No browser login,
 Spotify credentials, Bluetooth pairings, clipboard/Fish history or arbitrary
 personal files are restored by this repository.

@@ -71,6 +71,7 @@ for name, source in json.loads((Path(sys.argv[1]) / 'apps/spotify/sources.json')
 PY
 	fi
 	python3 "$root/scripts/deploy.py" install --profile "$profile" --dry-run
+	if $personal; then echo 'Brave: one-time allowlisted preference seeds, backed-up flags, manual Web Store extension links; if browser open, defer to scripts/post-install brave.'; fi
 	echo 'Preferences: prefer-dark, adw-gtk3-dark; personal browser: brave-origin-nightly.desktop'
 	echo 'Services: enable Bluetooth and AppArmor; session starts PipeWire, portals, polkit, shell, notifications, clipboard and wallpaper.'
 	if $greeter; then echo 'System files with backups: /etc/greetd/config.toml /etc/pam.d/greetd; enable greetd (no restart). Matrix-capable tuigreet required.'; fi
@@ -121,6 +122,7 @@ if [[ -n ${DBUS_SESSION_BUS_ADDRESS:-} ]]; then
 else
 	dbus-run-session -- python3 "$root/scripts/preferences.py" install "${options[@]}"
 fi
+if $personal; then "$root/scripts/brave-config" apply; fi
 begin_stage '[7/8] System services and login'
 sudo systemctl enable bluetooth.service apparmor.service
 sudo "$root/scripts/apparmor-setup" install

@@ -9,3 +9,22 @@ __pycache__/
 .uuid
 
 /native/nothing/target/
+
+# Never vendor a real browser user-data tree or raw preference exports.
+BraveSoftware/
+**/Default/
+**/Profile [0-9]*/
+**/System Profile/
+**/Preferences
+**/Secure Preferences
+**/Local State
+**/Cookies
+**/Login Data
+**/Web Data
+**/History
+**/Sessions/
+**/Extensions/
+**/Local Storage/
+**/IndexedDB/
+**/Service Worker/
+**/Singleton*
