@@ -59,7 +59,7 @@ def plan():
     changes[str(DROPIN)] = '''# Managed by desktop-foundation boot-setup; root/other OS entries are untouched.
 GRUB_DEFAULT=0
 GRUB_SAVEDEFAULT=false
-GRUB_TIMEOUT=3
+GRUB_TIMEOUT=1
 GRUB_TIMEOUT_STYLE=menu
 GRUB_DISABLE_OS_PROBER=false
 GRUB_DISABLE_SUBMENU=false

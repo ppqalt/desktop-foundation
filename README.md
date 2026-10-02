@@ -24,6 +24,10 @@ Use `--core` for the portable desktop with Firefox/Nautilus defaults. Choose
 See [the fresh Tops procedure](docs/FRESH_INSTALL_TEST.md) and
 [AppArmor](docs/APPARMOR.md) before reinstalling.
 
+Optional `--clean-boot` includes reversible non-Plymouth boot cleanup, a visible
+one-second GRUB menu, independent mirror scheduling and Wine direct-executable
+registration opt-out. See [boot measurements and rollback](docs/boot-optimization.md).
+
 The standard install includes greetd/tuigreet with Matrix animation and keyring
 login unlocking. That system step needs sudo, backs up its files, and does not
 restart the active display manager. Reboot when installation finishes and select

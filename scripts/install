@@ -57,6 +57,7 @@ if $dry_run; then
 	echo 'Firmware (repository preferred; AUR fallback):'
 	sed '/^#/d; /^$/d' "$root/packages/firmware.txt"
 	if $clean_boot; then echo 'Explicit GRUB/mkinitcpio cleanup enabled: kernel-derived AppArmor, Plymouth removal, fallback images, reversible backups.'; fi
+	if $clean_boot; then echo 'Boot optimization: visible GRUB 1s (fractional timeout unsupported), independent mirror timer, Wine direct-executable registration opt-out.'; fi
 	for manifest in "${manifests[@]}"; do
 		echo "Repository packages ($manifest; package stage=$packages):"
 		sed '/^#/d; /^$/d' "$root/packages/$manifest.txt"
@@ -137,6 +138,7 @@ else
 fi
 if $greeter; then sudo "$root/scripts/system-setup" install; fi
 if $clean_boot && $greeter; then sudo "$root/scripts/greeter-console-setup" install; fi
+if $clean_boot; then sudo "$root/scripts/boot-optimize" install; fi
 begin_stage '[8/8] Read-only validation'
 options=(--installation)
 if ! $greeter; then options+=(--no-greeter); fi

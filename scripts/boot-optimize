@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""Small reversible boot changes; no firmware edits, initramfs rebuild or reboot."""
+import argparse
+from collections import Counter
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+
+STATE = Path('/var/lib/desktop-foundation/boot-optimization')
+JOURNAL = STATE / 'manifest.json'
+GRUB = Path('/boot/grub/grub.cfg')
+BASE = Path('/etc/default/grub')
+TIMEOUT = Path('/etc/default/grub.d/96-desktop-foundation-timeout.cfg')
+TIMER = Path('/etc/systemd/system/cachyos-rate-mirrors.timer.d/20-desktop-foundation.conf')
+SERVICE = Path('/etc/systemd/system/cachyos-rate-mirrors.service.d/20-desktop-foundation.conf')
+WINE = Path('/etc/binfmt.d/wine.conf')
+BINFMT = Path('/etc/systemd/system/systemd-binfmt.service.d/20-desktop-foundation.conf')
+
+
+def run(*args):
+    return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT)
+
+
+def identity(path):
+    if path.is_symlink():
+        return 'symlink:' + os.readlink(path)
+    if path.exists():
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    return None
+
+
+def replace_timeout(text):
+    changed, count = re.subn(r'^GRUB_TIMEOUT=.*$', 'GRUB_TIMEOUT=1', text, flags=re.M)
+    if count != 1:
+        raise ValueError('Expected one simple GRUB_TIMEOUT assignment')
+    return changed
+
+
+def menu_records(text):
+    # Entry identities and boot commands must survive regeneration, including
+    # external OSes, initrd paths and common security/console arguments.
+    return Counter(line.strip() for line in text.splitlines()
+                   if re.match(r'\s*(menuentry |submenu |linux(?:efi)?\s|initrd(?:efi)?\s|chainloader\s|fwsetup\b)', line))
+
+
+def validate_menu(before, after):
+    missing = menu_records(before) - menu_records(after)
+    if missing:
+        raise ValueError('Generated menu lost/changed existing boot records: ' + repr(list(missing)))
+    if not re.search(r'^\s*set timeout=1$', after, re.M):
+        raise ValueError('One-second timeout missing from generated menu')
+    if not re.search(r'^\s*set timeout_style=menu$', after, re.M):
+        raise ValueError('Visible menu style missing')
+
+
+def plan():
+    changes = {}
+    timer = Path('/usr/lib/systemd/system/cachyos-rate-mirrors.timer')
+    if timer.exists():
+        # Reset only a known vendor configuration; don't discard future or
+        # administrator-added dependency relationships silently.
+        if run('systemctl', 'show', timer.name, '-p', 'DropInPaths', '--value').strip():
+            raise ValueError('Existing mirror timer override requires review')
+        dependencies = re.findall(r'^(Wants|After)=(.*)$', timer.read_text(), re.M)
+        if dependencies != [('Wants', 'network-online.target'), ('After', 'network-online.target')]:
+            raise ValueError('Mirror timer vendor dependencies changed; review first')
+        changes[TIMER] = '[Unit]\n# Scheduling needs no connection; the refresh job still does.\nWants=\nAfter=\n'
+        changes[SERVICE] = '[Unit]\nWants=network-online.target\nAfter=network-online.target nss-lookup.target\n'
+    wine = Path('/usr/lib/binfmt.d/wine.conf')
+    if wine.exists():
+        lines = [s.strip() for s in wine.read_text().splitlines() if s.strip() and not s.lstrip().startswith('#')]
+        if lines != [':DOSWin:M::MZ::/usr/bin/wine:']:
+            raise ValueError('Unexpected Wine registration; review first')
+        if WINE.exists() or WINE.is_symlink():
+            raise ValueError('Existing administrator Wine binfmt configuration; review first')
+        changes[WINE] = None  # documented binfmt.d per-file /dev/null mask
+        # Masking Wine alone is insufficient: systemd-binfmt still accesses
+        # the automount to flush all rules, even with an empty effective list.
+        # --tldr returns before accessing binfmt_misc; skip only when no rules
+        # remain, so installing another format later still works normally.
+        changes[BINFMT] = '''[Service]
+ExecCondition=/usr/bin/env SYSTEMD_COLORS=0 /bin/sh -c '/usr/lib/systemd/systemd-binfmt --tldr --no-pager | /usr/bin/grep -q "^[^\u0023[:space:]]"'
+'''
+    if not Path('/etc/default/grub.d/90-desktop-foundation-boot.cfg').exists():
+        raise ValueError('Apply the repository clean-boot profile before optimizing GRUB')
+    if 'default/grub.d/' not in Path('/usr/bin/grub-mkconfig').read_text():
+        raise ValueError('GRUB drop-in support required')
+    effective = run('/bin/sh', '-c', '. /etc/default/grub; for f in /etc/default/grub.d/*.cfg; do [ ! -f "$f" ] || . "$f"; done; printf "%s\n" "$GRUB_DEFAULT" "$GRUB_TIMEOUT_STYLE" "$GRUB_TOP_LEVEL"')
+    if effective.splitlines() != ['0', 'menu', '/boot/vmlinuz-linux-cachyos']:
+        raise ValueError('Unexpected default kernel/menu policy; refusing to change it')
+    changes[BASE] = replace_timeout(BASE.read_text())
+    changes[TIMEOUT] = '# Integer seconds only: GRUB 0.25 parses as zero and skips the menu.\nGRUB_TIMEOUT=1\nGRUB_TIMEOUT_STYLE=menu\n'
+    return changes
+
+
+def save(entry):
+    temporary = JOURNAL.with_suffix('.tmp')
+    temporary.write_text(json.dumps(entry, indent=2) + '\n')
+    temporary.replace(JOURNAL)
+
+
+def restore_files(entry):
+    for name, data in entry['files'].items():
+        path = Path(name)
+        path.unlink(missing_ok=True)
+        if data['original'] is not None:
+            shutil.copy2(data['backup'], path, follow_symlinks=False)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['plan', 'install', 'restore', 'status'])
+    args = parser.parse_args()
+    if args.action == 'plan':
+        for path, content in plan().items():
+            print(str(path) + '\n' + (content if content is not None else 'symlink -> /dev/null\n'))
+        return
+    if os.geteuid() != 0:
+        parser.error('Run with sudo; authentication is required for system files')
+    entry = json.loads(JOURNAL.read_text()) if JOURNAL.exists() else None
+    if args.action == 'status':
+        print(json.dumps(entry, indent=2))
+        print(run('systemctl', 'show', 'cachyos-rate-mirrors.timer', '-p', 'Wants', '-p', 'After'))
+        print(run('systemctl', 'show', 'cachyos-rate-mirrors.service', '-p', 'Wants', '-p', 'After'))
+        print(run('/usr/lib/systemd/systemd-binfmt', '--cat-config', '--no-pager'))
+        print('GRUB timeout lines:', re.findall(r'^\s*set timeout(?:_style)?=.*$', GRUB.read_text(), re.M))
+        return
+    if args.action == 'restore':
+        if not entry or entry['status'] == 'restored':
+            print('Nothing to restore')
+            return
+        for name, data in entry['files'].items():
+            if identity(Path(name)) != data['managed']:
+                raise ValueError('Modified since optimization: ' + name + '; review before restoring')
+        restore_files(entry)
+        run('systemctl', 'daemon-reload')
+        if str(WINE) in entry['files']:
+            # Positional mode registers just Wine; don't flush other live rules.
+            run('/usr/lib/systemd/systemd-binfmt', '/usr/lib/binfmt.d/wine.conf')
+        entry['status'] = 'restored'
+        save(entry)
+        print('Previous files/menu restored. No greeter restart or reboot.')
+        return
+    if entry:
+        if entry['status'] == 'installed' and all(identity(Path(n)) == d['managed'] for n, d in entry['files'].items()):
+            print('Already installed; original backups retained.')
+            return
+        raise ValueError('Saved optimization transaction exists; inspect status/restore first')
+    changes = plan()
+    before = GRUB.read_text()
+    STATE.mkdir(parents=True, mode=0o700, exist_ok=True)
+    entry = {'status': 'prepared', 'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(), 'files': {}}
+    for index, path in enumerate([*changes, GRUB]):
+        backup = STATE / ('original-' + str(index))
+        if path.exists() or path.is_symlink():
+            shutil.copy2(path, backup, follow_symlinks=False)
+        entry['files'][str(path)] = {'backup': str(backup), 'original': identity(path), 'managed': identity(path)}
+    save(entry)
+    try:
+        for path, content in changes.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_name(path.name + '.df-tmp')
+            if content is None:
+                temporary.symlink_to('/dev/null')
+            else:
+                temporary.write_text(content)
+                temporary.chmod(0o644)
+            temporary.replace(path)
+            entry['files'][str(path)]['managed'] = identity(path)
+            save(entry)
+        candidate = STATE / 'candidate.cfg'
+        print('Generating and checking candidate GRUB menu; existing menu stays in place.', flush=True)
+        print(run('grub-mkconfig', '-o', str(candidate)))
+        run('grub-script-check', str(candidate))
+        validate_menu(before, candidate.read_text())
+        shutil.copy2(candidate, GRUB.with_name('grub.cfg.df-tmp'))
+        GRUB.with_name('grub.cfg.df-tmp').replace(GRUB)
+        entry['files'][str(GRUB)]['managed'] = identity(GRUB)
+        save(entry)
+        run('systemctl', 'daemon-reload')
+        units = ['systemd-binfmt.service'] if BINFMT in changes else []
+        if TIMER in changes:
+            units.extend(['cachyos-rate-mirrors.timer', 'cachyos-rate-mirrors.service'])
+        if units:
+            run('systemd-analyze', 'verify', *units)
+        # Unregister only Wine's currently active handler. Other formats and
+        # the systemd-binfmt service remain available for future packages.
+        handler = Path('/proc/sys/fs/binfmt_misc/DOSWin')
+        if WINE in changes and handler.exists():
+            handler.write_text('-1')
+        entry['status'] = 'installed'
+        save(entry)
+        print('Installed: visible GRUB 1s, mirror scheduling independent of networking, Wine direct-exec opt-out. Reboot manually to measure. Rollback: sudo scripts/boot-optimize restore')
+    except BaseException:
+        restore_files(entry)
+        run('systemctl', 'daemon-reload')
+        JOURNAL.unlink()
+        shutil.rmtree(STATE)
+        print('Installation failed; saved original files/menu restored. No reboot performed.')
+        raise
+
+
+if __name__ == '__main__':
+    main()
