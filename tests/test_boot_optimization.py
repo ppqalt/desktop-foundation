@@ -19,6 +19,13 @@ report_loader.exec_module(report)
 
 
 class BootOptimizationTests(unittest.TestCase):
+    def test_full_timer_override_preserves_calendar_and_persistence(self):
+        before = '[Unit]\nWants=network-online.target\nAfter=network-online.target\n[Timer]\nOnCalendar=daily\nRandomizedOffsetSec=10d\nPersistent=true\n[Install]\nWantedBy=timers.target\n'
+        after = module.mirror_timer(before)
+        self.assertNotIn('network-online.target', after)
+        self.assertIn(before.split('[Timer]', 1)[1], after)
+        with self.assertRaises(ValueError):
+            module.mirror_timer(before.replace('Wants=network-online.target', 'Wants=another.target'))
     def test_stage_times_parse_minutes_and_subseconds(self):
         self.assertAlmostEqual(report.seconds('1min 2.345s'), 62.345)
         self.assertAlmostEqual(report.seconds('384ms'), .384)

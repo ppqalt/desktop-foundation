@@ -144,7 +144,11 @@ optimization.
 ## Mirror timer and Wine
 
 The vendor mirror **timer** has both Wants/After=network-online.target. Its owned
-drop-in resets those two relationships. The refresh **service** gets explicit
+full unit override removes only those two lines, preserving the rest of the
+vendor unit. Empty dependency assignments in a drop-in do not remove these
+edges; the initial deployed attempt was caught by live verification and repaired.
+Future vendor schedule updates require reviewing/regenerating the owned copy.
+The refresh **service** gets explicit
 Wants/After=network-online.target (the vendor previously supplied After alone),
 retaining DNS ordering. Calendar, random offset, persistence and refresh code
 are unchanged. NetworkManager itself and other online consumers are preserved.

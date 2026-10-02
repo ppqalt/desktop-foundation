@@ -15,7 +15,8 @@ JOURNAL = STATE / 'manifest.json'
 GRUB = Path('/boot/grub/grub.cfg')
 BASE = Path('/etc/default/grub')
 TIMEOUT = Path('/etc/default/grub.d/96-desktop-foundation-timeout.cfg')
-TIMER = Path('/etc/systemd/system/cachyos-rate-mirrors.timer.d/20-desktop-foundation.conf')
+TIMER = Path('/etc/systemd/system/cachyos-rate-mirrors.timer')
+LEGACY_TIMER = Path('/etc/systemd/system/cachyos-rate-mirrors.timer.d/20-desktop-foundation.conf')
 SERVICE = Path('/etc/systemd/system/cachyos-rate-mirrors.service.d/20-desktop-foundation.conf')
 WINE = Path('/etc/binfmt.d/wine.conf')
 BINFMT = Path('/etc/systemd/system/systemd-binfmt.service.d/20-desktop-foundation.conf')
@@ -38,6 +39,16 @@ def replace_timeout(text):
     if count != 1:
         raise ValueError('Expected one simple GRUB_TIMEOUT assignment')
     return changed
+
+
+def mirror_timer(text):
+    dependencies = re.findall(r'^(Wants|After)=(.*)$', text, re.M)
+    if dependencies != [('Wants', 'network-online.target'), ('After', 'network-online.target')]:
+        raise ValueError('Mirror timer vendor dependencies changed; review first')
+    # systemd does not remove dependency edges with empty Wants=/After=.
+    # Preserve the complete vendor schedule, removing only these two lines.
+    return '# Managed by desktop-foundation: scheduling is independent of networking.\n' + re.sub(
+        r'^(?:Wants|After)=network-online.target\n', '', text, flags=re.M)
 
 
 def menu_records(text):
@@ -65,10 +76,9 @@ def plan():
         # administrator-added dependency relationships silently.
         if run('systemctl', 'show', timer.name, '-p', 'DropInPaths', '--value').strip():
             raise ValueError('Existing mirror timer override requires review')
-        dependencies = re.findall(r'^(Wants|After)=(.*)$', timer.read_text(), re.M)
-        if dependencies != [('Wants', 'network-online.target'), ('After', 'network-online.target')]:
-            raise ValueError('Mirror timer vendor dependencies changed; review first')
-        changes[TIMER] = '[Unit]\n# Scheduling needs no connection; the refresh job still does.\nWants=\nAfter=\n'
+        if TIMER.exists() or TIMER.is_symlink():
+            raise ValueError('Existing full mirror timer override requires review')
+        changes[TIMER] = mirror_timer(timer.read_text())
         changes[SERVICE] = '[Unit]\nWants=network-online.target\nAfter=network-online.target nss-lookup.target\n'
     wine = Path('/usr/lib/binfmt.d/wine.conf')
     if wine.exists():
@@ -111,9 +121,51 @@ def restore_files(entry):
             shutil.copy2(data['backup'], path, follow_symlinks=False)
 
 
+def repair_timer(entry):
+    """Upgrade the first deployed drop-in without replacing original backups."""
+    name = str(LEGACY_TIMER)
+    if not entry or entry['status'] != 'installed' or name not in entry['files']:
+        raise ValueError('No first-version timer transaction to repair')
+    if identity(LEGACY_TIMER) is None and str(TIMER) in entry['files']:
+        print('Timer already repaired')
+        return
+    if any(identity(Path(n)) != d['managed'] for n, d in entry['files'].items()):
+        raise ValueError('Owned files changed outside setup; review before repairing')
+    if entry['files'][name]['original'] is not None or TIMER.exists() or TIMER.is_symlink():
+        raise ValueError('Unexpected original/full timer override; review first')
+    if run('systemctl', 'show', 'cachyos-rate-mirrors.timer', '-p', 'DropInPaths', '--value').strip() != name:
+        raise ValueError('Unexpected additional timer overrides')
+    original = json.loads(json.dumps(entry))
+    previous = LEGACY_TIMER.read_bytes()
+    text = mirror_timer(Path('/usr/lib/systemd/system/cachyos-rate-mirrors.timer').read_text())
+    try:
+        TIMER.write_text(text)
+        TIMER.chmod(0o644)
+        LEGACY_TIMER.unlink()
+        entry['files'][name]['managed'] = None
+        entry['files'][str(TIMER)] = {'backup': str(STATE / 'original-full-timer'), 'original': None, 'managed': identity(TIMER)}
+        save(entry)
+        run('systemctl', 'daemon-reload')
+        verify_timer()
+        print('Timer corrected; scheduling no longer requires network-online. Original rollback retained. No reboot.')
+    except BaseException:
+        TIMER.unlink(missing_ok=True)
+        LEGACY_TIMER.write_bytes(previous)
+        save(original)
+        run('systemctl', 'daemon-reload')
+        raise
+
+
+def verify_timer():
+    for field in ('Wants', 'After'):
+        value = run('systemctl', 'show', 'cachyos-rate-mirrors.timer', '-p', field, '--value')
+        if 'network-online.target' in value.split():
+            raise ValueError('Mirror timer still waits for networking')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['plan', 'install', 'restore', 'status'])
+    parser.add_argument('action', choices=['plan', 'install', 'restore', 'status', 'repair-timer'])
     args = parser.parse_args()
     if args.action == 'plan':
         for path, content in plan().items():
@@ -122,6 +174,9 @@ def main():
     if os.geteuid() != 0:
         parser.error('Run with sudo; authentication is required for system files')
     entry = json.loads(JOURNAL.read_text()) if JOURNAL.exists() else None
+    if args.action == 'repair-timer':
+        repair_timer(entry)
+        return
     if args.action == 'status':
         print(json.dumps(entry, indent=2))
         print(run('systemctl', 'show', 'cachyos-rate-mirrors.timer', '-p', 'Wants', '-p', 'After'))
@@ -187,6 +242,8 @@ def main():
             units.extend(['cachyos-rate-mirrors.timer', 'cachyos-rate-mirrors.service'])
         if units:
             run('systemd-analyze', 'verify', *units)
+        if TIMER in changes:
+            verify_timer()
         # Unregister only Wine's currently active handler. Other formats and
         # the systemd-binfmt service remain available for future packages.
         handler = Path('/proc/sys/fs/binfmt_misc/DOSWin')
