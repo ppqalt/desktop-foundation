@@ -12,12 +12,14 @@ animations. Portable local device icons avoid depending on the host icon theme.
 Connected state, negotiated codec, and reported battery are compact secondary text.
 Devices are sorted stably by name/address rather than maintaining a second usage DB.
 
-The header switch turns Bluetooth on/off through native BlueZ adapter properties.
+The header switch turns Bluetooth on/off through native BlueZ adapter properties and a finite radio helper.
 Click it, or navigate upward from the first device and press Enter. Wheel and Tab
 navigation include the switch. It affects all detected adapters; turning it off
 disconnects Bluetooth devices. The switch reflects reported power state, prevents
-overlapping requests, and reports failure after five seconds (including airplane
-mode or unavailable adapters). It does not start another daemon.
+overlapping requests, and bounds retries to five seconds (including airplane
+mode or unavailable adapters). Power-on first clears the Bluetooth software rfkill block, then retries briefly
+while the adapter recovers and verifies its actual Powered property. Hardware
+blocks remain an inline error. It does not start another daemon.
 
 ## State and actions
 

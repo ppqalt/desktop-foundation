@@ -98,34 +98,25 @@ PanelWindow {
         pendingActivation = "";
         radioTarget = !adapterAvailable;
         radioBusy = true;
-        radioTimeout.restart();
-        for (const adapter of adapters)
-            adapter.enabled = radioTarget;
-        Qt.callLater(() => root.checkRadio());
+        radioAction.command = ["python3", Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-power.py", radioTarget ? "on" : "off"];
+        radioAction.running = true;
     }
-    Timer {
-        id: radioTimeout
-        interval: 5000
-        onTriggered: {
-            root.radioBusy = false;
-            root.error = "Bluetooth could not be turned " + (root.radioTarget ? "on. Check the adapter’s airplane-mode switch." : "off. Try again.");
-        }
-    }
-    function checkRadio(): void {
-        const adapters = Bluetooth.adapters.values;
-        if (radioBusy && adapters.length && adapters.every(a => a.enabled === radioTarget)) {
-            radioTimeout.stop();
-            radioBusy = false;
-        }
-    }
-    Instantiator {
-        model: Bluetooth.adapters.values
-        delegate: Connections {
-            required property var modelData
-            target: modelData
-            function onEnabledChanged() {
-                root.checkRadio();
+    Process {
+        id: radioAction
+        property var response: ({})
+        onStarted: response = ({})
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    radioAction.response = JSON.parse(text);
+                } catch (_) {
+                    radioAction.response = ({});
+                }
             }
+        }
+        onExited: (exitCode, exitStatus) => {
+            root.radioBusy = false;
+            root.error = exitCode === 0 && response.success ? "" : response.error || "Bluetooth radio request failed. Try again.";
         }
     }
     function navigate(delta: int): void {
