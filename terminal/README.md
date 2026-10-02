@@ -63,16 +63,26 @@ Fonts are bundled with their licenses in `fonts/`, linked through deployment int
 the user font directory, and removed from that location by rollback. Google Sans
 is used by the shared shell; Google Sans Code supplies its monospaced labels.
 
-Ctrl+A copies the entire retained Kitty screen and scrollback directly to the
-clipboard using `launch --type=clipboard --stdin-source=@screen_scrollback cat`.
-No selection or second copy action is needed. Kitty intercepts Ctrl+A; applications
-receive their normal Ctrl+A only when Kitty does not intercept it. Ctrl+C retains
-copy-or-interrupt behavior. The scrollback limit remains 10,000 lines.
+Ctrl+A creates a real Kitty selection across the retained main screen and full
+scrollback; it does not copy. Ctrl+C uses Kitty's normal `copy_or_interrupt` action:
+copy the selection, or interrupt when nothing is selected. The scrollback limit
+remains 10,000 lines. Escape clears selection and forwards Escape to the application;
+normal mouse selection can replace it. No automatic copy, notification or overlay.
 
-Validated with Kitty 0.49.2: a real Wayland terminal printed 200 numbered lines,
-only the tail remained visible, and a Ctrl+A keypress copied all 200 lines,
-including the first and last, to a temporary file. Typing and executing a subsequent
-command still worked. The temporary window/files were removed afterward.
+Kitty has no built-in whole-scrollback selection action. The small tracked no-UI
+`select_all.py` kitten uses native scroll_home/start_selection/scroll_end/
+update_selection, anchoring endpoints at their respective scrollback offsets. It
+restores the original viewing position afterward. The highlight is actual Kitty
+selection state, including when scrolling upward. On an alternate screen it selects
+that screen only, matching Kitty's separate-screen model. These internal selection
+APIs were inspected against Kitty 0.49.2; review compatibility after major upgrades.
+
+Manual validation (interactive test deferred to the user for this change): print
+200 numbered lines, leave the bottom visible, set the clipboard to a known marker,
+then press Ctrl+A. Confirm the visible highlight remains when scrolling to line 1
+and the clipboard marker is unchanged. Return to the bottom and press Ctrl+C; paste
+into a temporary file and confirm lines 1 through 200. Check Escape and replacement
+mouse selections. Open a new Kitty window or reload its config to apply the binding.
 
 
 The Packages line combines Fastfetch's native `{pacman}` total with the number
