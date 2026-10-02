@@ -62,3 +62,10 @@ AppArmor activation is not blanket application confinement. Distribution restric
 profiles remain maintained by their package. Chromium/Electron unconfined userns
 stubs remain compatibility policy, not a claim of browser isolation. No speculative
 custom browser/terminal/compositor policy is installed by this command.
+
+Interrupted installation: `sudo scripts/boot-setup status` collects a read-only
+transaction/artifact report. `sudo scripts/boot-setup resume` continues only a
+prepared/failed transaction with matching original/managed file hashes and intact
+rollback artifacts. Original backups are never replaced. Build/package output is
+streamed, so long fallback builds show progress. Do not interrupt/reboot during
+rebuilds. Once complete, collect status again before rebooting.

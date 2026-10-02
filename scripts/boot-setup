@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import pwd
 from pathlib import Path
 import re
 import shlex
@@ -18,7 +19,14 @@ PACKAGES = ('cachyos-plymouth-bootanimation', 'cachyos-plymouth-theme', 'plymout
 
 
 def run(*args):
-    return subprocess.run(args, check=True, text=True, capture_output=True).stdout
+    if args[0] in ('pacman', 'mkinitcpio', 'grub-mkconfig'):
+        print('Running ' + shlex.join(args), flush=True)
+        subprocess.run(args, check=True)
+        return ''
+    result = subprocess.run(args, text=True, capture_output=True)
+    if result.returncode:
+        raise RuntimeError('Command failed: ' + shlex.join(args) + '\n' + result.stdout + result.stderr)
+    return result.stdout
 
 
 def digest(path):
@@ -100,13 +108,68 @@ def restore(entry):
     print('Saved boot configs and images restored. No reboot performed.')
 
 
+def apply(entry, changes, installed):
+    try:
+        for name, content in changes.items():
+            entry['files'][name]['managed'] = hashlib.sha256(content.encode()).hexdigest()
+            save(entry)
+            path = Path(name)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_name(path.name + '.df-tmp')
+            temporary.write_text(content)
+            temporary.chmod(0o644)
+            temporary.replace(path)
+        if installed:
+            # pacman refuses removal if any unlisted dependent still needs these packages.
+            print(run('pacman', '-R', '--noconfirm', *installed))
+        print(run('mkinitcpio', '-P'))
+        print(run('grub-mkconfig', '-o', '/boot/grub/grub.cfg'))
+        entry['files']['/boot/grub/grub.cfg']['managed'] = digest(Path('/boot/grub/grub.cfg'))
+        save(entry)
+        run('grub-script-check', '/boot/grub/grub.cfg')
+        for image in [*entry['images'], *entry['new_images']]:
+            if 'plymouth' in run('lsinitcpio', image).lower():
+                raise ValueError('Plymouth remains in ' + image)
+        generated = Path('/boot/grub/grub.cfg').read_text()
+        if 'apparmor=1' not in generated or 'splash' in '\n'.join(line for line in generated.splitlines() if re.match(r'\s*linux\s+.*linux-cachyos', line)):
+            raise ValueError('Generated CachyOS arguments failed validation')
+        run('systemctl', 'enable', 'apparmor.service')
+        run('systemctl', 'daemon-reload')
+        entry['status'] = 'installed'
+        save(entry)
+        print('Boot setup installed and artifacts checked. Reboot manually; then verify AppArmor and main/LTS boot. Rollback: sudo scripts/boot-setup restore')
+    except BaseException:
+        # Preserve partial generated menu hash so the documented restore can recover it.
+        entry['files']['/boot/grub/grub.cfg']['managed'] = digest(Path('/boot/grub/grub.cfg'))
+        entry['status'] = 'failed'
+        save(entry)
+        print('STOP: do not reboot. Restore with sudo scripts/boot-setup restore. Backups retained.')
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['plan', 'install', 'restore'])
+    parser.add_argument('action', choices=['plan', 'install', 'restore', 'status', 'resume'])
     args = parser.parse_args()
     if args.action != 'plan' and os.geteuid() != 0:
         parser.error('Run installation/restore with sudo')
     entry = json.loads(JOURNAL.read_text()) if JOURNAL.exists() else None
+    if args.action == 'status':
+        report = {'transaction': entry, 'generated_grub': Path('/boot/grub/grub.cfg').read_text(),
+                  'images': {str(p): run('lsinitcpio', str(p)) for p in Path('/boot').glob('initramfs-*.img')}}
+        user = pwd.getpwnam(os.environ.get('SUDO_USER', 'root'))
+        destination = Path(user.pw_dir) / '.cache/desktop-foundation/boot-audit/transaction.json'
+        if not os.environ.get('SUDO_USER') or not destination.parent.is_dir():
+            print(json.dumps(report, indent=2))
+        else:
+            # Never write as root into a user-controlled directory.
+            os.setgroups([])
+            os.setgid(user.pw_gid)
+            os.setuid(user.pw_uid)
+            destination.write_text(json.dumps(report, indent=2) + '\n')
+            destination.chmod(0o600)
+            print('Diagnostic report saved to ' + str(destination))
+        return
     if args.action == 'restore':
         if not entry or entry['status'] == 'restored':
             print('Nothing to restore')
@@ -119,8 +182,21 @@ def main():
         print(changes[str(DROPIN)])
         print('Remove installed Plymouth packages only; preserve theme-independent GRUB packages and other installations.')
         return
+    if args.action == 'resume':
+        if not entry or entry['status'] not in ('prepared', 'failed'):
+            raise ValueError('No interrupted transaction to resume')
+        for name, data in entry['files'].items():
+            if digest(Path(name)) not in (data['original'], data.get('managed')):
+                raise ValueError('Modified outside saved transaction: ' + name)
+            if data['original'] is not None and digest(Path(data['backup'])) != data['original']:
+                raise ValueError('Original backup missing or changed: ' + name)
+        if any(not Path(p).is_file() for p in entry['packages'] + list(entry['images'].values())):
+            raise ValueError('Rollback artifacts missing; cannot resume')
+        installed = [p for p in PACKAGES if subprocess.run(['pacman', '-Q', p], capture_output=True).returncode == 0]
+        apply(entry, changes, installed)
+        return
     if entry:
-        raise ValueError('A saved boot transaction already exists; review/restore it before creating another')
+        raise ValueError('Saved transaction status=' + entry['status'] + '; use status, resume or restore rather than overwrite originals')
     if shutil.disk_usage('/boot').free < 1024**3 or shutil.disk_usage('/var/lib').free < 1024**3:
         raise ValueError('Need at least 1 GiB free in /boot and /var/lib for backups/fallbacks')
     STATE.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -159,42 +235,7 @@ def main():
             shutil.copy2(signature, Path(str(backup) + '.sig'))
         entry['packages'].append(str(backup))
     save(entry)
-    try:
-        for name, content in changes.items():
-            entry['files'][name]['managed'] = hashlib.sha256(content.encode()).hexdigest()
-            save(entry)
-            path = Path(name)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = path.with_name(path.name + '.df-tmp')
-            temporary.write_text(content)
-            temporary.chmod(0o644)
-            temporary.replace(path)
-        if installed:
-            # pacman refuses removal if any unlisted dependent still needs these packages.
-            print(run('pacman', '-R', '--noconfirm', *installed))
-        print(run('mkinitcpio', '-P'))
-        print(run('grub-mkconfig', '-o', '/boot/grub/grub.cfg'))
-        entry['files']['/boot/grub/grub.cfg']['managed'] = digest(Path('/boot/grub/grub.cfg'))
-        save(entry)
-        run('grub-script-check', '/boot/grub/grub.cfg')
-        for image in [*entry['images'], *entry['new_images']]:
-            if 'plymouth' in run('lsinitcpio', image).lower():
-                raise ValueError('Plymouth remains in ' + image)
-        generated = Path('/boot/grub/grub.cfg').read_text()
-        if 'apparmor=1' not in generated or 'splash' in '\n'.join(line for line in generated.splitlines() if re.match(r'\s*linux\s+.*linux-cachyos', line)):
-            raise ValueError('Generated CachyOS arguments failed validation')
-        run('systemctl', 'enable', 'apparmor.service')
-        run('systemctl', 'daemon-reload')
-        entry['status'] = 'installed'
-        save(entry)
-        print('Boot setup installed and artifacts checked. Reboot manually; then verify AppArmor and main/LTS boot. Rollback: sudo scripts/boot-setup restore')
-    except Exception:
-        # Preserve partial generated menu hash so the documented restore can recover it.
-        entry['files']['/boot/grub/grub.cfg']['managed'] = digest(Path('/boot/grub/grub.cfg'))
-        entry['status'] = 'failed'
-        save(entry)
-        print('STOP: do not reboot. Restore with sudo scripts/boot-setup restore. Backups retained.')
-        raise
+    apply(entry, changes, installed)
 
 
 if __name__ == '__main__':
