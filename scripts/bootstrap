@@ -31,6 +31,17 @@ if ((${#missing[@]})); then
 	# Full upgrade avoids unsupported partial upgrades on Arch/CachyOS.
 	sudo pacman -Syu --needed "${missing[@]}"
 fi
+# CachyOS supplies this firmware bundle in its repository; plain Arch uses AUR.
+mapfile -t firmware < <(sed '/^#/d; /^$/d' "$root/packages/firmware.txt")
+for package in "${firmware[@]}"; do
+	if pacman -Q "$package" >/dev/null 2>&1; then continue; fi
+	if pacman -Si "$package" >/dev/null 2>&1; then
+		sudo pacman -Syu --needed "$package"
+	else
+		"$root/scripts/paru-bootstrap"
+		paru -S --needed "$package"
+	fi
+done
 rustup toolchain install 1.98.1 --profile minimal
 if $dev; then
 	rustup default stable

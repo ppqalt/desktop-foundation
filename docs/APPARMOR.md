@@ -69,3 +69,9 @@ prepared/failed transaction with matching original/managed file hashes and intac
 rollback artifacts. Original backups are never replaced. Build/package output is
 streamed, so long fallback builds show progress. Do not interrupt/reboot during
 rebuilds. Once complete, collect status again before rebooting.
+
+The bootstrap also installs tracked `packages/firmware.txt` (`mkinitcpio-firmware`)
+to supply firmware used by broader fallback images. CachyOS uses its repository
+package; Arch/EndeavourOS without a repository candidate uses paru/AUR with the
+existing PKGBUILD review flow. Builds remain non-root. Already installed packages
+are skipped. This is a fresh-install dependency, not a resident service.

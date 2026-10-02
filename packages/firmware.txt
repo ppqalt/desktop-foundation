@@ -1,0 +1,2 @@
+# Prefer a configured repository; use AUR when unavailable on Arch/EndeavourOS.
+mkinitcpio-firmware

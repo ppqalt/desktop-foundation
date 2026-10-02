@@ -54,6 +54,8 @@ if $greeter; then manifests+=(greeter); fi
 if $personal; then manifests+=(personal); fi
 printf 'Niri installation: hardware=%s personal=%s\n' "$profile" "$personal"
 if $dry_run; then
+	echo 'Firmware (repository preferred; AUR fallback):'
+	sed '/^#/d; /^$/d' "$root/packages/firmware.txt"
 	if $clean_boot; then echo 'Explicit GRUB/mkinitcpio cleanup enabled: kernel-derived AppArmor, Plymouth removal, fallback images, reversible backups.'; fi
 	for manifest in "${manifests[@]}"; do
 		echo "Repository packages ($manifest; package stage=$packages):"
