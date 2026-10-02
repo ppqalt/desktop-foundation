@@ -8,7 +8,7 @@ return {
         enabled = true,
         radius = 7,
         qualityPasses = 3,
-        strength = 1.0,
+        strength = 0.96,
         noise = 0.012,
         contrast = 1.0,
         brightness = 1.0,
