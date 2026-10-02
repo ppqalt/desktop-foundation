@@ -272,6 +272,23 @@ Foundation login reload count remains zero. AppArmor reports enabled/active,
 the console remains tty8 and no system units failed. First visual login/menu
 frames remain user-observed, not instrumented by these timestamps.
 
+### Second after boot — 2026-10-02
+
+After-2: firmware 13.900 s, loader 2.410 s, kernel 1.029 s, initrd 6.949 s,
+userspace 2.454 s, total 26.745 s. The two after totals differ by only 2 ms;
+their median is 26.746 s versus the prior four-boot median 34.809 s. This
+supports repeatability of reported completion, not an eight-second improvement
+in login appearance. greetd's journal start is 10.431 s (after-1 10.427 s),
+approximately 0.65 s earlier than the prior median 11.080 s.
+
+Wine registration again skips with ExecMainStart=0 and Result=exec-condition;
+the mirror timer has no network-online dependency. AppArmor is enabled, console
+routing is tty8 and there are no failed system units. Session-open→Niri ready
+693 ms, Niri-ready→shell launch 42 ms, shell launch→QML loaded 390 ms,
+Niri-launch→QML loaded 782 ms, with zero foundation login reloads. Firmware,
+initrd and desktop startup remain broadly unchanged. Two consistent after boots
+are sufficient for this pass; more repetition is not presently justified.
+
 Live deployment checks: timer Wants is empty and After has no network-online;
 the service still Wants/After network-online. The native binfmt condition exits 1
 for the empty effective rule list and DOSWin is absent. `wine --version` still
