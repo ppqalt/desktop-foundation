@@ -83,9 +83,23 @@ unset df_boot_arg df_boot_common df_boot_normal
     return changes
 
 
+def owned_file_matches(entry, name, data):
+    if digest(Path(name)) in (data['original'], data.get('managed')):
+        return True
+    # pacman can save the modified theme configuration and restore its package default.
+    # Accept only this exact transition, not arbitrary outside edits.
+    if name != '/etc/plymouth/plymouthd.conf' or digest(Path(name + '.pacsave')) != data['original']:
+        return False
+    archive = next((p for p in entry.get('packages', []) if Path(p).name.startswith('plymouth-')), None)
+    if not archive:
+        return False
+    result = subprocess.run(['bsdtar', '-xOf', archive, 'etc/plymouth/plymouthd.conf'], capture_output=True)
+    return result.returncode == 0 and Path(name).read_bytes() == result.stdout
+
+
 def restore(entry):
     for name, data in entry['files'].items():
-        if digest(Path(name)) not in (data['original'], data.get('managed')):
+        if not owned_file_matches(entry, name, data):
             raise ValueError('Modified outside boot-setup: ' + name)
     archives = entry.get('packages', [])
     if archives:
@@ -186,7 +200,7 @@ def main():
         if not entry or entry['status'] not in ('prepared', 'failed'):
             raise ValueError('No interrupted transaction to resume')
         for name, data in entry['files'].items():
-            if digest(Path(name)) not in (data['original'], data.get('managed')):
+            if not owned_file_matches(entry, name, data):
                 raise ValueError('Modified outside saved transaction: ' + name)
             if data['original'] is not None and digest(Path(data['backup'])) != data['original']:
                 raise ValueError('Original backup missing or changed: ' + name)
