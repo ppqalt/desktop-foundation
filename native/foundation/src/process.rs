@@ -2,9 +2,9 @@
 use crate::{Error, Result, invalid};
 use std::{
     io::{Read, Write},
+    os::fd::AsRawFd,
     os::unix::process::CommandExt,
     process::{Child, Command, ExitStatus, Stdio},
-    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
@@ -88,63 +88,59 @@ pub fn run(
         })?,
         completed: false,
     };
-    let (sender, receiver) = mpsc::channel::<(u8, Result<Vec<u8>>)>();
-    let mut workers = Vec::new();
-    if let Some(mut pipe) = owned.child.stdout.take() {
-        let sender = sender.clone();
-        workers.push(thread::Builder::new().spawn(move || {
-            let result = collect(&mut pipe);
-            let _ = sender.send((0, result));
-        })?);
+    let mut stdout_pipe = owned.child.stdout.take();
+    let mut stderr_pipe = owned.child.stderr.take();
+    let mut stdin_pipe = owned.child.stdin.take();
+    for pipe in [
+        stdout_pipe.as_ref().map(AsRawFd::as_raw_fd),
+        stderr_pipe.as_ref().map(AsRawFd::as_raw_fd),
+        stdin_pipe.as_ref().map(AsRawFd::as_raw_fd),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        nonblocking(pipe)?;
     }
-    if let Some(mut pipe) = owned.child.stderr.take() {
-        let sender = sender.clone();
-        workers.push(thread::Builder::new().spawn(move || {
-            let result = collect(&mut pipe);
-            let _ = sender.send((1, result));
-        })?);
-    }
-    if let Some(bytes) = input {
-        let mut pipe = owned
-            .child
-            .stdin
-            .take()
-            .ok_or_else(|| invalid("Subprocess stdin unavailable"))?;
-        workers.push(thread::Builder::new().spawn(move || {
-            let result = pipe
-                .write_all(&bytes)
-                .map(|_| Vec::new())
-                .map_err(Error::from);
-            drop(pipe);
-            let _ = sender.send((2, result));
-        })?);
+    let input = input.unwrap_or_default();
+    let mut written = 0;
+    if input.is_empty() {
+        stdin_pipe = None;
     }
     let deadline = Instant::now() + timeout;
     let result = (|| {
-        let mut finished = 0;
         let mut status = None;
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
         loop {
+            collect(&mut stdout_pipe, &mut stdout)?;
+            collect(&mut stderr_pipe, &mut stderr)?;
+            if let Some(pipe) = stdin_pipe.as_mut() {
+                match pipe.write(&input[written..]) {
+                    Ok(0) => {
+                        return Err(std::io::Error::from(std::io::ErrorKind::WriteZero).into());
+                    }
+                    Ok(n) => written += n,
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(e) => return Err(e.into()),
+                }
+                if written == input.len() {
+                    stdin_pipe = None;
+                }
+            }
             if status.is_none() {
                 status = owned.child.try_wait()?;
             }
-            if finished == workers.len() {
-                if let Some(status) = status {
-                    return Ok(Output {
-                        stdout,
-                        stderr,
-                        status,
-                    });
-                }
-                if Instant::now() >= deadline {
-                    return Err(Error::Process {
-                        command: name.clone(),
-                        detail: "timed out waiting for process exit".into(),
-                    });
-                }
-                thread::sleep(Duration::from_millis(5));
-                continue;
+            if stdout_pipe.is_none()
+                && stderr_pipe.is_none()
+                && stdin_pipe.is_none()
+                && let Some(status) = status
+            {
+                return Ok(Output {
+                    stdout,
+                    stderr,
+                    status,
+                });
             }
             if Instant::now() >= deadline {
                 return Err(Error::Process {
@@ -152,19 +148,36 @@ pub fn run(
                     detail: format!("timed out after {} ms", timeout.as_millis()),
                 });
             }
-            match receiver.recv_timeout(Duration::from_millis(5)) {
-                Ok((kind, bytes)) => {
-                    let bytes = bytes?;
-                    match kind {
-                        0 => stdout = bytes,
-                        1 => stderr = bytes,
-                        _ => {}
+            // Every pipe stays owned by this loop. A detached descendant may
+            // retain its peer, but cannot hold a blocking stream worker alive
+            // after our deadline. Successful ownership handoffs remain intact.
+            let mut pipes: Vec<_> = [
+                stdout_pipe.as_ref().map(|p| (p.as_raw_fd(), libc::POLLIN)),
+                stderr_pipe.as_ref().map(|p| (p.as_raw_fd(), libc::POLLIN)),
+                stdin_pipe.as_ref().map(|p| (p.as_raw_fd(), libc::POLLOUT)),
+            ]
+            .into_iter()
+            .flatten()
+            .map(|(fd, events)| libc::pollfd {
+                fd,
+                events,
+                revents: 0,
+            })
+            .collect();
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if pipes.is_empty() {
+                thread::sleep(remaining.min(Duration::from_millis(5)));
+            } else {
+                let wait_ms = remaining.as_millis().clamp(1, 50) as libc::c_int;
+                // SAFETY: every descriptor belongs to a live pipe above; the
+                // vector remains valid for this finite poll call.
+                if unsafe { libc::poll(pipes.as_mut_ptr(), pipes.len() as libc::nfds_t, wait_ms) }
+                    < 0
+                {
+                    let error = std::io::Error::last_os_error();
+                    if error.kind() != std::io::ErrorKind::Interrupted {
+                        return Err(error.into());
                     }
-                    finished += 1;
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {}
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    return Err(invalid("Subprocess stream worker stopped"));
                 }
             }
         }
@@ -172,22 +185,38 @@ pub fn run(
     if result.is_err() {
         owned.stop();
     }
-    for worker in workers {
-        if worker.join().is_err() {
-            return Err(invalid("Subprocess stream worker failed"));
-        }
-    }
     owned.completed = true;
     result
 }
 
-fn collect(reader: &mut impl Read) -> Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    reader.take(MAX_OUTPUT + 1).read_to_end(&mut bytes)?;
-    if bytes.len() as u64 > MAX_OUTPUT {
-        return Err(invalid("Subprocess output exceeded 64 KiB"));
+fn nonblocking(fd: libc::c_int) -> Result<()> {
+    // SAFETY: fd belongs to a live child pipe; neither fcntl operation takes a
+    // pointer or transfers descriptor ownership.
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        return Err(std::io::Error::last_os_error().into());
     }
-    Ok(bytes)
+    Ok(())
+}
+
+fn collect(reader: &mut Option<impl Read>, bytes: &mut Vec<u8>) -> Result<()> {
+    let mut buffer = [0; 8192];
+    while let Some(pipe) = reader.as_mut() {
+        let available = ((MAX_OUTPUT + 1) as usize - bytes.len()).min(buffer.len());
+        match pipe.read(&mut buffer[..available]) {
+            Ok(0) => *reader = None,
+            Ok(n) => {
+                bytes.extend_from_slice(&buffer[..n]);
+                if bytes.len() as u64 > MAX_OUTPUT {
+                    return Err(invalid("Subprocess output exceeded 64 KiB"));
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(())
 }
 
 pub fn checked(
