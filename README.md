@@ -10,6 +10,11 @@ Nothing/CMF controls, power menu, quiet notifications, volume feedback,
 clipboard-only Niri screenshots, sharp wallpaper/blurred overview and a shared
 Kitty/Fish/Fastfetch environment. No account data is included.
 
+![Desktop Foundation launcher](docs/screenshots/launcher.png)
+
+[View the screenshot gallery](docs/screenshots/README.md) — launcher, clipboard,
+Bluetooth, power menu, terminal, overview and volume readout.
+
 ## Install the desktop, then optionally your applications
 
 Use a normal sudo-enabled user with working graphics, networking, Git and Python.
