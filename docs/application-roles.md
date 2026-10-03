@@ -3,12 +3,13 @@
 `config/application-roles.json` is authoritative for package, executable,
 desktop entry and MIME assignments. Niri terminal/files/browser bindings call
 `scripts/applications launch ROLE`, which uses the selected installation profile.
-Core remains usable without Brave or other personal applications.
+This branch selects Brave Origin Nightly for both browser roles. Core remains
+usable without provisioning the personal application layer.
 
 | Role | Core | Full |
 | --- | --- | --- |
 | Terminal | Kitty | Kitty |
-| Browser, HTML, HTTP/HTTPS/about/unknown | Firefox | Brave Origin Nightly |
+| Browser, HTML, HTTP/HTTPS/about/unknown | Brave Origin Nightly | Brave Origin Nightly |
 | Directories | Nautilus | Nautilus |
 | PDF | Papers | Papers |
 | PNG/JPEG | Loupe | Loupe |

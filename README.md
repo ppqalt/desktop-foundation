@@ -36,7 +36,7 @@ remain compatible. Both layers support `--check`, `--dry-run`, `--no-packages`,
 
 **Core** includes Niri/Quickshell, all shell surfaces, input/window behavior,
 wallpaper/Matugen, terminal/fonts, audio/Bluetooth, portals, authentication and
-reversible deployment. Firefox, Nautilus, Papers, Loupe and GNOME Text Editor
+reversible deployment. Brave Origin Nightly, Nautilus, Papers, Loupe and GNOME Text Editor
 provide working application roles without personal apps.
 
 **Full** additionally provisions/adopts Brave Origin Nightly, the verified
