@@ -32,7 +32,7 @@ xdg-desktop-portal-gnome
 xdg-desktop-portal-gtk
 gnome-keyring
 nautilus
-firefox
+brave-origin-nightly-bin
 hyprpolkitagent
 python
 python-pillow
