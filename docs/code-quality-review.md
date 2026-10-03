@@ -57,7 +57,8 @@ state polling.
 | bluetooth-power.py | 150 ms, bounded 5 s retry window (each bus call bounded 2 s) | BlueZ readiness after rfkill; worthwhile future D-Bus Rust migration, not resident polling. |
 | bluetooth-action.py | Initial 5 s wait after codec reboot, 2 s retry within 30 s (calls separately bounded) | Device reboot/reconnect behavior; preserve. Audio setup waits for relevant pactl events within 12 s. |
 | shell-ipc | 50 ms, at most 60 probes | Early-keypress readiness; no idle activity. Requests run once. |
-| spotify launcher | 1 s native client-state wait, user-launched only | First-run patch completion; not a background service. |
+| Spotify launcher | Waits for native process exit without a poll loop | First-run patch completion after a normal quit; no timer. |
+| Brave DevTools adapter | 45 s one-shot deadline | Explicit opt-in native theme lifecycle operation, no event subscriptions or network listener. |
 | bench/startup/trace/profile/smoke/failure/boot-report and live tests | 10–100 ms readiness probes; finite test deadlines, explicit 1–45 s sample waits | Development diagnostics only. Leave separate from session startup. Some operate the live desktop and must remain opt-in. |
 | theme contrast loop, protocol parsing, filesystem inventory loops | No scheduling interval | Finite computation/data traversal; not polling. |
 | Mako/Qt/PipeWire/BlueZ/Niri/SDDM upstream | External native event/render/expiry behavior | Do not replace upstream internals or disable effects to improve a counter. |

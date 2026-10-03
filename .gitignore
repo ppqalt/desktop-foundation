@@ -9,6 +9,7 @@ __pycache__/
 .uuid
 
 /native/nothing/target/
+/native/foundation/target/
 
 # Never vendor a real browser user-data tree or raw preference exports.
 BraveSoftware/
