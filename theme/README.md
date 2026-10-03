@@ -167,11 +167,11 @@ It is NEXT-LAUNCH, using supported `refresh --no-restart`; native UI reload can
 show colors sooner. Personal installation provisions/configures it automatically.
 See [Spotify provisioning and ownership](../apps/spotify/README.md). Steam is
 investigated but deferred: see [Millennium design](../docs/steam-theme-plan.md).
-GTK remains a future general-toolkit target.
+GTK uses the supported native discrete accent setting; arbitrary toolkit surface recoloring remains outside the adapter.
 
 ## Validation
 
-68 Python tests cover runtime staging, rollback, reload failure recovery, invalid
+Runtime tests cover runtime staging, rollback, reload failure recovery, invalid
 images, no-op reuse, permissionless Brave manifest, deployment migration and
 existing regression cases. Native Niri validation/IPC and repository checks run
 separately. Blue/orange live wallpaper transactions and rollback were exercised.
@@ -190,3 +190,11 @@ Refresh investigation sources:
 [official DevTools reload implementation](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/src/tools/extensions.ts),
 [CDP extension loading](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/),
 [opt-in running-browser connection](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/advanced-usage.md).
+
+## Native GTK accent in v0.12
+
+Supported GNOME/libadwaita `accent-color` values are selected by nearest semantic
+accent hue. This uses the native settings interface and the reversible preference
+journal; unsupported schemas keep the neutral dark appearance. It does not add
+CSS overrides or a watcher. Toolkit and portal support determine live propagation.
+See [release validation](../docs/releases/0.12-validation.md).

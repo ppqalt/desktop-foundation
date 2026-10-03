@@ -87,3 +87,13 @@ class RuntimeTheme(unittest.TestCase):
         other=brave(pipeline.derive({'primary':'#98ccf9','secondary':'#bdc7d5'},'blue','hash2'))
         self.assertNotEqual(other['version'],manifest['version'])
         self.assertEqual(MODES['brave']['mode'],'RELOADABLE')
+
+    def test_explicit_wallpaper_restart_resets_only_wallpaper_rate_limit(self):
+        import subprocess
+        with patch.dict(os.environ, {'NIRI_SOCKET': 'test'}), patch.object(runtime.shutil, 'which', return_value=None), patch.object(runtime.Path, 'iterdir', return_value=[]), patch('spotify_theme.refresh'), patch('gtk_theme.refresh'), patch.object(runtime.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='', stderr='')) as run:
+            runtime.reload(wallpaper=True)
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[:2], [
+            ['systemctl', '--user', 'reset-failed', 'desktop-foundation-wallpaper.service'],
+            ['systemctl', '--user', 'restart', 'desktop-foundation-wallpaper.service']])
+        self.assertNotIn(['systemctl', '--user', 'restart', 'niri.service'], commands)

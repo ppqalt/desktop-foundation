@@ -12,6 +12,7 @@ MODES = {
     'fastfetch': {'mode': 'NEXT-LAUNCH', 'reload': 'next one-shot invocation'},
     'mako': {'mode': 'RELOADABLE', 'reload': 'makoctl reload'},
     'overview': {'mode': 'LIVE', 'reload': 'foundation.reloadTheme IPC'},
+    'gtk': {'mode': 'RELOADABLE', 'reload': 'supported native accent-color enum; dark neutral surfaces unchanged'},
     'spotify': {'mode': 'NEXT-LAUNCH', 'reload': 'spicetify refresh --no-restart; native UI reload optional'},
     'brave': {'mode': 'RELOADABLE', 'reload': 'opt-in approved CDP Extensions.loadUnpacked; native manual import fallback; no profile edits'},
 }
@@ -58,6 +59,8 @@ def render(root, target, p, profile, reset=False):
     (target/'niri.kdl').write_text(niri_render(root,profile,p))
     (target/'brave').mkdir()
     (target/'brave/manifest.json').write_text(json.dumps(brave(p),indent=2)+'\n')
+    from gtk_theme import accent
+    (target/'gtk.json').write_text(json.dumps({'colorScheme':'prefer-dark','accent':accent(p)},indent=2)+'\n')
     from spotify_theme import colors
     (target/'spotify').mkdir()
     (target/'spotify/color.ini').write_text(colors(p))

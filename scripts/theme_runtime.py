@@ -86,6 +86,10 @@ def stage(p,image,mode='fill',reset=False,selected_profile=None):
 def reload(wallpaper=False):
     if os.environ.get('NIRI_SOCKET'):
         if wallpaper:
+            # Explicit user transactions may occur faster than the automatic
+            # crash-loop guard permits. Reset only this unit's failed/rate-limit
+            # state before a deliberate restart; automatic restarts remain bounded.
+            subprocess.run(['systemctl','--user','reset-failed','desktop-foundation-wallpaper.service'],check=True)
             subprocess.run(['systemctl','--user','restart','desktop-foundation-wallpaper.service'],check=True)
         subprocess.run(['niri','msg','action','load-config-file'],check=True)
         result=subprocess.run([str(ROOT/'scripts/shell-ipc'),'reloadTheme'],capture_output=True,text=True)
@@ -98,6 +102,8 @@ def reload(wallpaper=False):
             try:
                 if proc.stat().st_uid==os.getuid() and (proc/'comm').read_text().strip()=='kitty':os.kill(int(proc.name),signal.SIGUSR1)
             except OSError:pass
+    from gtk_theme import refresh as gtk_refresh
+    gtk_refresh()
     from spotify_theme import refresh as spotify_refresh
     spotify_refresh()
     if (state()/'brave-devtools.json').exists():

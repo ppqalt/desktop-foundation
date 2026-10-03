@@ -87,6 +87,8 @@ def refresh():
     if c.get('Setting','current_theme',fallback='')!='marketplace' or any(c.get('Setting',k,fallback=None)!=v for k,v in saved['owned'].items()):
         raise RuntimeError('Spotify color settings changed outside adapter; refusing overwrite')
     color=config/'Themes/marketplace/color.ini'
+    if not color.exists() and not (Path(c.get('Setting','spotify_path',fallback=''))/'Apps/xpui').exists():
+        print('Spotify absent; generated colors retained.');return
     semantic=generated.parent.parent/'semantic.json'
     palette=generated.read_text() if generated.exists() else colors(json.loads(semantic.read_text()))
     atomic(color,merge(color.read_text(),palette))
@@ -110,7 +112,8 @@ def restore():
     color=config/'Themes/marketplace/color.ini';p=parse(color.read_text());p.remove_section(SCHEME);out=io.StringIO();p.write(out)
     atomic(color,out.getvalue());atomic(file,text);journal.unlink()
     executable=shutil.which('spicetify')
-    if executable:subprocess.run([executable,'refresh','--no-restart'],check=True,capture_output=True)
+    if executable and (Path(c.get('Setting','spotify_path',fallback=''))/'Apps/xpui/spicetify-config.json').is_file():
+        subprocess.run([executable,'refresh','--no-restart'],check=True,capture_output=True)
     print('Only owned Spotify scheme/settings restored; Marketplace retained.')
 
 
