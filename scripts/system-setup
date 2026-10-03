@@ -34,6 +34,9 @@ def main():
         probe = subprocess.run(['tuigreet', '--background', 'matrix', '--dump-config'], capture_output=True, text=True)
         if probe.returncode or 'kind = "matrix"' not in probe.stdout:
             raise RuntimeError('Installed tuigreet does not support persistent Matrix animation; system files unchanged')
+        display_manager = Path('/etc/systemd/system/display-manager.service')
+        if display_manager.is_symlink() and display_manager.resolve().name != 'greetd.service':
+            raise RuntimeError('Another display manager owns login; use --no-greeter. No login files changed.')
         for name, source in FILES.items():
             path = Path(name)
             if name in entries and digest(path) != entries[name]['managed']:
@@ -51,9 +54,7 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, path)
             path.chmod(0o644)
-        subprocess.run(['systemctl', 'enable', 'greetd.service', '--force'], check=True)
-        if subprocess.run(['pacman', '-Q', 'cosmic-greeter'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
-            subprocess.run(['systemctl', 'disable', 'cosmic-greeter.service'], check=False)
+        subprocess.run(['systemctl', 'enable', 'greetd.service'], check=True)
         print('Configured. Active display manager untouched. Log in with your password on next boot.')
     else:
         for name, entry in entries.items():

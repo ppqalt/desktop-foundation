@@ -26,6 +26,9 @@ def session_main():
     for unit in [*(['desktop-foundation-clipboard-persist'] if niri else []), 'pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', *(['xdg-desktop-portal-gnome', 'xdg-desktop-portal-gtk'] if niri else ['xdg-desktop-portal-hyprland']), 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard@text', 'desktop-foundation-clipboard@image']:
         code, state = run('systemctl', '--user', 'is-active', unit + '.service')
         print(f'{unit}: {state}')
+        if code and unit == 'pipewire-pulse':
+            code, state = run('systemctl', '--user', 'is-active', 'pipewire-pulse.socket')
+            print('pipewire-pulse socket activation:', state)
         if code:
             failures.append(f'{unit}: inspect journalctl --user -u {unit}.service; rerun scripts/session-start')
     code, instances = run('quickshell', 'list', '--json', '--path', str(__import__('pathlib').Path(__file__).resolve().parent.parent / 'shell'))
@@ -124,7 +127,9 @@ def main():
     parser.add_argument('--save', metavar='LABEL')
     parser.add_argument('--compare', action='store_true')
     parser.add_argument('--installation', action='store_true', help='Check installed state before Niri login')
-    parser.add_argument('--personal', action='store_true')
+    layer = parser.add_mutually_exclusive_group()
+    layer.add_argument('--personal', action='store_true')
+    layer.add_argument('--core', action='store_true')
     parser.add_argument('--no-greeter', action='store_true')
     args, _ = parser.parse_known_args()
     if args.startup:
@@ -146,7 +151,7 @@ def main():
     for group in ['core', *([] if args.no_greeter else ['greeter']), *(['personal'] if args.personal else [])]:
         for package in (root / 'packages' / (group + '.txt')).read_text().splitlines():
             if package and not package.startswith('#'):
-                report(run('pacman', '-Q', package)[0] == 0, 'Package ' + package)
+                report(run('pacman', '-T', package)[0] == 0, 'Package ' + package)
     for unit in ['bluetooth', 'apparmor', *([] if args.no_greeter else ['greetd'])]:
         report(run('systemctl', 'is-enabled', unit + '.service')[0] == 0, unit + ' enabled')
     enabled = Path('/sys/module/apparmor/parameters/enabled')
@@ -171,13 +176,49 @@ def main():
         code, matrix = run('tuigreet', '--background', 'matrix', '--dump-config')
         report(code == 0 and 'kind = "matrix"' in matrix, 'Matrix-capable tuigreet')
     if args.personal:
-        for binary in ['paru', 'brave-origin-nightly']:
+        for binary in ['brave-origin-nightly']:
             report(bool(shutil.which(binary)), 'Personal executable ' + binary)
         for name in ['spotify', 'spicetify']:
             report((data / 'desktop-foundation/apps' / name).is_dir(), 'Pinned application ' + name)
         report((config / 'spicetify/CustomApps/marketplace/manifest.json').is_file(), 'Marketplace installed')
         report((config / 'spotify/prefs').exists(), 'Spotify initialized; first login then normal quit/reopen completes setup', warning=True)
-        report(run('xdg-mime', 'query', 'default', 'x-scheme-handler/https')[1] == 'brave-origin-nightly.desktop', 'Default browser Brave Origin Nightly')
+        result, details = run(str(root / 'scripts/spotify-setup'), 'check')
+        report(result == 0, 'Spotify/Spicetify paths and color adapter: ' + details)
+        from application_roles import validate_role
+        chatgpt = json.loads((root / 'apps/personal.json').read_text())['chatgpt']
+        try:
+            validate_role('ChatGPT', chatgpt)
+            report(run('pacman', '-Q', chatgpt['package'])[0] == 0, 'Verified ChatGPT package and desktop entry')
+        except (RuntimeError, OSError) as error:
+            report(False, str(error))
+        steam = json.loads((root / 'apps/personal.json').read_text())['steam']
+        try:
+            validate_role('Steam', steam)
+            report(True, 'Native Steam executable and desktop entry')
+        except (RuntimeError, OSError) as error:
+            report(False, str(error))
+        print('WARN: Millennium/Material excluded from v0.12; Steam account/library data unmanaged.')
+    from application_roles import check as check_roles, paths as role_paths
+    _, roles_journal = role_paths()
+    selected_personal = args.personal or (roles_journal.exists() and json.loads(roles_journal.read_text()).get('profile') == 'personal')
+    for error in check_roles(selected_personal):
+        report(False, 'Application defaults: ' + error)
+    from install_engine import deployment_conflicts
+    report(not deployment_conflicts(), 'Deployment ownership (no externally replaced links)')
+    from theme_runtime import current as current_theme
+    import hashlib, tomllib
+    try:
+        revision = current_theme()
+        if revision is None:
+            raise RuntimeError('Runtime theme not initialized')
+        metadata = json.loads((revision / 'metadata.json').read_text())
+        wallpaper = tomllib.loads((revision / 'wallpaper.toml').read_text())
+        report(hashlib.sha256(Path(wallpaper['image']).read_bytes()).hexdigest() == metadata['wallpaperHash'], 'Runtime wallpaper content hash matches revision')
+        for output in ['semantic.json', 'overview.png', 'niri.kdl', 'terminal/kitty/kitty.conf', 'brave/manifest.json', 'spotify/color.ini']:
+            report((revision / output).is_file(), 'Theme output ' + output)
+        print('PASS: runtime theme revision ' + revision.name)
+    except (OSError, RuntimeError, ValueError, KeyError) as error:
+        report(False, 'Runtime theme: ' + str(error))
     for unit in ['desktop-foundation-wallpaper', 'desktop-foundation-clipboard-persist']:
         report((config / 'systemd/user/niri.service.wants' / (unit + '.service')).exists(), unit + ' session activation')
     code, paired = run('bluetoothctl', 'devices', 'Paired')

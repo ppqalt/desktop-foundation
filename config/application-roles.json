@@ -1,0 +1,9 @@
+{
+  "terminal": {"package": "kitty", "executable": "kitty", "desktop": "kitty.desktop", "mimes": []},
+  "browser": {"package": "firefox", "executable": "firefox", "desktop": "firefox.desktop", "mimes": ["text/html", "x-scheme-handler/http", "x-scheme-handler/https", "x-scheme-handler/about", "x-scheme-handler/unknown"]},
+  "files": {"package": "nautilus", "executable": "nautilus", "desktop": "org.gnome.Nautilus.desktop", "mimes": ["inode/directory"]},
+  "pdf": {"package": "papers", "executable": "papers", "desktop": "org.gnome.Papers.desktop", "mimes": ["application/pdf"]},
+  "image": {"package": "loupe", "executable": "loupe", "desktop": "org.gnome.Loupe.desktop", "mimes": ["image/png", "image/jpeg"]},
+  "text": {"package": "gnome-text-editor", "executable": "gnome-text-editor", "desktop": "org.gnome.TextEditor.desktop", "mimes": ["text/plain"]},
+  "personalBrowser": {"package": "brave-origin-nightly-bin", "executable": "brave-origin-nightly", "desktop": "brave-origin-nightly.desktop", "mimes": ["text/html", "x-scheme-handler/http", "x-scheme-handler/https", "x-scheme-handler/about", "x-scheme-handler/unknown"]}
+}

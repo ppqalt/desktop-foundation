@@ -1,2 +1,2 @@
-# One Arch package per line.
-brave-origin-nightly-bin
+# Compatibility note: the personal browser package now comes from
+# config/application-roles.json; install-all reviews AUR via paru if needed.

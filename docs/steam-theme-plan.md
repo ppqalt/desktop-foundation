@@ -1,6 +1,11 @@
-# Steam / Millennium Material integration: investigation only
+# Steam / Millennium Material integration
 
-Current machine: Steam package 1.0.0.87-3; no Millennium package/loader/theme
+v0.12 provisions/adopts stock native Steam through its configured signed package
+repository. Millennium, Material selection and Steam color refresh are explicitly
+excluded from this release: loader activation and native theme selection have not
+passed live acceptance. The remainder records investigation for future work.
+
+Reference audit: Steam package 1.0.0.87-3; no Millennium package/loader/theme
 installation detected. Steam resolves to ~/.local/share/Steam through
 ~/.steam/steam. No Steam files, userdata, libraries, launch options, account data,
 cloud saves or client branch settings were changed in this pass.

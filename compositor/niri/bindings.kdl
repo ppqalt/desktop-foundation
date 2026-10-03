@@ -7,10 +7,10 @@ binds {
     "Super+Comma" { spawn "true"; }
     "Super+Shift+7" { spawn "true"; }
     "Super+Shift+Q" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/power-menu\""; }
-    "Super+T" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launch\" kitty"; }
-    "Super+Return" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launch\" kitty"; }
-    "Super+E" { spawn-sh "xdg-open \"$HOME\""; }
-    "Super+W" { spawn "xdg-open" "about:blank"; }
+    "Super+T" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/applications\" launch terminal"; }
+    "Super+Return" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/applications\" launch terminal"; }
+    "Super+E" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/applications\" launch files"; }
+    "Super+W" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/applications\" launch browser"; }
     "Super+Q" { close-window; }
     "Super+D" { maximize-column; }
     "Super+F" { fullscreen-window; }

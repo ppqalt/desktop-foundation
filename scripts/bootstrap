@@ -25,7 +25,7 @@ for option in "$@"; do
 done
 missing=()
 for package in "${packages[@]}"; do
-	if ! pacman -Q "$package" >/dev/null 2>&1; then missing+=("$package"); fi
+	if ! pacman -T "$package" >/dev/null 2>&1; then missing+=("$package"); fi
 done
 if ((${#missing[@]})); then
 	# Full upgrade avoids unsupported partial upgrades on Arch/CachyOS.
@@ -34,7 +34,7 @@ fi
 # CachyOS supplies this firmware bundle in its repository; plain Arch uses AUR.
 mapfile -t firmware < <(sed '/^#/d; /^$/d' "$root/packages/firmware.txt")
 for package in "${firmware[@]}"; do
-	if pacman -Q "$package" >/dev/null 2>&1; then continue; fi
+	if pacman -T "$package" >/dev/null 2>&1; then continue; fi
 	if pacman -Si "$package" >/dev/null 2>&1; then
 		sudo pacman -Syu --needed "$package"
 	else

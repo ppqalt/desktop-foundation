@@ -46,4 +46,7 @@ jq
 apparmor
 noto-fonts
 noto-fonts-emoji
-grub
+papers
+loupe
+gnome-text-editor
+desktop-file-utils

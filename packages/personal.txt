@@ -2,7 +2,6 @@
 base-devel
 git
 binutils
-desktop-file-utils
 gtk3
 nss
 alsa-lib

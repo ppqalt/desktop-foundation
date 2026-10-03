@@ -1,103 +1,121 @@
-# Installation
+# v0.12 installation and convergence
 
-The primary target is a clean Arch/CachyOS installation, not a migration of an old desktop.
-Use a normal Arch/CachyOS login user with sudo and a working graphical stack.
-A TTY is sufficient for preparing the configuration; sign out and choose Niri to
-start the complete setup. Do not run the user installer with sudo.
+There are two layers, not a collection of application-specific top-level commands:
 
-1. Obtain a Git clone in a permanent location, for example `~/Projects/desktop-foundation`.
-2. Run `./scripts/install --dry-run` to see the selected steps without mutations.
-3. Run `./scripts/install`; missing runtime packages are installed with a full
-   Pacman upgrade, avoiding partial upgrades. Existing packages are retained.
-4. The default installer configures greetd + tuigreet, Matrix animation and GNOME
-   Keyring PAM hooks. This step requires sudo. Use `--no-greeter` only when you
-   deliberately supply your own login setup.
-5. Reboot, then log into the **Niri** session and run `./scripts/session-acceptance` before repairs.
+| Command | Purpose |
+| --- | --- |
+| `scripts/install-core` | Complete portable Niri desktop, terminal and usable default apps |
+| `scripts/install-all` / `scripts/install` | Reuse core, then provision the personal applications |
+| `--check` | Read-only doctor/ownership/default inspection |
+| `--dry-run` / `--plan` | Read-only package/ownership/deployment plan |
+| `--no-packages` | Rebuild/deploy using installed dependencies; verify personal tools |
+| `--no-greeter` | Retain an existing display manager or deliberate TTY login |
+| `--hardware-profile NAME` | Select a tracked hardware profile; default is portable |
+| `--clean-boot` | Explicit separately journaled GRUB/mkinitcpio cleanup |
 
-`--profile default` is implicit. Input is Finnish by default; change `config/input.lua`
-for another keyboard before installation. Create `profiles/NAME/niri.kdl` for local
-output/input-device overrides and use `--profile NAME`. Fonts, software names,
-wallpaper, window theme and terminal output otherwise discover the actual machine.
-No host name, GPU model or display resolution is required by the portable config.
+`install --core`, `--personal` and `--profile` remain compatible. Internal
+`install_engine.py` separates planning, core and personal convergence and reuses
+bootstrap, deployment, preferences and application helpers. It is not a new
+background framework.
 
-## Supported build and limitations
+## Prerequisites and fresh installation
 
-This repo currently uses native Niri `blur`, `background-effect`, popup effects and
-native Wayland screenshot interfaces available in the tested CachyOS build
-(26.04-1.1). Runtime preflight validates the rendered KDL on the installed binary.
-If validation fails, deployment stops before replacing user configs. Obtain a
-compatible compositor through your chosen Arch/CachyOS packaging; the installer
-does not add external repositories or silently weaken the approved visual theme.
-Quickshell 0.3.1, Kitty 0.49.1, Fish 4.9.3 and Fastfetch 2.69.0 were tested.
-Fastfetch package formatting uses a small explicit JSON config, not removed CLI
-module options. Tuigreet must support `--background matrix`; system setup validates
-this option before changing authentication files.
+A reasonably clean Arch/CachyOS/EndeavourOS system must already have a normal user,
+sudo, network, working graphics, Git and Python. Run as that user, not root.
+Clone v0.12 into a permanent directory, inspect `install-core --dry-run`, then run
+`install-core`. Select Niri on the next login. Add `install-all` if desired.
 
-Firefox and Nautilus are default applications for a new host, not copies of Tops'
-Brave account or former file manager. Existing valid defaults are kept. The supplied
-wallpaper is deployed from `wallpapers/`. Optional Spotify is documented separately.
-No application credentials or home-directory app data are included.
+CachyOS is the tested reference. Native Niri parser validation must accept blur,
+background effects and the generated KDL; stock versions on other distros may
+not. Matrix tuigreet is likewise capability-checked before authentication-file
+changes. No external repository is added to solve incompatibility.
 
-## Native dark dialogs
+Core uses Finnish input, the existing graphite/window policy and strict native
+single-column centering. No monitor, GPU, hostname or disk name is required.
+Override hardware in `profiles/NAME/niri.kdl`; input remains in `config/input.lua`.
 
-`adw-gtk-theme` is installed by bootstrap. Tracked GTK 3 settings select
-`adw-gtk3-dark` and the shared Google Sans font; GTK 4 gets native dark preference
-and font settings, alongside the portal's `prefer-dark` value. This fixes GTK 3
-dialogs that remained light on the tested build despite reporting `Adwaita-dark`.
-Configuration files and global preferences are backed up and restored by the
-normal installer. Existing applications may need reopening to adopt the settings.
-No app CSS overrides are installed. Notification toasts continue using the tracked
-Niri graphite/top-center/two-second Mako configuration.
+Full provisions Brave (configured repository or reviewed AUR), Spotify tools,
+ChatGPT (verified signed CachyOS package) and stock Steam (multilib). Read
+[personal applications](personal-apps.md) for availability/login boundaries.
+Millennium/Material is not included in the v0.12 installation promise.
 
-## Bluetooth
+## Existing machines and upgrades from v0.10/v0.11
 
-Runtime bootstrap installs BlueZ, Blueman, PipeWire audio/codec support, WirePlumber
-and `libpulse` (`pactl`), and enables/starts `bluetooth.service`. Pair once through
-Blueman Manager, then use **Super+B** to reconnect. Radio rfkill/power state remains
-under the user's control; turn Bluetooth on in Blueman if disabled.
-The tracked WirePlumber 0.5 fragment selects quality policy, permits temporary
-microphone-driven headset switching, and avoids remembering headset mode across
-connections. Deployment backs up/restores that fragment. Existing sessions need
-WirePlumber restarted or the corresponding runtime settings applied; new logins
-load the fragment normally.
-The tracked XDG autostart override suppresses Blueman's permanent applet only in
-Niri. Blueman Manager can activate its applet for pairing/passkeys and stops it on
-exit when it started it. Blueman itself and its D-Bus activation are retained.
-Connected Nothing/CMF models have native device controls. The installer also
-provisions Rust 1.98.1 and builds the locked RFCOMM helper; no resident service or
-upstream clone is needed. See [native controls](nothing-controls.md) and
-[Bluetooth implementation and validation](bluetooth.md).
+Keep the existing checkout and `$XDG_STATE_HOME/desktop-foundation` backups.
+Fetch and inspect the new tag; do not delete the installation or transplant its
+journal from another machine. Resolve uncommitted work without resetting it.
 
-## Backup and recovery
+1. Run the selected installer's dry-run. Externally replaced owned links or MIME
+   keys report conflicts before package/system mutations.
+2. Use `--no-greeter` when another display manager owns login. No automatic
+   disabling/force-replacement of it is performed.
+3. Run the installer with packages enabled when dependencies change. Missing
+   packages use full `pacman -Syu --needed`; declared compatible package providers
+   satisfy core dependencies. AUR builds remain unprivileged and reviewed.
+4. Core deploys staged/validated links with original backups. Kitty, Fish and
+   Fastfetch directories are replaced with managed configurations and their old
+   directories retained; this is a deliberate replacement, not a merge.
+5. The old MIME whole-file journal migrates only keys the old installer actually
+   changed. Later unrelated associations/comments survive. Explicit new roles
+   repair wrong directory/browser choices. Original role values remain recoverable.
+6. Current runtime wallpaper and semantic colors are retained when templates are
+   re-rendered during deployment. No account data is imported.
+7. Already-pinned tools are reused. Known older Spicetify 2.45.1 upgrades to the
+   checksum-pinned 2.45.3 with its tool backup. Unknown versions/source conflicts
+   are refused. The managed Spotify launcher completes first-login patching.
 
-User deployment journals original config paths under
-`$XDG_STATE_HOME/desktop-foundation` (normally `~/.local/state/desktop-foundation`).
-Global dark preferences and MIME defaults have their own backups in that directory.
-System login/PAM backups live under `/var/lib/desktop-foundation/system`.
-`./scripts/uninstall` restores user files/preferences; `--greeter` also restores
-system files. System restore does not switch the active display manager service.
+Reruns do not accumulate original-config backups, reset accounts or spawn duplicate
+services. A deliberate deploy may create a new runtime revision to propagate
+changed templates; ordinary unchanged wallpaper applications are no-ops.
 
-If login fails, use Ctrl+Alt+F3, authenticate and run the restore commands from the
-checkout. Reboot normally after fixing greeter config; avoid restarting the display
-manager from an active session. Keyring auto-unlock requires a password login and
-matching login/keyring passwords. Saved credentials are never copied or deleted.
+Package installation can finish before a later conflict is discovered; packages
+remain installed. Each protected mutation is journaled, not claimed to be a
+single atomic whole-system transaction. Fix a reported conflict and rerun;
+never delete a journal to suppress an error.
 
-## Repeat installs and updates
+## System and boot safety
 
-Pull changes in the same checkout and run `./scripts/install --no-packages` after
-reading their notes. Use the full installer when dependency requirements change.
-No background updater is installed. Deployment refuses externally replaced config
-paths/preferences rather than discarding local edits. Preserve customizations in
-tracked configuration or a host profile; keep backups until satisfied.
+Bluetooth/AppArmor services are enabled. A kernel already enforcing AppArmor does
+not get boot files regenerated. If activation is required, the existing supported
+GRUB fragment helper preserves LSM arguments. Other bootloaders need native manual
+configuration; dracut and mkinitcpio are never converted into each other.
 
-The current desktop was validated on Tops; a pristine lucky38 install has not yet
-been exercised. The portable suite and parser checks reduce that gap but do not
-substitute for a fresh-login acceptance pass on its actual GPU/output setup.
+Greetd/PAM files have protected backups; installation never restarts the active
+display manager. The validated Matrix/keyring path is retained. A conflicting
+manager stops this step and requires `--no-greeter` or an explicit manual choice.
+The prior tty1/tty8 non-Plymouth handoff fix remains unchanged.
 
-## Fresh test candidate
+`--clean-boot` remains explicit and only supports an existing compatible
+GRUB/mkinitcpio setup. Saved boot transactions are reviewed/resumed/restored with
+their own helpers, rather than silently replacing the original recovery snapshot.
+See [AppArmor](APPARMOR.md), [boot setup](boot-security-proposal.md) and
+[boot optimizations](boot-optimization.md). No boot-affecting change is needed for
+this v0.12 upgrade on an already-valid reference installation.
 
-The canonical installer defaults to personal additions; use `--core` to omit
-Paru, Brave and Spotify/Spicetify. Hardware uses `--hardware-profile NAME`.
-Follow [the first fresh Tops checklist](FRESH_INSTALL_TEST.md), including the
-off-machine bundle and [AppArmor boot requirements](APPARMOR.md). The older
-`--profile` spelling remains an alias for hardware selection.
+## Appearance and acceptance
+
+Core retains supported GTK dark preference/adw-gtk3-dark and Google Sans.
+Wallpaper changes map to the native discrete GNOME accent enum where supported;
+libadwaita/portal behavior determines which apps honor it. Neutral surfaces are
+not overridden with CSS. Niri notifications remain the existing managed Mako
+service, top-center with bounded timeout; Quickshell provides the volume OSD.
+
+Niri screenshots remain clipboard-only; Hyprland's secondary backend saves and
+copies. Application launcher uses desktop entries, not Fuzzel or polling.
+
+Run `scripts/doctor` (or `--personal`) and the
+[fresh-login checklist](fresh-install-v012.md). Physical login, graphics, earbud
+hardware and application account actions cannot be certified by a dry-run.
+
+## Rollback
+
+`uninstall` restores owned config/preference paths while leaving packages and
+account/application data installed. `uninstall --greeter` also restores greetd/PAM
+files. `spotify-setup restore` handles its optional links/config/tool upgrade;
+Brave preferences were not changed by the v0.12 installer. Any older opt-in
+preference seeding has its own `brave-config restore` journal.
+
+MIME restore changes only recorded Default Applications keys. External changes
+to an owned key/path cause a refusal; unrelated later edits are preserved.
+For startup problems, authenticate on another VT and use the documented helper
+from the same checkout. Never restart the display manager to repair an active chat.

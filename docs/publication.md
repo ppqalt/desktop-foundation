@@ -1,25 +1,19 @@
-# Publication preparation
+# Publication
 
-Published repository: https://github.com/ppqalt/desktop-foundation.
-Version 0.11 includes the completed changes since 0.10; see
-[release notes](releases/0.11.md). Releases remain prerelease installation
-candidates until a complete fresh-machine acceptance pass is recorded.
+Repository: https://github.com/ppqalt/desktop-foundation.
 
-No top-level source-code license has been chosen by the owner yet. Choose one
-before advertising this as an open-source project. Font families retain their
-upstream OFL/trademark notices; see `fonts/sources.json`. Optional app installers
-pin external downloads and do not commit Spotify client binaries or account data.
+v0.12 is an installation-candidate prerelease. Automated ownership/rollback tests
+and the running reference desktop pass, but installation on a clean OS and the
+second physical machine has not been performed. That gap warrants prerelease
+status for a release whose central promise is safe installation. See
+[release notes](releases/0.12.md) and [validation](releases/0.12-validation.md).
 
-`wallpapers/wallhaven-135w7w.png` is the wallpaper supplied by the user. Its upstream
-redistribution license has not been established; do not imply a code license covers
-that image. Before public publication, establish redistribution permission or
-replace the bundled wallpaper with a redistributable asset. The user-facing path
-remains easy to swap in `compositor/niri/wallpaper.toml` and deployment.
+No top-level source-code license has been selected. Do not describe the project
+as permissively licensed. Font families retain their upstream license/trademark
+notices. The supplied wallpaper has no established redistribution license here;
+no code license claim covers it. External application binaries are downloaded
+through package managers or checksum-pinned sources, not committed.
 
-Ignored `work/` contains local validation artifacts and private captures; it is not
-published. Fontconfig `.uuid` metadata is ignored. Historical validation docs refer
-to the original machine; reusable runtime/install code uses discovered paths.
-
-GitHub Actions runs portable checks. Native Niri config, live shell/keyboard/portal
-behavior, graphics effects and fresh reboot acceptance require the documented
-Arch/CachyOS checks. A green hosted job alone does not certify a working desktop.
+Ignored `work/` holds private local validation artifacts and captures; none are
+published. Runtime theme state, browser profiles and account data are not tracked.
+Hosted checks cover portable code, not physical graphics/boot acceptance.

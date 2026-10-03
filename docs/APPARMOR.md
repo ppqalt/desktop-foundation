@@ -25,8 +25,10 @@ if removing AppArmor entirely. No local AppArmor overrides existed on Tops at
 this audit, so none are fabricated or disabled. Distribution profiles stay owned
 by their package. New overrides must be tracked and reviewed here before use.
 
-Current Tops was audited with AppArmor disabled in the running kernel. This pass
-does not apply the boot helper to Tops; that is a separate later task.
+Historical initial audit: the reference kernel had AppArmor disabled. Boot setup
+was subsequently applied and reboot-validated. The v0.12 audit finds kernel
+activation `Y` and the AppArmor service active. This release does not repeat the
+boot transaction on an already-enabled system.
 
 Kernel activation and profile loading are separate requirements; see the
 [upstream kernel documentation](https://docs.kernel.org/admin-guide/LSM/apparmor.html).

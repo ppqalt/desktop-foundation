@@ -1,3 +1,7 @@
+> Historical acceptance instructions for `fresh-install-test-1`. For v0.12 use
+> [the current physical checklist](fresh-install-v012.md) and
+> [release validation](releases/0.12-validation.md).
+
 # First fresh Tops test
 
 Do not wipe until the off-machine backup is verified and the candidate checklist
