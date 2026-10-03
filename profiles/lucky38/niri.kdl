@@ -1,0 +1,12 @@
+// lucky38: preserve the established AOC monitor / LG TV layout.
+// DP-1 confirmed live at 155 Hz; HDMI-A-1 is currently disconnected.
+output "DP-1" {
+    mode "2560x1440@155.000"
+    scale 1
+    position x=0 y=0
+}
+output "HDMI-A-1" {
+    mode "1920x1080@60.000"
+    scale 1
+    position x=2560 y=360
+}
