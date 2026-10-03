@@ -2,9 +2,9 @@
 set -euo pipefail
 source_path=${BASH_SOURCE[0]}
 [[ $source_path == */* ]] || source_path=./$source_path
+root=$(cd -- "${source_path%/*}/.." && pwd)
 if [[ ${1:-} == launch ]]; then
 	shift
-	exec "${source_path%/*}/foundation" apps launch "$@"
+	exec "$root/native/foundation/target/release/desktop-foundationctl" --root "$root" apps launch "$@"
 fi
-root=$(cd -- "${source_path%/*}/.." && pwd)
 exec python3 "$root/scripts/application_roles.py" "$@"

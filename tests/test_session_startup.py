@@ -128,3 +128,16 @@ if method == 'status' and lines.count('status') < 2:
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, 'ready\n')
             self.assertEqual(log.read_text().splitlines(), ['status', 'toggleLauncher'])
+
+    def test_surface_shortcut_wrappers_route_to_the_same_native_actions(self):
+        import os
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp); fake = base / 'quickshell'; log = base / 'calls'
+            fake.write_text("#!/usr/bin/env python3\nimport os,pathlib,sys\nassert sys.argv[3] == os.environ['DF_SHELL_PATH']\nwith pathlib.Path(os.environ['DF_TEST_LOG']).open('a') as file: file.write(sys.argv[-1]+'\\n')\n")
+            fake.chmod(0o755)
+            env={**os.environ, 'PATH': str(base)+':'+os.environ['PATH'], 'DF_TEST_LOG':str(log), 'DF_SHELL_PATH':str(ROOT/'shell')}
+            methods = ['toggleLauncher', 'toggleClipboard', 'togglePower', 'toggleBluetooth']
+            for name in ['launcher', 'clipboard', 'power-menu', 'bluetooth-popup']:
+                result=subprocess.run(['./scripts/'+name], cwd=ROOT, env=env, capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(log.read_text().splitlines(), [item for method in methods for item in ['status',method]])
