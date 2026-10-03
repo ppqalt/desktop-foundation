@@ -11,6 +11,16 @@ use std::{
 
 const MAX_OUTPUT: u64 = 64 * 1024;
 
+/// Hand ownership to a long-lived app or session command; no supervisor remains.
+pub fn replace(args: &[String]) -> Result<()> {
+    let name = args.first().ok_or_else(|| invalid("Empty command"))?;
+    let error = Command::new(name).args(&args[1..]).exec();
+    Err(Error::Process {
+        command: name.clone(),
+        detail: error.to_string(),
+    })
+}
+
 #[derive(Debug)]
 pub struct Output {
     pub stdout: Vec<u8>,

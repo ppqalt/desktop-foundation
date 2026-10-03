@@ -1,4 +1,4 @@
-use desktop_foundationctl::{Result, clipboard, invalid, process};
+use desktop_foundationctl::{Result, actions, apps, clipboard, invalid, process, volume};
 use std::{
     io::{self, Read},
     path::PathBuf,
@@ -7,18 +7,77 @@ use std::{
 
 fn run() -> Result<()> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().is_some_and(|s| s == "--root") {
+    let root = if args.first().is_some_and(|s| s == "--root") {
         if args.len() < 3 {
             return Err(invalid("--root requires a checkout and command"));
         }
+        let root = PathBuf::from(&args[1]);
+        if !root.is_absolute() {
+            return Err(invalid("--root must be an absolute checkout path"));
+        }
         args.drain(..2);
+        root
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    };
+    if args.iter().any(|s| s == "--help" || s == "-h") {
+        println!(
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID"
+        );
+        return Ok(());
     }
-    if args.first().map(String::as_str) != Some("clipboard") {
-        return Err(invalid(
-            "Usage: desktop-foundationctl clipboard [--state DIRECTORY] init|store|copy|delete|clear",
-        ));
+    match args.first().map(String::as_str) {
+        Some("clipboard") => run_clipboard(args[1..].to_vec()),
+        Some("apps") if args.get(1).map(String::as_str) == Some("launch") => {
+            let check = args.iter().any(|s| s == "--check");
+            // The legacy launch command accepted --personal but used the
+            // selected journal profile. Preserve that routing contract.
+            args.retain(|s| s != "--check" && s != "--personal");
+            if !(2..=3).contains(&args.len()) {
+                return Err(invalid("Expected apps launch [ROLE] [--check]"));
+            }
+            let role = args.get(2).map(String::as_str).unwrap_or("terminal");
+            if check {
+                print_json(&apps::command(&root, role)?)
+            } else {
+                apps::launch(&root, role)
+            }
+        }
+        Some("volume") if args.len() == 2 => volume::adjust(&root, &args[1]),
+        Some("power") => {
+            let check = args.iter().any(|s| s == "--check");
+            args.retain(|s| s != "--check");
+            if args.len() != 2 {
+                return Err(invalid("Expected power ACTION [--check]"));
+            }
+            let command = actions::power_command(&root, &args[1])?;
+            if check {
+                print_json(&command)
+            } else {
+                process::replace(&command)
+            }
+        }
+        Some("actions") if args.len() == 2 && args[1] == "list" => {
+            print_json(&actions::list(&root))
+        }
+        Some("actions") if args.len() == 3 && args[1] == "plan" => {
+            print_json(&actions::plan(&root, &args[2])?)
+        }
+        Some("actions") if args.len() == 3 && args[1] == "invoke" => {
+            actions::invoke(&root, &args[2])
+        }
+        _ => Err(invalid(
+            "Expected clipboard, apps launch, volume, power or actions list|plan|invoke",
+        )),
     }
-    args.remove(0);
+}
+
+fn print_json(value: &impl serde::Serialize) -> Result<()> {
+    println!("{}", serde_json::to_string(value)?);
+    Ok(())
+}
+
+fn run_clipboard(mut args: Vec<String>) -> Result<()> {
     let mut directory = clipboard::directory()?;
     if let Some(i) = args.iter().position(|s| s == "--state") {
         directory = PathBuf::from(

@@ -167,8 +167,9 @@ def check(personal=False):
         try:
             validate_role(name, role)
             for mime in role['mimes']:
-                if query(mime) != role['desktop']:
-                    raise RuntimeError(f"{mime} resolves to {query(mime) or '(unset)'}, expected {role['desktop']}")
+                actual = query(mime)
+                if actual != role['desktop']:
+                    raise RuntimeError(f"{mime} resolves to {actual or '(unset)'}, expected {role['desktop']}")
             print('PASS application role ' + name + ': ' + role['desktop'])
         except (RuntimeError, OSError, subprocess.SubprocessError) as error:
             failures.append(str(error)); print('FAIL application role ' + name + ': ' + str(error))
@@ -209,13 +210,14 @@ def main():
     if args.action == 'check':
         return bool(check(args.personal))
     if args.action == 'launch':
-        _, journal = paths()
-        personal = journal.exists() and json.loads(journal.read_text()).get('profile') == 'personal'
-        role = roles(personal)[args.role or 'terminal']; validate_role(args.role, role)
-        command = [role['executable'], *({'files': [str(Path.home())], 'browser': ['about:blank']}.get(args.role, []))]
-        os.execvp(str(ROOT / 'scripts/launch'), [str(ROOT / 'scripts/launch'), *command])
+        wrapper = str(ROOT / 'scripts/foundation')
+        os.execv(wrapper, [wrapper, 'apps', 'launch', args.role or 'terminal'])
     _, journal = paths(); journal.parent.mkdir(parents=True, exist_ok=True)
     with (journal.parent / 'roles.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         restore() if args.action == 'restore' else apply(args.personal)
     return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

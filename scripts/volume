@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-exec python3 "$root/scripts/volume.py" "$@"
+exec "$root/scripts/foundation" volume "$@"

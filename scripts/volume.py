@@ -1,43 +1,9 @@
 #!/usr/bin/env python3
-"""Three-percent volume steps with a replacing, transient native readout."""
-import argparse
-import fcntl
+"""Exec-only compatibility entry point; normal bindings call Rust directly."""
 import os
 from pathlib import Path
-import re
-import subprocess
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('direction', choices=['up', 'down'])
-    args = parser.parse_args()
-    runtime = Path(os.environ['XDG_RUNTIME_DIR'])
-    with (runtime / 'desktop-foundation-volume.lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        subprocess.run(['wpctl', 'set-volume', '-l', '1', '@DEFAULT_AUDIO_SINK@',
-                        '3%+' if args.direction == 'up' else '3%-'], check=True)
-        status = subprocess.check_output(['wpctl', 'get-volume', '@DEFAULT_AUDIO_SINK@'], text=True)
-        match = re.search(r'Volume:\s*([\d.]+)', status)
-        if not match:
-            raise RuntimeError('Unable to read output volume')
-        percent = round(float(match.group(1)) * 100)
-        muted = '[MUTED]' in status
-        summary = f'Muted · {percent}%' if muted else f'Volume {percent}%'
-        root = Path(__file__).resolve().parent.parent
-        try:
-            delivered = subprocess.run(['quickshell', 'ipc', '--path', str(root / 'shell'),
-                                        'call', 'foundation', 'showVolume', str(percent),
-                                        'true' if muted else 'false'],
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                       timeout=2).returncode == 0
-        except (OSError, subprocess.TimeoutExpired):
-            delivered = False
-        if not delivered:
-            subprocess.run(['notify-send', '--app-name', 'desktop-foundation-volume',
-                            '--hint', 'string:x-canonical-private-synchronous:desktop-foundation-volume',
-                            '--expire-time', '1500', summary], check=True)
-
+import sys
 
 if __name__ == '__main__':
-    main()
+    wrapper = str(Path(__file__).resolve().with_name('foundation'))
+    os.execv(wrapper, [wrapper, 'volume', *sys.argv[1:]])

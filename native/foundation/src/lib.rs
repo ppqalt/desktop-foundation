@@ -1,6 +1,9 @@
+pub mod actions;
+pub mod apps;
 pub mod clipboard;
 pub mod process;
 pub mod state;
+pub mod volume;
 
 use std::{fmt, io};
 
