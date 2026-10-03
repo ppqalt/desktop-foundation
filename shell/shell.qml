@@ -5,10 +5,12 @@ import Quickshell.Io
 import "adapters/hyprland" as HyprlandBackend
 import "adapters/niri" as NiriBackend
 import "surfaces"
+import "theme"
 
 ShellRoot {
     id: root
     LazyLoader {
+        id: backdropLoader
         active: Quickshell.env("DF_COMPOSITOR") === "niri"
         OverviewBackdrop {}
     }
@@ -84,6 +86,11 @@ ShellRoot {
     }
     IpcHandler {
         target: "foundation"
+        function reloadTheme(): void {
+            Theme.reload();
+            if (backdropLoader.item)
+                backdropLoader.item.reload();
+        }
         function showVolume(percent: string, muted: bool): void {
             volumeReadout.present(Number(percent), muted);
         }

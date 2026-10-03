@@ -14,14 +14,15 @@ The implementation therefore uses the requested static-image fallback.
 before. A 15% black QML tint separates the previews from the backdrop. No runtime
 QML blur, overview watcher, polling daemon or second swaybg was added.
 
-The source and scaling mode come from `compositor/niri/wallpaper.toml`. Cache files
-live in `$XDG_CACHE_HOME/desktop-foundation/overview` (default `~/.cache`). Image
-path, nanosecond mtime, size and processing version determine cache invalidation.
-Fill/fit images are capped at 1920px on the longest edge, preserving aspect ratio;
-center/tile retain original dimensions. The manifest is atomically replaced and
-old cached images removed. To change wallpaper, edit the TOML and restart
-`desktop-foundation-wallpaper.service`. The shell watches the manifest; a bounded
-five-second startup retry handles parallel wallpaper/shell startup.
+The shipped source is `compositor/niri/wallpaper.toml`; runtime changes use
+`scripts/wallpaper-set /path/to/image`. The active `wallpaper.toml`, sharp image
+and `overview.png` are published together under XDG_STATE_HOME/desktop-foundation/
+theme/current. See [theme controls](../theme/README.md) for transaction/rollback.
+Blur cache files use content SHA-256, scaling mode and processing version under
+XDG_CACHE_HOME/desktop-foundation/overview. Fill/fit images are capped at 1920px
+on the longest edge, preserving aspect ratio; center/tile retain dimensions.
+Cached images are retained. Explicit theme IPC reloads the manifest after pointer
+publication; a bounded startup retry handles parallel wallpaper/shell startup.
 
 `python-pillow` is included in the core installation manifest. Cache files are
 regenerable and stay outside Git. Rollback uses normal deployment backups; removing
@@ -38,7 +39,7 @@ the backdrop loader and generated rule restores the plain overview backdrop.
   input focus and no errors. The backdrop has no input region; Niri reports no
   keyboard interactivity. Super+Tab binding remains unchanged.
 - Cache reuse retained the image mtime; mode changes updated the manifest;
-  source changes generated a new image and removed the old cache.
+  source changes generated a new image; old cache entries are retained.
 - Wallpaper service restart succeeded; exactly one swaybg remained.
 - Live shell idle measurement: 0.1% of one core over ten seconds. PSS before the
   addition was 222446KiB and afterward 225657KiB: approximately +3.1MiB. This is

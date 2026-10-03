@@ -23,7 +23,7 @@ def definitions(root, state):
             '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/clipboard-watch') + ' %i\nRestart=on-failure\nRestartSec=1\nUMask=0077\n',
         'desktop-foundation-notifications.service': common + 'ConditionEnvironment=NIRI_SOCKET\n'
             '[Service]\nType=dbus\nBusName=org.freedesktop.Notifications\nExecCondition=' + quote(root / 'scripts/notification-owner-check') + '\n'
-            'ExecStart=' + quote(executable) + ' --config ' + quote(root / 'compositor/niri/notifications.conf') + '\nRestart=on-failure\nRestartSec=1\n',
+            'ExecStart=' + quote(executable) + ' --config ' + quote(state / 'theme/current/notifications.conf') + '\nRestart=on-failure\nRestartSec=1\n',
     }
     for name, command in {
         'wallpaper': [root / 'scripts/niri-wallpaper-start'],

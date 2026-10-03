@@ -9,10 +9,13 @@ Variants {
     property var settings: JSON.parse(manifest.text() || "{}")
     property int startupRetries: 0
     property var manifest: FileView {
-        path: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/desktop-foundation/overview/backdrop.json"
+        path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/desktop-foundation/theme/current/backdrop.json"
         watchChanges: true
         printErrors: false
         onFileChanged: reload()
+    }
+    function reload(): void {
+        manifest.reload();
     }
     // Wallpaper/cache preparation can overlap shell startup. Stop after 5s;
     // normal updates use the file watcher, never overview polling.

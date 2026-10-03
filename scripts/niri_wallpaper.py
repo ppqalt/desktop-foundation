@@ -7,14 +7,14 @@ import hashlib
 import json
 
 
-def cache_backdrop(image, mode):
+def prepare_backdrop(image, mode):
     """Blur once per image revision, outside the resident shell render loop."""
     from PIL import Image, ImageFilter
     cache = Path(os.environ.get('XDG_CACHE_HOME', Path.home() / '.cache')) / 'desktop-foundation/overview'
     cache.mkdir(parents=True, exist_ok=True)
-    stat = image.stat()
     sizing = 'scaled' if mode in {'fill', 'fit'} else 'original'
-    key = hashlib.sha256(f'{image}:{stat.st_mtime_ns}:{stat.st_size}:{sizing}:blur24-v1'.encode()).hexdigest()
+    digest = hashlib.sha256(image.read_bytes()).hexdigest()
+    key = hashlib.sha256(f'{digest}:{sizing}:blur24-v1'.encode()).hexdigest()
     target = cache / f'{key}.png'
     if not target.exists():
         with Image.open(image) as source:
@@ -22,13 +22,16 @@ def cache_backdrop(image, mode):
             if sizing == 'scaled':
                 source.thumbnail((1920, 1920))
             source.filter(ImageFilter.GaussianBlur(24)).save(target)
+    return target
+
+
+def cache_backdrop(image, mode):
+    target = prepare_backdrop(image, mode)
+    cache = target.parent
     manifest = cache / 'backdrop.json'
     temporary = manifest.with_suffix('.tmp')
     temporary.write_text(json.dumps({'image': target.as_uri(), 'mode': mode}))
     temporary.replace(manifest)
-    for old in cache.glob('*.png'):
-        if old != target:
-            old.unlink()
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -40,7 +43,8 @@ def quote(value):
 def main():
     if not os.environ.get('NIRI_SOCKET'):
         raise RuntimeError('Wallpaper startup requires a Niri session')
-    config = tomllib.loads((ROOT / 'compositor/niri/wallpaper.toml').read_text())
+    from theme_runtime import config as wallpaper_config, current
+    config = wallpaper_config()
     image = Path(config['image']).expanduser()
     if not image.is_file():
         raise RuntimeError(f'Wallpaper image unavailable: {image}')
@@ -51,7 +55,8 @@ def main():
     executable = shutil.which('swaybg') or str(state / 'bin/swaybg')
     if not Path(executable).is_file():
         raise RuntimeError('swaybg unavailable: install it with scripts/bootstrap')
-    cache_backdrop(image, mode)
+    if current() is None:
+        cache_backdrop(image, mode)
     os.execv(executable, [executable, '--image', str(image), '--mode', mode])
 
 

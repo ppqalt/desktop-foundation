@@ -5,7 +5,9 @@ local palette = {}
 local source = debug.getinfo(1, "S").source:sub(2)
 local path = source:match("^(.*)/config/")
 if path then
-    local ok, colors = pcall(dofile, path .. "/theme/window-colors.lua")
+    local state = os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")
+    local ok, colors = pcall(dofile, state .. "/desktop-foundation/theme/current/window-colors.lua")
+    if not ok then ok, colors = pcall(dofile, path .. "/theme/window-colors.lua") end
     if ok and type(colors) == "table" then palette = colors end
 end
 return {

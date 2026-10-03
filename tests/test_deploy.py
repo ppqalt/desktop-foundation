@@ -41,6 +41,13 @@ class Recovery(unittest.TestCase):
         deploy.restore(self.manifest)
         self.assertEqual(self.path.read_text(), 'original')
 
+    def test_pending_owned_link_migration_is_recoverable(self):
+        self.path.rename(self.backup)
+        self.path.symlink_to('/example/new-runtime')
+        self.manifest['entries'][0]['pending_source']='/example/new-runtime'
+        deploy.restore(self.manifest)
+        self.assertEqual(self.path.read_text(),'original')
+
     def test_foreign_replacement_refused(self):
         self.path.rename(self.backup)
         self.path.write_text('foreign')

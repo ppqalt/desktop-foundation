@@ -1,94 +1,140 @@
 # Wallpaper colors on graphite
 
-Run these from the checkout (no sudo):
+From the checkout, without sudo:
 
 ```sh
-scripts/theme-generate                 # JSON preview/cache only; wallpaper.toml
-scripts/theme-apply                    # apply palette from wallpaper.toml
-scripts/theme-apply /path/to/image      # preview another image's theme, not wallpaper
-scripts/theme-reset                    # restore v0.11 static graphite colors
+scripts/wallpaper-set /path/to/image            # wallpaper + all theme outputs
+scripts/wallpaper-set /path/to/image --mode fit # preserve full image; default fill
+scripts/theme-generate                        # palette preview/cache only
+scripts/theme-apply                            # colors from active wallpaper
+scripts/theme-apply /path/to/image              # colors only; keep wallpaper
+scripts/theme-reset                            # original v0.11 static graphite
+scripts/theme-rollback                         # previous complete wallpaper/theme
+scripts/theme-promote                          # deliberately update shipped palette
 ```
 
-`compositor/niri/wallpaper.toml` remains the wallpaper source of truth. Applying a
-palette never changes the wallpaper path. Matugen is a packaged core dependency;
-no Matugen code or daemon is copied into this repository. The installed 4.x CLI
-runs with an isolated empty config, `--dry-run --json hex --mode dark` and source
-index zero, so user templates, hooks and wallpaper actions cannot run. Generation
-exits after one invocation; cache hits do not invoke Matugen. Cache keys use the
-image SHA-256 and mapping policy version in `~/.cache/desktop-foundation/themes`
-(or XDG_CACHE_HOME). Missing/failed Matugen, invalid colors or failed validation
-leave the current rendered theme intact. Corrupt cache entries are rejected;
-delete the affected cached palette to regenerate it.
+## Ownership and state
 
-## Mapping
+Git owns the mapping policy, adapter renderers, fallback snapshots, shipped
+`theme/generated.json`, and default `compositor/niri/wallpaper.toml`. The latter
+initializes a fresh installation. The effective active wallpaper source of truth
+is the same TOML schema in `current/wallpaper.toml`, outside Git; once runtime
+state exists, it takes precedence over the shipped default. Trials never edit the
+repository TOML. To ship a different default wallpaper, deliberately edit the
+repository TOML and include the image in the installation assets.
 
-`theme/generated.json` is the semantic source consumed by QML and translated into
-terminal palette and window-border Lua. It records the wallpaper/hash and policy.
-Background/elevated/icon/hover/selected/border roles mix the fixed graphite base
-with Matugen's dark primary at 6/10/12/12/17/18 percent respectively. Surface HSL
-saturation is capped at 20–24 percent. Text remains near-neutral, error colors
-remain semantic red, shadows/scrim remain neutral. Accents use primary and an
-80/20 primary/secondary blend, lightened only if needed for 4.5:1 contrast.
-Foreground is checked at 7:1, muted text at 3:1 against panel/selected surfaces.
-These checks are on opaque palette colors; glass readability still depends on
-wallpaper, blur and content. ANSI semantic colors stay at their proven static
-values rather than converting errors/success into wallpaper colors.
+State defaults to `~/.local/state/desktop-foundation/theme` (XDG_STATE_HOME):
 
-Fallback snapshots preserve original semantic, terminal, Fastfetch and Mako
-inputs under `theme/fallback/`. `theme-reset` needs no Matugen. QML also retains
-its inline fallback if generated JSON is absent/invalid; compositor Lua has
-fallback border values. Do not edit generated outputs independently: adjust the
-mapping or fallback source, then apply/reset. Regeneration is expected to modify
-tracked generated files, so commit a chosen final palette deliberately.
+- `revisions/<id>/`: immutable semantic.json, wallpaper.toml, copied sharp image,
+  overview.png/backdrop.json, niri.kdl/window-colors.lua, terminal configuration,
+  notifications.conf, Brave manifest, metadata.json and adapters.json.
+- `current` and `previous`: atomic symlink pointers to complete bundles.
+- `brave/manifest.json`: physical stable directory for Chromium's unpacked-theme
+  identity; mirrors the published bundle. No browser profile contents live here.
+- `profile.json`: deployed hardware profile for Niri rendering.
 
-## Outputs and reload
+Caches are under XDG_CACHE_HOME/desktop-foundation: `themes` holds validated
+palette results keyed by wallpaper SHA-256/mapping version; `overview` holds
+static blurred images keyed by content/scaling/processing version. Old revisions
+and caches are retained; there is no background garbage collector. They may be
+removed manually while preserving the current and previous revisions.
 
-- Theme.qml watches semantic JSON; launcher, clipboard, Bluetooth, power and
-  volume already consume its shared roles. No Quickshell restart is needed.
-- terminal/palette.json renders Kitty colors, Fish theme and Fastfetch accents.
-  Kitty instances owned by this user reload with their native SIGUSR1 mechanism;
-  no remote control is enabled. Fish colors load in new interactive shells;
-  existing shells can `source ~/.config/fish/theme.fish` once.
-- theme/window-colors.lua is read by config/window-appearance.lua for Niri and
-  Hyprland rendering. Current Niri border colors are regenerated preserving its
-  deployed hardware profile and other settings, then reloaded via IPC.
-- Mako notification colors are rendered from the static layout and reloaded.
-  Opacity, blur, spacing, geometry, timing and focus policy are preserved.
+Deployment re-renders the selected runtime palette with updated repository
+renderers, without running Matugen, and preserves the chosen wallpaper. Existing
+configuration backups and deployment restore remain available. Promotion writes
+only the chosen semantic palette to tracked `theme/generated.json`: review and
+commit that deliberate change. Wallpaper asset/default promotion is separate.
 
-All outputs are staged and Niri/Fish validated before replacement. File writes
-are atomic per file, under a single process lock; write failures restore previous
-files. Semantic JSON is published last. This is not a globally atomic filesystem
-transaction across every component, nor crash/power-loss transactional storage.
-No user app is restarted and no desktop logout is requested.
+## Transaction and fallback
 
-For a future wallpaper setter, the integration points are: update the TOML,
-restart desktop-foundation-wallpaper.service (updates the cached overview image),
-then call theme-apply without a path. No background polling is required.
+The packaged Matugen executable runs once using an isolated empty configuration,
+`--dry-run --json hex --mode dark`, source index zero. No copied Matugen code,
+user hooks, polling, theme daemon or boot-time generation is added. Cache hits
+skip Matugen; identical palette/image/mode skips publication and reload.
 
-## Validation on Tops
+Image verification, palette mapping, blur preparation, adapter rendering, Niri
+validation and Fish syntax validation finish in a new bundle before publication.
+Missing/failed Matugen, invalid input/colors or staging failure leaves the last
+known good bundle active. An atomic `current` pointer publishes complete files.
+Native reloads then run sequentially; this is not a frame-atomic change across
+independent applications. If a required reload fails, the old pointer and Brave
+manifest are restored and previous native reloads retried. Reload recovery errors
+are reported, not hidden. This is not a power-loss transaction across services.
+`theme-rollback` swaps the previous/current bundles and reloads wallpaper too.
 
-Real Matugen generation: blue Windows/Tux image 0.235s; orange synthetic image
-0.013s. Cached apply with reloads ~0.05–0.06s; already-applied no-op 0.019s. Timings
-are observed warm-system values, not cross-machine guarantees. Screenshots of the
-live launcher confirmed chromatic changes with graphite surfaces retained:
+`theme/fallback/` preserves the v0.11 semantic, terminal, Fastfetch and notification
+inputs. Reset uses them without Matugen. QML and compositor Lua retain static
+fallbacks if runtime palette data is unavailable. ANSI semantic colors remain
+static; application data and user settings are not included in theme bundles.
 
-| Role | Blue wallpaper | Orange test image |
+## Graphite mapping
+
+Background/elevated/icon/hover/selected/border mix the fixed graphite base with
+Matugen dark primary at 6/10/12/12/17/18 percent. Surface HSL saturation is capped
+at 20–24 percent. Foreground/muted remain near-neutral; shadows stay neutral.
+Accents use primary and an 80/20 primary/secondary blend with contrast checks:
+foreground 7:1, muted 3:1, accent 4.5:1 on opaque panel/selected surfaces.
+Actual glass readability still depends on wallpaper and blur.
+
+| Role | Blue Windows/Tux | Orange test |
 |---|---|---|
 | background | #1f262f | #252429 |
 | elevated | #2e3845 | #38363c |
 | accent | #98ccf9 | #ffb599 |
 | selected | #3e5065 | #4d4c57 |
 | foreground | #eef1f6 | #eef1f6 |
-| muted | #939eae | #939eae |
 
-Static reset reproduced the original terminal palette and Mako styling. Automated
-checks cover contrast/saturation across five chromatic primaries, cached reuse,
-missing/failed generator, invalid colors and atomic replacement failure. The blue
-wallpaper theme is left applied; test images/captures remain outside the repository.
-Matugen and the Python pipeline have no resident processes after completion,
-therefore zero resident/idle CPU cost from generation. The existing shell gains a
-file event watcher, not a polling timer/process. No boot-time theme generation was
-added. A fresh installer includes Matugen and uses the committed generated theme.
+## Adapter contract
 
-References: https://github.com/InioX/matugen (packaged generator) and Kitty's
-installed native `reload_conf_in_all_kitties` implementation (SIGUSR1 reload).
+| Adapter | Mode | Refresh |
+|---|---|---|
+| Quickshell: launcher, clipboard, Bluetooth, power, volume | LIVE | explicit foundation.reloadTheme IPC; semantic roles |
+| Overview | LIVE | same IPC reloads prepared backdrop manifest |
+| Niri | RELOADABLE | native load-config-file; existing geometry/motion preserved |
+| Kitty | RELOADABLE | native SIGUSR1; no app restart/remote control |
+| Fish | NEXT-LAUNCH | new shell, or source ~/.config/fish/theme.fish |
+| Fastfetch | NEXT-LAUNCH | next one-shot invocation |
+| Mako | RELOADABLE | makoctl reload; absent daemon uses next launch |
+| Brave | RELOADABLE | manual native unpacked-theme reload/reinstall |
+
+Wallpaper uses the existing single swaybg service; wallpaper changes restart
+that service, not Niri or user applications. The overview reads the matching
+blurred image. This shared transaction is ready for a future wallpaper picker.
+
+## Brave installation and limits
+
+Open `brave://extensions`, enable Developer mode, then Load unpacked and select:
+`~/.local/state/desktop-foundation/theme/brave` (respect XDG_STATE_HOME if set).
+After changing palettes, use native Reload if offered; otherwise load the same
+folder again or disable/re-enable the theme. The manifest version changes with
+the palette. Do not depend on browser restart alone to rebuild its cached theme.
+The physical folder avoids canonicalizing a revision symlink into changing IDs.
+
+The Manifest V3 theme has no permissions, JavaScript, profile access or watcher.
+It maps supported frame, toolbar, tabs, icons, omnibox and new-tab colors to
+semantic graphite roles. It cannot theme arbitrary web pages or force unsupported
+border roles. A disposable Brave profile accepted the manifest and registered a
+theme ID; the main browsing profile was left untouched. Manual refresh in the
+user's main browser remains a user action, not an automatically verified step.
+
+This pass stops after Brave. Spotify currently uses Spicetify Marketplace's
+special theme; replacing it could disrupt Marketplace theme installation. Next
+pass: an explicit adapter preserving Marketplace behavior and native no-restart
+refresh. GTK is the next general toolkit target, with dark graphite fallback and
+separate validation of GTK3/GTK4/native application coverage.
+
+## Validation
+
+68 Python tests cover runtime staging, rollback, reload failure recovery, invalid
+images, no-op reuse, permissionless Brave manifest, deployment migration and
+existing regression cases. Native Niri validation/IPC and repository checks run
+separately. Blue/orange live wallpaper transactions and rollback were exercised.
+Observed warm cached publication/reload was about 0.21s, unchanged apply about
+0.008–0.011s. Timings vary by machine/image. No Matugen or theme pipeline process
+remains afterward: zero resident generation process and idle CPU cost. Existing
+QML file events plus explicit reload are used, without a polling timer.
+
+Primary references: [Matugen](https://github.com/InioX/matugen),
+[Chromium themes](https://developer.chrome.com/docs/extensions/develop/ui/themes),
+[native unpacked loading](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world),
+[Chromium theme lifecycle](https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/themes/theme_service.cc).

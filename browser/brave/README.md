@@ -99,3 +99,7 @@ open-browser refusal, flags backup/rollback and unsafe profile paths. The real
 headless browser initialization attempt timed out; it does not count as proof of
 first-launch UI behavior. The live browser was not modified or forcibly closed.
 First graphical launch on a fresh installation remains the acceptance check.
+
+Wallpaper-derived Brave themes are separate from this personal settings seed.
+See [runtime theme adapters](../../theme/README.md) for permissionless unpacked
+theme installation and manual native refresh. No browser profile is modified.

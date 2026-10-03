@@ -7,7 +7,7 @@ QtObject {
     id: root
     property var generated: ({})
     property var paletteFile: FileView {
-        path: Quickshell.shellDir + "/../theme/generated.json"
+        path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/desktop-foundation/theme/current/semantic.json"
         watchChanges: true
         printErrors: false
         onFileChanged: reload()
@@ -16,6 +16,9 @@ QtObject {
                 root.generated = JSON.parse(text());
             } catch (e) {}
         }
+    }
+    function reload(): void {
+        paletteFile.reload();
     }
     // Shared graphite/glass surface language for launcher and clipboard.
     readonly property var spacing: ({

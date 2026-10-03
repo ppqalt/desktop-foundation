@@ -35,7 +35,7 @@ def save(manifest):
 
 def owned(entry):
     path = Path(entry['path'])
-    return path.is_symlink() and os.readlink(path) == entry['source']
+    return path.is_symlink() and os.readlink(path) in {entry['source'], entry.get('pending_source')}
 
 
 def fingerprint(path):
@@ -83,9 +83,9 @@ def common_targets():
     return [(CONFIG / 'gtk-3.0/settings.ini', ROOT / 'theme/gtk-3.0/settings.ini'),
             (CONFIG / 'gtk-4.0/settings.ini', ROOT / 'theme/gtk-4.0/settings.ini'),
             (CONFIG / 'wireplumber/wireplumber.conf.d/60-desktop-foundation-bluetooth.conf', ROOT / 'audio/wireplumber/60-desktop-foundation-bluetooth.conf'),
-            (CONFIG / 'kitty', ROOT / 'terminal/kitty'),
+            (CONFIG / 'kitty', STATE / 'theme/current/terminal/kitty'),
             (CONFIG / 'fish', STATE / 'terminal/fish'),
-            (CONFIG / 'fastfetch', ROOT / 'terminal/fastfetch'),
+            (CONFIG / 'fastfetch', STATE / 'theme/current/terminal/fastfetch'),
             (DATA / 'fonts/desktop-foundation', ROOT / 'fonts')]
 
 
@@ -122,9 +122,10 @@ def main():
             raise RuntimeError('Invalid profile name')
         if not (ROOT / 'profiles' / args.profile).is_dir():
             print(f'Profile {args.profile} unavailable; using portable defaults.')
+        from theme_runtime import ensure
+        ensure(args.profile)
         if args.compositor == 'niri':
-            from render_niri import render
-            wrapper = render(ROOT, args.profile)
+            wrapper = 'include ' + json.dumps(str(STATE / 'theme/current/niri.kdl')) + '\n'
             with tempfile.NamedTemporaryFile(mode='w', suffix='.kdl') as candidate:
                 candidate.write(wrapper)
                 candidate.flush()
@@ -148,6 +149,13 @@ def main():
         fish_runtime.mkdir(parents=True, exist_ok=True)
         for child in (ROOT / 'terminal/fish').iterdir():
             link = fish_runtime / child.name
+            if child.name == 'theme.fish':
+                source_theme = STATE / 'theme/current/terminal/fish/theme.fish'
+                if link.is_symlink() and os.readlink(link) == str(child):
+                    link.unlink()
+                if not link.exists() and not link.is_symlink():
+                    link.symlink_to(source_theme)
+                continue
             if not link.exists() and not link.is_symlink():
                 link.symlink_to(child)
         subprocess.run(['fish', '--no-config', '-n', str(ROOT / 'terminal/fish/config.fish')], check=True)
@@ -161,7 +169,17 @@ def main():
         temporary.replace(source)
         try:
             for path, src in targets:
-                if any(e['path'] == str(path) for e in manifest['entries']):
+                existing = next((e for e in manifest['entries'] if e['path'] == str(path)), None)
+                if existing:
+                    if existing['source'] != str(src):
+                        existing['pending_source'] = str(src)
+                        save(manifest)
+                        replacement = path.with_name(path.name + '.foundation-link')
+                        replacement.symlink_to(src)
+                        replacement.replace(path)
+                        existing['source'] = str(src)
+                        existing.pop('pending_source')
+                        save(manifest)
                     continue
                 path.parent.mkdir(parents=True, exist_ok=True)
                 backup = None

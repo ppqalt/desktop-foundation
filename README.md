@@ -69,8 +69,9 @@ still placeholders. Hyprland code remains as an optional secondary backend;
 `./scripts/bootstrap --hyprland` installs its packages, then deploy explicitly with
 `./scripts/deploy --compositor hyprland`.
 
-Wallpaper-derived accents on graphite are available through `scripts/theme-apply`
-and reversible with `scripts/theme-reset`; see [theme controls](theme/README.md).
+Use `scripts/wallpaper-set /path/to/image` to apply wallpaper-derived accents on
+graphite without changing tracked defaults. `scripts/theme-rollback` restores the
+previous wallpaper/theme; see [theme controls](theme/README.md).
 
 ## Validate and undo
 
