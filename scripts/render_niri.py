@@ -35,6 +35,7 @@ layout {{
     gaps {v['spacing']['betweenWindows']}
     struts {{ left {v['spacing']['desktopEdge']}; right {v['spacing']['desktopEdge']}; top {v['spacing']['desktopEdge']}; bottom {v['spacing']['desktopEdge']}; }}
     center-focused-column "never"
+    always-center-single-column
     preset-column-widths {{ proportion 0.33333; proportion 0.5; proportion 0.66667; }}
     default-column-width {{ proportion 0.5; }}
     focus-ring {{ off; }}
