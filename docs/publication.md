@@ -2,7 +2,12 @@
 
 Repository: https://github.com/ppqalt/desktop-foundation.
 
-v0.12 is an installation-candidate prerelease. Automated ownership/rollback tests
+v0.12-1 is the Rust/backend maintenance prerelease. Its source passes static and
+isolated integration validation; the candidate has not replaced lucky38's live
+desktop. Visual, resident resource, physical audio/Bluetooth and complete live
+session acceptance remain pending. See [release notes](releases/0.12-1.md).
+
+The earlier v0.12 is an installation-candidate prerelease. Automated ownership/rollback tests
 and the running reference desktop pass, but installation on a clean OS and the
 second physical machine has not been performed. That gap warrants prerelease
 status for a release whose central promise is safe installation. See

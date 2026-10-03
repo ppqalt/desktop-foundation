@@ -430,6 +430,7 @@ checkout, not a reset or replacement of newer local work.
    profiles. Isolated validation costs disk space; a runtime binary budget is a
    different quantity. Keep original artifacts until activation/rollback is proven.
 
-Raw samples, hashes, build/cache sizes and software metadata:
-[quality-results-20261003.json](quality-results-20261003.json).
+Public helper benchmark summary and executable hashes:
+[quality-results-20261003.json](quality-results-20261003.json). Local process/runtime
+audit captures are retained in ignored development storage, outside the release tree.
 Repeatable helper benchmark: [performance.md](performance.md).

@@ -10,6 +10,11 @@ Nothing/CMF controls, power menu, quiet notifications, volume feedback,
 clipboard-only Niri screenshots, sharp wallpaper/blurred overview and a shared
 Kitty/Fish/Fastfetch environment. No account data is included.
 
+**v0.12-1 is a maintenance prerelease** with a shared Rust backend and reliability
+improvements. Static/isolated integration checks pass; live candidate visual,
+audio/Bluetooth and full-session acceptance remain pending. See the
+[release notes](docs/releases/0.12-1.md).
+
 ![Desktop Foundation launcher](docs/screenshots/launcher.png)
 
 [View the screenshot gallery](docs/screenshots/README.md) — launcher, clipboard,
@@ -21,7 +26,7 @@ Use a normal sudo-enabled user with working graphics, networking, Git and Python
 Keep the checkout in a permanent location: deployed links refer to it.
 
 ```sh
-git clone --branch v0.12 https://github.com/ppqalt/desktop-foundation.git
+git clone --branch v0.12-1 https://github.com/ppqalt/desktop-foundation.git
 cd desktop-foundation
 ./scripts/install-core --dry-run
 ./scripts/install-core
