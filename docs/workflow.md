@@ -25,10 +25,13 @@ Missing sudo credentials block package changes only. Existing Qt profiler, heapt
 strace and hyperfine remain available. No actual runtime Timer or periodic Process
 loop is present; finite benchmark readiness checks are intentionally separate.
 
-Profiles/default contains portable automatic monitor and input defaults. Tops owns
-only host overrides. An absent lucky38 profile or missing category falls back to
-default; create profiles/lucky38 when real hardware is known. Shared input/animation/
+Profiles/default contains portable automatic monitor and input defaults. Tops and
+lucky38 own only host overrides. The lucky38 profile preserves the established
+AOC monitor / LG TV layout. A missing profile or category falls back to
+default. Shared input/animation/
 bindings never encode output names, resolution, refresh rate or GPU paths.
+
+For continued work on lucky38, see [the development baseline](development-baseline-lucky38.md).
 
 `python3 scripts/failure.py` performs one real supervised shell crash and isolated
 bad-config/backend checks; keep it separate from routine pure unit tests.
