@@ -22,7 +22,10 @@ QtObject {
         onFileChanged: reload()
         onLoaded: {
             try {
-                root.entries = JSON.parse(text());
+                const saved = JSON.parse(text());
+                if (!Array.isArray(saved))
+                    throw new Error("History index is not a list");
+                root.entries = saved;
                 root.loading = false;
                 root.error = "";
             } catch (e) {
@@ -49,15 +52,22 @@ QtObject {
     property var actionProcess: Process {
         id: actionProcess
         property string action: ""
-        stderr: StdioCollector {}
+        stderr: StdioCollector {
+            id: actionErrors
+            onStreamFinished: {
+                if (text.trim())
+                    console.warn("Clipboard " + actionProcess.action + ": " + text.trim());
+            }
+        }
         // qmllint disable signal-handler-parameters
         // Installed qmltypes omit QProcess::ExitStatus; only exitCode is used.
         onExited: exitCode => {
             if (exitCode === 0) {
                 root.error = "";
                 root.completed(action);
-            } else
-                root.error = "Could not " + action + " this history item. Try again.";
+            } else {
+                root.error = actionErrors.text.includes("history was not reset") ? "Clipboard history is unavailable. Saved items were kept." : "Could not " + action + " this history item. Try again.";
+            }
         }
         // qmllint enable signal-handler-parameters
     }
