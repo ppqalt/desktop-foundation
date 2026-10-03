@@ -102,3 +102,12 @@ reload. Cached wallpaper apply including Spotify refresh was about 0.39s on Tops
 
 [Native refresh implementation](https://github.com/spicetify/cli/blob/v2.45.3/src/cmd/apply.go)
 and [watch/restart behavior](https://github.com/spicetify/cli/blob/v2.45.3/src/cmd/watch.go).
+
+## v0.12 convergence
+
+`scripts/spotify-setup check` inspects tool versions, paths and managed scheme
+without reading account preferences. Installation reuses the current pin. The
+known v0.11 Spicetify 2.45.1 pin can upgrade to 2.45.3 with a write-ahead journal
+and original-tool backup; unknown versions refuse replacement. Restore refuses
+externally modified tool binaries. Account data and unrelated Marketplace
+configuration remain untouched.

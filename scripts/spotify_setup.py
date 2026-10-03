@@ -79,6 +79,73 @@ def extract_marketplace(package,destination):
         raise RuntimeError("Marketplace archive layout changed")
 
 
+def recover_tool_upgrade():
+    journal = STATE / 'tool-upgrade.json'
+    if not journal.exists():
+        return
+    saved = json.loads(journal.read_text())
+    destination = APPS / 'spicetify'
+    backup = Path(saved['backup'])
+    if saved['phase'] == 'prepared' and not destination.exists():
+        if not backup.is_dir():
+            raise RuntimeError('Interrupted Spicetify upgrade lacks backup; inspect tool-upgrade.json')
+        backup.rename(destination)
+        journal.unlink()
+        print('Recovered original Spicetify after interrupted publication')
+
+
+def upgrade_spicetify(sources):
+    """Only the known v0.10/v0.11 tool pin may upgrade; retain its binary backup."""
+    from theme_pipeline import atomic
+    destination = APPS / 'spicetify'; stamp = destination / '.foundation-source.json'
+    source = sources['spicetify']
+    old = json.loads(stamp.read_text())
+    version = subprocess.check_output([str(destination / 'spicetify'), '--version'], text=True).strip()
+    if version == source['version']:
+        return
+    if old not in sources.get('previous_spicetify', []) or version != old['version']:
+        raise RuntimeError('Unknown Spicetify version/source; refusing replacement')
+    package = download(source)
+    journal = STATE / 'tool-upgrade.json'; backup = APPS / ('spicetify-backup-' + old['version'])
+    if backup.exists():
+        raise RuntimeError('Spicetify upgrade backup already exists; review tool-upgrade.json')
+    with tempfile.TemporaryDirectory(dir=APPS) as scratch:
+        stage = Path(scratch) / 'tool'; stage.mkdir()
+        with tarfile.open(package) as archive:
+            archive.extractall(stage, filter='data')
+        binary = stage / 'spicetify'
+        if subprocess.check_output([str(binary), '--version'], text=True).strip() != source['version']:
+            raise RuntimeError('Downloaded Spicetify version differs from pin')
+        (stage / '.foundation-source.json').write_text(json.dumps(source, indent=2) + '\n')
+        saved = {'phase': 'prepared', 'backup': str(backup), 'source': source,
+                 'binaryHash': hashlib.sha256(binary.read_bytes()).hexdigest()}
+        atomic(journal, json.dumps(saved, indent=2) + '\n')
+        destination.rename(backup)
+        try:
+            stage.rename(destination)
+        except BaseException:
+            backup.rename(destination); journal.unlink(); raise
+        saved['phase'] = 'published'; atomic(journal, json.dumps(saved, indent=2) + '\n')
+    print('Upgraded owned Spicetify; original tool retained for rollback: ' + str(backup))
+
+
+def restore_tool_upgrade():
+    journal = STATE / 'tool-upgrade.json'
+    if not journal.exists():
+        return
+    saved = json.loads(journal.read_text()); destination = APPS / 'spicetify'
+    backup = Path(saved['backup']); binary = destination / 'spicetify'
+    if not backup.is_dir() or not binary.is_file() or hashlib.sha256(binary.read_bytes()).hexdigest() != saved['binaryHash']:
+        raise RuntimeError('Spicetify tool changed externally or backup missing; refusing rollback')
+    archive = APPS / ('spicetify-after-' + str(time.time_ns()))
+    destination.rename(archive)
+    try:
+        backup.rename(destination)
+    except BaseException:
+        archive.rename(destination); raise
+    journal.unlink()
+
+
 def install():
     existing=CONFIG/'spicetify/config-xpui.ini'
     if existing.exists():
@@ -90,6 +157,7 @@ def install():
     STATE.mkdir(parents=True, exist_ok=True)
     APPS.mkdir(parents=True, exist_ok=True)
     sources = json.loads((ROOT / 'apps/spotify/sources.json').read_text())
+    recover_tool_upgrade()
     for name in ['spotify', 'spicetify']:
         source = sources[name]
         destination = APPS / name
@@ -99,6 +167,8 @@ def install():
                 version=subprocess.check_output([str(destination/'spicetify'),'--version'],text=True).strip()
                 if version==source['version']:
                     continue  # Preserve an already upgraded, repo-owned matching tool.
+                upgrade_spicetify(sources)
+                continue
             if not stamp.exists() or json.loads(stamp.read_text()) != source:
                 raise RuntimeError(f'Existing app installation differs: {destination}')
             continue
@@ -185,6 +255,35 @@ def apply():
     refresh_theme()
 
 
+def check():
+    """Read only tool/config paths, never Spotify account preference contents."""
+    source = json.loads((ROOT / 'apps/spotify/sources.json').read_text())
+    for name in ('spotify', 'spicetify'):
+        target = APPS / name
+        stamp = target / '.foundation-source.json'
+        if not stamp.is_file():
+            raise RuntimeError('Missing repo-owned application: ' + name)
+        if name == 'spotify' and json.loads(stamp.read_text()) != source[name]:
+            raise RuntimeError('Spotify source differs from pinned client')
+    binary = APPS / 'spicetify/spicetify'
+    if not binary.is_file() or subprocess.check_output([str(binary), '--version'], text=True).strip() != source['spicetify']['version']:
+        raise RuntimeError('Spicetify version differs from pin')
+    config = configparser.ConfigParser(interpolation=None)
+    config.read(CONFIG / 'spicetify/config-xpui.ini')
+    expected = {'spotify_path': str(APPS / 'spotify/usr/share/spotify'), 'prefs_path': str(CONFIG / 'spotify/prefs')}
+    for key, value in expected.items():
+        if config.get('Setting', key, fallback='') != value:
+            raise RuntimeError('Spicetify path mismatch: ' + key)
+    for name in ('manifest.json', 'index.js'):
+        if not (CONFIG / 'spicetify/CustomApps/marketplace' / name).is_file():
+            raise RuntimeError('Marketplace missing: ' + name)
+    if config.get('Setting', 'current_theme', fallback='') != 'marketplace' or config.get('Setting', 'color_scheme', fallback='') != 'DesktopFoundation':
+        raise RuntimeError('Spotify graphite/Marketplace scheme not selected')
+    print('PASS Spotify/Spicetify paths, source pins, Marketplace and graphite scheme')
+    if not (CONFIG / 'spotify/prefs').exists():
+        print('WARN first login and normal quit/reopen remain user actions')
+
+
 def restore():
     from spotify_theme import restore as restore_theme
     restore_theme()
@@ -215,13 +314,17 @@ def restore():
             backup.rename(config)
         (STATE / 'config-created').unlink(missing_ok=True)
     (STATE / 'portable-config-initialized').unlink(missing_ok=True)
+    restore_tool_upgrade()
     print('Application links/config restored. Downloaded clients, Spotify account data and caches retained.')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['install', 'apply', 'restore'])
+    parser.add_argument('action', choices=['install', 'apply', 'restore', 'check'])
     args = parser.parse_args()
+    if args.action == 'check':
+        check()
+        raise SystemExit(0)
     STATE.mkdir(parents=True, exist_ok=True)
     with (STATE / 'lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)

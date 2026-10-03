@@ -44,5 +44,12 @@
   "marketplace_color": {
     "url": "https://raw.githubusercontent.com/spicetify/marketplace/ec6f772891bad4bf08b645447c2ade6b06c4f991/resources/color.ini",
     "sha256": "802c83f4f822eb254f60ef34ea8c53ea9d97889b9e886ac532e42953b9548fb2"
-  }
+  },
+  "previous_spicetify": [
+    {
+      "version": "2.45.1",
+      "url": "https://github.com/spicetify/cli/releases/download/v2.45.1/spicetify-2.45.1-linux-amd64.tar.gz",
+      "sha256": "994381833cf09e708ff961f8f26b5b944e61f7c66e7af93a4ae2889341ca6c32"
+    }
+  ]
 }
