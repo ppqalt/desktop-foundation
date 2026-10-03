@@ -27,7 +27,13 @@ class InstallerLayers(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(list(home.iterdir()), [])
                 self.assertIn('Roles:', result.stdout)
-                self.assertNotIn('brave-origin-nightly-bin', result.stdout) if entry == 'install-core' else self.assertIn('brave-origin-nightly-bin', result.stdout)
+                # A deliberately configured core browser is independent of the
+                # optional personal-app provisioning layer.
+                if entry == 'install-core':
+                    self.assertNotIn('Spotify: checksum-pinned', result.stdout)
+                    self.assertNotIn('personal: steam:', result.stdout)
+                else:
+                    self.assertIn('Spotify: checksum-pinned', result.stdout)
 
     def test_core_does_not_provision_personal_apps(self):
         args = installer.parse(['--core', '--no-packages', '--no-greeter'])
