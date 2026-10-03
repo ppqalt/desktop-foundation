@@ -1,4 +1,4 @@
-"""Installer isolation: real rendering/deployment, mocked service side effects."""
+"""Real rendering/deployment; native build prerequisites and service effects mocked."""
 import contextlib
 import importlib.util
 import io
@@ -27,7 +27,7 @@ class FreshDeployment(unittest.TestCase):
                 if command[0] in {'systemctl', 'fc-cache'} or (len(command) > 1 and command[1] == str(ROOT / 'scripts/preferences.py')):
                     return subprocess.CompletedProcess(command, 0)
                 return real_run(command, **kwargs)
-            with patch.dict(os.environ, {'HOME': str(base), 'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(data), 'XDG_STATE_HOME': str(state.parent)}), patch.multiple(deploy, CONFIG=config, DATA=data, STATE=state), patch.object(deploy.subprocess, 'run', side_effect=isolated_run), contextlib.redirect_stdout(io.StringIO()):
+            with patch.dict(os.environ, {'HOME': str(base), 'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(data), 'XDG_STATE_HOME': str(state.parent)}), patch.multiple(deploy, CONFIG=config, DATA=data, STATE=state), patch.object(deploy.subprocess, 'run', side_effect=isolated_run), patch.object(deploy, 'require_native_backends') as prerequisites, contextlib.redirect_stdout(io.StringIO()):
                 with patch.object(sys, 'argv', ['deploy', 'install', '--dry-run']):
                     deploy.main()
                 self.assertEqual(list(base.iterdir()), [])
@@ -47,6 +47,7 @@ class FreshDeployment(unittest.TestCase):
                 self.assertFalse(kitty.is_symlink())
                 self.assertEqual((kitty / 'old.conf').read_text(), 'keep me')
                 self.assertFalse((config / 'niri/config.kdl').exists())
+                self.assertEqual(prerequisites.call_count, 2)
 
     def test_manifest_has_no_duplicates(self):
         for file in (ROOT / 'packages').glob('*.txt'):

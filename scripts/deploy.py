@@ -89,6 +89,18 @@ def common_targets():
             (DATA / 'fonts/desktop-foundation', ROOT / 'fonts')]
 
 
+def require_native_backends():
+    required = [
+        ('native/foundation/target/release/desktop-foundationctl', 'scripts/build-backend'),
+        ('native/nothing/target/release/foundation-nothing', 'scripts/build-nothing'),
+    ]
+    missing = [build for binary, build in required
+               if not (ROOT / binary).is_file() or not os.access(ROOT / binary, os.X_OK)]
+    if missing:
+        raise RuntimeError('Required native backends are not built or executable. Run '
+                           + ' and '.join(missing) + ' in this checkout; nothing deployed.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['install', 'restore'])
@@ -105,6 +117,8 @@ def main():
         for path, source in paths:
             print(f'Deploy with backup: {path} <- {source}')
         return
+    if args.action == 'install':
+        require_native_backends()
     STATE.mkdir(parents=True, exist_ok=True)
     with (STATE / 'lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
