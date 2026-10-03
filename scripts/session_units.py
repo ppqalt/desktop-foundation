@@ -57,6 +57,12 @@ def targets(root, config, state, data, write=True, niri=True):
             result.append((config / 'systemd/user/niri.service.wants' / unit, source))
     for name in ['gnome-keyring-pkcs11.desktop', 'gnome-keyring-secrets.desktop']:
         result.append((config / 'autostart' / name, root / 'session/keyring' / name))
+    if niri:
+        # Mako's packaged D-Bus activation names mako.service. Both that unit and
+        # our Type=dbus unit cannot independently register the same BusName.
+        # Journal an alias so activation and session startup resolve to one unit.
+        result.append((config / 'systemd/user/mako.service',
+                       config / 'systemd/user/desktop-foundation-notifications.service'))
     result.append((config / 'autostart/blueman.desktop', root / 'session/bluetooth/blueman.desktop'))
     result.append((config / 'autostart/arch-update-tray.desktop', root / 'session/autostart/arch-update-tray.desktop'))
     result.append((data / 'dbus-1/services/org.freedesktop.secrets.service',

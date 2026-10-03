@@ -30,6 +30,9 @@ class SessionStartup(unittest.TestCase):
             target = (generated / 'desktop-foundation-session.target').read_text()
             self.assertNotIn('After=', target)
             self.assertIn('Wants=desktop-foundation-shell.service', target)
+            aliases = dict(paths)
+            self.assertEqual(aliases[base / 'config/systemd/user/mako.service'],
+                             base / 'config/systemd/user/desktop-foundation-notifications.service')
 
     def test_changed_definitions_are_replaced(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -48,6 +51,7 @@ class SessionStartup(unittest.TestCase):
             names = {p.name for p, _ in paths}
             self.assertIn('desktop-foundation-shell.service', names)
             self.assertNotIn('desktop-foundation-wallpaper.service', names)
+            self.assertNotIn('mako.service', names)
 
     def test_login_path_has_no_generation_or_reload(self):
         for name in ['session-start', 'shell-start', 'clipboard-start']:
