@@ -8,3 +8,6 @@ nss
 alsa-lib
 libxss
 libxtst
+
+# One-shot approved Brave theme reload (native WebSocket, Node 22+).
+nodejs

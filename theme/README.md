@@ -95,7 +95,7 @@ Actual glass readability still depends on wallpaper and blur.
 | Fish | NEXT-LAUNCH | new shell, or source ~/.config/fish/theme.fish |
 | Fastfetch | NEXT-LAUNCH | next one-shot invocation |
 | Mako | RELOADABLE | makoctl reload; absent daemon uses next launch |
-| Brave | RELOADABLE | manual native unpacked-theme reload/reinstall |
+| Brave | RELOADABLE | opt-in approved CDP reload; native manual import fallback |
 
 Wallpaper uses the existing single swaybg service; wallpaper changes restart
 that service, not Niri or user applications. The overview reads the matching
@@ -105,38 +105,61 @@ blurred image. This shared transaction is ready for a future wallpaper picker.
 
 Open `brave://extensions`, enable Developer mode, then Load unpacked and select:
 `~/.local/state/desktop-foundation/theme/brave` (respect XDG_STATE_HOME if set).
-After changing palettes, use native Reload if offered; otherwise load the same
-folder again or disable/re-enable the theme. The manifest version changes with
-the palette. Do not depend on browser restart alone to rebuild its cached theme.
-The physical folder avoids canonicalizing a revision symlink into changing IDs.
+The theme stays in this physical folder: Chromium derives unpacked identity from
+its path, so loading a new palette returns the same installed ID. Themes have no
+permissions/JavaScript and do not recolor arbitrary web pages.
 
-The Manifest V3 theme has no permissions, JavaScript, profile access or watcher.
-It maps supported frame, toolbar, tabs, icons, omnibox and new-tab colors to
-semantic graphite roles. It cannot theme arbitrary web pages or force unsupported
-border roles. On Brave Origin Nightly 154.1.98.33, the user installed this stable
-folder into their real profile. After a blue-to-orange wallpaper transaction,
-Brave remained blue; loading the same folder again applied orange. Thus changing
-manifest.json alone is not an automatic refresh mechanism on this session.
+### Approved DevTools reload
 
-The public management API has no reload-from-disk method; enabling/disabling an
-extension is not a documented disk reload substitute. Themes contain no code,
-so cannot watch files or invoke runtime.reload themselves. Official Chrome
-DevTools MCP implements unpacked reload by reinstalling the same path through
-CDP's Extensions.loadUnpacked. This is a supported programmatic route, so we do
-not claim automatic refresh is fundamentally impossible. It needs an enabled
-browser-debugging connection and extension-loading capability. The running
-Brave session has no such connected controller. Newer Chrome also offers an
-opt-in remote-debugging UI; its Brave/theme-loading coverage has not been
-validated here. No broad debugging access, launch flags, profile edits or browser
-restart were introduced merely to recolor the browser.
+Brave Origin Nightly 154.1.98.33 exposes
+`brave://inspect/#remote-debugging` → Allow remote debugging for this browser
+instance. This is Chromium's modern approval-based connection, not a launch flag
+or unrestricted debugging port. The browser's UI warns that DevTools capability
+is broad; our helper restricts its own requests to extension lifecycle operations.
+Do not enable it for untrusted local applications.
 
-Current contract: wallpaper-set updates the stable manifest; one native Load
-unpacked action on that same folder refreshes the running browser. Rollback
-restores the manifest from the previous bundle, but likewise requires that native
-action before Brave reflects it. The same physical path retains unpacked identity;
-no per-wallpaper theme directories are installed into Brave. Only theme runtime
-files are written. The normal browsing profile is accessed solely through the
-user's native install/reload actions.
+Opt in explicitly (the root is the actual Origin Nightly user-data directory):
+
+```sh
+scripts/brave-theme-reload --configure-root "$HOME/.config/BraveSoftware/Brave-Origin-Nightly"
+# Enable the setting in Brave's inspect UI, then:
+scripts/wallpaper-set /path/to/image
+# Approve Brave's native connection request.
+```
+
+The one-shot Node 22+ helper reads ONLY `DevToolsActivePort` discovery metadata,
+its own binding and generated manifest. It connects to `127.0.0.1`, requires the
+already-installed enabled theme at the exact stable path, calls
+`Extensions.getExtensions` → `Extensions.loadUnpacked` →
+`Extensions.getExtensions`, verifies unchanged ID and the new version, then closes.
+It never requests tabs, attaches to pages, evaluates scripts or reads browser data.
+There is no helper daemon, keepalive connection, polling or launch-flag change.
+Node is a personal installer dependency; the core desktop does not require it.
+
+On this real session, blue → orange via DevTools changed colors without browser
+restart or Load unpacked, preserving ID `jbnhigkccdgpbopbpdobjhahlaaepkog`.
+Integrated rollback restored blue through the same adapter and verified version.
+**Each new connection required native approval.** Thus reload is automated after
+approval, not unattended. Repeated wallpaper changes prompt again; do not bypass
+that security boundary to promise zero-click operation. Approval/command timeout
+is 45 seconds. Failure causes the existing transaction to restore prior runtime
+outputs and retry native reloads; if recovery approval fails, the restored files
+remain safe but the browser may need a later explicit reload.
+
+The mutable opt-in binding is `theme/brave-devtools.json` under XDG state; it
+contains only the selected browser root. Disable with:
+
+```sh
+scripts/brave-theme-reload --disable
+# Also turn off Allow remote debugging in Brave's inspect UI.
+```
+
+Without opt-in, wallpaper-set still generates the theme safely and reports that
+native import/reload is required. With opt-in, unavailable/refused debugging is
+an explicit reload failure, never silently reported as applied. The helper can
+also be run directly to retry a pending refresh. Rollback restores the stable
+manifest first and invokes the same adapter. No profile files, databases, browser
+launch flags or browsing state are edited by this integration.
 
 This pass stops after Brave. Spotify currently uses Spicetify Marketplace's
 special theme; replacing it could disrupt Marketplace theme installation. Next

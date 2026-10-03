@@ -12,7 +12,7 @@ MODES = {
     'fastfetch': {'mode': 'NEXT-LAUNCH', 'reload': 'next one-shot invocation'},
     'mako': {'mode': 'RELOADABLE', 'reload': 'makoctl reload'},
     'overview': {'mode': 'LIVE', 'reload': 'foundation.reloadTheme IPC'},
-    'brave': {'mode': 'RELOADABLE', 'reload': 'manual unpacked theme reload/reinstall in Brave; no profile edits'},
+    'brave': {'mode': 'RELOADABLE', 'reload': 'opt-in approved CDP Extensions.loadUnpacked; native manual import fallback; no profile edits'},
 }
 
 

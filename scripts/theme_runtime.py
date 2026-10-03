@@ -98,7 +98,10 @@ def reload(wallpaper=False):
             try:
                 if proc.stat().st_uid==os.getuid() and (proc/'comm').read_text().strip()=='kitty':os.kill(int(proc.name),signal.SIGUSR1)
             except OSError:pass
-    print('Brave theme prepared: '+str(state()/'brave')+' (manual theme reload/reinstall required).')
+    if (state()/'brave-devtools.json').exists():
+        subprocess.run([str(ROOT/'scripts/brave-theme-reload')],check=True)
+    else:
+        print('Brave theme prepared: '+str(state()/'brave')+' (native refresh required; DevTools adapter not opted in).')
 
 
 def publish(target,wallpaper=False,live=True):
