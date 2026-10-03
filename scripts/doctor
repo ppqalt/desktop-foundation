@@ -9,9 +9,22 @@ import subprocess
 def run(*args):
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=10)
-        return result.returncode, result.stdout.strip()
+        message = result.stdout.strip()
+        if result.returncode and not message:
+            message = result.stderr.strip()
+        return result.returncode, message
     except (OSError, subprocess.TimeoutExpired):
         return 127, 'Command unavailable or timed out'
+
+
+def shell_instance_count(reply):
+    # Quickshell list emits no JSON when no instance matches the checkout.
+    if not reply.strip():
+        return 0
+    instances = json.loads(reply)
+    if not isinstance(instances, list):
+        raise ValueError('Quickshell did not return an instance list')
+    return len(instances)
 
 
 def session_main():
@@ -34,12 +47,14 @@ def session_main():
     code, instances = run('quickshell', 'list', '--json', '--path', str(__import__('pathlib').Path(__file__).resolve().parent.parent / 'shell'))
     if not code:
         try:
-            count = len(json.loads(instances))
+            count = shell_instance_count(instances)
             print('Shell instances:', count)
             if count != 1:
-                failures.append('Expected one shell instance: scripts/shell-stop then scripts/shell-start')
-        except json.JSONDecodeError:
+                failures.append('Expected one shell instance for this checkout; inspect the installed shell path before restarting')
+        except ValueError:
             failures.append('Unable to parse Quickshell instance list')
+    else:
+        failures.append('Unable to query Quickshell instances: ' + instances)
     if niri:
         from pathlib import Path
         for unit in ['desktop-foundation-wallpaper', 'desktop-foundation-clipboard-persist']:
@@ -91,6 +106,8 @@ def session_main():
             failures.append('Niri config validation failed: ' + errors)
         code, status = run('quickshell', 'ipc', '--path', str(__import__('pathlib').Path(__file__).resolve().parent.parent / 'shell'), 'call', 'foundation', 'status')
         try:
+            if code:
+                raise ValueError('IPC request failed: ' + status)
             state = json.loads(status)
             layout = state['backendDiagnostics']['keyboardLayouts']
             print('Keyboard layouts:', layout)
@@ -98,8 +115,8 @@ def session_main():
                 failures.append('Niri adapter not ready or config failed')
             if not layout or not any('Finnish' in name for name in layout.get('names', [])):
                 failures.append('Finnish keyboard layout not reported by Niri')
-        except (ValueError, KeyError, TypeError):
-            failures.append('Niri shell diagnostics unavailable')
+        except (ValueError, KeyError, TypeError) as error:
+            failures.append('Niri shell diagnostics unavailable: ' + str(error))
         print('Session: Niri primary/reference')
     else:
         code, keyboards = run('hyprctl', '-j', 'devices')
@@ -172,6 +189,7 @@ def main():
         report((config / name).exists(), 'Deployed ' + name)
     report(run('niri', 'validate', '-c', str(config / 'niri/config.kdl'))[0] == 0, 'Niri configuration capabilities')
     report((root / 'native/nothing/target/release/foundation-nothing').exists(), 'Nothing backend built')
+    report(os.access(root / 'native/foundation/target/release/desktop-foundationctl', os.X_OK), 'Shared Rust command backend built; build with scripts/build-backend')
     report((data / 'wallpapers/wallhaven-135w7w.png').is_file(), 'Stable wallpaper')
     for family in ['Google Sans', 'Google Sans Code', 'GoogleSansCode Nerd Font Mono']:
         code, match = run('fc-match', '-f', '%{family}', family)
@@ -210,14 +228,15 @@ def main():
     from install_engine import deployment_conflicts
     report(not deployment_conflicts(), 'Deployment ownership (no externally replaced links)')
     from theme_runtime import current as current_theme
-    import hashlib, tomllib
+    import tomllib
+    from theme_pipeline import file_hash
     try:
         revision = current_theme()
         if revision is None:
             raise RuntimeError('Runtime theme not initialized')
         metadata = json.loads((revision / 'metadata.json').read_text())
         wallpaper = tomllib.loads((revision / 'wallpaper.toml').read_text())
-        report(hashlib.sha256(Path(wallpaper['image']).read_bytes()).hexdigest() == metadata['wallpaperHash'], 'Runtime wallpaper content hash matches revision')
+        report(file_hash(Path(wallpaper['image'])) == metadata['wallpaperHash'], 'Runtime wallpaper content hash matches revision')
         for output in ['semantic.json', 'overview.png', 'niri.kdl', 'terminal/kitty/kitty.conf', 'brave/manifest.json', 'spotify/color.ini']:
             report((revision / output).is_file(), 'Theme output ' + output)
         print('PASS: runtime theme revision ' + revision.name)

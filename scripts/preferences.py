@@ -12,7 +12,7 @@ STATE = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))
 
 
 def run(*args):
-    return subprocess.check_output(args, text=True).strip()
+    return subprocess.check_output(args, text=True, timeout=10).strip()
 
 
 def get(key):
@@ -21,9 +21,9 @@ def get(key):
 
 def set_value(key, value):
     if key[0] == 'gsettings':
-        subprocess.run(['gsettings', 'set', 'org.gnome.desktop.interface', key[1], value], check=True)
+        subprocess.run(['gsettings', 'set', 'org.gnome.desktop.interface', key[1], value], check=True, timeout=10)
     elif value:
-        subprocess.run(['xdg-mime', 'default', value, key[1]], check=True)
+        subprocess.run(['xdg-mime', 'default', value, key[1]], check=True, timeout=10)
     else:
         # MIME settings are restored by the deploy journal's file backup instead.
         pass
