@@ -61,9 +61,16 @@ class ApplicationRoles(unittest.TestCase):
         self.file.unlink(); roles.apply(); self.assertTrue(self.file.exists()); roles.restore(); self.assertFalse(self.file.exists())
 
     def test_core_to_personal_retains_original_for_restore(self):
-        roles.apply(); self.assertEqual(roles.query('x-scheme-handler/http'), 'firefox.desktop')
-        roles.apply(True); self.assertEqual(roles.query('x-scheme-handler/http'), 'brave-origin-nightly.desktop')
-        roles.restore(); self.assertEqual(self.file.read_text().strip(), self.original.strip())
+        configured = roles.roles()
+        def fixture(personal=False):
+            browser = dict(configured['browser'], desktop='personal-browser.desktop' if personal else 'core-browser.desktop')
+            return dict(configured, browser=browser)
+        # Exercise a real role transition even when core and personal browsers
+        # are intentionally configured to the same application on this host.
+        with patch.object(roles, 'roles', side_effect=fixture):
+            roles.apply(); self.assertEqual(roles.query('x-scheme-handler/http'), 'core-browser.desktop')
+            roles.apply(True); self.assertEqual(roles.query('x-scheme-handler/http'), 'personal-browser.desktop')
+            roles.restore(); self.assertEqual(self.file.read_text().strip(), self.original.strip())
 
     def test_interrupted_publication_can_resume(self):
         roles.apply(); saved = json.loads(self.journal.read_text()); entry = saved['entries']['inode/directory']

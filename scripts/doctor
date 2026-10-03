@@ -51,12 +51,16 @@ def session_main():
                 failures.append(unit + ': Niri session activation missing; run scripts/deploy')
         code, greeter = run('systemctl', 'is-active', 'greetd.service')
         if not code:
-            pam = Path('/etc/pam.d/greetd').read_text()
-            hooks = [line.split('#', 1)[0].split() for line in pam.splitlines()]
-            auth = any(line and line[0] == 'auth' and 'pam_gnome_keyring.so' in line for line in hooks)
-            session = any(line and line[0] == 'session' and 'pam_gnome_keyring.so' in line and 'auto_start' in line for line in hooks)
-            if not auth or not session:
-                failures.append('greetd keyring login unlock missing: sudo scripts/system-setup install, then password-login again')
+            try:
+                pam = Path('/etc/pam.d/greetd').read_text()
+            except OSError:
+                failures.append('greetd PAM configuration unreadable: inspect /etc/pam.d/greetd')
+            else:
+                hooks = [line.split('#', 1)[0].split() for line in pam.splitlines()]
+                auth = any(line and line[0] == 'auth' and 'pam_gnome_keyring.so' in line for line in hooks)
+                session = any(line and line[0] == 'session' and 'pam_gnome_keyring.so' in line and 'auto_start' in line for line in hooks)
+                if not auth or not session:
+                    failures.append('greetd keyring login unlock missing: sudo scripts/system-setup install, then password-login again')
         for process in ['swaybg', 'wl-clip-persist', 'gnome-keyring-daemon']:
             code, pids = run('pgrep', '-x', process if len(process) <= 15 else 'gnome-keyring-d')
             count = len(pids.splitlines()) if not code else 0

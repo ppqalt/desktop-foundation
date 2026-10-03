@@ -17,6 +17,13 @@ class PortalDiagnosis(unittest.TestCase):
                 return 0, '{"keyboards":[{"active_keymap":"Finnish"}]}'
             return 0, ''
         output = io.StringIO()
-        with patch.dict(MODULE['main'].__globals__, {'run': run}), patch.dict('os.environ', {v: 'test' for v in ['WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']}), redirect_stdout(output):
+        with patch.dict(MODULE['main'].__globals__, {'run': run}), patch.dict('os.environ', {v: 'test' for v in ['WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']}, clear=True), redirect_stdout(output):
             self.assertTrue(MODULE['main']())
         self.assertIn('xdg-desktop-portal: inspect journalctl', output.getvalue())
+
+
+    def test_missing_greetd_pam_is_actionable_without_traceback(self):
+        output = io.StringIO()
+        with patch.dict(MODULE['session_main'].__globals__, {'run': lambda *args: (0, '')}), patch.dict('os.environ', {'NIRI_SOCKET': 'fixture'}, clear=True), patch('pathlib.Path.read_text', side_effect=FileNotFoundError('fixture missing')), redirect_stdout(output):
+            self.assertTrue(MODULE['session_main']())
+        self.assertIn('greetd PAM configuration unreadable', output.getvalue())
