@@ -113,9 +113,30 @@ The physical folder avoids canonicalizing a revision symlink into changing IDs.
 The Manifest V3 theme has no permissions, JavaScript, profile access or watcher.
 It maps supported frame, toolbar, tabs, icons, omnibox and new-tab colors to
 semantic graphite roles. It cannot theme arbitrary web pages or force unsupported
-border roles. A disposable Brave profile accepted the manifest and registered a
-theme ID; the main browsing profile was left untouched. Manual refresh in the
-user's main browser remains a user action, not an automatically verified step.
+border roles. On Brave Origin Nightly 154.1.98.33, the user installed this stable
+folder into their real profile. After a blue-to-orange wallpaper transaction,
+Brave remained blue; loading the same folder again applied orange. Thus changing
+manifest.json alone is not an automatic refresh mechanism on this session.
+
+The public management API has no reload-from-disk method; enabling/disabling an
+extension is not a documented disk reload substitute. Themes contain no code,
+so cannot watch files or invoke runtime.reload themselves. Official Chrome
+DevTools MCP implements unpacked reload by reinstalling the same path through
+CDP's Extensions.loadUnpacked. This is a supported programmatic route, so we do
+not claim automatic refresh is fundamentally impossible. It needs an enabled
+browser-debugging connection and extension-loading capability. The running
+Brave session has no such connected controller. Newer Chrome also offers an
+opt-in remote-debugging UI; its Brave/theme-loading coverage has not been
+validated here. No broad debugging access, launch flags, profile edits or browser
+restart were introduced merely to recolor the browser.
+
+Current contract: wallpaper-set updates the stable manifest; one native Load
+unpacked action on that same folder refreshes the running browser. Rollback
+restores the manifest from the previous bundle, but likewise requires that native
+action before Brave reflects it. The same physical path retains unpacked identity;
+no per-wallpaper theme directories are installed into Brave. Only theme runtime
+files are written. The normal browsing profile is accessed solely through the
+user's native install/reload actions.
 
 This pass stops after Brave. Spotify currently uses Spicetify Marketplace's
 special theme; replacing it could disrupt Marketplace theme installation. Next
@@ -138,3 +159,9 @@ Primary references: [Matugen](https://github.com/InioX/matugen),
 [Chromium themes](https://developer.chrome.com/docs/extensions/develop/ui/themes),
 [native unpacked loading](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world),
 [Chromium theme lifecycle](https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/themes/theme_service.cc).
+
+Refresh investigation sources:
+[public management API](https://developer.chrome.com/docs/extensions/reference/api/management),
+[official DevTools reload implementation](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/src/tools/extensions.ts),
+[CDP extension loading](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/),
+[opt-in running-browser connection](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/advanced-usage.md).
