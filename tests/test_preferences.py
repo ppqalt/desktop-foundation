@@ -44,3 +44,29 @@ class Preferences(unittest.TestCase):
     def test_theme_only_does_not_mutate_roles(self):
         with patch.object(application_roles, 'apply') as apply:
             self.invoke('install'); apply.assert_not_called()
+
+    def test_interrupted_restore_retains_only_unfinished_settings(self):
+        self.invoke('install')
+        def fail_second(key, value):
+            if key[1] == 'gtk-theme': raise OSError('native write failed')
+            self.values[key[1]] = value
+        with patch.object(prefs, 'set_value', side_effect=fail_second):
+            with self.assertRaises(OSError): self.invoke('restore')
+        remaining = json.loads((prefs.STATE / 'preferences.json').read_text())
+        self.assertEqual([e['key'][1] for e in remaining], ['gtk-theme'])
+        self.assertEqual(self.values['color-scheme'], "'default'")
+        self.invoke('restore')
+        self.assertEqual(self.values, {'color-scheme': "'default'", 'gtk-theme': "'Adwaita'"})
+        self.assertFalse((prefs.STATE / 'preferences.json').exists())
+
+    def test_crash_after_native_restore_before_journal_update_can_resume(self):
+        import theme_pipeline
+        self.invoke('install'); original = theme_pipeline.atomic
+        def fail_after_write(path, text):
+            if len(json.loads(text)) == 1: raise OSError('publication failed')
+            return original(path, text)
+        with patch.object(theme_pipeline, 'atomic', side_effect=fail_after_write):
+            with self.assertRaises(OSError): self.invoke('restore')
+        self.assertEqual(self.values['color-scheme'], "'default'")
+        self.invoke('restore')
+        self.assertEqual(self.values['gtk-theme'], "'Adwaita'")

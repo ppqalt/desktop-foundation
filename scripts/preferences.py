@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Journal global desktop preferences separately from linked configuration files."""
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -29,6 +31,20 @@ def set_value(key, value):
 
 def manage_setting(key, value):
     """Per-setting original ownership; journal before the supported native write."""
+    with preference_lock():
+        _manage_setting(key, value)
+
+
+@contextmanager
+def preference_lock():
+    STATE.mkdir(parents=True, exist_ok=True)
+    fd = os.open(STATE / 'preferences.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def _manage_setting(key, value):
     from theme_pipeline import atomic
     path = STATE / 'preferences.json'
     entries = json.loads(path.read_text()) if path.exists() else []
@@ -47,6 +63,32 @@ def manage_setting(key, value):
     atomic(path, json.dumps(entries, indent=2) + '\n')
 
 
+def restore_preferences():
+    from theme_pipeline import atomic
+    from application_roles import restore as restore_roles
+    with preference_lock():
+        path = STATE / 'preferences.json'
+        entries = json.loads(path.read_text()) if path.exists() else []
+        for entry in entries:
+            if get(entry['key']) not in {entry['managed'], entry.get('pending', entry['managed'])}:
+                raise RuntimeError('Preference changed outside installation: ' + entry['key'][1])
+        restore_roles()
+        while entries:
+            entry = entries[0]
+            current = get(entry['key'])
+            if current not in {entry['managed'], entry.get('pending', entry['managed'])}:
+                raise RuntimeError('Preference changed outside installation: ' + entry['key'][1])
+            # Write-ahead restoration makes a crash after the native write
+            # resumable: the original value is then an accepted pending value.
+            entry['pending'] = entry['original']
+            atomic(path, json.dumps(entries, indent=2) + '\n')
+            if current != entry['original']:
+                set_value(entry['key'], entry['original'])
+            entries.pop(0)
+            atomic(path, json.dumps(entries, indent=2) + '\n')
+        path.unlink(missing_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['install', 'restore'])
@@ -54,17 +96,8 @@ def main():
     parser.add_argument('--browser', default=None, help='Explicit verified desktop entry for personal installation')
     args = parser.parse_args()
     STATE.mkdir(parents=True, exist_ok=True)
-    path = STATE / 'preferences.json'
-    entries = json.loads(path.read_text()) if path.exists() else []
     if args.action == 'restore':
-        for entry in entries:
-            if get(entry['key']) not in {entry['managed'], entry.get('pending', entry['managed'])}:
-                raise RuntimeError('Preference changed outside installation: ' + entry['key'][1])
-        from application_roles import restore as restore_roles
-        restore_roles()
-        for entry in entries:
-            set_value(entry['key'], entry['original'])
-        path.unlink(missing_ok=True)
+        restore_preferences()
         return
     changes = [(['gsettings', 'color-scheme'], "'prefer-dark'"),
                (['gsettings', 'gtk-theme'], "'adw-gtk3-dark'")]

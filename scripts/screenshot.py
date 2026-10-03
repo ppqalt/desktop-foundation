@@ -47,14 +47,14 @@ def main():
             from screenshot_backends import niri
             try:
                 return niri.region()
-            except (OSError, subprocess.SubprocessError) as error:
+            except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
                 print(f'Screenshot: {error}', file=sys.stderr)
                 return 1
         mapping = {'window': 'screenshot-window', 'output': 'screenshot-screen'}
         try:
             command = ['niri', 'msg', 'action', mapping[args.action]]
             command += ['--show-pointer', 'false', '--write-to-disk', 'false']
-            return subprocess.run(command, check=True).returncode
+            return subprocess.run(command, check=True, timeout=5).returncode
         except (OSError, subprocess.SubprocessError) as error:
             print(f'Screenshot: {error}', file=sys.stderr)
             return 1
