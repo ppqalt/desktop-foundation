@@ -1,5 +1,5 @@
 use desktop_foundationctl::{
-    Result, actions, apps, cache, clipboard, invalid, packages, process, volume,
+    Result, actions, apps, cache, clipboard, invalid, packages, process, shell, volume,
 };
 use std::{
     io::{self, Read},
@@ -39,7 +39,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
         );
         return Ok(());
     }
@@ -68,9 +68,20 @@ fn run() -> Result<()> {
                 _ => Err(invalid("Expected cache plan or cache prune")),
             }
         }
-        Some("system") if args.len() == 2 && args[1] == "packages" => {
-            println!("{}", packages::display(&root)?);
+        Some("system") if args.get(1).map(String::as_str) == Some("packages") => {
+            let config = match args.as_slice() {
+                [_, _] => root.join("terminal/fastfetch/packages.jsonc"),
+                [_, _, option, file] if option == "--config" => std::env::current_dir()?.join(file),
+                _ => return Err(invalid("Expected system packages [--config FILE]")),
+            };
+            if !config.is_absolute() || !config.is_file() {
+                return Err(invalid("Package config must be an existing absolute file"));
+            }
+            println!("{}", packages::display(&config)?);
             Ok(())
+        }
+        Some("shell") if args.get(1).map(String::as_str) == Some("call") => {
+            shell::call(&root, &args[2..])
         }
         Some("volume") if args.len() == 2 => volume::adjust(&root, &args[1]),
         Some("power") => {

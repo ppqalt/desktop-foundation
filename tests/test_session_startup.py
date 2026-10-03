@@ -94,3 +94,37 @@ if method == 'status' and lines.count('status') < 2:
                                     capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(log.read_text().splitlines(), ['status', 'status', 'status', 'toggleLauncher'])
+
+    def test_stalled_shell_readiness_and_action_have_real_deadlines_without_replay(self):
+        import os
+        import time
+        binary = ROOT / 'native/foundation/target/debug/desktop-foundationctl'
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp); log = base / 'calls'; fake = base / 'quickshell'
+            fake.write_text("#!/usr/bin/env python3\nimport os,pathlib,sys,time\np=pathlib.Path(os.environ['DF_TEST_LOG'])\nwith p.open('a') as file: file.write(sys.argv[-1]+'\\n')\nif sys.argv[-1] == os.environ['DF_STALL_METHOD']: time.sleep(30)\n")
+            fake.chmod(0o755)
+            env = {**os.environ, 'PATH': str(base) + ':' + os.environ['PATH'], 'DF_TEST_LOG': str(log)}
+            for method, message in [('status', 'within three seconds'), ('toggleLauncher', 'timed out')]:
+                log.unlink(missing_ok=True); env['DF_STALL_METHOD'] = method
+                start = time.monotonic()
+                result = subprocess.run([str(binary), '--root', str(ROOT), 'shell', 'call', 'toggleLauncher'],
+                                        env=env, capture_output=True, text=True, timeout=6)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+                self.assertLess(time.monotonic() - start, 4.5)
+                calls = log.read_text().splitlines()
+                self.assertEqual(calls.count('toggleLauncher'), 0 if method == 'status' else 1)
+
+    def test_readiness_does_not_capture_large_window_status(self):
+        import os
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp); fake = base / 'quickshell'; log = base / 'calls'
+            fake.write_text("#!/usr/bin/env python3\nimport os,pathlib,sys\nwith pathlib.Path(os.environ['DF_TEST_LOG']).open('a') as file: file.write(sys.argv[-1]+'\\n')\nif sys.argv[-1] == 'status': print('x' * 256000)\nelse: print('ready')\n")
+            fake.chmod(0o755)
+            binary = ROOT / 'native/foundation/target/debug/desktop-foundationctl'
+            result = subprocess.run([str(binary), '--root', str(ROOT), 'shell', 'call', 'toggleLauncher'],
+                                    env={**os.environ, 'PATH': str(base) + ':' + os.environ['PATH'], 'DF_TEST_LOG': str(log)},
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, 'ready\n')
+            self.assertEqual(log.read_text().splitlines(), ['status', 'toggleLauncher'])

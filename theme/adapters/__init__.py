@@ -2,6 +2,7 @@
 import json
 import hashlib
 import shutil
+import shlex
 from pathlib import Path
 
 MODES = {
@@ -43,6 +44,16 @@ def render(root, target, p, profile, reset=False):
     from render_niri import render as niri_render
     for name in ('kitty','fish','fastfetch'):
         shutil.copytree(root/'terminal'/name,target/'terminal'/name,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+    # Immutable bundles are copied outside the checkout. Pin their runtime helper
+    # to the owning checkout while reading this revision's package presentation.
+    backend=shlex.quote(str(root.resolve()/'native/foundation/target/release/desktop-foundationctl'))
+    owner=shlex.quote(str(root.resolve()))
+    (target/'terminal/fastfetch/packages').write_text(
+        '#!/usr/bin/env bash\nset -euo pipefail\n'
+        'source_path=${BASH_SOURCE[0]}\n'
+        '[[ $source_path == */* ]] || source_path=./$source_path\n'
+        f'exec {backend} --root {owner} system packages '
+        '--config "${source_path%/*}/packages.jsonc" "$@"\n')
     terminal=json.loads((root/'theme/fallback/terminal.json').read_text())
     if not reset:
         for key in ('background','foreground','muted','accent','error'):terminal[key]=p[key][1:]

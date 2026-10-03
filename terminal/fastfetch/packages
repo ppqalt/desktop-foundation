@@ -2,4 +2,4 @@
 set -euo pipefail
 source_path=${BASH_SOURCE[0]}
 [[ $source_path == */* ]] || source_path=./$source_path
-exec "${source_path%/*}/../../native/foundation/target/release/desktop-foundationctl" system packages "$@"
+exec "${source_path%/*}/../../native/foundation/target/release/desktop-foundationctl" system packages --config "${source_path%/*}/packages.jsonc" "$@"

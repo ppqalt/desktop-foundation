@@ -108,7 +108,7 @@ pub fn foreign_count(database: &Path, repositories: &[String], cache: &Path) -> 
     Ok(count)
 }
 
-pub fn display(root: &Path) -> Result<String> {
+pub fn display(config: &Path) -> Result<String> {
     let output = |args: Vec<String>| -> Result<String> {
         let value = process::checked(&args, None, Duration::from_secs(5), true)?;
         String::from_utf8(value.stdout).map_err(|_| invalid("Package information is not UTF-8"))
@@ -133,9 +133,7 @@ pub fn display(root: &Path) -> Result<String> {
     let total = output(vec![
         "fastfetch".into(),
         "--config".into(),
-        root.join("terminal/fastfetch/packages.jsonc")
-            .to_string_lossy()
-            .into_owned(),
+        config.to_string_lossy().into_owned(),
         "--pipe".into(),
         "true".into(),
     ])?;

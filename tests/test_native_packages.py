@@ -6,6 +6,12 @@ import subprocess
 import shutil
 import tempfile
 import unittest
+import sys
+from unittest.mock import patch
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from theme.adapters import render
+from theme_pipeline import derive
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = ROOT / 'native/foundation/target/debug/desktop-foundationctl'
@@ -80,6 +86,44 @@ class NativeForeignCache(unittest.TestCase):
         helper = terminal / 'packages'; helper.write_bytes((ROOT / 'terminal/fastfetch/packages').read_bytes()); helper.chmod(0o755)
         (terminal / 'packages.jsonc').write_bytes((ROOT / 'terminal/fastfetch/packages.jsonc').read_bytes())
         installed = self.base / 'user-config'; installed.mkdir(); (installed / 'fastfetch').symlink_to(terminal)
-        self.fake('fastfetch', 'assert sys.argv[2] == ' + repr(str(terminal / 'packages.jsonc')) + '\nprint("1234 (pacman)")')
+        self.fake('fastfetch', 'assert sys.argv[2] == ' + repr(str(installed / 'fastfetch/packages.jsonc')) + '\nprint("1234 (pacman)")')
         result = subprocess.run([str(installed / 'fastfetch/packages')], env=self.env, check=True, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.stdout, '1234 (pacman), 1 (AUR)\n')
+
+    def test_relative_source_helper_invocation_preserves_package_config(self):
+        root = self.base / 'relative source checkout'
+        target = root / 'native/foundation/target/release/desktop-foundationctl'
+        target.parent.mkdir(parents=True); shutil.copy2(BINARY, target)
+        (root / 'config').mkdir(); (root / 'config/application-roles.json').write_text('{}')
+        shutil.copytree(ROOT / 'terminal/fastfetch', root / 'terminal/fastfetch')
+        config = root / 'terminal/fastfetch/packages.jsonc'
+        self.fake('fastfetch', 'from pathlib import Path\nassert Path(sys.argv[2]).is_absolute()\n'
+                  + 'assert Path(sys.argv[2]).resolve() == Path(' + repr(str(config)) + ').resolve()\n'
+                  + 'print("1234 (pacman)")')
+        for helper in ['./terminal/fastfetch/packages', 'terminal/fastfetch/packages']:
+            with self.subTest(helper=helper):
+                result = subprocess.run([helper], cwd=root, env=self.env, check=True,
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.stdout, '1234 (pacman), 1 (AUR)\n')
+
+    def test_copied_theme_bundle_resolves_owner_and_keeps_revision_package_config(self):
+        # Actual deployment topology: config -> current -> copied revision files.
+        root = self.base / "owner checkout with ' quote"
+        shutil.copytree(ROOT / 'terminal', root / 'terminal')
+        shutil.copytree(ROOT / 'theme/fallback', root / 'theme/fallback')
+        target = root / 'native/foundation/target/release/desktop-foundationctl'
+        target.parent.mkdir(parents=True); shutil.copy2(BINARY, target)
+        (root / 'config').mkdir(); (root / 'config/application-roles.json').write_text('{}')
+        revision = self.base / 'state/theme/revisions/example'
+        revision.mkdir(parents=True)
+        palette = derive({'primary': '#ffb599', 'secondary': '#dfbfaf'}, 'test', 'hash')
+        with patch('render_niri.render', return_value='// test'):
+            render(root, revision, palette, 'lucky38')
+        current = revision.parents[1] / 'current'; current.symlink_to(revision)
+        installed = self.base / 'config'; installed.mkdir()
+        (installed / 'fastfetch').symlink_to(current / 'terminal/fastfetch')
+        config = installed / 'fastfetch/packages.jsonc'
+        self.fake('fastfetch', 'assert sys.argv[2] == ' + repr(str(config)) + '\nprint("1234 (pacman)")')
+        result = subprocess.run([str(installed / 'fastfetch/packages')], env=self.env, check=True,
+                                capture_output=True, text=True, timeout=10)
         self.assertEqual(result.stdout, '1234 (pacman), 1 (AUR)\n')
