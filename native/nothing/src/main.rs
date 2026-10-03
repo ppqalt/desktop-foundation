@@ -600,6 +600,23 @@ mod tests {
         )
     }
     #[tokio::test]
+    async fn malformed_gesture_metadata_is_an_error_before_any_device_write() {
+        for metadata in [
+            json!({"device":2,"kind":2}),
+            json!({"device":2,"kind":2,"common":256}),
+            json!({"device":0,"kind":2,"common":1}),
+        ] {
+            let (mut ear, _server) = fixture();
+            ear.state["gestures"] = json!([metadata]);
+            assert!(
+                ear.action(json!({"setting":"gestures","slot":0,"value":8}))
+                    .await
+                    .is_err()
+            );
+            assert_eq!(ear.id, 0);
+        }
+    }
+    #[tokio::test]
     async fn correlation_and_unsolicited_battery() {
         let (mut ear, mut server) = fixture();
         tokio::spawn(async move {
