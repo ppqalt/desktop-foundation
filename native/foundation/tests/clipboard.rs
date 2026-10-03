@@ -192,3 +192,76 @@ fn publication_does_not_follow_a_temporary_symlink_and_encodes_uri() {
         "file:///tmp/%C3%A4%20%23.png"
     );
 }
+
+#[test]
+fn interrupted_publications_are_reclaimed_on_recovery_and_clear() {
+    let f = Fixture::new();
+    let mut h = History::open(&f.0).unwrap();
+    let payload = b"\x89PNG\r\n\x1a\nsynthetic private image";
+    h.store("image", payload).unwrap();
+    let id = f.entries()[0]["id"].as_str().unwrap().to_owned();
+    let projection = f.0.join(format!("{id}.png"));
+    drop(h);
+    fs::remove_file(&projection).unwrap();
+    let orphans = [
+        format!(".{id}.png-123456-0.tmp"),
+        ".index.json-123456-1.tmp".into(),
+        format!("{id}.png.tmp"),
+        "index.json.tmp".into(),
+    ];
+    for name in &orphans {
+        fs::write(f.0.join(name), payload).unwrap();
+    }
+    let foreign = [
+        ".user.png-123456-0.tmp".into(),
+        ".index.json-worker-0.tmp".into(),
+        ".index.json-0-0.tmp".into(),
+        ".index.json-0012-0.tmp".into(),
+        format!(".{id}.png-123456-sequence.tmp"),
+        format!("{id}.png.tmp.backup"),
+        "user-image.png".into(),
+    ];
+    for name in &foreign {
+        fs::write(f.0.join(name), b"user-owned").unwrap();
+    }
+    let link = f.0.join(format!(".{id}.jpeg-123456-2.tmp"));
+    std::os::unix::fs::symlink(f.0.join("user-image.png"), &link).unwrap();
+    let directory = f.0.join(".index.json-123456-3.tmp");
+    fs::create_dir(&directory).unwrap();
+    fs::write(directory.join("user-file"), b"kept").unwrap();
+
+    let mut h = History::open(&f.0).unwrap();
+    assert!(orphans.iter().all(|name| !f.0.join(name).exists()));
+    h.export().unwrap();
+    assert_eq!(fs::read(&projection).unwrap(), payload);
+    assert_eq!(h.payload(&id).unwrap().1, payload);
+
+    // Also reclaim a fragment encountered while the History handle is open,
+    // so a successful clear cannot leave recognized payload/preview copies.
+    let clear_orphans = [
+        format!(".{id}.png-123456-4.tmp"),
+        ".index.json-123456-5.tmp".into(),
+    ];
+    for name in &clear_orphans {
+        fs::write(f.0.join(name), payload).unwrap();
+    }
+    h.clear().unwrap();
+    assert_eq!(f.entries(), serde_json::json!([]));
+    assert!(!projection.exists());
+    assert!(clear_orphans.iter().all(|name| !f.0.join(name).exists()));
+    for name in &foreign {
+        assert_eq!(fs::read(f.0.join(name)).unwrap(), b"user-owned");
+    }
+    assert!(fs::symlink_metadata(link).unwrap().file_type().is_symlink());
+    assert_eq!(fs::read(directory.join("user-file")).unwrap(), b"kept");
+}
+
+#[test]
+fn unreadable_database_preserves_interrupted_publication_evidence() {
+    let f = Fixture::new();
+    fs::write(f.0.join("history.sqlite"), b"not a SQLite database").unwrap();
+    let orphan = f.0.join(".index.json-123456-0.tmp");
+    fs::write(&orphan, b"retained recovery evidence").unwrap();
+    assert!(History::open(&f.0).is_err());
+    assert_eq!(fs::read(orphan).unwrap(), b"retained recovery evidence");
+}

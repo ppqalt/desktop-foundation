@@ -49,6 +49,38 @@ pub fn valid_id(id: &str) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
+fn image_projection(name: &str) -> bool {
+    name.rsplit_once('.')
+        .is_some_and(|(id, ext)| valid_id(id) && matches!(ext, "png" | "jpeg" | "gif" | "webp"))
+}
+
+fn interrupted_publication(name: &str) -> bool {
+    let Some(temporary) = name.strip_suffix(".tmp") else {
+        return false;
+    };
+    // The old worker used fixed temporary names. The native publisher adds a
+    // dot, positive process ID and sequence; match that exact owned shape.
+    if temporary == "index.json" || image_projection(temporary) {
+        return true;
+    }
+    let Some(native) = temporary.strip_prefix('.') else {
+        return false;
+    };
+    let Some((publication, sequence)) = native.rsplit_once('-') else {
+        return false;
+    };
+    let Some((destination, pid)) = publication.rsplit_once('-') else {
+        return false;
+    };
+    (destination == "index.json" || image_projection(destination))
+        && pid
+            .parse::<u32>()
+            .is_ok_and(|n| n > 0 && n.to_string() == pid)
+        && sequence
+            .parse::<u64>()
+            .is_ok_and(|n| n.to_string() == sequence)
+}
+
 fn image_mime(data: &[u8]) -> Option<&'static str> {
     if data.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("image/png")
@@ -99,11 +131,36 @@ impl History {
         fs::set_permissions(&database, fs::Permissions::from_mode(0o600))?;
         db.busy_timeout(Duration::from_secs(5))?;
         db.execute_batch("PRAGMA secure_delete=ON; CREATE TABLE IF NOT EXISTS clips (id TEXT PRIMARY KEY, mime TEXT, payload BLOB, updated REAL);")?;
-        Ok(Self {
+        let history = Self {
             directory,
             db,
             _lock: lock,
-        })
+        };
+        // Abrupt termination skips the atomic publisher's destructor. With
+        // the shared lock held, no recognized publication can still be active.
+        // Validate/open SQLite first so a corrupt database retains evidence.
+        history.remove_interrupted_publications()?;
+        Ok(history)
+    }
+
+    fn remove_interrupted_publications(&self) -> Result<()> {
+        let mut removed = false;
+        for item in fs::read_dir(&self.directory)? {
+            let item = item?;
+            if item
+                .file_name()
+                .to_str()
+                .is_some_and(interrupted_publication)
+                && item.file_type()?.is_file()
+            {
+                fs::remove_file(item.path())?;
+                removed = true;
+            }
+        }
+        if removed {
+            fs::File::open(&self.directory)?.sync_all()?;
+        }
+        Ok(())
     }
 
     pub fn store(&mut self, kind: &str, data: &[u8]) -> Result<()> {
@@ -240,19 +297,25 @@ impl History {
             &serde_json::to_vec(&entries)?,
             0o600,
         )?;
-        // Remove only recognized projections, after publishing the new index.
+        // Remove only recognized regular projections and interrupted
+        // publications, after publishing the new index. Foreign files and
+        // symlinks remain intact, including when history is cleared.
+        let mut removed = false;
         for item in fs::read_dir(&self.directory)? {
             let item = item?;
             let name = item.file_name();
             let path = item.path();
             if let Some(name) = name.to_str()
-                && let Some((id, ext)) = name.rsplit_once('.')
-                && valid_id(id)
-                && matches!(ext, "png" | "jpeg" | "gif" | "webp")
-                && !images.contains(name)
+                && (interrupted_publication(name)
+                    || (image_projection(name) && !images.contains(name)))
+                && item.file_type()?.is_file()
             {
                 fs::remove_file(path)?;
+                removed = true;
             }
+        }
+        if removed {
+            fs::File::open(&self.directory)?.sync_all()?;
         }
         Ok(())
     }
