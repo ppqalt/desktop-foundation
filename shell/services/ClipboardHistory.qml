@@ -7,7 +7,7 @@ QtObject {
     // Keep external executables as filesystem paths; resolvedUrl blackholes paths
     // outside the Quickshell config directory. Override only for isolated tests.
     readonly property string workerOverride: Quickshell.env("DF_CLIPBOARD_WORKER")
-    readonly property var backendCommand: workerOverride ? (workerOverride.endsWith(".py") ? ["python3", workerOverride] : [workerOverride]) : [Quickshell.shellDir + "/../scripts/foundation", "clipboard"]
+    readonly property var backendCommand: workerOverride ? (workerOverride.endsWith(".py") ? ["python3", workerOverride] : [workerOverride]) : [Quickshell.shellDir + "/../native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.shellDir + "/..", "clipboard"]
     readonly property string stateDirectory: Quickshell.env("DF_CLIPBOARD_STATE") || (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/desktop-foundation/clipboard"
     property var entries: []
     property bool loading: true

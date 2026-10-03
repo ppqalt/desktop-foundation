@@ -208,10 +208,10 @@ QtObject {
         requests.connected = false;
         currentRequest = null;
         lastError = error;
-        if (outputsFailed)
-            stream.connected = false;
+        if (outputsFailed) {
             // Retry complete snapshots after backoff.
-        else
+            stream.connected = false;
+        } else
             Qt.callLater(root.nextRequest);
     }
     function send(request): void {

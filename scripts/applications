@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+source_path=${BASH_SOURCE[0]}
+[[ $source_path == */* ]] || source_path=./$source_path
 if [[ ${1:-} == launch ]]; then
 	shift
-	exec "$root/scripts/foundation" apps launch "$@"
+	exec "${source_path%/*}/foundation" apps launch "$@"
 fi
+root=$(cd -- "${source_path%/*}/.." && pwd)
 exec python3 "$root/scripts/application_roles.py" "$@"

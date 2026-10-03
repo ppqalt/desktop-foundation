@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate runtime dependencies and native compositor support before deployment."""
 import argparse
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -15,6 +16,9 @@ required = ['pactl', 'busctl', 'blueman-manager', 'niri', 'quickshell', 'kitty',
             'wl-clip-persist', 'swaybg', 'mako', 'grim', 'slurp', 'wpctl', 'playerctl', 'notify-send',
             'dbus-update-activation-environment', 'gsettings', 'xdg-mime', 'fc-cache', 'pacman-conf', 'xwayland-satellite']
 missing = [name for name in required if not shutil.which(name)]
+backend = ROOT / 'native/foundation/target/release/desktop-foundationctl'
+if not backend.is_file() or not os.access(backend, os.X_OK):
+    raise SystemExit('Shared Rust backend is not built. Run scripts/build-backend; nothing deployed.')
 if missing:
     raise SystemExit('Missing runtime tools: ' + ', '.join(missing) + '. Run scripts/bootstrap.')
 with tempfile.NamedTemporaryFile(mode='w', suffix='.kdl') as candidate:

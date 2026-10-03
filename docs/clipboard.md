@@ -75,7 +75,9 @@ wl-copy without replacing the watched index or forcing the open list to reload.
 Store, delete, clear and initialization still publish the index atomically under
 the existing database lock. Storage limits and private file permissions remain.
 
-The Rust worker uses the existing SQLite schema, MIME-plus-NUL-plus-payload SHA-256
+The watchers, initialization unit and default QML command invoke the Rust executable
+directly, with no shell/Python interpreter in each storage event. The CLI wrapper
+remains available for manual use. The Rust worker uses the existing SQLite schema, MIME-plus-NUL-plus-payload SHA-256
 IDs and index fields. Migration requires no history conversion. Temporary files
 are unique and atomically renamed, paths from the database are validated, and
 corrupt history is reported without resetting it. Cleanup removes only recognized
