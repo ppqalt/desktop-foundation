@@ -8,7 +8,7 @@ class NiriAdapter(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("DF_TEST_NIRI_IPC") == "1" and shutil.which("quickshell") and os.environ.get("WAYLAND_DISPLAY"), "opt-in live Qt runtime: DF_TEST_NIRI_IPC=1")
     def test_event_stream_and_reconnect(self):
         with tempfile.TemporaryDirectory(prefix='foundation-niri-ipc-') as td:
-         P=Path(td);path=P/'ipc.sock'; streams=[]; seen=[]; generation=[1]; stop=threading.Event()
+         P=Path(td);path=P/'ipc.sock'; streams=[]; seen=[]; generation=[1]; stall_outputs=[True]; stop=threading.Event()
          server=socket.socket(socket.AF_UNIX);server.bind(str(path));server.listen();server.settimeout(.1)
          window=lambda i:{'id':i,'title':'Owned IPC fixture','app_id':'fixture','workspace_id':70,'is_focused':True,'is_floating':False,'is_urgent':False,'layout':{'tile_pos_in_workspace_view':None,'window_size':[900,1000]},'focus_timestamp':None}
          workspace=lambda idx:{'id':70,'idx':idx,'name':None,'output':'fixture-output','is_active':True,'is_focused':True,'is_urgent':False,'active_window_id':generation[0]}
@@ -19,7 +19,10 @@ class NiriAdapter(unittest.TestCase):
            if value=='EventStream':
             streams.append(conn);send(conn,{'Ok':'Handled'});send(conn,{'WorkspacesChanged':{'workspaces':[workspace(1)]}});send(conn,{'WindowsChanged':{'windows':[window(generation[0])]}});send(conn,{'KeyboardLayoutsChanged':{'keyboard_layouts':{'names':['Finnish'],'current_idx':0}}})
             while not stop.is_set() and conn.fileno()>=0:time.sleep(.03)
-           elif value=='Outputs':send(conn,{'Ok':{'Outputs':{'fixture-output':{'name':'fixture-output','make':'fixture','model':'output','logical':{'x':0,'y':0,'width':1920,'height':1080,'scale':1}}}}})
+           elif value=='Outputs':
+            if stall_outputs[0]:stall_outputs[0]=False;stop.wait(5)
+            else:send(conn,{'Ok':{'Outputs':{'fixture-output':{'name':'fixture-output','make':'fixture','model':'output','logical':{'x':0,'y':0,'width':1920,'height':1080,'scale':1}}}}})
+           elif value=={'Action':{'FocusWindow':{'id':777}}}:stop.wait(5)
            else:send(conn,{'Ok':'Handled'})
           except (OSError,ValueError):pass
           finally:
@@ -34,9 +37,11 @@ class NiriAdapter(unittest.TestCase):
         import Quickshell.Io
         import "adapter"
         ShellRoot {
-         Adapter { id: adapter }
+         id: fixture
+         property int timeouts: 0
+         Adapter { id: adapter; onLastErrorChanged: {if (lastError.includes("timed out")) fixture.timeouts++;} }
          IpcHandler { target: "fixture"
-          function status(): string { return JSON.stringify({ready:adapter.ready, windows:adapter.windows, workspaces:adapter.workspaces, focused:adapter.focusedWindow, error:adapter.lastError}); }
+          function status(): string { return JSON.stringify({ready:adapter.ready, windows:adapter.windows, workspaces:adapter.workspaces, focused:adapter.focusedWindow, error:adapter.lastError, timeouts:fixture.timeouts}); }
           function focus(id:string):void {adapter.focusWindow(id);}
           function screenshot():void {adapter.screenshotWindow();}
          }
@@ -57,7 +62,7 @@ class NiriAdapter(unittest.TestCase):
            time.sleep(.05)
           raise RuntimeError('Timed out: '+str(state()))
          try:
-          wait(lambda s:s['ready'] and s['focused']['id']=='1');c=streams[-1]
+          wait(lambda s:s['ready'] and s['focused']['id']=='1' and s['timeouts']==1);c=streams[-1]
           time.sleep(.2)
           centers=lambda:len([x for x in seen if isinstance(x,dict) and 'CenterColumn' in x.get('Action',{})])
           initial_centers=centers();assert initial_centers==1
@@ -77,8 +82,12 @@ class NiriAdapter(unittest.TestCase):
           ipc('focus','1');ipc('screenshot');time.sleep(.2)
           assert {'Action':{'FocusWindow':{'id':1}}} in seen
           shot=next(x['Action']['ScreenshotWindow'] for x in seen if isinstance(x,dict) and 'ScreenshotWindow' in x.get('Action',{}));assert shot['show_pointer'] is False and shot['write_to_disk'] is False
+          shots=lambda:len([x for x in seen if isinstance(x,dict) and 'ScreenshotWindow' in x.get('Action',{})])
+          before=shots();ipc('focus','777');ipc('screenshot')
+          wait(lambda s:s['ready'] and s['timeouts']==2 and shots()==before+1)
+          assert seen.count({'Action':{'FocusWindow':{'id':777}}})==1, 'Unknown-outcome actions must never be retried'
           c.shutdown(socket.SHUT_RDWR);c.close();wait(lambda s:not s['ready'] and not s['windows']);generation[0]=2;wait(lambda s:s['ready'] and s['focused']['id']=='2');assert len(streams)>=2
-          print('PASS: initial stream, unknown variant, null focus, stable workspace ID/reindex, urgency, cross-resource ordering, actions and disconnect/reconnect snapshots')
+          print('PASS: event snapshots, centering, unknown/null/cross-resource events, action routing, stalled-output recovery, stalled-action queue recovery without replay and disconnect/reconnect')
          finally:
           stop.set();proc.terminate();proc.wait(timeout=5);server.close()
           for c in streams:

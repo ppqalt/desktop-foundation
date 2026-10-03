@@ -125,6 +125,7 @@ QtObject {
                 root.haveOutputs = false;
                 root.pending = [];
                 root.currentRequest = null;
+                requestDeadline.stop();
                 requests.connected = false;
                 retry.start();
             }
@@ -163,34 +164,55 @@ QtObject {
         // qmllint disable signal-handler-parameters
         // Installed metadata omits QLocalSocket::LocalSocketError.
         onError: {
-            root.lastError = "Niri request socket failed";
-            connected = false;
-            root.currentRequest = null;
-            root.pending = [];
+            if (root.currentRequest)
+                root.finishRequest("Niri request socket failed");
         }
         // qmllint enable signal-handler-parameters
         parser: SplitParser {
             splitMarker: "\n"
             onRead: data => {
+                if (!root.currentRequest)
+                    return;
+                let error = "";
                 try {
                     const reply = JSON.parse(data);
                     if (reply.Err)
-                        root.lastError = String(reply.Err);
+                        error = String(reply.Err);
                     else {
-                        root.lastError = "";
+                        if (!("Ok" in reply))
+                            throw new Error("Missing response");
                         if (reply.Ok?.Outputs) {
                             root.rawOutputs = reply.Ok.Outputs;
                             root.haveOutputs = true;
-                        }
+                        } else if (root.currentRequest === "Outputs")
+                            throw new Error("Missing outputs");
                     }
                 } catch (e) {
-                    root.lastError = "Invalid IPC reply";
+                    error = "Invalid IPC reply";
                 }
-                requests.connected = false;
-                root.currentRequest = null;
-                Qt.callLater(root.nextRequest);
+                root.finishRequest(error);
             }
         }
+    }
+    // A stalled reply must not block every later action. This is an operation
+    // deadline, stopped while idle. Never replay an action of unknown outcome.
+    property Timer requestDeadline: Timer {
+        id: requestDeadline
+        interval: 3000
+        repeat: false
+        onTriggered: root.finishRequest("Niri request timed out")
+    }
+    function finishRequest(error: string): void {
+        const outputsFailed = error && currentRequest === "Outputs";
+        requestDeadline.stop();
+        requests.connected = false;
+        currentRequest = null;
+        lastError = error;
+        if (outputsFailed)
+            stream.connected = false;
+            // Retry complete snapshots after backoff.
+        else
+            Qt.callLater(root.nextRequest);
     }
     function send(request): void {
         if (!stream.connected)
@@ -207,6 +229,7 @@ QtObject {
             return;
         currentRequest = pending[0];
         pending = pending.slice(1);
+        requestDeadline.restart();
         requests.connected = true;
     }
     function refreshOutputs(): void {
