@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+mod input;
 mod protocol;
 mod settings;
 #[allow(dead_code)]
@@ -16,7 +17,7 @@ use std::{
     io::{self, Write},
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     time::{Duration, Instant, timeout, timeout_at},
 };
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
@@ -275,26 +276,28 @@ impl Ear {
                     .filter(|a| [1, 8, 9, 10, 11, 18, 19, 20, 21, 22].contains(a))
                     .ok_or("Unsupported gesture action")? as u8;
                 let kind = old["kind"].as_u64().ok_or("Invalid gesture type")?;
+                let device = old["device"]
+                    .as_u64()
+                    .filter(|d| [2, 3].contains(d))
+                    .ok_or("Invalid gesture device")? as u8;
+                let common = old["common"]
+                    .as_u64()
+                    .and_then(|n| u8::try_from(n).ok())
+                    .ok_or("Invalid gesture metadata")?;
                 let safe = match kind {
                     2 | 3 => [8, 9, 11].contains(&action),
                     7 => [10, 11, 18, 19, 20, 21, 22].contains(&action),
                     9 => [1, 10, 11, 18, 19, 20, 21, 22].contains(&action),
                     _ => false,
                 };
-                if !safe || ![2, 3].contains(&old["device"].as_u64().unwrap_or(0)) {
+                if !safe {
                     return Err("Unsupported gesture configuration".into());
                 }
                 let mut wanted = self.state[key].clone();
                 wanted[slot]["action"] = json!(action);
                 self.change(
                     0xf003,
-                    &[
-                        1,
-                        old["device"].as_u64().unwrap() as u8,
-                        old["common"].as_u64().unwrap() as u8,
-                        old["kind"].as_u64().unwrap() as u8,
-                        action,
-                    ],
+                    &[1, device, common, kind as u8, action],
                     0xc018,
                     0x4018,
                     key,
@@ -470,7 +473,7 @@ async fn run() -> Result<()> {
     emit(json!({"event":"state","state":ear.state}));
     let mut ringing: Option<(u8, Instant)> = None;
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-    let mut lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut lines = input::Lines::new(BufReader::new(tokio::io::stdin()));
     let mut events = device.events().await?;
     let outcome: Result<()> = async {
     loop {
@@ -484,14 +487,18 @@ async fn run() -> Result<()> {
         tokio::select! {
             _=terminate.recv()=>break,
             _=tokio::time::sleep_until(ring_end), if ringing.is_some()=>{
-                let (side,_)=ringing.take().unwrap();
+                let Some((side,_))=ringing.take() else {continue;};
                 let payload=if model.base.as_str()=="B181" {vec![0]} else {vec![side,0]};
                 ear.send(0xf002,&payload).await?;
                 emit(json!({"event":"complete","success":true}));
             },
             line=lines.next_line()=>{
                 let Some(line)=line? else {break;};
-                if line.len()>8192 {continue;}
+                let line = match line {
+                    input::CommandLine::Text(line) => line,
+                    input::CommandLine::TooLong => {emit(json!({"event":"error","message":"Command exceeds 8192 bytes"}));continue;},
+                    input::CommandLine::InvalidUtf8 => {emit(json!({"event":"error","message":"Command is not UTF-8"}));continue;},
+                };
                 let value:Value=match serde_json::from_str(&line) {Ok(v)=>v,Err(_)=>{emit(json!({"event":"error","message":"Invalid command"}));continue;}};
                 if value["action"]=="close" {break;}
                 if value["action"]=="ring" {

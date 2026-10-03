@@ -30,34 +30,38 @@ pub fn encode(command: u16, id: u8, payload: &[u8]) -> Vec<u8> {
     bytes
 }
 pub fn parse(buffer: &mut Vec<u8>) -> Option<Packet> {
-    loop {
-        if buffer.len() < 8 {
-            return None;
-        }
-        if buffer[..3] != [0x55, 0x60, 1] {
-            buffer.remove(0);
+    let mut offset = 0;
+    while buffer.len() - offset >= 8 {
+        let bytes = &buffer[offset..];
+        if bytes[..3] != [0x55, 0x60, 1] {
+            offset += 1;
             continue;
         }
-        let length = usize::from(u16::from_le_bytes([buffer[5], buffer[6]]));
+        let length = usize::from(u16::from_le_bytes([bytes[5], bytes[6]]));
         if length > 4096 {
-            buffer.remove(0);
+            offset += 1;
             continue;
         }
         let total = length + 10;
-        if buffer.len() < total {
-            return None;
+        if bytes.len() < total {
+            break;
         }
-        if crc(&buffer[..total - 2]) != u16::from_le_bytes([buffer[total - 2], buffer[total - 1]]) {
-            buffer.remove(0);
+        if crc(&bytes[..total - 2]) != u16::from_le_bytes([bytes[total - 2], bytes[total - 1]]) {
+            offset += 1;
             continue;
         }
-        let bytes: Vec<_> = buffer.drain(..total).collect();
-        return Some(Packet {
+        let packet = Packet {
             command: u16::from_le_bytes([bytes[3], bytes[4]]),
             id: bytes[7],
             payload: bytes[8..total - 2].to_vec(),
-        });
+        };
+        buffer.drain(..offset + total);
+        return Some(packet);
     }
+    // Discard noise once, preserving an incomplete header/frame. Repeated
+    // remove(0) moved the remaining buffer on every bad byte (quadratic work).
+    buffer.drain(..offset);
+    None
 }
 #[cfg(test)]
 mod tests {
@@ -75,6 +79,19 @@ mod tests {
         let packet = parse(&mut buffer).unwrap();
         assert_eq!(packet.id, 24);
         assert_eq!(packet.payload.len(), 300);
+        assert!(buffer.is_empty());
+    }
+    #[test]
+    fn long_noise_and_partial_headers_resynchronize_without_losing_packets() {
+        let mut buffer = vec![0xaa; 1024 * 1024];
+        buffer.extend([0x55, 0x60]);
+        assert!(parse(&mut buffer).is_none());
+        assert!(buffer.len() <= 7);
+        let frame = encode(0x4007, 5, &[1, 2, 3]);
+        buffer.extend(&frame[2..]);
+        let packet = parse(&mut buffer).unwrap();
+        assert_eq!(packet.command, 0x4007);
+        assert_eq!(packet.payload, [1, 2, 3]);
         assert!(buffer.is_empty());
     }
 }
