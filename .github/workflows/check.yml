@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Test tools
-        run: sudo apt-get update && sudo apt-get install -y ripgrep fish fontconfig shellcheck shfmt libdbus-1-dev pkg-config python3-pil nodejs
+        run: sudo apt-get update && sudo apt-get install -y ripgrep fish fontconfig shellcheck shfmt libdbus-1-dev pkg-config python3-pil nodejs lua5.4
       - name: Shell syntax and style
         run: |
           mapfile -t files < <(rg -l '^#!/usr/bin/env bash' scripts)
