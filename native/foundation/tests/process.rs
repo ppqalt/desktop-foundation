@@ -25,8 +25,9 @@ impl Detached {
             "sh".into(),
             "-c".into(),
             // The readiness file ensures setsid completed before the original
-            // group exits. The detached child retains all inherited pipe ends.
-            "setsid sh -c 'echo $$ > \"$1\"; sleep 20' child \"$1\" <&0 & while [ ! -s \"$1\" ]; do sleep 0.01; done".into(),
+            // group exits. Preserve stdin on fd 3 before POSIX shells replace
+            // background stdin with /dev/null; the child must retain the pipe.
+            "exec 3<&0; setsid sh -c 'echo $$ > \"$1\"; sleep 20' child \"$1\" <&3 3<&- & while [ ! -s \"$1\" ]; do sleep 0.01; done".into(),
             "parent".into(),
             self.directory.join("pid").to_string_lossy().into_owned(),
         ]
@@ -130,7 +131,11 @@ fn detached_descendants_cannot_extend_output_or_stdin_deadlines() {
             Duration::from_millis(250),
             capture,
         );
-        assert!(result.unwrap_err().to_string().contains("timed out"));
+        let error = result.expect_err("The detached child must retain its pipe");
+        assert!(
+            error.to_string().contains("timed out"),
+            "capture={capture}: {error}"
+        );
         assert!(fixture.pid() > 0, "The detached child must actually start");
         assert!(
             start.elapsed() < Duration::from_secs(2),
