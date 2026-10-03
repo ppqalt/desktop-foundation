@@ -98,6 +98,8 @@ def reload(wallpaper=False):
             try:
                 if proc.stat().st_uid==os.getuid() and (proc/'comm').read_text().strip()=='kitty':os.kill(int(proc.name),signal.SIGUSR1)
             except OSError:pass
+    from spotify_theme import refresh as spotify_refresh
+    spotify_refresh()
     if (state()/'brave-devtools.json').exists():
         subprocess.run([str(ROOT/'scripts/brave-theme-reload')],check=True)
     else:

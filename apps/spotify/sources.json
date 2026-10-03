@@ -5,9 +5,9 @@
     "sha256": "256e2eb1ec96fbc0c51afab247298e4e6eabfabbafafd4617584f44cca2fb31f"
   },
   "spicetify": {
-    "version": "2.45.1",
-    "url": "https://github.com/spicetify/cli/releases/download/v2.45.1/spicetify-2.45.1-linux-amd64.tar.gz",
-    "sha256": "994381833cf09e708ff961f8f26b5b944e61f7c66e7af93a4ae2889341ca6c32"
+    "version": "2.45.3",
+    "url": "https://github.com/spicetify/cli/releases/download/v2.45.3/spicetify-2.45.3-linux-amd64.tar.gz",
+    "sha256": "29e7f0fb49c4a722afbd7e305c25d3953b4cf0cb642216bfd4de69f63bb2c41e"
   },
   "marketplace": {
     "version": "1.0.11",

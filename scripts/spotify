@@ -2,4 +2,19 @@
 set -euo pipefail
 app_root=${XDG_DATA_HOME:-$HOME/.local/share}/desktop-foundation/apps/spotify
 export LD_LIBRARY_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/desktop-foundation/apps/spotify-libs/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$app_root/usr/share/spotify/spotify" --ozone-platform=wayland "$@"
+client="$app_root/usr/share/spotify/spotify"
+patched="$app_root/usr/share/spotify/Apps/xpui/spicetify-config.json"
+if [[ -f "$patched" ]]; then
+	exec "$client" --ozone-platform=wayland "$@"
+fi
+# First launch stays unmodified while the user signs in. Patch after a normal
+# quit, never restart the client or inspect account preference contents.
+status=0
+"$client" --ozone-platform=wayland "$@" || status=$?
+if [[ $status -eq 0 && -f "${XDG_CONFIG_HOME:-$HOME/.config}/spotify/prefs" && ! -f "$patched" ]]; then
+	script_dir=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+	if ! "$script_dir/spotify-setup" apply; then
+		printf '%s\n' 'Spotify setup could not finish. Retry scripts/post-install spotify after signing in and quitting.' >&2
+	fi
+fi
+exit "$status"

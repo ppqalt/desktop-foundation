@@ -95,6 +95,7 @@ Actual glass readability still depends on wallpaper and blur.
 | Fish | NEXT-LAUNCH | new shell, or source ~/.config/fish/theme.fish |
 | Fastfetch | NEXT-LAUNCH | next one-shot invocation |
 | Mako | RELOADABLE | makoctl reload; absent daemon uses next launch |
+| Spotify | NEXT-LAUNCH | native refresh --no-restart; optional native UI reload |
 | Brave | RELOADABLE | opt-in approved CDP reload; native manual import fallback |
 
 Wallpaper uses the existing single swaybg service; wallpaper changes restart
@@ -161,11 +162,12 @@ also be run directly to retry a pending refresh. Rollback restores the stable
 manifest first and invokes the same adapter. No profile files, databases, browser
 launch flags or browsing state are edited by this integration.
 
-This pass stops after Brave. Spotify currently uses Spicetify Marketplace's
-special theme; replacing it could disrupt Marketplace theme installation. Next
-pass: an explicit adapter preserving Marketplace behavior and native no-restart
-refresh. GTK is the next general toolkit target, with dark graphite fallback and
-separate validation of GTK3/GTK4/native application coverage.
+Spotify is now integrated through its existing Marketplace theme color layer.
+It is NEXT-LAUNCH, using supported `refresh --no-restart`; native UI reload can
+show colors sooner. Personal installation provisions/configures it automatically.
+See [Spotify provisioning and ownership](../apps/spotify/README.md). Steam is
+investigated but deferred: see [Millennium design](../docs/steam-theme-plan.md).
+GTK remains a future general-toolkit target.
 
 ## Validation
 

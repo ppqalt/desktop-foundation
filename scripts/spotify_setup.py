@@ -61,7 +61,30 @@ def link(path, source):
     path.symlink_to(source)
 
 
+def extract_marketplace(package,destination):
+    with zipfile.ZipFile(package) as archive:
+        for member in archive.infolist():
+            relative = Path(member.filename)
+            if relative.is_absolute() or '..' in relative.parts:
+                raise RuntimeError('Unsafe Marketplace archive path')
+        for member in archive.infolist():
+            relative = Path(member.filename)
+            parts = relative.parts[1:] if relative.parts[0] == 'marketplace-dist' else relative.parts
+            if not parts or member.is_dir():
+                continue
+            target = destination.joinpath(*parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(archive.read(member))
+    if not all((destination/name).is_file() for name in ("manifest.json","index.js")):
+        raise RuntimeError("Marketplace archive layout changed")
+
+
 def install():
+    existing=CONFIG/'spicetify/config-xpui.ini'
+    if existing.exists():
+        check=configparser.ConfigParser(interpolation=None);check.read(existing)
+        if check.get('Setting','current_theme',fallback='') not in ('','marketplace'):
+            raise RuntimeError('Existing Spotify theme is not marketplace; refusing to replace user customization')
     if platform.machine() != 'x86_64':
         raise RuntimeError('Pinned Spotify client is x86_64 only')
     STATE.mkdir(parents=True, exist_ok=True)
@@ -72,6 +95,10 @@ def install():
         destination = APPS / name
         stamp = destination / '.foundation-source.json'
         if destination.exists():
+            if name == 'spicetify' and stamp.exists() and (destination/'spicetify').is_file():
+                version=subprocess.check_output([str(destination/'spicetify'),'--version'],text=True).strip()
+                if version==source['version']:
+                    continue  # Preserve an already upgraded, repo-owned matching tool.
             if not stamp.exists() or json.loads(stamp.read_text()) != source:
                 raise RuntimeError(f'Existing app installation differs: {destination}')
             continue
@@ -105,21 +132,15 @@ def install():
         spicetify_config.mkdir(parents=True)
         (STATE / 'config-created').touch()
     marketplace = spicetify_config / 'CustomApps/marketplace'
+    if marketplace.exists() and not all((marketplace/name).is_file() for name in ('manifest.json','index.js')):
+        raise RuntimeError('Existing Marketplace installation is incomplete; refusing to overwrite it')
     if not marketplace.exists():
-        marketplace.mkdir(parents=True)
-        with zipfile.ZipFile(download(sources['marketplace'])) as archive:
-            for member in archive.infolist():
-                relative = Path(member.filename)
-                if relative.is_absolute() or '..' in relative.parts:
-                    raise RuntimeError('Unsafe Marketplace archive path')
-            for member in archive.infolist():
-                relative = Path(member.filename)
-                parts = relative.parts[1:] if relative.parts[0] == 'marketplace-dist' else relative.parts
-                if not parts or member.is_dir():
-                    continue
-                target = marketplace.joinpath(*parts)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(archive.read(member))
+        marketplace.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=marketplace.parent) as scratch:
+            staged_marketplace=Path(scratch)/'marketplace'
+            staged_marketplace.mkdir()
+            extract_marketplace(download(sources['marketplace']),staged_marketplace)
+            staged_marketplace.rename(marketplace)
     theme = spicetify_config / 'Themes/marketplace'
     theme.mkdir(parents=True, exist_ok=True)
     if not (theme / 'color.ini').exists():
@@ -150,16 +171,23 @@ def install():
             portable.write(stream)
         configured.write_text('Portable defaults initialized; future user theme choices are preserved.\n')
     subprocess.run(['update-desktop-database', str(DATA / 'applications')], check=False)
-    print('Installed Spotify, Spicetify and Marketplace. Open Spotify, log in, then run scripts/spotify-setup apply.')
+    from spotify_theme import install as install_theme
+    install_theme()
+    print('Installed Spotify, Spicetify and Marketplace. Open Spotify, log in, wait a minute, quit normally and reopen; the launcher completes patching.')
 
 
 def apply():
     if not (CONFIG / 'spotify/prefs').exists():
         raise RuntimeError('Open Spotify and log in first; its prefs file is not available yet.')
-    subprocess.run([str(ROOT / 'scripts/spicetify'), 'backup', 'apply'], check=True)
+    subprocess.run([str(ROOT / 'scripts/spicetify'), 'backup', 'apply', '--no-restart'], check=True)
+    from spotify_theme import install as install_theme, refresh as refresh_theme
+    install_theme()
+    refresh_theme()
 
 
 def restore():
+    from spotify_theme import restore as restore_theme
+    restore_theme()
     journal = STATE / 'links.json'
     entries = json.loads(journal.read_text()) if journal.exists() else []
     for entry in entries:

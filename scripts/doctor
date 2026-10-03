@@ -176,7 +176,7 @@ def main():
         for name in ['spotify', 'spicetify']:
             report((data / 'desktop-foundation/apps' / name).is_dir(), 'Pinned application ' + name)
         report((config / 'spicetify/CustomApps/marketplace/manifest.json').is_file(), 'Marketplace installed')
-        report((config / 'spotify/prefs').exists(), 'Spotify initialized; sign in then scripts/post-install spotify', warning=True)
+        report((config / 'spotify/prefs').exists(), 'Spotify initialized; first login then normal quit/reopen completes setup', warning=True)
         report(run('xdg-mime', 'query', 'default', 'x-scheme-handler/https')[1] == 'brave-origin-nightly.desktop', 'Default browser Brave Origin Nightly')
     for unit in ['desktop-foundation-wallpaper', 'desktop-foundation-clipboard-persist']:
         report((config / 'systemd/user/niri.service.wants' / (unit + '.service')).exists(), unit + ' session activation')

@@ -81,7 +81,7 @@ PY
 	echo 'Preferences: prefer-dark, adw-gtk3-dark; personal browser: brave-origin-nightly.desktop'
 	echo 'Services: enable Bluetooth and AppArmor; session starts PipeWire, portals, polkit, shell, notifications, clipboard and wallpaper.'
 	if $greeter; then echo 'System files with backups: /etc/greetd/config.toml /etc/pam.d/greetd; enable greetd (no restart). Matrix-capable tuigreet required.'; fi
-	echo 'AppArmor: backed-up /etc/default/grub.d/60-desktop-foundation.cfg; regenerate /boot/grub/grub.cfg; GRUB drop-in support required. Inspect scripts/doctor. Reboot/login required; Spotify login then scripts/post-install spotify.'
+	echo 'AppArmor: backed-up /etc/default/grub.d/60-desktop-foundation.cfg; regenerate /boot/grub/grub.cfg; GRUB drop-in support required. Inspect scripts/doctor. Reboot/login required; Spotify: first login, normal quit, then reopen; launcher completes patching.'
 	exit 0
 fi
 command -v pacman >/dev/null || {
@@ -144,4 +144,4 @@ options=(--installation)
 if ! $greeter; then options+=(--no-greeter); fi
 if $personal; then options+=(--personal); fi
 "$root/scripts/doctor" "${options[@]}"
-printf '\nReboot when ready, select Niri and run scripts/doctor --personal.\nSpotify: sign in once, close it, then scripts/post-install spotify.\nRollback: scripts/uninstall; applications: scripts/spotify-setup restore.\n'
+printf '\nReboot when ready, select Niri and run scripts/doctor --personal.\nSpotify: sign in once, wait a minute, quit normally, then reopen; launcher completes patching.\nRollback: scripts/uninstall; applications: scripts/spotify-setup restore.\n'
