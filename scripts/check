@@ -21,7 +21,7 @@ spec = importlib.util.spec_from_file_location("deploy", "scripts/deploy.py")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 from render_niri import render
-for profile in ["default", "Tops", "missing-profile"]:
+for profile in ["default", "Tops", "lucky38", "missing-profile"]:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".kdl") as niri_candidate:
         niri_candidate.write(render(m.ROOT, profile))
         niri_candidate.flush()
@@ -42,3 +42,7 @@ fi
 cargo fmt --manifest-path native/nothing/Cargo.toml --check
 cargo clippy --locked --manifest-path native/nothing/Cargo.toml -- -D warnings
 cargo test --locked --manifest-path native/nothing/Cargo.toml
+
+cargo fmt --manifest-path native/foundation/Cargo.toml --check
+cargo clippy --locked --manifest-path native/foundation/Cargo.toml --all-targets -- -D warnings
+cargo test --locked --manifest-path native/foundation/Cargo.toml

@@ -8,7 +8,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Test tools
-        run: sudo apt-get update && sudo apt-get install -y ripgrep fish fontconfig shellcheck shfmt libdbus-1-dev pkg-config python3-pil nodejs
+        run: sudo apt-get update && sudo apt-get install -y ripgrep fish fontconfig shellcheck shfmt libdbus-1-dev libsqlite3-dev pkg-config python3-pil nodejs
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+      - name: Shared Rust backend
+        run: |
+          cargo fmt --manifest-path native/foundation/Cargo.toml --check
+          cargo clippy --locked --manifest-path native/foundation/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path native/foundation/Cargo.toml
+          cargo build --locked --release --manifest-path native/foundation/Cargo.toml
       - name: Shell syntax and style
         run: |
           mapfile -t files < <(rg -l '^#!/usr/bin/env bash' scripts)
@@ -20,10 +29,9 @@ jobs:
           python3 -m unittest discover -s tests -v
       - name: Fish syntax
         run: fish --no-config -n terminal/fish/config.fish
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: 1.98.1
       - name: Native earbud backend
         run: |
+          cargo fmt --manifest-path native/nothing/Cargo.toml --check
+          cargo clippy --locked --manifest-path native/nothing/Cargo.toml --all-targets -- -D warnings
           cargo test --locked --manifest-path native/nothing/Cargo.toml
           cargo build --locked --release --manifest-path native/nothing/Cargo.toml

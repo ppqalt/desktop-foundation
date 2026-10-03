@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+exec cargo +1.98.1 build --locked --release --manifest-path "$root/native/foundation/Cargo.toml" "$@"

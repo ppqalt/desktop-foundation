@@ -16,7 +16,10 @@ reload)
 	exec hyprctl reload
 	;;
 bench) exec python3 scripts/bench.py "$@" ;;
-test) exec python3 -m unittest discover -s tests -v "$@" ;;
+test)
+	cargo build --locked --manifest-path native/foundation/Cargo.toml
+	exec python3 -m unittest discover -s tests -v "$@"
+	;;
 format)
 	while IFS= read -r file; do
 		if head -n 1 "$file" | rg -q '^#!/usr/bin/env bash'; then shfmt -w "$file"; fi

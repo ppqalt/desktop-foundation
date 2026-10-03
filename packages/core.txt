@@ -2,6 +2,7 @@
 rustup
 gcc
 pkgconf
+sqlite
 dbus
 glib2
 gsettings-desktop-schemas

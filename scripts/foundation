@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+binary="$root/native/foundation/target/release/desktop-foundationctl"
+if [[ ! -x $binary ]]; then
+	printf '%s\n' 'Foundation backend is not built. Run scripts/build-backend in this checkout.' >&2
+	exit 1
+fi
+exec "$binary" --root "$root" "$@"

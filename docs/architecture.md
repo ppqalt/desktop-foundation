@@ -6,6 +6,11 @@ native models differ; Hyprland approximates them using its own supported layout.
 Compositors own layout, input, output, decorations and effects. Quickshell owns the
 shared launcher and clipboard surfaces. No permanent bar or Rust daemon exists.
 
+`native/foundation` supplies typed, one-shot system and state operations through
+`scripts/foundation`. QML consumes narrow command arguments and the existing
+watched clipboard index. The backend does not add a resident service or listener.
+`native/nothing` remains independently scoped to the open device-control surface.
+
 The composition root loads one adapter using `DF_COMPOSITOR` (default Niri).
 Niri subscribes directly to its JSON IPC EventStream; Hyprland retains native
 Quickshell integration. IDs and native operations stay inside adapters. Shared

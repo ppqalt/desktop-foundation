@@ -9,8 +9,8 @@ label. Text is displayed as plain text, never rich text. Image thumbnails are
 bounded to 72 pixels when decoded for display.
 
 Two native wl-paste watchers subscribe to text and image clipboard events. Each
-change invokes a short Python standard-library worker; there is no polling or
-resident Python daemon. SQLite deduplicates by MIME plus exact bytes and retains
+change invokes the shared, short-lived Rust backend through `scripts/foundation
+clipboard`; there is no polling or resident storage daemon. SQLite deduplicates by MIME plus exact bytes and retains
 up to 100 items, 8 MiB per item and 32 MiB of retained payload. UTF-8 text and
 PNG/JPEG/GIF/WebP image bytes are copied unchanged. Unsupported formats are skipped.
 
@@ -30,7 +30,7 @@ restart on failure with a bounded burst, and stop when the session ends. Shell
 crashes do not stop collection. The QML surface and storage worker use Wayland
 clipboard tools; Niri is the active reference compositor.
 
-Current storage validation has nine regression tests. Historical interactive
+Current storage validation includes Rust integration tests and CLI regression tests. Historical interactive
 validation: the finite
 live smoke test checks a real mouse click on an existing item in the deployed
 config before exercising isolated history. It preserves the current clipboard's primary
@@ -74,3 +74,11 @@ Copy is a read-only history action: it passes the exact selected payload to
 wl-copy without replacing the watched index or forcing the open list to reload.
 Store, delete, clear and initialization still publish the index atomically under
 the existing database lock. Storage limits and private file permissions remain.
+
+The Rust worker uses the existing SQLite schema, MIME-plus-NUL-plus-payload SHA-256
+IDs and index fields. Migration requires no history conversion. Temporary files
+are unique and atomically renamed, paths from the database are validated, and
+corrupt history is reported without resetting it. Cleanup removes only recognized
+history projections. Build with `scripts/build-backend`; normal installation builds
+the backend before deploying units. `scripts/clipboard.py` is an exec-only
+compatibility entry point for older generated units, and contains no storage logic.

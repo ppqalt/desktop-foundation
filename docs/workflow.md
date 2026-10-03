@@ -9,7 +9,7 @@ Run from this checkout:
   Python AST, installed Rust toolchain and all shipped/fallback Lua and Niri profiles.
 - `scripts/format`: format Bash and QML. Python uses standard-library syntax checks;
   Lua uses luac. Optional Python/Lua formatters are not silently installed.
-- `scripts/test`: isolated deployment recovery tests.
+- `scripts/test`: builds the debug Rust command backend, then runs isolated regression tests.
 - `scripts/doctor`: active session, service, environment, binaries and fi checks.
 - `scripts/bench --runs 3 --seconds 5 --output work/bench.json`: finite repeated measurements.
 - `scripts/reload`: check then reload compositor.
@@ -19,11 +19,15 @@ Run from this checkout:
 The `scripts/dev ACTION` dispatcher provides the same commands. The native Nothing crate is checked with
 Cargo fmt/clippy/test by scripts/check. Build it with scripts/build-nothing; its
 source, lockfile and license live under native/nothing.
+The shared `native/foundation` crate has the same format, Clippy and test gates.
+Build its release executable with `scripts/build-backend`. Runtime commands use
+the release executable without compiling code on demand. SQLite is linked from
+the system package; no second SQLite implementation is bundled.
 Perf is optional and absent on Tops: install with
 `sudo pacman -Syu --needed perf`. Optional formatters: `sudo pacman -Syu --needed ruff stylua`.
 Missing sudo credentials block package changes only. Existing Qt profiler, heaptrack,
-strace and hyperfine remain available. No actual runtime Timer or periodic Process
-loop is present; finite benchmark readiness checks are intentionally separate.
+strace and hyperfine remain available. See the code-quality review for the complete
+inventory of runtime deadlines, bounded startup retries and event subscriptions.
 
 Profiles/default contains portable automatic monitor and input defaults. Tops and
 lucky38 own only host overrides. The lucky38 profile preserves the established
