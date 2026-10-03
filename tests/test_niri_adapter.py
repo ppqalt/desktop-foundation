@@ -46,7 +46,7 @@ class NiriAdapter(unittest.TestCase):
           function screenshot():void {adapter.screenshotWindow();}
          }
         }''')
-         log=open(P/'adapter.log','w');proc=subprocess.Popen(['quickshell','--path',str(P)],env={**os.environ,'NIRI_SOCKET':str(path)},stdout=log,stderr=log)
+         log=open(P/'adapter.log','w');proc=subprocess.Popen(['quickshell','--path',str(P)],env={**os.environ,'NIRI_SOCKET':str(path),'XDG_CACHE_HOME':str(P/'cache'),'XDG_STATE_HOME':str(P/'state')},stdout=log,stderr=log)
          def ipc(method,*args):
           result=subprocess.run(['quickshell','ipc','--pid',str(proc.pid),'call','fixture',method,*args],capture_output=True,text=True,timeout=5)
           return result

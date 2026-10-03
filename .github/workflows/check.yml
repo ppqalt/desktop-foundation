@@ -15,17 +15,17 @@ jobs:
       - name: Shared Rust backend
         run: |
           cargo fmt --manifest-path native/foundation/Cargo.toml --check
-          cargo clippy --locked --manifest-path native/foundation/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --locked --manifest-path native/foundation/Cargo.toml --all-targets --all-features -- -D warnings
           cargo test --locked --manifest-path native/foundation/Cargo.toml
           cargo build --locked --release --manifest-path native/foundation/Cargo.toml
       - name: Shell syntax and style
         run: |
-          mapfile -t files < <(rg -l '^#!/usr/bin/env bash' scripts)
+          mapfile -t files < <(rg -l '^#!/usr/bin/env bash' scripts terminal/fastfetch)
           shellcheck "${files[@]}"
           shfmt -d "${files[@]}"
       - name: Python and noninteractive tests
         run: |
-          python3 -m compileall -q scripts terminal/fastfetch/packages
+          python3 -m compileall -q scripts
           python3 -m unittest discover -s tests -v
       - name: Fish syntax
         run: fish --no-config -n terminal/fish/config.fish

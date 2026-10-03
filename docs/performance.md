@@ -27,3 +27,24 @@ kernel's sampling resolution does not imply zero wakeups.
 Use `scripts/bench --trace` to additionally launch an owned shell under finite
 strace process tracing; the resident instance is untouched. Latest finite trace
 observed exactly one exec request (initial launch) and no subprocess execs.
+
+## Paired backend comparison
+
+Build `scripts/build-backend`, then run:
+
+```sh
+python3 scripts/quality_bench.py --baseline-ref bbddde0 --samples 24 --image-samples 10 --output work/quality-comparison.json
+```
+
+This finite test reads the old clipboard worker through Git, uses synthetic text
+and signature-only image payloads, and alternates old/new order after two warmups.
+Each sample creates a private fresh database on the checkout's filesystem. Index
+projections must match apart from timestamps/state paths. It never reads or changes
+the real clipboard. The optional `bench` Cargo feature builds a small Rust wait4
+driver so the Python driver's pre-exec memory does not dominate child peak RSS.
+Regular runtime builds do not include that measurement executable.
+
+Record wall time, child user/system CPU time and peak child RSS separately from
+resident PSS. Btrfs/fsync and background activity affect timings. Live idle samples
+with unchanged desktop code cannot establish an optimization gain. See the current
+code-quality review for results, methodology and remaining activation checks.

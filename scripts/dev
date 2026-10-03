@@ -23,7 +23,7 @@ test)
 format)
 	while IFS= read -r file; do
 		if head -n 1 "$file" | rg -q '^#!/usr/bin/env bash'; then shfmt -w "$file"; fi
-	done < <(rg --files scripts)
+	done < <(rg --files scripts terminal/fastfetch)
 	while IFS= read -r file; do /usr/lib/qt6/bin/qmlformat -i "$file"; done < <(rg --files shell -g '*.qml')
 	;;
 lint) exec "$root/scripts/check" "$@" ;;

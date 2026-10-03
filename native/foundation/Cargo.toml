@@ -4,6 +4,15 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
 publish = false
+default-run = "desktop-foundationctl"
+
+[features]
+bench = []
+
+[[bin]]
+name = "foundation-measure"
+path = "src/bin/measure.rs"
+required-features = ["bench"]
 
 [dependencies]
 libc = "0.2"
@@ -16,4 +25,3 @@ shell-words = "1"
 [profile.release]
 lto = "thin"
 strip = "debuginfo"
-
