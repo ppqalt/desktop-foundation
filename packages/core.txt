@@ -36,6 +36,7 @@ firefox
 hyprpolkitagent
 python
 python-pillow
+matugen
 lua
 wl-clipboard
 wl-clip-persist

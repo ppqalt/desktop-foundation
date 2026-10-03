@@ -16,9 +16,12 @@ def data(path):
     return json.loads(subprocess.check_output(['lua', '-e', code, '--', '/dev/null', str(path)], text=True))
 
 
-def render(root, profile):
+def render(root, profile, semantic=None):
     root = Path(root)
     v = data(root / 'config/window-appearance.lua')
+    if semantic:
+        v['focus']['activeBorder'] = semantic['windowActive']
+        v['focus']['inactiveBorder'] = semantic['windowInactive']
     keyboard = data(root / 'config/input.lua')
     color = lambda opacity: v['shadow']['color'] + f'{round(opacity * 255):02x}'
     q = json.dumps

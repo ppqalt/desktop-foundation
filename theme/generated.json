@@ -1,0 +1,21 @@
+{
+  "background": "#1f262f",
+  "elevated": "#2e3845",
+  "foreground": "#eef1f6",
+  "muted": "#939eae",
+  "subtle": "#616e80",
+  "border": "#495a6d",
+  "accent": "#98ccf9",
+  "selected": "#3e5065",
+  "selectionBorder": "#607c9b",
+  "iconTile": "#293540",
+  "hover": "#323e4e",
+  "error": "#f1a5a5",
+  "scrim": "#50080b10",
+  "source": "wallpapers/wallhaven-135w7w.png",
+  "accentStrong": "#9ecbf3",
+  "windowActive": "#5e7791",
+  "windowInactive": "#364150",
+  "wallpaperHash": "c823bac9543456cd418504906f73c2ed8dc5a85d62194f6a30ddc6b5e2129f2b",
+  "policy": "graphite-v1"
+}

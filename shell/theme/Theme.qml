@@ -1,7 +1,22 @@
 pragma Singleton
 import QtQuick
+import Quickshell
+import Quickshell.Io
 
 QtObject {
+    id: root
+    property var generated: ({})
+    property var paletteFile: FileView {
+        path: Quickshell.shellDir + "/../theme/generated.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                root.generated = JSON.parse(text());
+            } catch (e) {}
+        }
+    }
     // Shared graphite/glass surface language for launcher and clipboard.
     readonly property var spacing: ({
             small: 6,
@@ -37,7 +52,7 @@ QtObject {
             launcherWidth: 640,
             rowHeight: 62
         })
-    readonly property var colors: ({
+    readonly property var fallback: ({
             background: "#ed171b22",
             elevated: "#222832",
             foreground: "#eef1f6",
@@ -52,6 +67,11 @@ QtObject {
             error: "#f1a5a5",
             scrim: "#50080b10"
         })
+    readonly property var colors: {
+        const mapped = Object.assign({}, fallback, generated);
+        mapped.background = "#ed" + (generated.background ?? "#171b22").slice(1);
+        return mapped;
+    }
     readonly property color testBackground: "#202020"
     readonly property color testForeground: "#eeeeee"
 }

@@ -69,6 +69,9 @@ still placeholders. Hyprland code remains as an optional secondary backend;
 `./scripts/bootstrap --hyprland` installs its packages, then deploy explicitly with
 `./scripts/deploy --compositor hyprland`.
 
+Wallpaper-derived accents on graphite are available through `scripts/theme-apply`
+and reversible with `scripts/theme-reset`; see [theme controls](theme/README.md).
+
 ## Validate and undo
 
 After a fresh login, run `./scripts/session-acceptance`. It inspects without repairing

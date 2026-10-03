@@ -1,0 +1,19 @@
+{
+  "background": "#171b22",
+  "elevated": "#222832",
+  "foreground": "#eef1f6",
+  "muted": "#939eae",
+  "subtle": "#616e80",
+  "border": "#38414e",
+  "accent": "#b8ceee",
+  "selected": "#293649",
+  "selectionBorder": "#485a73",
+  "iconTile": "#172029",
+  "hover": "#222b38",
+  "error": "#f1a5a5",
+  "scrim": "#50080b10",
+  "source": "static-v0.11",
+  "accentStrong": "#b8ceee",
+  "windowActive": "#485669",
+  "windowInactive": "#2b323d"
+}

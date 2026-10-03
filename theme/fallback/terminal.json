@@ -1,10 +1,10 @@
 {
-  "background": "1f262f",
-  "foreground": "eef1f6",
-  "muted": "939eae",
-  "accent": "98ccf9",
-  "error": "f1a5a5",
-  "selection": "3e5065",
+  "background": "171b22",
+  "foreground": "dce2ea",
+  "muted": "8993a3",
+  "accent": "79b8d4",
+  "error": "e08b92",
+  "selection": "354454",
   "ansi": [
     "242a34",
     "e08b92",
