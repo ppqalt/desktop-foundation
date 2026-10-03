@@ -13,7 +13,8 @@ Commands:
 - `power suspend|logout|reboot|poweroff [--check]`
 - `actions list|plan ID|invoke ID`
 - `cache plan|prune`
-- `system packages`
+- `system packages [--config FILE]`
+- `shell call METHOD [ARGS...]`
 
 Arguments are passed as an argv array, without shell evaluation. JSON output is
 for finite requests, and errors go to stderr with a nonzero status. Clipboard
@@ -65,6 +66,15 @@ the existing signature arrays (path, inode, modification/creation timestamps and
 size), repository invalidation and refusal to reuse/publish during a package
 transaction. Valid old caches remain readable. Malformed caches are reproducible;
 native query errors are reported rather than displayed as zero. No resident
-package monitor exists. The installed-directory symlink and relocated-checkout
-paths are tested. Stable requests retain the same native subprocess count and
+package monitor exists. The installed-directory symlink, copied immutable theme
+revision, relative
+invocation and relocated-checkout paths are tested. Copied revision helpers pin
+the owning checkout binary and use their own revision package configuration.
+Stable requests retain the same native subprocess count and
 remove Python startup.
+
+Shell IPC uses a shared monotonic three-second readiness budget, with 50 ms
+pauses only while unavailable and 500 ms per-probe limits. The requested action
+has a three-second deadline and is sent exactly once, including after failure.
+No readiness timer runs while idle. This removes repeated shell/sleep process
+creation and prevents a stalled status command from blocking a keypress forever.

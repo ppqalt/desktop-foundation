@@ -5,6 +5,11 @@ portable foundation. Optional host profiles contain output/hardware settings;
 input remains shared. Hyprland can still be selected explicitly. Deployment does
 not switch the running compositor or restart the login manager.
 
+Build both release backends first with `scripts/build-backend` and
+`scripts/build-nothing`. Direct deployment refuses missing or nonexecutable
+backends before creating state or changing links. Dry-run and restoration do
+not require built binaries; the core installer builds them before deployment.
+
 The ownership journal lives under `$XDG_STATE_HOME/desktop-foundation`. Existing
 files, symlinks and owned directories are retained as backups before replacement.
 Kitty, Fish and Fastfetch configuration directories are owned as complete units;

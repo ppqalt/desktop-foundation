@@ -31,6 +31,7 @@ failure. Basic Kitty, focus and close bindings do not depend on Quickshell.
 Hyprland keeps its UWSM/direct startup paths. COSMIC configuration is untouched.
 
 Deployment validates first, journals each original before replacement and refuses
-foreign replacement paths during recovery. It does not replace whole directories
-or globally enable desktop services. See deployment/recovery and the compositor
+foreign replacement paths during recovery. It replaces only explicitly owned
+configuration paths, including complete terminal directories with retained
+originals. See deployment/recovery and the compositor
 interface for details and version-specific limitations.

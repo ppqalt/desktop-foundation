@@ -20,8 +20,10 @@ The `scripts/dev ACTION` dispatcher provides the same commands. The native Nothi
 Cargo fmt/clippy/test by scripts/check. Build it with scripts/build-nothing; its
 source, lockfile and license live under native/nothing.
 The shared `native/foundation` crate has the same format, Clippy and test gates.
-Build its release executable with `scripts/build-backend`. Runtime commands use
-the release executable without compiling code on demand. SQLite is linked from
+Build its release executable with `scripts/build-backend`. Direct deployment
+requires both this and `scripts/build-nothing` to have completed, before any
+links or state are changed. The core installer performs these builds itself.
+Runtime commands use the release executable without compiling code on demand. SQLite is linked from
 the system package; no second SQLite implementation is bundled.
 Perf is optional and absent on Tops: install with
 `sudo pacman -Syu --needed perf`. Optional formatters: `sudo pacman -Syu --needed ruff stylua`.

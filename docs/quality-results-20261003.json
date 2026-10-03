@@ -1,0 +1,923 @@
+{
+  "host": "lucky38",
+  "baseline_ref": "bbddde0a214671be912a35c94a3465abfb01189a",
+  "tested_code_ref": "6bac61f814297603d1558699b886a16062df81d9",
+  "candidate_activated": false,
+  "software": {
+    "kernel": "7.2.8-2-cachyos",
+    "niri": "26.04 (8ed0da4)",
+    "quickshell": "0.3.1",
+    "rustc": "1.98.1",
+    "python": "3.14.7"
+  },
+  "clipboard": {
+    "baseline_ref": "bbddde0a214671be912a35c94a3465abfb01189a",
+    "candidate_ref": "18c82ad29f101e4e3cd61a894c789f2d84789409",
+    "method": "Interleaved old/new order, 2 warmups, fresh private DBs on checkout filesystem, small Rust wait4 parent per child, synthetic data; median, no resident-shell claim",
+    "benchmarks": {
+      "text": {
+        "payload_bytes": 9728,
+        "samples_per_implementation": 24,
+        "before": {
+          "elapsed_ms": 52.2785955,
+          "cpu_ms": 45.5775,
+          "peak_rss_kib": 22910.0
+        },
+        "after": {
+          "elapsed_ms": 9.849629,
+          "cpu_ms": 2.908,
+          "peak_rss_kib": 4796.0
+        },
+        "samples": {
+          "before": [
+            {
+              "elapsed_ms": 51.535655999999996,
+              "cpu_ms": 44.668,
+              "peak_rss_kib": 22836
+            },
+            {
+              "elapsed_ms": 54.089555,
+              "cpu_ms": 45.39,
+              "peak_rss_kib": 22796
+            },
+            {
+              "elapsed_ms": 52.714636,
+              "cpu_ms": 45.293,
+              "peak_rss_kib": 22980
+            },
+            {
+              "elapsed_ms": 51.561034,
+              "cpu_ms": 45.144,
+              "peak_rss_kib": 22968
+            },
+            {
+              "elapsed_ms": 53.034219,
+              "cpu_ms": 45.207,
+              "peak_rss_kib": 23124
+            },
+            {
+              "elapsed_ms": 50.864006,
+              "cpu_ms": 44.701,
+              "peak_rss_kib": 22848
+            },
+            {
+              "elapsed_ms": 53.107959,
+              "cpu_ms": 45.496,
+              "peak_rss_kib": 23032
+            },
+            {
+              "elapsed_ms": 52.307104,
+              "cpu_ms": 46.045,
+              "peak_rss_kib": 22772
+            },
+            {
+              "elapsed_ms": 51.720766000000005,
+              "cpu_ms": 45.478,
+              "peak_rss_kib": 22888
+            },
+            {
+              "elapsed_ms": 53.354075,
+              "cpu_ms": 46.015,
+              "peak_rss_kib": 23100
+            },
+            {
+              "elapsed_ms": 51.209148000000006,
+              "cpu_ms": 44.956,
+              "peak_rss_kib": 22956
+            },
+            {
+              "elapsed_ms": 52.228456,
+              "cpu_ms": 46.041,
+              "peak_rss_kib": 22956
+            },
+            {
+              "elapsed_ms": 52.320851000000005,
+              "cpu_ms": 45.636,
+              "peak_rss_kib": 23052
+            },
+            {
+              "elapsed_ms": 53.288720999999995,
+              "cpu_ms": 45.949,
+              "peak_rss_kib": 22888
+            },
+            {
+              "elapsed_ms": 54.561608,
+              "cpu_ms": 45.38,
+              "peak_rss_kib": 22816
+            },
+            {
+              "elapsed_ms": 51.814363,
+              "cpu_ms": 45.651,
+              "peak_rss_kib": 22872
+            },
+            {
+              "elapsed_ms": 52.180455,
+              "cpu_ms": 45.946,
+              "peak_rss_kib": 22716
+            },
+            {
+              "elapsed_ms": 53.03989,
+              "cpu_ms": 46.173,
+              "peak_rss_kib": 22648
+            },
+            {
+              "elapsed_ms": 52.250087,
+              "cpu_ms": 45.649,
+              "peak_rss_kib": 22908
+            },
+            {
+              "elapsed_ms": 52.074896,
+              "cpu_ms": 45.686,
+              "peak_rss_kib": 22996
+            },
+            {
+              "elapsed_ms": 52.329066,
+              "cpu_ms": 45.953,
+              "peak_rss_kib": 22720
+            },
+            {
+              "elapsed_ms": 52.438143,
+              "cpu_ms": 46.107,
+              "peak_rss_kib": 22912
+            },
+            {
+              "elapsed_ms": 51.746334,
+              "cpu_ms": 45.519,
+              "peak_rss_kib": 22968
+            },
+            {
+              "elapsed_ms": 51.429866,
+              "cpu_ms": 45.123,
+              "peak_rss_kib": 23068
+            }
+          ],
+          "after": [
+            {
+              "elapsed_ms": 9.379074,
+              "cpu_ms": 2.662,
+              "peak_rss_kib": 4784
+            },
+            {
+              "elapsed_ms": 9.206358,
+              "cpu_ms": 2.597,
+              "peak_rss_kib": 4796
+            },
+            {
+              "elapsed_ms": 9.425913,
+              "cpu_ms": 2.882,
+              "peak_rss_kib": 4776
+            },
+            {
+              "elapsed_ms": 9.40357,
+              "cpu_ms": 2.829,
+              "peak_rss_kib": 4760
+            },
+            {
+              "elapsed_ms": 9.476017,
+              "cpu_ms": 2.727,
+              "peak_rss_kib": 4984
+            },
+            {
+              "elapsed_ms": 9.77859,
+              "cpu_ms": 2.965,
+              "peak_rss_kib": 4664
+            },
+            {
+              "elapsed_ms": 9.507277,
+              "cpu_ms": 2.967,
+              "peak_rss_kib": 4848
+            },
+            {
+              "elapsed_ms": 9.245372,
+              "cpu_ms": 2.709,
+              "peak_rss_kib": 4928
+            },
+            {
+              "elapsed_ms": 11.219164000000001,
+              "cpu_ms": 2.941,
+              "peak_rss_kib": 4968
+            },
+            {
+              "elapsed_ms": 9.615322,
+              "cpu_ms": 2.856,
+              "peak_rss_kib": 5020
+            },
+            {
+              "elapsed_ms": 12.265943,
+              "cpu_ms": 2.93,
+              "peak_rss_kib": 4692
+            },
+            {
+              "elapsed_ms": 9.540740000000001,
+              "cpu_ms": 2.912,
+              "peak_rss_kib": 4764
+            },
+            {
+              "elapsed_ms": 11.321176000000001,
+              "cpu_ms": 2.983,
+              "peak_rss_kib": 4824
+            },
+            {
+              "elapsed_ms": 10.256043,
+              "cpu_ms": 2.861,
+              "peak_rss_kib": 4892
+            },
+            {
+              "elapsed_ms": 11.980132,
+              "cpu_ms": 2.819,
+              "peak_rss_kib": 4796
+            },
+            {
+              "elapsed_ms": 10.110608000000001,
+              "cpu_ms": 2.954,
+              "peak_rss_kib": 4712
+            },
+            {
+              "elapsed_ms": 9.920668000000001,
+              "cpu_ms": 3.054,
+              "peak_rss_kib": 4728
+            },
+            {
+              "elapsed_ms": 11.181493000000001,
+              "cpu_ms": 2.847,
+              "peak_rss_kib": 4704
+            },
+            {
+              "elapsed_ms": 9.672098,
+              "cpu_ms": 3.09,
+              "peak_rss_kib": 4804
+            },
+            {
+              "elapsed_ms": 11.188514999999999,
+              "cpu_ms": 2.936,
+              "peak_rss_kib": 4772
+            },
+            {
+              "elapsed_ms": 10.497459000000001,
+              "cpu_ms": 3.13,
+              "peak_rss_kib": 4776
+            },
+            {
+              "elapsed_ms": 10.305436,
+              "cpu_ms": 2.904,
+              "peak_rss_kib": 4816
+            },
+            {
+              "elapsed_ms": 9.331856,
+              "cpu_ms": 2.791,
+              "peak_rss_kib": 4832
+            },
+            {
+              "elapsed_ms": 11.425744,
+              "cpu_ms": 3.168,
+              "peak_rss_kib": 4944
+            }
+          ]
+        },
+        "projection_equal": true
+      },
+      "image": {
+        "payload_bytes": 1048576,
+        "samples_per_implementation": 10,
+        "before": {
+          "elapsed_ms": 74.5311615,
+          "cpu_ms": 66.242,
+          "peak_rss_kib": 30524.0
+        },
+        "after": {
+          "elapsed_ms": 17.0245205,
+          "cpu_ms": 8.146,
+          "peak_rss_kib": 8866.0
+        },
+        "samples": {
+          "before": [
+            {
+              "elapsed_ms": 74.302985,
+              "cpu_ms": 66.357,
+              "peak_rss_kib": 30636
+            },
+            {
+              "elapsed_ms": 74.407483,
+              "cpu_ms": 66.313,
+              "peak_rss_kib": 30484
+            },
+            {
+              "elapsed_ms": 74.348521,
+              "cpu_ms": 66.537,
+              "peak_rss_kib": 30624
+            },
+            {
+              "elapsed_ms": 73.735783,
+              "cpu_ms": 66.08,
+              "peak_rss_kib": 30736
+            },
+            {
+              "elapsed_ms": 72.484797,
+              "cpu_ms": 65.027,
+              "peak_rss_kib": 30804
+            },
+            {
+              "elapsed_ms": 74.65484000000001,
+              "cpu_ms": 66.84,
+              "peak_rss_kib": 30544
+            },
+            {
+              "elapsed_ms": 74.718451,
+              "cpu_ms": 65.924,
+              "peak_rss_kib": 30476
+            },
+            {
+              "elapsed_ms": 75.640094,
+              "cpu_ms": 66.943,
+              "peak_rss_kib": 30492
+            },
+            {
+              "elapsed_ms": 75.200974,
+              "cpu_ms": 66.171,
+              "peak_rss_kib": 30492
+            },
+            {
+              "elapsed_ms": 74.965929,
+              "cpu_ms": 66.134,
+              "peak_rss_kib": 30504
+            }
+          ],
+          "after": [
+            {
+              "elapsed_ms": 17.334066,
+              "cpu_ms": 8.154,
+              "peak_rss_kib": 8776
+            },
+            {
+              "elapsed_ms": 21.204484,
+              "cpu_ms": 8.134,
+              "peak_rss_kib": 8868
+            },
+            {
+              "elapsed_ms": 20.968749,
+              "cpu_ms": 8.138,
+              "peak_rss_kib": 8908
+            },
+            {
+              "elapsed_ms": 16.641787,
+              "cpu_ms": 8.256,
+              "peak_rss_kib": 8852
+            },
+            {
+              "elapsed_ms": 18.111316,
+              "cpu_ms": 8.089,
+              "peak_rss_kib": 8880
+            },
+            {
+              "elapsed_ms": 16.861703,
+              "cpu_ms": 8.25,
+              "peak_rss_kib": 8872
+            },
+            {
+              "elapsed_ms": 17.007248,
+              "cpu_ms": 8.345,
+              "peak_rss_kib": 8852
+            },
+            {
+              "elapsed_ms": 16.515518,
+              "cpu_ms": 7.802,
+              "peak_rss_kib": 8864
+            },
+            {
+              "elapsed_ms": 17.041793,
+              "cpu_ms": 8.237,
+              "peak_rss_kib": 8772
+            },
+            {
+              "elapsed_ms": 16.742057000000003,
+              "cpu_ms": 8.115,
+              "peak_rss_kib": 8912
+            }
+          ]
+        },
+        "projection_equal": true
+      }
+    }
+  },
+  "protocol": {
+    "fixture": "65536 noise bytes plus exact valid packet; opt-level 3; independent pure parser; two warmups per block; interleaved blocks",
+    "samples": {
+      "before": [
+        23.120136,
+        23.137057,
+        23.102472,
+        23.114995,
+        23.118723,
+        23.113293,
+        23.117951,
+        23.106049,
+        23.099376000000003,
+        23.107131,
+        23.107532,
+        23.109485,
+        23.106199,
+        23.121498,
+        23.116519,
+        22.976975,
+        22.84178,
+        22.909005999999998,
+        22.906751999999997,
+        22.817593000000002,
+        22.935416,
+        22.704909999999998,
+        22.731661,
+        22.737863,
+        22.741741,
+        22.687718999999998,
+        22.679002,
+        22.66185,
+        22.681938,
+        22.848271,
+        22.734106,
+        22.69883,
+        22.841489,
+        22.797466,
+        22.718767,
+        22.996892000000003
+      ],
+      "after": [
+        0.032612,
+        0.032552000000000005,
+        0.032562,
+        0.032552000000000005,
+        0.032541,
+        0.032541,
+        0.032552000000000005,
+        0.032542,
+        0.032561,
+        0.032601000000000005,
+        0.032561,
+        0.032552000000000005,
+        0.032542,
+        0.032551000000000004,
+        0.032581,
+        0.032541,
+        0.032542,
+        0.032542,
+        0.040806999999999996,
+        0.040687,
+        0.040687,
+        0.040697,
+        0.040687,
+        0.040667,
+        0.040677,
+        0.048281,
+        0.040687,
+        0.040697,
+        0.040687,
+        0.040687,
+        0.040677,
+        0.040687,
+        0.033724,
+        0.032562,
+        0.032541,
+        0.032551000000000004
+      ]
+    },
+    "median_ms": {
+      "before": 22.922210999999997,
+      "after": 0.0325715
+    }
+  },
+  "artifacts": {
+    "foundation": {
+      "packages_in_lock_before": 0,
+      "packages_in_lock_after": 34
+    },
+    "nothing": {
+      "packages_in_lock_before": 85,
+      "packages_in_lock_after": 79
+    },
+    "rendering_and_config_files_checked": 68,
+    "changed_rendering_config_files": [],
+    "payload_bytes_before": 35327273,
+    "payload_bytes_after": 35490751,
+    "desktop-foundationctl": {
+      "bytes": 1140888,
+      "sha256": "e5514e265a24aa8168580b275cdb96f95ace2614a93945146db3a00bb6dfca7a"
+    },
+    "foundation-measure": {
+      "bytes": 537856,
+      "sha256": "6913565f0843ebe581826a8f885b0ce9e534b06d2438b67e6af53eac548b9074"
+    },
+    "foundation-nothing": {
+      "bytes": 4287744,
+      "sha256": "f7cf4cf2bb7e2e9798e0327f715694229bfcf8dfbc1da169c1ca00b246cc8589"
+    },
+    "validated_code_ref": "6bac61f814297603d1558699b886a16062df81d9",
+    "quality_checkout_allocated_before_incremental_cleanup": 1479987200,
+    "quality_target_bytes_before_cleanup": {
+      "foundation": 476053504,
+      "nothing": 966926336
+    },
+    "live_storage_after": {
+      "state": 185266176,
+      "theme": 37240832,
+      "cache": 806912
+    },
+    "live_theme_revision_count_after": 4,
+    "own_generated_incremental_bytes_removed": {
+      "native/foundation/target/debug/incremental": 156307456,
+      "native/nothing/target/debug/incremental": 97234944
+    },
+    "quality_checkout_allocated_after_incremental_cleanup": 1227235328,
+    "quality_target_bytes_after_cleanup": {
+      "foundation": 320536576,
+      "nothing": 869691392
+    }
+  },
+  "live_before": {
+    "scope": "read-only active session; idle-ish uncontrolled live activity; context switches are not wakeups",
+    "samples": [
+      {
+        "seconds": 10.000078151999332,
+        "units": {
+          "niri.service": {
+            "pid": 2411,
+            "rss_kib": 210568,
+            "pss_kib": 148089,
+            "cpu_one_core_percent": 1.4999882772917155,
+            "surviving_thread_switches_per_s": 94.09926459543361
+          },
+          "desktop-foundation-shell.service": {
+            "pid": 2498,
+            "rss_kib": 330644,
+            "pss_kib": 238481,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-notifications.service": {
+            "pid": 2514,
+            "rss_kib": 21920,
+            "pss_kib": 6348,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-wallpaper.service": {
+            "pid": 2479,
+            "rss_kib": 16440,
+            "pss_kib": 3564,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "hyprpolkitagent.service": {
+            "pid": 2500,
+            "rss_kib": 92656,
+            "pss_kib": 36152,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.19999843697222872
+          },
+          "desktop-foundation-clipboard-persist.service": {
+            "pid": 2478,
+            "rss_kib": 5864,
+            "pss_kib": 3381,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@text.service": {
+            "pid": 2600,
+            "rss_kib": 2292,
+            "pss_kib": 203,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@image.service": {
+            "pid": 2599,
+            "rss_kib": 2344,
+            "pss_kib": 199,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          }
+        }
+      },
+      {
+        "seconds": 10.000067113000114,
+        "units": {
+          "niri.service": {
+            "pid": 2411,
+            "rss_kib": 210568,
+            "pss_kib": 148089,
+            "cpu_one_core_percent": 1.5999892619920477,
+            "surviving_thread_switches_per_s": 93.7993704842838
+          },
+          "desktop-foundation-shell.service": {
+            "pid": 2498,
+            "rss_kib": 330644,
+            "pss_kib": 238481,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-notifications.service": {
+            "pid": 2514,
+            "rss_kib": 21920,
+            "pss_kib": 6348,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-wallpaper.service": {
+            "pid": 2479,
+            "rss_kib": 16440,
+            "pss_kib": 3567,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "hyprpolkitagent.service": {
+            "pid": 2500,
+            "rss_kib": 92656,
+            "pss_kib": 36152,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.19999865774900596
+          },
+          "desktop-foundation-clipboard-persist.service": {
+            "pid": 2478,
+            "rss_kib": 5864,
+            "pss_kib": 3381,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@text.service": {
+            "pid": 2600,
+            "rss_kib": 2292,
+            "pss_kib": 203,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@image.service": {
+            "pid": 2599,
+            "rss_kib": 2344,
+            "pss_kib": 199,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          }
+        }
+      },
+      {
+        "seconds": 10.000066113001594,
+        "units": {
+          "niri.service": {
+            "pid": 2411,
+            "rss_kib": 210568,
+            "pss_kib": 148089,
+            "cpu_one_core_percent": 1.5999894219896793,
+            "surviving_thread_switches_per_s": 93.09938449202447
+          },
+          "desktop-foundation-shell.service": {
+            "pid": 2498,
+            "rss_kib": 330644,
+            "pss_kib": 238481,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.09999933887435496
+          },
+          "desktop-foundation-notifications.service": {
+            "pid": 2514,
+            "rss_kib": 21920,
+            "pss_kib": 6348,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-wallpaper.service": {
+            "pid": 2479,
+            "rss_kib": 16440,
+            "pss_kib": 3567,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "hyprpolkitagent.service": {
+            "pid": 2500,
+            "rss_kib": 92656,
+            "pss_kib": 36152,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.1999986777487099
+          },
+          "desktop-foundation-clipboard-persist.service": {
+            "pid": 2478,
+            "rss_kib": 5864,
+            "pss_kib": 3381,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@text.service": {
+            "pid": 2600,
+            "rss_kib": 2292,
+            "pss_kib": 203,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@image.service": {
+            "pid": 2599,
+            "rss_kib": 2344,
+            "pss_kib": 199,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          }
+        }
+      }
+    ],
+    "persistent_processes": 8,
+    "foundation_processes_excluding_niri": 7
+  },
+  "live_readback": {
+    "scope": "read-only active session; idle-ish uncontrolled live activity; context switches are not wakeups; candidate not activated; same PIDs",
+    "samples": [
+      {
+        "seconds": 10.000076981999882,
+        "units": {
+          "niri.service": {
+            "pid": 2411,
+            "rss_kib": 237128,
+            "pss_kib": 174053,
+            "cpu_one_core_percent": 2.499980754648184,
+            "surviving_thread_switches_per_s": 129.29900463040408
+          },
+          "desktop-foundation-shell.service": {
+            "pid": 2498,
+            "rss_kib": 327876,
+            "pss_kib": 234796,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-notifications.service": {
+            "pid": 2514,
+            "rss_kib": 21816,
+            "pss_kib": 6209,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-wallpaper.service": {
+            "pid": 2479,
+            "rss_kib": 49004,
+            "pss_kib": 36089,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "hyprpolkitagent.service": {
+            "pid": 2500,
+            "rss_kib": 92552,
+            "pss_kib": 35335,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.19999846037185473
+          },
+          "desktop-foundation-clipboard-persist.service": {
+            "pid": 2478,
+            "rss_kib": 8524,
+            "pss_kib": 6040,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@text.service": {
+            "pid": 2600,
+            "rss_kib": 2292,
+            "pss_kib": 203,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@image.service": {
+            "pid": 2599,
+            "rss_kib": 2344,
+            "pss_kib": 199,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          }
+        }
+      },
+      {
+        "seconds": 10.00006467699859,
+        "units": {
+          "niri.service": {
+            "pid": 2411,
+            "rss_kib": 237128,
+            "pss_kib": 174053,
+            "cpu_one_core_percent": 2.199985771152338,
+            "surviving_thread_switches_per_s": 118.19923552282107
+          },
+          "desktop-foundation-shell.service": {
+            "pid": 2498,
+            "rss_kib": 327876,
+            "pss_kib": 234796,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-notifications.service": {
+            "pid": 2514,
+            "rss_kib": 21816,
+            "pss_kib": 6209,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-wallpaper.service": {
+            "pid": 2479,
+            "rss_kib": 49004,
+            "pss_kib": 36089,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "hyprpolkitagent.service": {
+            "pid": 2500,
+            "rss_kib": 92552,
+            "pss_kib": 35335,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.19999870646839435
+          },
+          "desktop-foundation-clipboard-persist.service": {
+            "pid": 2478,
+            "rss_kib": 8524,
+            "pss_kib": 6040,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@text.service": {
+            "pid": 2600,
+            "rss_kib": 2292,
+            "pss_kib": 203,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@image.service": {
+            "pid": 2599,
+            "rss_kib": 2344,
+            "pss_kib": 199,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          }
+        }
+      },
+      {
+        "seconds": 10.000075499003287,
+        "units": {
+          "niri.service": {
+            "pid": 2411,
+            "rss_kib": 237128,
+            "pss_kib": 174053,
+            "cpu_one_core_percent": 2.3999818803760125,
+            "surviving_thread_switches_per_s": 129.09902531522633
+          },
+          "desktop-foundation-shell.service": {
+            "pid": 2498,
+            "rss_kib": 327876,
+            "pss_kib": 234796,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.09999924501566718
+          },
+          "desktop-foundation-notifications.service": {
+            "pid": 2514,
+            "rss_kib": 21816,
+            "pss_kib": 6209,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-wallpaper.service": {
+            "pid": 2479,
+            "rss_kib": 49004,
+            "pss_kib": 36089,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "hyprpolkitagent.service": {
+            "pid": 2500,
+            "rss_kib": 92552,
+            "pss_kib": 35335,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.19999849003133435
+          },
+          "desktop-foundation-clipboard-persist.service": {
+            "pid": 2478,
+            "rss_kib": 8524,
+            "pss_kib": 6040,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@text.service": {
+            "pid": 2600,
+            "rss_kib": 2292,
+            "pss_kib": 203,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          },
+          "desktop-foundation-clipboard@image.service": {
+            "pid": 2599,
+            "rss_kib": 2344,
+            "pss_kib": 199,
+            "cpu_one_core_percent": 0.0,
+            "surviving_thread_switches_per_s": 0.0
+          }
+        }
+      }
+    ],
+    "persistent_processes": 8,
+    "foundation_processes_excluding_niri": 7
+  },
+  "started_date": "2026-10-03",
+  "completed_date": "2026-10-04",
+  "hardware_context": {
+    "cpu_model": "AMD Ryzen 7 5700X3D 8-Core Processor",
+    "logical_processors": 16,
+    "checkout_filesystem": "btrfs",
+    "power_frequency_governor_during_samples": "not recorded",
+    "foreground_activity_during_samples": "not controlled; no concurrent builds/full suites"
+  }
+}
