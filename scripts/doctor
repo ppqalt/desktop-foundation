@@ -21,6 +21,12 @@ def shell_instance_count(reply):
     # Quickshell list emits no JSON when no instance matches the checkout.
     if not reply.strip():
         return 0
+    # Installed Quickshell also returns this successful human-readable empty
+    # result with --json. Keep malformed JSON distinct from no matching owner.
+    lines = reply.strip().splitlines()
+    if (len(lines) == 2 and lines[0].startswith('No running instances for "')
+            and lines[0].endswith('"') and lines[1] == 'Use --all to list all instances.'):
+        return 0
     instances = json.loads(reply)
     if not isinstance(instances, list):
         raise ValueError('Quickshell did not return an instance list')

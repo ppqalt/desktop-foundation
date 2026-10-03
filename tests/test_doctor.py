@@ -2,10 +2,13 @@ from contextlib import redirect_stdout
 import io
 from pathlib import Path
 import runpy
+import sys
 import unittest
 from unittest.mock import patch
 
-MODULE = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/doctor'))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+MODULE = runpy.run_path(str(ROOT / 'scripts/doctor'))
 
 
 class PortalDiagnosis(unittest.TestCase):
@@ -13,6 +16,7 @@ class PortalDiagnosis(unittest.TestCase):
         count = MODULE['shell_instance_count']
         self.assertEqual(count(''), 0)
         self.assertEqual(count('[]'), 0)
+        self.assertEqual(count('No running instances for "/checkout with spaces/shell/shell.qml"\nUse --all to list all instances.\n'), 0)
         self.assertEqual(count('[{"pid":1}]'), 1)
         for reply in ['null', '{}', 'invalid']:
             with self.assertRaises(ValueError): count(reply)
