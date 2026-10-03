@@ -13,6 +13,7 @@ Commands:
 - `power suspend|logout|reboot|poweroff [--check]`
 - `actions list|plan ID|invoke ID`
 - `cache plan|prune`
+- `system packages`
 
 Arguments are passed as an argv array, without shell evaluation. JSON output is
 for finite requests, and errors go to stderr with a nonzero status. Clipboard
@@ -57,3 +58,13 @@ revisions, wallpapers outside bundles, backups, journals and symlinks survive.
 Broken pointers, malformed metadata or another checkout's ownership prevent
 removal. Planning is read-only; maintenance failure reports a deferred cleanup
 without reversing a successful publication. No idle cache process or timer exists.
+
+Fastfetch package information uses the same Rust executable. Its total still
+comes from native Fastfetch and its foreign count from pacman. Cached counts keep
+the existing signature arrays (path, inode, modification/creation timestamps and
+size), repository invalidation and refusal to reuse/publish during a package
+transaction. Valid old caches remain readable. Malformed caches are reproducible;
+native query errors are reported rather than displayed as zero. No resident
+package monitor exists. The installed-directory symlink and relocated-checkout
+paths are tested. Stable requests retain the same native subprocess count and
+remove Python startup.

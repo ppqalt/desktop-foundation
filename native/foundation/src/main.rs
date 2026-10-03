@@ -1,4 +1,6 @@
-use desktop_foundationctl::{Result, actions, apps, cache, clipboard, invalid, process, volume};
+use desktop_foundationctl::{
+    Result, actions, apps, cache, clipboard, invalid, packages, process, volume,
+};
 use std::{
     io::{self, Read},
     path::PathBuf,
@@ -24,11 +26,20 @@ fn run() -> Result<()> {
         args.drain(..2);
         root
     } else {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+        let executable = std::env::current_exe()?;
+        let checkout = executable
+            .ancestors()
+            .nth(5)
+            .ok_or_else(|| invalid("Cannot locate backend checkout"))?;
+        if checkout.join("config/application-roles.json").is_file() {
+            checkout.to_path_buf()
+        } else {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+        }
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages"
         );
         return Ok(());
     }
@@ -56,6 +67,10 @@ fn run() -> Result<()> {
                 "prune" => print_json(&cache::prune(&root, &paths)?),
                 _ => Err(invalid("Expected cache plan or cache prune")),
             }
+        }
+        Some("system") if args.len() == 2 && args[1] == "packages" => {
+            println!("{}", packages::display(&root)?);
+            Ok(())
         }
         Some("volume") if args.len() == 2 => volume::adjust(&root, &args[1]),
         Some("power") => {

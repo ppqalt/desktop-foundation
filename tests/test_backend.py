@@ -118,3 +118,9 @@ class Backend(unittest.TestCase):
     def test_role_launch_hands_off_process_ownership_and_preserves_argv(self):
         self.invoke('apps', 'launch', 'browser')
         self.assertEqual(self.calls(), [[str(self.root / 'scripts/launch'), 'df-test-browser', 'about:blank']])
+
+    def test_non_utf8_command_is_reported_without_a_panic(self):
+        result = subprocess.run([str(BINARY), b'\xff'], capture_output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(b'valid UTF-8', result.stderr)
+        self.assertNotIn(b'panicked', result.stderr)

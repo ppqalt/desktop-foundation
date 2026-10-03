@@ -2,6 +2,7 @@ pub mod actions;
 pub mod apps;
 pub mod cache;
 pub mod clipboard;
+pub mod packages;
 pub mod process;
 pub mod state;
 pub mod volume;
