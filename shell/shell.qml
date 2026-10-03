@@ -8,6 +8,10 @@ import "surfaces"
 
 ShellRoot {
     id: root
+    LazyLoader {
+        active: Quickshell.env("DF_COMPOSITOR") === "niri"
+        OverviewBackdrop {}
+    }
     Volume {
         id: volumeReadout
         targetScreen: root.launcherScreen

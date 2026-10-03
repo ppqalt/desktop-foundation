@@ -35,6 +35,7 @@ nautilus
 firefox
 hyprpolkitagent
 python
+python-pillow
 lua
 wl-clipboard
 wl-clip-persist
