@@ -23,14 +23,15 @@ Clear removes history and image previews, but leaves the current clipboard
 selection alone. SQLite secure_delete is enabled; this is not secure erasure of
 filesystem snapshots or backups.
 
-The text/image watcher units are runtime-only, tied to graphical-session.target,
-and started by session-start. They restart on failure with a bounded burst.
-Direct session-exit stops them. Shell crashes do not stop collection. COSMIC
-startup and session entries are unchanged. The QML surface and storage worker
-use Wayland clipboard tools without depending on Hyprland; a future Niri adapter
-only needs to provide the same composition-root screen and binding contract.
+The text/image watcher definitions are persistently deployed and started by
+session-start through desktop-foundation-session.target after history
+initialization. They are tied to the foundation and graphical session targets,
+restart on failure with a bounded burst, and stop when the session ends. Shell
+crashes do not stop collection. The QML surface and storage worker use Wayland
+clipboard tools; Niri is the active reference compositor.
 
-Validation: six storage unit tests plus seven existing tests pass. The finite
+Current storage validation has nine regression tests. Historical interactive
+validation: the finite
 live smoke test checks a real mouse click on an existing item in the deployed
 config before exercising isolated history. It preserves the current clipboard's primary
 format and sensitive hint, and restores the real watchers. It verifies Super+V,
@@ -61,3 +62,15 @@ like the launcher executable. Qt.resolvedUrl must not resolve executables outsid
 the config tree: Quickshell redirects these URLs to qrc:/qs-blackhole. The isolated
 harness overrides DF_CLIPBOARD_WORKER explicitly, and the deployed click check
 covers the default path so that override cannot hide a production path failure.
+
+
+## History projection cost
+
+History export reads item metadata and at most 8192 bytes per text preview.
+Existing image sidecars avoid rereading every stored image BLOB; missing sidecars
+are rebuilt from the exact original payload. UTF-8 previews remain bounded to
+2048 characters, including embedded NULs and multibyte characters at the boundary.
+Copy is a read-only history action: it passes the exact selected payload to
+wl-copy without replacing the watched index or forcing the open list to reload.
+Store, delete, clear and initialization still publish the index atomically under
+the existing database lock. Storage limits and private file permissions remain.

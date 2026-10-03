@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded clipboard storage and actions; native wl-paste owns event watching."""
 import argparse
+import codecs
 from contextlib import closing, contextmanager
 import fcntl
 import hashlib
@@ -29,7 +30,7 @@ def atomic(path, data):
 
 
 @contextmanager
-def database():
+def database(*, export_after=True):
     STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(STATE, 0o700)
     with (STATE / 'lock').open('a') as lock:
@@ -41,21 +42,30 @@ def database():
             db.execute('CREATE TABLE IF NOT EXISTS clips (id TEXT PRIMARY KEY, mime TEXT, payload BLOB, updated REAL)')
             yield db
             db.commit()
-            export(db)
+            if export_after:
+                export(db)
 
 
 def export(db):
     entries = []
     images = set()
-    for identity, mime, payload, updated in db.execute('SELECT * FROM clips ORDER BY updated DESC'):
+    # The UI needs metadata and bounded text previews, not every image BLOB.
+    # Four bytes per code point covers 2048 UTF-8 characters. Incremental
+    # decoding retains strict validation while allowing a cut trailing sequence.
+    query = """SELECT id, mime, length(payload), updated,
+                      CASE WHEN mime LIKE 'image/%' THEN NULL
+                           ELSE substr(payload, 1, 8192) END
+               FROM clips ORDER BY updated DESC"""
+    for identity, mime, size, updated, prefix in db.execute(query):
         image = mime.startswith('image/')
         filename = STATE / (identity + '.' + mime.split('/')[1])
         if image:
             images.add(filename.name)
             if not filename.exists():
+                payload = db.execute('SELECT payload FROM clips WHERE id=?', (identity,)).fetchone()[0]
                 atomic(filename, payload)
-        preview = payload.decode('utf-8')[:2048] if not image else 'Copied image'
-        entries.append({'id': identity, 'mime': mime, 'preview': preview, 'size': len(payload),
+        preview = 'Copied image' if image else codecs.getincrementaldecoder('utf-8')().decode(prefix, final=size <= 8192)[:2048]
+        entries.append({'id': identity, 'mime': mime, 'preview': preview, 'size': size,
                         'updated': updated, 'image': filename.as_uri() if image else ''})
     atomic(STATE / 'index.json', json.dumps(entries, ensure_ascii=True).encode())
     for file in STATE.iterdir():
@@ -113,7 +123,7 @@ def main():
         store(args.value, sys.stdin.buffer.read(MAX_BYTES + 1))
         return
     payload = None
-    with database() as db:
+    with database(export_after=args.action != 'copy') as db:
         if args.action == 'clear':
             db.execute('DELETE FROM clips')
         elif args.action in {'copy', 'delete'}:
