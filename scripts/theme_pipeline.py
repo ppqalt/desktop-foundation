@@ -18,6 +18,12 @@ ROOT = Path(__file__).resolve().parent.parent
 VERSION = 'graphite-v1'
 
 
+def file_hash(path):
+    """Bound hashing memory regardless of original wallpaper size."""
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
 def read(path):
     return json.loads(path.read_text())
 
@@ -83,7 +89,7 @@ def generate(image):
     if not executable:
         raise RuntimeError('matugen is missing; current theme was left intact')
     image = image.expanduser().resolve(strict=True)
-    digest = hashlib.sha256(image.read_bytes()).hexdigest()
+    digest = file_hash(image)
     cache = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'desktop-foundation/themes'
     cache.mkdir(parents=True,exist_ok=True)
     target = cache / (digest+'-'+VERSION+'.json')
@@ -121,6 +127,9 @@ def atomic(path, content):
             os.fsync(file.fileno())
         os.chmod(name,0o644)
         os.replace(name,path)
+        directory = os.open(path.parent, os.O_DIRECTORY)
+        try: os.fsync(directory)
+        finally: os.close(directory)
     finally:
         if os.path.exists(name): os.unlink(name)
 
@@ -163,6 +172,10 @@ def main():
             if not args.image:raise ValueError('wallpaper-set requires an image path')
             runtime_apply(p,image=args.image,wallpaper=True,mode=args.mode)
         else: apply(p,args.action=='reset')
+    if args.action in {'apply', 'reset', 'wallpaper'}:
+        # Retention acquires the same lock after publication has released it.
+        from theme_runtime import maintain_cache
+        maintain_cache()
     print(f'{args.action}: {time.perf_counter()-started:.3f}s; palette cache hit={hit}',file=__import__('sys').stderr)
 
 

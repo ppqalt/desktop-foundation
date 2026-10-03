@@ -1,4 +1,4 @@
-use desktop_foundationctl::{Result, actions, apps, clipboard, invalid, process, volume};
+use desktop_foundationctl::{Result, actions, apps, cache, clipboard, invalid, process, volume};
 use std::{
     io::{self, Read},
     path::PathBuf,
@@ -6,7 +6,13 @@ use std::{
 };
 
 fn run() -> Result<()> {
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args_os()
+        .skip(1)
+        .map(|arg| {
+            arg.into_string()
+                .map_err(|_| invalid("Command arguments must be valid UTF-8"))
+        })
+        .collect::<Result<_>>()?;
     let root = if args.first().is_some_and(|s| s == "--root") {
         if args.len() < 3 {
             return Err(invalid("--root requires a checkout and command"));
@@ -22,7 +28,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune"
         );
         return Ok(());
     }
@@ -41,6 +47,14 @@ fn run() -> Result<()> {
                 print_json(&apps::command(&root, role)?)
             } else {
                 apps::launch(&root, role)
+            }
+        }
+        Some("cache") if args.len() == 2 => {
+            let paths = cache::CachePaths::from_environment()?;
+            match args[1].as_str() {
+                "plan" => print_json(&cache::plan(&root, &paths)?),
+                "prune" => print_json(&cache::prune(&root, &paths)?),
+                _ => Err(invalid("Expected cache plan or cache prune")),
             }
         }
         Some("volume") if args.len() == 2 => volume::adjust(&root, &args[1]),
@@ -67,7 +81,7 @@ fn run() -> Result<()> {
             actions::invoke(&root, &args[2])
         }
         _ => Err(invalid(
-            "Expected clipboard, apps launch, volume, power or actions list|plan|invoke",
+            "Expected clipboard, apps launch, volume, power, actions list|plan|invoke or cache plan|prune",
         )),
     }
 }

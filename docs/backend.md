@@ -12,6 +12,7 @@ Commands:
 - `volume up|down`
 - `power suspend|logout|reboot|poweroff [--check]`
 - `actions list|plan ID|invoke ID`
+- `cache plan|prune`
 
 Arguments are passed as an argv array, without shell evaluation. JSON output is
 for finite requests, and errors go to stderr with a nonzero status. Clipboard
@@ -46,3 +47,13 @@ LTO and remove debug information while preserving normal panic unwinding.
 
 Tests use temporary databases, synthetic desktop entries and fake executables.
 They never change the real clipboard, volume, power state or application defaults.
+
+Cache retention runs after successful deliberate theme publication, after releasing
+the theme transaction lock, and acquires that same lock itself. It retains six
+owned theme revisions, always including current and previous, 32 semantic-palette
+caches and 16 overview PNGs. Active palette and legacy backdrop references are
+protected regardless of age. Only recognized names are candidates. Foreign
+revisions, wallpapers outside bundles, backups, journals and symlinks survive.
+Broken pointers, malformed metadata or another checkout's ownership prevent
+removal. Planning is read-only; maintenance failure reports a deferred cleanup
+without reversing a successful publication. No idle cache process or timer exists.

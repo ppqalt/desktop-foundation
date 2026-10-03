@@ -97,3 +97,11 @@ class RuntimeTheme(unittest.TestCase):
             ['systemctl', '--user', 'reset-failed', 'desktop-foundation-wallpaper.service'],
             ['systemctl', '--user', 'restart', 'desktop-foundation-wallpaper.service']])
         self.assertNotIn(['systemctl', '--user', 'restart', 'niri.service'], commands)
+
+    def test_retention_failure_does_not_roll_back_successful_publication(self):
+        import subprocess
+        first=self.bundle();runtime.publish(first,live=False)
+        with patch.object(runtime.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, 'cache', stderr='ownership mismatch')), patch('sys.stderr') as diagnostic:
+            runtime.maintain_cache()
+        self.assertEqual(runtime.current(), first)
+        self.assertTrue(any('maintenance deferred' in str(c) for c in diagnostic.write.call_args_list))

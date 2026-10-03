@@ -1,5 +1,4 @@
 """Immutable wallpaper/theme bundles, atomic current pointer, retained rollback."""
-import hashlib
 import fcntl
 import json
 import os
@@ -55,6 +54,7 @@ def profile():
 def stage(p,image,mode='fill',reset=False,selected_profile=None):
     from PIL import Image
     from niri_wallpaper import prepare_backdrop
+    from theme_pipeline import file_hash
     image=Path(image).expanduser().resolve(strict=True)
     with Image.open(image) as check:check.verify()
     if mode not in {'fill','fit','center','tile'}:raise ValueError('Invalid scaling mode')
@@ -68,7 +68,7 @@ def stage(p,image,mode='fill',reset=False,selected_profile=None):
         render(ROOT,target,p,selected_profile or profile(),reset)
         (target/'wallpaper.toml').write_text('image = '+json.dumps(str(copied))+'\nmode = '+json.dumps(mode)+'\n')
         (target/'backdrop.json').write_text(json.dumps({'image':(target/'overview.png').as_uri(),'mode':mode})+'\n')
-        metadata={'root':str(ROOT),'input':str(image),'wallpaperHash':hashlib.sha256(image.read_bytes()).hexdigest(),
+        metadata={'root':str(ROOT),'input':str(image),'wallpaperHash':file_hash(image),
                   'profile':selected_profile or profile(),'reset':reset}
         (target/'metadata.json').write_text(json.dumps(metadata,indent=2)+'\n')
         subprocess.run(['niri','validate','-c',str(target/'niri.kdl')],check=True,capture_output=True)
@@ -141,6 +141,17 @@ def ensure(selected_profile='default'):
     with (home/'theme.lock').open('w') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         _ensure(selected_profile)
+    maintain_cache()
+
+
+def maintain_cache():
+    """Maintenance failure must not undo a successful theme publication."""
+    try:
+        subprocess.run([str(ROOT/'scripts/foundation'), 'cache', 'prune'],
+                       check=True, capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError) as error:
+        detail = getattr(error, 'stderr', None) or str(error)
+        print('Theme cache maintenance deferred: ' + detail.strip(), file=sys.stderr)
 
 
 def _ensure(selected_profile):
@@ -161,9 +172,10 @@ def _ensure(selected_profile):
 
 
 def apply(p,reset=False,image=None,wallpaper=False,mode=None):
+    from theme_pipeline import file_hash
     c=config();image=Path(image or c['image']).expanduser().resolve(strict=True)
     old=current()
-    digest=hashlib.sha256(image.read_bytes()).hexdigest()
+    digest=file_hash(image)
     desired_mode=mode or c.get('mode','fill')
     if old and {k:v for k,v in json.loads((old/'semantic.json').read_text()).items() if k!='source'}=={k:v for k,v in p.items() if k!='source'} and json.loads((old/'metadata.json').read_text())['wallpaperHash']==digest and desired_mode==c['mode']:
         print('Already active; no publication or reload needed.');return
