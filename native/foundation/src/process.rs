@@ -1,5 +1,7 @@
 //! Bounded one-shot subprocesses. No shell evaluation or resident supervisor.
 use crate::{Error, Result, invalid};
+#[cfg(target_os = "linux")]
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::{
     io::{Read, Write},
     os::fd::AsRawFd,
@@ -59,6 +61,16 @@ pub fn run(
     timeout: Duration,
     capture: bool,
 ) -> Result<Output> {
+    run_with_limit(args, input, timeout, capture, MAX_OUTPUT)
+}
+
+fn run_with_limit(
+    args: &[String],
+    input: Option<Vec<u8>>,
+    timeout: Duration,
+    capture: bool,
+    stdout_limit: u64,
+) -> Result<Output> {
     let name = args
         .first()
         .ok_or_else(|| invalid("Empty subprocess command"))?;
@@ -81,12 +93,42 @@ pub fn run(
         } else {
             Stdio::null()
         });
+    #[cfg(target_os = "linux")]
+    {
+        let parent = std::process::id() as libc::pid_t;
+        // SAFETY: this hook only uses async-signal-safe libc calls and constructs
+        // a raw-errno error. It runs after fork, before exec, in our child.
+        unsafe {
+            command.pre_exec(move || {
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::getppid() != parent {
+                    return Err(std::io::Error::from_raw_os_error(libc::ESRCH));
+                }
+                Ok(())
+            });
+        }
+    }
     let mut owned = OwnedChild {
         child: command.spawn().map_err(|e| Error::Process {
             command: name.clone(),
             detail: e.to_string(),
         })?,
         completed: false,
+    };
+    // Poll child exit alongside its pipes instead of adding a 5 ms reap delay
+    // when a fast native command closes its streams just before exiting.
+    #[cfg(target_os = "linux")]
+    let child_exit = {
+        // SAFETY: pidfd_open only opens a handle to our newly spawned child.
+        let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, owned.child.id(), 0) };
+        if fd >= 0 {
+            // SAFETY: a successful pidfd_open returns a fresh owned descriptor.
+            Some(unsafe { OwnedFd::from_raw_fd(fd as libc::c_int) })
+        } else {
+            None // Older kernels retain the bounded portable fallback below.
+        }
     };
     let mut stdout_pipe = owned.child.stdout.take();
     let mut stderr_pipe = owned.child.stderr.take();
@@ -112,8 +154,8 @@ pub fn run(
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
         loop {
-            collect(&mut stdout_pipe, &mut stdout)?;
-            collect(&mut stderr_pipe, &mut stderr)?;
+            collect(&mut stdout_pipe, &mut stdout, stdout_limit)?;
+            collect(&mut stderr_pipe, &mut stderr, MAX_OUTPUT)?;
             if let Some(pipe) = stdin_pipe.as_mut() {
                 match pipe.write(&input[written..]) {
                     Ok(0) => {
@@ -164,6 +206,16 @@ pub fn run(
                 revents: 0,
             })
             .collect();
+            #[cfg(target_os = "linux")]
+            if status.is_none()
+                && let Some(fd) = &child_exit
+            {
+                pipes.push(libc::pollfd {
+                    fd: fd.as_raw_fd(),
+                    events: libc::POLLIN,
+                    revents: 0,
+                });
+            }
             let remaining = deadline.saturating_duration_since(Instant::now());
             if pipes.is_empty() {
                 thread::sleep(remaining.min(Duration::from_millis(5)));
@@ -199,16 +251,19 @@ fn nonblocking(fd: libc::c_int) -> Result<()> {
     Ok(())
 }
 
-fn collect(reader: &mut Option<impl Read>, bytes: &mut Vec<u8>) -> Result<()> {
+fn collect(reader: &mut Option<impl Read>, bytes: &mut Vec<u8>, limit: u64) -> Result<()> {
     let mut buffer = [0; 8192];
     while let Some(pipe) = reader.as_mut() {
-        let available = ((MAX_OUTPUT + 1) as usize - bytes.len()).min(buffer.len());
+        let available = ((limit + 1) as usize - bytes.len()).min(buffer.len());
         match pipe.read(&mut buffer[..available]) {
             Ok(0) => *reader = None,
             Ok(n) => {
                 bytes.extend_from_slice(&buffer[..n]);
-                if bytes.len() as u64 > MAX_OUTPUT {
-                    return Err(invalid("Subprocess output exceeded 64 KiB"));
+                if bytes.len() as u64 > limit {
+                    return Err(invalid(format!(
+                        "Subprocess output exceeded {} KiB",
+                        limit / 1024
+                    )));
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
@@ -226,6 +281,24 @@ pub fn checked(
     capture: bool,
 ) -> Result<Output> {
     let output = run(args, input, timeout, capture)?;
+    ensure_success(args, output)
+}
+
+/// Larger finite snapshots can opt in without loosening other commands' limits.
+/// stderr keeps its 64 KiB cap and deadlines/child cleanup remain identical.
+pub fn checked_capture(args: &[String], timeout: Duration, stdout_limit: u64) -> Result<Output> {
+    if !(1..=16 * 1024 * 1024).contains(&stdout_limit) {
+        return Err(invalid(
+            "Captured stdout limit must be between 1 byte and 16 MiB",
+        ));
+    }
+    ensure_success(
+        args,
+        run_with_limit(args, None, timeout, true, stdout_limit)?,
+    )
+}
+
+fn ensure_success(args: &[String], output: Output) -> Result<Output> {
     if !output.status.success() {
         return Err(Error::Process {
             command: args[0].clone(),

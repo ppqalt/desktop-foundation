@@ -366,7 +366,7 @@ SurfaceCard {
     }
     Process {
         id: codecDiscovery
-        command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-action.py", "codecs", root.device.dbusPath]
+        command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "bluetooth", "codecs", root.device.dbusPath]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {

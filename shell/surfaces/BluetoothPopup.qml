@@ -98,7 +98,7 @@ PanelWindow {
         pendingActivation = "";
         radioTarget = !adapterAvailable;
         radioBusy = true;
-        radioAction.command = ["python3", Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-power.py", radioTarget ? "on" : "off"];
+        radioAction.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "bluetooth", "power", radioTarget ? "on" : "off"];
         radioAction.running = true;
     }
     Process {

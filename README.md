@@ -15,6 +15,9 @@ improvements. Static/isolated integration checks pass; live candidate visual,
 audio/Bluetooth and full-session acceptance remain pending. See the
 [release notes](docs/releases/0.12-1.md).
 
+Development after v0.12-1 also moves Bluetooth radio control and playback-codec
+discovery into the shared Rust backend. See [backend behavior and measurements](docs/backend.md).
+
 ![Desktop Foundation launcher](docs/screenshots/launcher.png)
 
 [View the screenshot gallery](docs/screenshots/README.md) — launcher, clipboard,

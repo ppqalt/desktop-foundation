@@ -4,10 +4,12 @@ import argparse
 import ctypes
 import json
 import os
+from pathlib import Path
 import re
 import selectors
 import signal
 import subprocess
+import sys
 import time
 
 ENV = dict(os.environ, LC_ALL='C')
@@ -166,9 +168,13 @@ def friendly_error(error, action="connect"):
 
 
 def main():
+    # Discovery is finite Rust code; connection/audio routing stays event-driven.
+    if len(sys.argv) > 1 and sys.argv[1] == 'codecs':
+        wrapper = str(Path(__file__).resolve().with_name('foundation'))
+        os.execv(wrapper, [wrapper, 'bluetooth', *sys.argv[1:]])
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['connect', 'disconnect', 'codecs', 'codec', 'reconnect'])
+    parser.add_argument('action', choices=['connect', 'disconnect', 'codec', 'reconnect'])
     parser.add_argument('path')
     parser.add_argument('--codec', choices=['sbc'])
     args = parser.parse_args()
@@ -177,21 +183,16 @@ def main():
     try:
         if not (property_value(args.path, 'Paired') or property_value(args.path, 'Bonded')):
             raise RuntimeError('Device is not paired')
-        if args.action in ('codecs', 'codec'):
+        if args.action == 'codec':
             address = property_value(args.path, 'Address').upper()
-            if args.action == 'codecs':
-                cards = [c for c in snapshot('cards') if address_of(c) == address]
-                available = sorted({profile_codec(name, card['profiles'][name]) for card in cards for name in profiles(card)})
-                result = {'success': True, 'codecs': [c for c in available if c]}
-            else:
-                if not args.codec:
-                    raise RuntimeError('No codec selected')
-                if not property_value(args.path, 'Connected'):
-                    raise RuntimeError('Device disconnected')
-                audio = configure_audio(address, args.codec)
-                result = {'success': bool(audio.get('routed')), **audio}
-                if not result['success']:
-                    result['error'] = audio.get('error') or audio.get('warning') or 'Playback codec could not be confirmed.'
+            if not args.codec:
+                raise RuntimeError('No codec selected')
+            if not property_value(args.path, 'Connected'):
+                raise RuntimeError('Device disconnected')
+            audio = configure_audio(address, args.codec)
+            result = {'success': bool(audio.get('routed')), **audio}
+            if not result['success']:
+                result['error'] = audio.get('error') or audio.get('warning') or 'Playback codec could not be confirmed.'
         elif args.action in ('connect', 'reconnect'):
             if not json.loads(command('busctl', '--system', '--json=short', 'get-property', 'org.bluez', args.path.rsplit('/', 1)[0], 'org.bluez.Adapter1', 'Powered'))['data']:
                 raise RuntimeError('Bluetooth not ready')

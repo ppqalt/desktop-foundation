@@ -152,3 +152,31 @@ fn successful_clipboard_style_ownership_is_not_killed() {
     // SAFETY: signal zero only probes our isolated child's known PID.
     assert_eq!(unsafe { libc::kill(fixture.pid(), 0) }, 0);
 }
+
+#[test]
+fn larger_snapshot_limit_does_not_loosen_stderr_or_default_limits() {
+    let command = ["sh".into(), "-c".into(), "head -c 100000 /dev/zero".into()];
+    assert!(process::run(&command, None, Duration::from_secs(2), true).is_err());
+    assert_eq!(
+        process::checked_capture(&command, Duration::from_secs(2), 128 * 1024)
+            .unwrap()
+            .stdout
+            .len(),
+        100000
+    );
+    assert!(
+        process::checked_capture(
+            &[
+                "sh".into(),
+                "-c".into(),
+                "head -c 100000 /dev/zero >&2".into()
+            ],
+            Duration::from_secs(2),
+            128 * 1024
+        )
+        .is_err()
+    );
+    for limit in [0, 16 * 1024 * 1024 + 1] {
+        assert!(process::checked_capture(&command, Duration::from_secs(2), limit).is_err());
+    }
+}

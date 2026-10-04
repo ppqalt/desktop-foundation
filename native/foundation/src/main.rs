@@ -1,5 +1,5 @@
 use desktop_foundationctl::{
-    Result, actions, apps, cache, clipboard, invalid, packages, process, shell, volume,
+    Result, actions, apps, bluetooth, cache, clipboard, invalid, packages, process, shell, volume,
 };
 use std::{
     io::{self, Read},
@@ -39,7 +39,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
         );
         return Ok(());
     }
@@ -84,6 +84,24 @@ fn run() -> Result<()> {
             shell::call(&root, &args[2..])
         }
         Some("volume") if args.len() == 2 => volume::adjust(&root, &args[1]),
+        Some("bluetooth") => {
+            let result = match args[1..].as_ref() {
+                [action, mode] if action == "power" && matches!(mode.as_str(), "on" | "off") => {
+                    bluetooth::power(mode == "on")
+                }
+                [action, path] if action == "codecs" => bluetooth::codecs(path),
+                _ => Err(invalid(
+                    "Expected bluetooth power on|off or bluetooth codecs DEVICE_PATH",
+                )),
+            };
+            match result {
+                Ok(value) => print_json(&value),
+                Err(error) => {
+                    print_json(&serde_json::json!({"success": false, "error": error.to_string()}))?;
+                    Err(error)
+                }
+            }
+        }
         Some("power") => {
             let check = args.iter().any(|s| s == "--check");
             args.retain(|s| s != "--check");
@@ -107,7 +125,7 @@ fn run() -> Result<()> {
             actions::invoke(&root, &args[2])
         }
         _ => Err(invalid(
-            "Expected clipboard, apps launch, volume, power, actions list|plan|invoke or cache plan|prune",
+            "Expected clipboard, apps launch, volume, bluetooth, power, actions list|plan|invoke or cache plan|prune",
         )),
     }
 }

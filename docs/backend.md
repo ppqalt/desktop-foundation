@@ -10,6 +10,8 @@ Commands:
 - `clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear`
 - `apps launch [terminal|browser|files|pdf|image|text] [--check]`
 - `volume up|down`
+- `bluetooth power on|off`
+- `bluetooth codecs DEVICE_PATH`
 - `power suspend|logout|reboot|poweroff [--check]`
 - `actions list|plan ID|invoke ID`
 - `cache plan|prune`
@@ -78,3 +80,65 @@ pauses only while unavailable and 500 ms per-probe limits. The requested action
 has a three-second deadline and is sent exactly once, including after failure.
 No readiness timer runs while idle. This removes repeated shell/sleep process
 creation and prevents a stalled status command from blocking a keypress forever.
+
+## Bluetooth follow-up after v0.12-1
+
+The Bluetooth popup's radio switch and earbud Controls' playback-codec discovery
+call the shared release binary directly. Existing `bluetooth-power.py` and
+`bluetooth-action.py codecs` callers forward to it. Connection, reconnection,
+codec changes and event-driven audio routing retain their existing implementation;
+Nothing/CMF protocol control remains in its separate Rust backend. QML appearance,
+navigation, scroll behavior, battery reporting and actions are preserved.
+
+Radio requests discover every `hciN` adapter, unblock the software radio only on
+enable, set its native BlueZ `Powered` property and confirm the observed state.
+Transient rejection after unblock is retried within a shared five-second power
+budget, including all adapters and their set/read commands. Initial discovery
+and optional unblock each have a separate two-second limit, so the entire call
+is bounded by approximately nine seconds when enabling (seven when disabling).
+Errors retain the popup's JSON contract and a nonzero exit status. No daemon,
+polling service, privileged API or Cargo dependency is added.
+
+Codec discovery is read-only. It validates the paired/bonded device, dynamically
+matches its address/path to PipeWire-Pulse cards and lists the same available
+AAC/LDAC/SBC/SBC XQ playback profiles as before. Device-property reads have
+two-second limits; the audio-card snapshot has eight seconds and a 2 MiB stdout
+cap to accommodate multi-card machines. Other subprocess output and all stderr
+retain the 64 KiB cap. Invalid or oversized service responses fail explicitly.
+
+Finite subprocesses use Linux parent-death protection for their direct children,
+so a destroyed popup cannot leave its in-flight native command running. Failed
+requests still clean their owned process group. Successful forked clipboard
+owners retain their handoff; app/session `exec` paths are unaffected. Child exit
+is polled using a native pidfd where supported, removing the former extra reap
+delay for fast commands. Older kernels use the existing bounded fallback. These
+handles exist only for a requested command; there is no additional idle worker.
+
+### Isolated measurements, 2026-10-04
+
+`python3 scripts/bluetooth-bench.py --runs 24` compares release Rust with the
+unchanged v0.12-1 Python sources using only synthetic shell executables. Two
+warmups precede 24 paired samples per implementation, alternating order and
+including process startup. PATH contains only fixtures; no real radio/audio
+commands can run. Median timings on this development host were:
+
+| Helper | Python | Rust |
+|---|---:|---:|
+| Power off, two adapters | 31.272 ms | 7.126 ms |
+| Codec discovery | 57.266 ms | 4.879 ms |
+
+Results include identical JSON/argv behavior checks. These measurements concern
+helper overhead, not physical Bluetooth connection latency or whole-desktop RAM
+and CPU usage. Frequency/foreground activity was uncontrolled. Live desktop
+interaction tests were deliberately omitted at the user's request.
+
+Validation passes 153 Python/integration tests with both opt-in live Qt fixtures
+skipped, 38 Rust tests across both crates, warnings-denied Clippy, release build
+and `scripts/check` (including static QML/native config validation). Seventeen
+new fake-command cases cover radio errors/retries, deadline enforcement, codec
+matching/availability, large/malformed responses, killed-helper cleanup and a
+clipboard owner surviving the native backend's exit.
+
+Build with `scripts/build-backend`; the normal installer already builds this
+same crate. Source changes and the executable must be deployed together. To undo
+this follow-up, revert its commit and rebuild the backend before reloading QML.
