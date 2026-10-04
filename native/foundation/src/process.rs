@@ -12,6 +12,7 @@ use std::{
 };
 
 const MAX_OUTPUT: u64 = 64 * 1024;
+const MAX_IMAGE: u64 = 128 * 1024 * 1024;
 
 /// Hand ownership to a long-lived app or session command; no supervisor remains.
 pub fn replace(args: &[String]) -> Result<()> {
@@ -61,13 +62,13 @@ pub fn run(
     timeout: Duration,
     capture: bool,
 ) -> Result<Output> {
-    run_with_limit(args, input, timeout, capture, MAX_OUTPUT)
+    run_with_limit(args, input, Some(timeout), capture, MAX_OUTPUT)
 }
 
 fn run_with_limit(
     args: &[String],
     input: Option<Vec<u8>>,
-    timeout: Duration,
+    timeout: Option<Duration>,
     capture: bool,
     stdout_limit: u64,
 ) -> Result<Output> {
@@ -148,7 +149,7 @@ fn run_with_limit(
     if input.is_empty() {
         stdin_pipe = None;
     }
-    let deadline = Instant::now() + timeout;
+    let deadline = timeout.map(|duration| Instant::now() + duration);
     let result = (|| {
         let mut status = None;
         let mut stdout = Vec::new();
@@ -184,10 +185,12 @@ fn run_with_limit(
                     status,
                 });
             }
-            if Instant::now() >= deadline {
+            if let Some(deadline) = deadline
+                && Instant::now() >= deadline
+            {
                 return Err(Error::Process {
                     command: name.clone(),
-                    detail: format!("timed out after {} ms", timeout.as_millis()),
+                    detail: format!("timed out after {} ms", timeout.unwrap().as_millis()),
                 });
             }
             // Every pipe stays owned by this loop. A detached descendant may
@@ -216,13 +219,23 @@ fn run_with_limit(
                     revents: 0,
                 });
             }
-            let remaining = deadline.saturating_duration_since(Instant::now());
+            let remaining = deadline.map(|end| end.saturating_duration_since(Instant::now()));
             if pipes.is_empty() {
-                thread::sleep(remaining.min(Duration::from_millis(5)));
+                // Only used on kernels without pidfd support. A selector with
+                // live output pipes blocks in poll below while awaiting input.
+                thread::sleep(
+                    remaining
+                        .unwrap_or(Duration::from_millis(5))
+                        .min(Duration::from_millis(5)),
+                );
             } else {
-                let wait_ms = remaining.as_millis().clamp(1, 50) as libc::c_int;
+                // Interactive tools wait for the user, without a deadline or
+                // periodic wakeups. Their output and child ownership stay bounded.
+                let wait_ms = remaining.map_or(-1, |duration| {
+                    duration.as_millis().clamp(1, 50) as libc::c_int
+                });
                 // SAFETY: every descriptor belongs to a live pipe above; the
-                // vector remains valid for this finite poll call.
+                // vector remains valid throughout this poll call.
                 if unsafe { libc::poll(pipes.as_mut_ptr(), pipes.len() as libc::nfds_t, wait_ms) }
                     < 0
                 {
@@ -294,7 +307,23 @@ pub fn checked_capture(args: &[String], timeout: Duration, stdout_limit: u64) ->
     }
     ensure_success(
         args,
-        run_with_limit(args, None, timeout, true, stdout_limit)?,
+        run_with_limit(args, None, Some(timeout), true, stdout_limit)?,
+    )
+}
+
+/// User-driven selectors have no wall-clock deadline. Keep both output caps,
+/// empty/explicit stdin and the same cancellation/child cleanup as timed tools.
+/// Return the exit status so callers can distinguish cancellation from failure.
+pub fn interactive(args: &[String], input: Option<Vec<u8>>) -> Result<Output> {
+    run_with_limit(args, input, None, true, MAX_OUTPUT)
+}
+
+/// Binary screenshot payloads can exceed the text-command limit. This opt-in
+/// keeps a finite 128 MiB cap, 64 KiB stderr, and the caller's capture deadline.
+pub fn checked_image(args: &[String], timeout: Duration) -> Result<Output> {
+    ensure_success(
+        args,
+        run_with_limit(args, None, Some(timeout), true, MAX_IMAGE)?,
     )
 }
 

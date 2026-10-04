@@ -5,6 +5,7 @@ pub mod cache;
 pub mod clipboard;
 pub mod packages;
 pub mod process;
+pub mod screenshot;
 pub mod shell;
 pub mod state;
 pub mod volume;

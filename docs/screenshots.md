@@ -20,7 +20,8 @@ also does not persist screenshots. No screenshot directory is created by Niri
 deployment. The clipboard history can retain copied images as it does for any
 other clipboard item; these shortcuts do not create screenshot files.
 
-The common driver exposes region/window/output actions. A runtime advisory lock
+The common Rust driver exposes region/window/output actions through
+`scripts/screenshot` or `scripts/foundation screenshot`. A runtime advisory lock
 ignores duplicate region requests while a selector is open. Cancellation or a
 capture failure never publishes clipboard data. The selector is started only on
 demand, never at session startup. Hyprland's retained storage policy is documented
@@ -57,11 +58,36 @@ Hyprland adapter invokes the shared driver with an explicit backend. Direct CLI:
     scripts/screenshot --backend hyprland window
     scripts/screenshot --backend hyprland output
 
-Only scripts/screenshot_backends/hyprland.py knows grim, slurp, hyprctl, monitor
+Only `native/foundation/src/screenshot.rs` knows grim, slurp, hyprctl, monitor
 IDs and active-window geometry. Window capture is a screen crop of the visible
 focused window on its owning output, so overlapping surfaces are included and
 scrolled-off columns are clipped. It does not extract hidden window buffers.
 Output and window snapshots are queried once per capture; there is no polling.
+
+## Rust migration after v0.12-1
+
+The shared `desktop-foundationctl` executable now owns both screenshot backends.
+`scripts/screenshot.py` is an exec-only compatibility shim; the Python backend
+implementations were removed. Keybindings and the QML adapters retain their
+existing actions. Niri's adapter and Print still use its native output/window
+IPC actions directly.
+
+Slurp is user-driven and has no selection timeout. The Rust helper sleeps in
+native poll while selection is pending, with no periodic polling on kernels that
+support pidfds. Capture and clipboard operations retain their 20-second and
+5-second deadlines. Selector/status output and all stderr are capped at 64 KiB;
+PNG payloads have a separate 128 MiB bound. Temporary capture files, if needed
+by Hyprland, are private and removed on normal cancellation, error or completion.
+Successful forked wl-copy owners survive the helper's exit. No additional process
+exists while screenshots are idle.
+
+Migration validation uses fake slurp/grim/wl-copy/hyprctl/niri executables, private
+runtime directories and synthetic PNGs. No live desktop interaction was tested
+for this change, as requested. The live smoke results above describe earlier
+implementations; they are not validation of the Rust migration.
+
+Build/deploy source and binary together using the existing `scripts/build-backend`
+workflow. Rollback is a commit revert followed by rebuilding the previous backend.
 
 Basic live smoke check, without expanding the automated test suite: actual
 Super+Shift+S selection and cancellation, Print output capture, direct window

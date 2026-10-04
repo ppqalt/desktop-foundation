@@ -180,3 +180,59 @@ fn larger_snapshot_limit_does_not_loosen_stderr_or_default_limits() {
         assert!(process::checked_capture(&command, Duration::from_secs(2), limit).is_err());
     }
 }
+
+#[test]
+fn interactive_selector_preserves_status_and_bounds_output() {
+    let output = process::interactive(
+        &[
+            "sh".into(),
+            "-c".into(),
+            "sleep 0.1; printf 'selection cancelled' >&2; exit 1".into(),
+        ],
+        Some(Vec::new()),
+    )
+    .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stderr, b"selection cancelled");
+    assert!(
+        process::interactive(
+            &["sh".into(), "-c".into(), "head -c 100000 /dev/zero".into()],
+            None
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn image_capture_has_a_separate_binary_cap_and_keeps_error_limits() {
+    let command = [
+        "sh".into(),
+        "-c".into(),
+        "head -c 18000000 /dev/zero".into(),
+    ];
+    assert_eq!(
+        process::checked_image(&command, Duration::from_secs(3))
+            .unwrap()
+            .stdout
+            .len(),
+        18_000_000
+    );
+    assert!(
+        process::checked_image(
+            &[
+                "sh".into(),
+                "-c".into(),
+                "head -c 100000 /dev/zero >&2".into()
+            ],
+            Duration::from_secs(2)
+        )
+        .is_err()
+    );
+    assert!(
+        process::checked_image(
+            &["sh".into(), "-c".into(), "sleep 20".into()],
+            Duration::from_millis(100)
+        )
+        .is_err()
+    );
+}

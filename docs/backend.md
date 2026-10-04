@@ -12,6 +12,7 @@ Commands:
 - `volume up|down`
 - `bluetooth power on|off`
 - `bluetooth codecs DEVICE_PATH`
+- `screenshot [--backend niri|hyprland] region|window|output`
 - `power suspend|logout|reboot|poweroff [--check]`
 - `actions list|plan ID|invoke ID`
 - `cache plan|prune`
@@ -51,6 +52,7 @@ LTO and remove debug information while preserving normal panic unwinding.
 
 Tests use temporary databases, synthetic desktop entries and fake executables.
 They never change the real clipboard, volume, power state or application defaults.
+Screenshot fixtures likewise avoid the real compositor and screen contents.
 
 Cache retention runs after successful deliberate theme publication, after releasing
 the theme transaction lock, and acquires that same lock itself. It retains six
@@ -142,3 +144,46 @@ clipboard owner surviving the native backend's exit.
 Build with `scripts/build-backend`; the normal installer already builds this
 same crate. Source changes and the executable must be deployed together. To undo
 this follow-up, revert its commit and rebuild the backend before reloading QML.
+
+## Screenshot follow-up
+
+`screenshot [--backend niri|hyprland] region|window|output` replaces the Python
+capture driver and both Python backend implementations. The existing Bash
+entry point executes the shared binary; the Python entry point only forwards
+older callers. QML actions and keybindings keep the same native behavior.
+Niri remains clipboard-only, with native window/output IPC and memory-only
+region captures. Hyprland still saves a private complete PNG and copies it;
+filename collisions cannot overwrite earlier images. See [screenshots.md](screenshots.md).
+
+The only new direct Cargo dependency is the TOML parser for the existing selector
+and storage configuration. Selection has no deadline and waits in native poll;
+captures and clipboard handoffs retain finite deadlines. Text/stderr caps stay
+64 KiB. PNG stdout and saved temporary files have a separate 128 MiB byte cap
+to bound failed capture output; this is a helper guard, not a resolution/quality
+setting or a native Grim/Niri limit. No screenshot helper runs between requests.
+
+`python3 scripts/screenshot-bench.py --runs 24` compares the previous commit
+`1394382` with release Rust using a synthetic 196,992-byte PNG and private
+slurp/grim/wl-copy/hyprctl fixtures. Two warmups precede 24 paired samples per
+implementation in alternating order, including process startup, transfer and
+payload checks. On 2026-10-04:
+
+| Helper | Python | Rust |
+|---|---:|---:|
+| Niri region | 58.775 ms | 7.054 ms |
+| Hyprland output | 60.079 ms | 7.559 ms |
+
+These are helper-path measurements; they exclude user selection time and real
+screen capture/Wayland latency. Background activity and CPU frequency were
+uncontrolled. Peak RSS was unavailable because `/usr/bin/time` was not installed.
+The release binary is 1,576,048 bytes (previously 1,262,136 bytes).
+
+Twenty-eight screenshot CLI tests use only private fixtures, including wrapper
+compatibility, cancellation, exact PNG transfer, geometry/clipping, native
+actions, locks, output limits, special-file rejection, atomic saves and killed
+selector cleanup. Live desktop tests remain deliberately omitted.
+
+Validation: 177 Python/integration tests pass, with two live Qt fixtures skipped;
+40 Rust tests across the two crates, warnings-denied Clippy, release build and
+`scripts/check` pass. An existing fixture's `/proc` observation race was corrected
+to recognize a child disappearing during its status-file read.

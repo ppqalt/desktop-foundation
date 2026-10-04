@@ -263,7 +263,7 @@ class BluetoothBackend(unittest.TestCase):
         path = Path('/proc') / str(pid) / 'status'
         try:
             return 'State:\tZ' in path.read_text()
-        except FileNotFoundError:
+        except (FileNotFoundError, ProcessLookupError):
             return True
 
     def stop_owned(self, pid):

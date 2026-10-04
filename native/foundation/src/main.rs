@@ -1,5 +1,6 @@
 use desktop_foundationctl::{
-    Result, actions, apps, bluetooth, cache, clipboard, invalid, packages, process, shell, volume,
+    Result, actions, apps, bluetooth, cache, clipboard, invalid, packages, process, screenshot,
+    shell, volume,
 };
 use std::{
     io::{self, Read},
@@ -39,7 +40,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
         );
         return Ok(());
     }
@@ -84,6 +85,32 @@ fn run() -> Result<()> {
             shell::call(&root, &args[2..])
         }
         Some("volume") if args.len() == 2 => volume::adjust(&root, &args[1]),
+        Some("screenshot") => {
+            let mut backend = std::env::var("DF_COMPOSITOR").unwrap_or_else(|_| "niri".into());
+            let mut action = None;
+            let mut options = args[1..].iter();
+            while let Some(option) = options.next() {
+                if option == "--backend" {
+                    backend = options
+                        .next()
+                        .ok_or_else(|| invalid("--backend requires niri or hyprland"))?
+                        .clone();
+                } else if action.replace(option.as_str()).is_some() {
+                    return Err(invalid(
+                        "Expected screenshot [--backend niri|hyprland] region|window|output",
+                    ));
+                }
+            }
+            let action = action.ok_or_else(|| invalid("Screenshot action required"))?;
+            if !matches!(backend.as_str(), "niri" | "hyprland")
+                || !matches!(action, "region" | "window" | "output")
+            {
+                return Err(invalid(
+                    "Expected screenshot [--backend niri|hyprland] region|window|output",
+                ));
+            }
+            screenshot::capture(&root, &backend, action)
+        }
         Some("bluetooth") => {
             let result = match args[1..].as_ref() {
                 [action, mode] if action == "power" && matches!(mode.as_str(), "on" | "off") => {
@@ -125,7 +152,7 @@ fn run() -> Result<()> {
             actions::invoke(&root, &args[2])
         }
         _ => Err(invalid(
-            "Expected clipboard, apps launch, volume, bluetooth, power, actions list|plan|invoke or cache plan|prune",
+            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, actions list|plan|invoke or cache plan|prune",
         )),
     }
 }
