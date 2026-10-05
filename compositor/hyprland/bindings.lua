@@ -23,6 +23,7 @@ return function(command)
             hl.dispatch(hl.dsp.layout("center"))
         end
     end, "Center floating window or tiled column")
+    bind("SUPER + SHIFT + C", hl.dsp.exec_cmd(command("clock")), "Toggle corner clock")
     for _, direction in ipairs({ "left", "right", "up", "down" }) do
         bind("SUPER + " .. direction, hl.dsp.focus({ direction = direction }), "Focus " .. direction)
         bind("SUPER + SHIFT + " .. direction, hl.dsp.window.move({ direction = direction }), "Move window " .. direction)

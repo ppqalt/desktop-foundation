@@ -11,6 +11,7 @@ Niri binds are in `compositor/niri/bindings.kdl`.
 | Super+T or Enter / E / W | Kitty / default file manager / default browser |
 | Super+Q / D / F / A | Close / maximize column / fullscreen / floating |
 | Super+R / C | Cycle 1/3, 1/2, 2/3 column width / center column |
+| Super+Shift+C | Toggle the small top-left clock |
 | Super+arrows or HJKL | Native column/window focus |
 | Super+Shift+arrows or HJKL | Move column/window |
 | Super+1..9 / Ctrl+1..9 | Focus workspace index / move window to workspace |
@@ -51,6 +52,7 @@ Shared keyboard preferences live in `compositor/hyprland/input.lua`: `kb_layout 
 | Super+A | Toggle floating |
 | Super+R | Cycle native tiled-column width presets |
 | Super+C | Center tiled column, or center floating window on the monitor |
+| Super+Shift+C | Toggle the small top-left clock |
 | Super+Arrow | Directional focus/navigation |
 | Super+Tab | Reserved for overview; inactive |
 | Super+Space | Application launcher |
@@ -88,6 +90,15 @@ Volume feedback uses the shared shell theme: one noninteractive top-centre
 readout, 2 px animated bar, no notification stacking, 1.5 s hold then fade.
 If the shell is unavailable, volume still changes and a text-only Mako toast
 is used. No additional daemon or glyph-based progress bar.
+
+Super+Shift+C toggles a compact top-left 24-hour clock on the focused output in
+either compositor. Super+C retains its existing centering action. The clock
+starts hidden, uses the shared graphite palette and Google Sans Code, and is
+click-through: it takes neither input nor desktop space. The existing Rust
+backend sends a single `toggleClock` shell IPC request. QML's native SystemClock
+updates at minute precision while shown; hiding the lazy surface destroys its
+clock/timer. No date/seconds, Python helper, resident clock process or saved
+visibility state is added. `scripts/clock` toggles it from the command line.
 
 Super+Shift+Q toggles the graphite session menu in Niri and the retained Hyprland
 configuration. Actions: 1 Suspend, 2 Log out, 3 Reboot, 4 Power off. Arrows select;

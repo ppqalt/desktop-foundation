@@ -18,6 +18,14 @@ ShellRoot {
         id: volumeReadout
         targetScreen: root.launcherScreen
     }
+    property bool clockEnabled: false
+    LazyLoader {
+        id: clockLoader
+        active: root.clockEnabled
+        Clock {
+            targetScreen: root.launcherScreen
+        }
+    }
     property bool bluetoothEnabled: false
     LazyLoader {
         id: bluetoothLoader
@@ -99,6 +107,15 @@ ShellRoot {
                 visible: volumeReadout.visible,
                 level: volumeReadout.level,
                 muted: volumeReadout.muted
+            });
+        }
+        function toggleClock(): void {
+            root.clockEnabled = !root.clockEnabled;
+        }
+        function clockStatus(): string {
+            return JSON.stringify({
+                visible: root.clockEnabled,
+                alive: clockLoader.item !== null
             });
         }
         function toggleBluetooth(): void {

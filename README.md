@@ -79,6 +79,7 @@ existing setup. The portable profile assumes no hostname, GPU or output size.
   Super+Shift+Q power/session. Wheel/arrows select; click/Enter activate.
 - Super+T/Enter terminal, Super+E files, Super+W browser, through explicit roles.
 - PageUp/PageDown change volume by 3%; End toggles playback.
+- Super+Shift+C toggles a small, click-through clock in the top left.
 - Print copies the current output; Super+Shift+S copies a dragged region.
   Niri captures are clipboard-only. The secondary Hyprland backend also saves files.
 - Google Sans and Google Sans Code Nerd Font Mono; compact Fish prompt, `c` and

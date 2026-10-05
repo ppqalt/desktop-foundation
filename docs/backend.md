@@ -187,3 +187,22 @@ Validation: 177 Python/integration tests pass, with two live Qt fixtures skipped
 40 Rust tests across the two crates, warnings-denied Clippy, release build and
 `scripts/check` pass. An existing fixture's `/proc` observation race was corrected
 to recognize a child disappearing during its status-file read.
+
+## Minimal corner clock
+
+`scripts/clock` uses the existing Rust `shell call toggleClock` path. Readiness
+is bounded and the toggle is sent exactly once; there is no Python intermediary
+or separate clock service. `clockStatus` is available through shell IPC for
+read-only visibility/lifecycle inspection.
+
+The QML composition root lazy-loads `surfaces/Clock.qml` only while enabled.
+Native `SystemClock.Minutes` drives the 24-hour display; hiding unloads both
+surface and timer. The card uses the shared generated graphite palette and
+monospace font, takes neither focus nor input/desktop space, and follows the
+focused output. It starts hidden after shell/login startup. Super+Shift+C toggles
+it in either compositor; Super+C retains manual centering. No new Cargo or
+installer dependency is required.
+
+Validation uses static QML/native config checks and the existing fake shell IPC
+wrapper test, extended to cover the new clock command. Ten isolated session/IPC
+tests and all 40 Rust tests pass; no clock was opened or tested on the desktop.

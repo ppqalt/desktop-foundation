@@ -17,6 +17,7 @@ binds {
     "Super+A" { toggle-window-floating; }
     "Super+R" { switch-preset-column-width; }
     "Super+C" { center-column; }
+    "Super+Shift+C" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/clock\""; }
     "Super+Left" { focus-column-left; }
     "Super+Shift+Left" { move-column-left; }
     "Super+H" { focus-column-left; }
