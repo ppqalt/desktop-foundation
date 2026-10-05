@@ -468,8 +468,8 @@ async fn run() -> Result<()> {
             emit(json!({"event":"unavailable","command":get,"reason":e.to_string()}));
         }
     }
-    emit(json!({"event":"ready","state":ear.state}));
     ear.state["findAvailable"] = json!(!model.base.is_over_ear());
+    emit(json!({"event":"ready","state":ear.state}));
     emit(json!({"event":"state","state":ear.state}));
     let mut ringing: Option<(u8, Instant)> = None;
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;

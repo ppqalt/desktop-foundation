@@ -112,3 +112,27 @@ Mouse wheel and touchpad vertical scrolling move the highlighted selection in
 the power menu, application launcher and clipboard. Wheel notches advance one
 item; touchpad deltas accumulate to avoid erratic jumps. Results stay in view,
 and scrolling alone never launches, copies or executes a power action.
+
+## Surface keyboard controls
+
+The application launcher and clipboard keep keyboard focus in their search
+field. Type normally; Left/Right, Home/End, text selection and Space retain
+normal text-editing behavior. Up/Down (also Ctrl+P/N), Tab/Shift+Tab and
+PageUp/PageDown move through results, keeping the selected item visible. Enter
+opens the selected application or copies the clipboard item. Escape closes the
+surface. Holding Enter does not repeat an action.
+
+Clipboard Tab navigation also reaches **Clear all**, which receives the same
+visible selection treatment. Up at the first result or Down at the last result
+also reaches it; the next arrow returns to the last/first result. Ctrl+Delete removes the highlighted item;
+Ctrl+Shift+Delete opens the existing clear-history confirmation. Its Cancel and
+Clear history actions are selectable with Tab/Shift+Tab or arrows, then
+Enter/Space activates the highlighted choice. Escape cancels. While the
+confirmation is visible, typing and scrolling cannot change the search or the
+covered list, and deletion/copy shortcuts cannot affect an underlying item.
+
+The power menu accepts Tab/Shift+Tab and arrows to select, Home/PageUp and
+End/PageDown to reach the first and last actions, Enter/Space to execute, and
+Escape to close. The existing immediate action keys 1–4 still work. Holding an
+activation key cannot repeat a power action; holding navigation keys can move
+selection normally.

@@ -79,13 +79,16 @@ PanelWindow {
         stderr: StdioCollector {
             onStreamFinished: root.error = text.trim()
         }
-        onExited: (exitCode, exitStatus) => {
+        // qmllint disable signal-handler-parameters
+        // Installed qmltypes omit QProcess::ExitStatus; only exitCode is used.
+        onExited: exitCode => {
             root.busy = false;
             if (exitCode === 0)
                 root.dismiss();
             else if (!root.error)
                 root.error = "The session action could not be completed.";
         }
+        // qmllint enable signal-handler-parameters
     }
     Rectangle {
         anchors.fill: parent
@@ -113,16 +116,23 @@ PanelWindow {
             anchors.fill: parent
         }
         Keys.onPressed: event => {
-            if (event.isAutoRepeat || root.busy) {
+            const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space || (event.key >= Qt.Key_1 && event.key <= Qt.Key_4);
+            if (root.busy || (activate && event.isAutoRepeat)) {
                 event.accepted = true;
                 return;
             }
             if (event.key === Qt.Key_Escape) {
                 root.dismiss();
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                 root.choose(root.selected);
-            } else if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
-                root.selected = (root.selected + (event.key === Qt.Key_Down ? 1 : 3)) % 4;
+            } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Right || (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier))) {
+                root.selected = (root.selected + 1) % root.actions.length;
+            } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Left || event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
+                root.selected = (root.selected + root.actions.length - 1) % root.actions.length;
+            } else if (event.key === Qt.Key_Home || event.key === Qt.Key_PageUp) {
+                root.selected = 0;
+            } else if (event.key === Qt.Key_End || event.key === Qt.Key_PageDown) {
+                root.selected = root.actions.length - 1;
             } else if (event.key >= Qt.Key_1 && event.key <= Qt.Key_4) {
                 root.choose(event.key - Qt.Key_1);
             } else {
@@ -211,7 +221,7 @@ PanelWindow {
             anchors.bottom: parent.bottom
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottomMargin: 20
-            text: "↑ ↓ navigate · Enter execute · Esc close"
+            text: "↑ ↓ / Tab navigate · Enter / Space execute · Esc close"
             color: Theme.colors.subtle
             font.family: Theme.typography.family
             font.pixelSize: Theme.typography.small

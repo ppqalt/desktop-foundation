@@ -16,8 +16,15 @@ SurfaceCard {
     signal restartRequested
     signal disconnect
     property var earState: ({})
+    // Startup and command responses are staged until a complete readback is ready.
+    property var incomingState: ({})
     property bool ready: false
     property string pendingRowId: ""
+    property var pendingCommand: null
+    property bool pendingReadback: false
+    property string confirmedRowId: ""
+    property var playbackResult: null
+    property string playbackReadback: ""
     property bool busy: false
     property bool leaving: false
     property string error: ""
@@ -36,7 +43,8 @@ SurfaceCard {
         })
     readonly property var backendPid: backend.processId
     property var playbackCodecs: []
-    readonly property string playbackCodec: audio.trim().toLowerCase().replace(/[-_\s]+/g, "_")
+    readonly property string playbackCodec: normalizedCodec(playbackReadback || audio)
+    readonly property string playbackLabel: playbackCodec.toUpperCase().replace(/_/g, " ")
     property string requestedPlaybackCodec: "sbc"
     property var previousRows: []
     property string previousPage: ""
@@ -74,7 +82,8 @@ SurfaceCard {
         })
     readonly property var rows: makeRows()
     width: Math.min(Theme.dimensions.launcherWidth, availableWidth - 48)
-    height: Math.min(270 + Math.min(6, rows.length) * 66, availableHeight - 64)
+    // Keep the card and footer stable while controls are being discovered.
+    height: Math.min(270 + 6 * 66, availableHeight - 64)
     opacity: entered ? 1 : 0
     scale: entered ? 1 : 0.97
     Behavior on opacity {
@@ -94,6 +103,8 @@ SurfaceCard {
         Qt.callLater(() => root.entered = true);
     }
     function batteryText(): string {
+        if (!ready)
+            return "Reading battery…";
         const b = earState.battery;
         return ["left", "right", "case", "headphone"].filter(k => b?.[k]).map(k => k.charAt(0).toUpperCase() + k.slice(1) + " " + b[k].percent + "%" + (b[k].charging ? " ↑" : "")).join("    ") || "Battery unavailable";
     }
@@ -101,66 +112,82 @@ SurfaceCard {
         return value === 0 ? "Good seal" : value === 1 ? "Adjust ear tip" : value === 2 ? "Check earbuds are worn" : "Not tested";
     }
     function row(name, value, key, extra): var {
-        return {
+        const entry = {
             name: name,
             genericName: value,
             key: key,
-            extra: extra
+            extra: extra,
+            settingState: null,
+            settingValue: ""
         };
+        const s = earState;
+        if (["inEar", "latency", "dual", "personal", "superMic", "autoTransparency"].includes(key))
+            entry.settingState = s[key];
+        else if (key === "bass") {
+            entry.settingState = s.bass.enabled;
+            entry.settingValue = "Level " + s.bass.level;
+        } else if (key === "spatial")
+            entry.settingState = s.spatial === 1;
+        else if (["anc", "eq", "listening", "customEq", "gestures"].includes(key))
+            entry.settingValue = key === "anc" ? ancLabels[s.anc] : key === "eq" ? eqLabels[s.eq] || "Device preset" : key === "listening" ? "Preset " + s.listening : key === "customEq" ? (s.customEq?.[extra] ?? 0) + " dB" : gestureLabels[s.gestures[extra].action] || "Device action " + s.gestures[extra].action;
+        else if ((key === "quality" && !["sbc", "sbc_xq"].includes(playbackCodec) && s.quality === extra) || (["sbc", "sbc_xq"].includes(key) && playbackCodec === key))
+            entry.settingValue = "Selected";
+        return entry;
     }
     function makeRows(): var {
+        if (!ready)
+            return [];
         const s = earState;
         let result = [];
         if (page === "info")
             return [row("Model", s.modelCode || "Unknown", "none"), row("Firmware", s.firmware || "Unavailable", "none"), row("Bluetooth address", device.address, "none"), row("Advanced equalizer", s.advanced === undefined ? "No reliable response" : "Band controls unavailable in the reference protocol", "none"), row("Back", "Earbud controls", "back")];
         if (page === "quality") {
-            const usingSbc = ["sbc", "sbc_xq"].includes(playbackCodec);
-            result = [row("AAC", (s.quality === 0 && !usingSbc ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 0), row("LDAC", (s.quality === 2 && !usingSbc ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 2)];
+            result = [row("AAC", "Changing quality reboots earbuds", "quality", 0), row("LDAC", "Changing quality reboots earbuds", "quality", 2)];
             for (const codec of ["sbc", "sbc_xq"]) {
                 if (playbackCodecs.includes(codec))
-                    result.push(row(codec === "sbc" ? "SBC" : "SBC XQ", (playbackCodec === codec ? "Selected · " : "") + "Playback on this computer · No earbud reboot", codec));
+                    result.push(row(codec === "sbc" ? "SBC" : "SBC XQ", "Playback on this computer · No earbud reboot", codec));
             }
-            return result.concat([row("Current playback", audio || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")]);
+            return result.concat([row("Current playback", playbackLabel || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")]);
         }
         if (page === "fit")
             return [row("Wear both earbuds", "The test plays sound for about 10 seconds", "none"), row("Start fit test", "Check the seal of each ear tip", "fitStart"), row("Left earbud", fitLabel(s.fit?.left), "none"), row("Right earbud", fitLabel(s.fit?.right), "none"), row("Back", "Earbud controls", "back")];
         if (page === "find")
             return [row("Remove earbuds from your ears", "Earbuds will emit sound for 3 seconds. Remove them first.", "none"), ...[2, 3].filter(side => s.battery?.[side === 2 ? "left" : "right"]).map(side => row(side === 2 ? "Ring left earbud" : "Ring right earbud", "Emit sound · remove from ears first", "ring", side)), row("Back", "Earbud controls", "back")];
         if (page === "custom")
-            return ["Bass", "Mid", "Treble"].map((name, i) => row(name, (s.customEq?.[i] ?? 0) + " dB · ← / → adjust", "customEq", i)).concat([row("Use custom equalizer", "Apply the saved bands", "useCustom"), row("Back", "Earbud controls", "back")]);
+            return s.customEq ? ["Bass", "Mid", "Treble"].map((name, i) => row(name, "← / → adjust", "customEq", i)).concat([row("Use custom equalizer", "Apply the saved bands", "useCustom"), row("Back", "Earbud controls", "back")]) : [row("Equalizer unavailable", "Reopen Controls to read the device again", "none"), row("Back", "Earbud controls", "back")];
         if (page === "gestures")
             return (s.gestures || []).filter(g => [2, 3].includes(g.device) && [2, 3, 7, 9].includes(g.kind)).map(g => row((g.device === 2 ? "Left · " : "Right · ") + ({
                         2: "Double",
                         3: "Triple",
                         7: "Hold",
                         9: "Double and hold"
-                    })[g.kind], gestureLabels[g.action] || "Device action " + g.action, "gestures", s.gestures.indexOf(g))).concat([row("Back", "Earbud controls", "back")]);
+                    })[g.kind], "← / → change action", "gestures", s.gestures.indexOf(g))).concat([row("Back", "Earbud controls", "back")]);
         if (s.anc != null)
-            result.push(row("Noise control", ancLabels[s.anc], "anc"));
+            result.push(row("Noise control", "← / → change mode", "anc"));
         if (s.bass)
-            result.push(row("Bass Enhance", (s.bass.enabled ? "On · Level " + s.bass.level : "Off") + " · ← / → level", "bass"));
+            result.push(row("Bass Enhance", "Enter toggle · ← / → level", "bass"));
         if (s.eq != null)
-            result.push(row("Equalizer", eqLabels[s.eq] || "Device preset", "eq"));
+            result.push(row("Equalizer", "← / → change preset", "eq"));
         if (s.customEq)
             result.push(row("Custom equalizer", "Bass · Mid · Treble", "custom"));
         if (s.listening != null)
-            result.push(row("Listening preset", "Device preset " + s.listening + " · ← / → change", "listening"));
+            result.push(row("Listening preset", "← / → change preset", "listening"));
         if (s.inEar != null)
-            result.push(row("In-ear detection", s.inEar ? "On" : "Off", "inEar"));
+            result.push(row("In-ear detection", "Pause when an earbud is removed", "inEar"));
         if (s.latency != null)
-            result.push(row("Low latency", s.latency ? "On" : "Off", "latency"));
+            result.push(row("Low latency", "Reduce playback delay", "latency"));
         if (s.gestures?.length)
             result.push(row("Gestures", "Pinch controls", "gesturesPage"));
         if (s.findAvailable && s.modelCode !== "B181")
             result.push(row("Find earbuds", "Play a tone to locate your earbuds", "find"));
         for (const entry of [["dual", "Dual connection", "Connect two devices"], ["personal", "Personal sound profile", "Use your existing hearing profile"], ["superMic", "Super Mic", "Use the case microphone"], ["autoTransparency", "Auto-transparency", "Automatic transparency during calls"]]) {
             if (s[entry[0]] != null)
-                result.push(row(entry[1], (s[entry[0]] ? "On" : "Off") + " · " + entry[2], entry[0]));
+                result.push(row(entry[1], entry[2], entry[0]));
         }
         if (s.quality != null)
-            result.push(row("Audio quality", (s.quality === 2 ? "LDAC" : "AAC") + " · Playback: " + (audio || "unavailable"), "qualityPage"));
+            result.push(row("Audio quality", (s.quality === 2 ? "LDAC" : "AAC") + " · Playback: " + (playbackLabel || "unavailable"), "qualityPage"));
         if (s.spatial != null)
-            result.push(row("Spatial audio", s.spatial === 1 ? "Fixed" : "Off", "spatial"));
+            result.push(row("Spatial audio", "Fixed spatial audio", "spatial"));
         if (s.fitAvailable)
             result.push(row("Ear-tip fit test", "Check left and right seal", "fit"));
         result.push(row("Device information", "Model · Firmware", "info"));
@@ -181,7 +208,17 @@ SurfaceCard {
     }
     function navigate(delta: int): void {
         hoverNavigationEnabled = false;
+        if (!rows.length)
+            return;
+        // Informational rows can be focused and scrolled to, but never activated.
         selected = Math.max(0, Math.min(rows.length - 1, selected + delta));
+        list.positionViewAtIndex(selected, ListView.Contain);
+    }
+    function navigateEdge(last: bool): void {
+        hoverNavigationEnabled = false;
+        if (!rows.length)
+            return;
+        selected = last ? rows.length - 1 : 0;
         list.positionViewAtIndex(selected, ListView.Contain);
     }
     onEarStateChanged: {
@@ -192,10 +229,14 @@ SurfaceCard {
     function stop(): void {
         shutdownDeadline.restart();
         backend.signal(15);
+        if (codecDiscovery.running)
+            codecDiscovery.signal(15);
+        if (playbackChange.running)
+            playbackChange.signal(15);
     }
     function goBack(): void {
         hoverNavigationEnabled = false;
-        if (page !== "main") {
+        if (page !== "main" && ready && !busy) {
             page = "main";
             selected = Math.min(mainSelection, rows.length - 1);
             Qt.callLater(() => list.positionViewAtIndex(root.selected, ListView.Contain));
@@ -207,9 +248,15 @@ SurfaceCard {
     function send(value): void {
         if (!ready || busy || leaving)
             return;
+        if (value.setting && readbackMatches(value, earState))
+            return;
         busy = true;
         const entry = rows[selected];
         pendingRowId = entry.key + ":" + String(entry.extra ?? "");
+        pendingCommand = value;
+        pendingReadback = false;
+        confirmedRowId = "";
+        confirmationDeadline.stop();
         error = "";
         backend.write(JSON.stringify(value) + "\n");
         commandDeadline.interval = value.action === "fit" ? 24000 : 6000;
@@ -217,6 +264,81 @@ SurfaceCard {
     }
     function cycle(values, current, delta): var {
         return values[(Math.max(0, values.indexOf(current)) + delta + values.length) % values.length];
+    }
+    function normalizedCodec(value): string {
+        return (value || "").trim().toLowerCase().replace(/[-_\s]+/g, "_");
+    }
+    onAudioChanged: playbackReadback = ""
+    function readbackMatches(command, state): bool {
+        if (!command?.setting || state[command.setting] == null)
+            return false;
+        const actual = state[command.setting];
+        const wanted = command.value;
+        if (command.setting === "bass")
+            return actual.enabled === wanted.enabled && actual.level === wanted.level;
+        if (command.setting === "customEq")
+            return actual.length === wanted.length && actual.every((value, index) => value === wanted[index]);
+        if (command.setting === "gestures")
+            return actual[command.slot]?.action === wanted;
+        return actual === wanted;
+    }
+    function markConfirmed(rowId: string): void {
+        confirmedRowId = rowId;
+        confirmationDeadline.restart();
+    }
+    function handleBackendMessage(message): void {
+        if (message.state) {
+            incomingState = message.state;
+            if (busy)
+                pendingReadback = true;
+            else if (ready)
+                earState = incomingState;
+        }
+        if (message.event === "ready") {
+            earState = incomingState;
+            ready = true;
+            startupDeadline.stop();
+        }
+        if (message.event === "complete" || message.event === "error") {
+            if (ready)
+                earState = incomingState;
+            if (message.event === "complete" && message.success === true && pendingReadback && readbackMatches(pendingCommand, incomingState))
+                markConfirmed(pendingRowId);
+            busy = false;
+            pendingCommand = null;
+            pendingReadback = false;
+            pendingRowId = "";
+            commandDeadline.stop();
+        }
+        if (message.event === "error")
+            error = message.message;
+        if (message.event === "restart") {
+            leaving = true;
+            restartRequested();
+        }
+        if (message.fatal)
+            failed(message.message);
+    }
+    function handlePlaybackResult(result): void {
+        playbackResult = result;
+        if (!result.success)
+            error = result.error || "Playback codec unavailable.";
+    }
+    function finishPlayback(code: int): void {
+        if (ready)
+            earState = incomingState;
+        if (code === 0 && playbackResult?.success === true && playbackResult.routed === true && normalizedCodec(playbackResult.codec) === requestedPlaybackCodec) {
+            // The finite Rust helper verifies the actual sink codec before success.
+            playbackReadback = playbackResult.codec;
+            markConfirmed(pendingRowId);
+        } else if (!error)
+            error = "Could not confirm the playback codec.";
+        busy = false;
+        pendingRowId = "";
+        playbackResult = null;
+    }
+    function pendingLabel(): string {
+        return pendingCommand?.action === "fit" ? "Testing…" : pendingCommand?.action === "ring" ? "Ringing…" : pendingCommand?.action === "refresh" ? "Refreshing…" : ["sbc:", "sbc_xq:"].includes(pendingRowId) ? "Switching…" : "Saving…";
     }
     function activate(index: int, delta: int): void {
         if (!ready || busy || leaving)
@@ -226,11 +348,14 @@ SurfaceCard {
         if (!entry)
             return;
         const key = entry.key;
+        // Adjustment keys never open a page, restart firmware, ring or disconnect.
+        if (delta && !["anc", "eq", "listening", "bass", "spatial", "inEar", "latency", "dual", "personal", "superMic", "autoTransparency", "customEq", "gestures"].includes(key))
+            return;
         if (["info", "custom", "gesturesPage", "find", "qualityPage", "fit"].includes(key)) {
             hoverNavigationEnabled = false;
             mainSelection = selected;
             page = key === "gesturesPage" ? "gestures" : key === "qualityPage" ? "quality" : key;
-            selected = 0;
+            navigateEdge(false);
             list.positionViewAtBeginning();
         } else if (key === "back")
             goBack();
@@ -284,6 +409,10 @@ SurfaceCard {
             error = "";
             pendingRowId = key + ":";
             requestedPlaybackCodec = key;
+            pendingCommand = null;
+            playbackResult = null;
+            confirmedRowId = "";
+            confirmationDeadline.stop();
             playbackChange.running = true;
         } else if (key === "quality")
             send({
@@ -293,12 +422,12 @@ SurfaceCard {
         else if (key === "spatial")
             send({
                 setting: "spatial",
-                value: earState.spatial === 1 ? 0 : 1
+                value: delta ? (delta > 0 ? 1 : 0) : earState.spatial === 1 ? 0 : 1
             });
         else if (["inEar", "latency", "dual", "personal", "superMic", "autoTransparency"].includes(key))
             send({
                 setting: key,
-                value: !earState[key]
+                value: delta ? delta > 0 : !earState[key]
             });
         else if (key === "customEq") {
             const bands = [...earState.customEq];
@@ -317,29 +446,45 @@ SurfaceCard {
             });
         }
     }
-    Keys.onPressed: event => {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back)
-            goBack();
-        else if (event.key === Qt.Key_Up)
+    function handleKey(event): void {
+        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
+            if (!event.isAutoRepeat)
+                goBack();
+        } else if (event.key === Qt.Key_Up)
             navigate(-1);
         else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
             navigate(event.key === Qt.Key_Backtab || event.modifiers & Qt.ShiftModifier ? -1 : 1);
-        else if (event.key === Qt.Key_Left)
-            activate(selected, -1);
-        else if (event.key === Qt.Key_Right)
-            activate(selected, 1);
-        else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !event.isAutoRepeat)
+        else if (event.key === Qt.Key_Left) {
+            if (!event.isAutoRepeat)
+                activate(selected, -1);
+        } else if (event.key === Qt.Key_Right) {
+            if (!event.isAutoRepeat)
+                activate(selected, 1);
+        } else if (event.key === Qt.Key_Home)
+            navigateEdge(false);
+        else if (event.key === Qt.Key_End)
+            navigateEdge(true);
+        else if (event.key === Qt.Key_PageUp)
+            navigate(-Math.max(1, Math.floor(list.height / 66)));
+        else if (event.key === Qt.Key_PageDown)
+            navigate(Math.max(1, Math.floor(list.height / 66)));
+        else if ([Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space].includes(event.key) && !event.isAutoRepeat)
             activate(selected, 0);
         else
             return;
         event.accepted = true;
     }
+    Keys.onPressed: event => handleKey(event)
     MouseArea {
         anchors.fill: parent
     }
     HoverHandler {
         onPointChanged: {
             const p = point.scenePosition;
+            if (root.lastPointer.x < 0 || root.lastPointer.y < 0) {
+                root.lastPointer = p;
+                return;
+            }
             if (Math.abs(p.x - root.lastPointer.x) + Math.abs(p.y - root.lastPointer.y) > 1) {
                 root.lastPointer = p;
                 root.hoverNavigationEnabled = true;
@@ -348,6 +493,11 @@ SurfaceCard {
     }
     SelectionWheel {
         onStepped: delta => root.navigate(delta)
+    }
+    Timer {
+        id: confirmationDeadline
+        interval: 1400
+        onTriggered: root.confirmedRowId = ""
     }
     Timer {
         id: shutdownDeadline
@@ -395,18 +545,13 @@ SurfaceCard {
             onStreamFinished: {
                 try {
                     const result = JSON.parse(text);
-                    if (!result.success)
-                        root.error = result.error || "Playback codec unavailable.";
+                    root.handlePlaybackResult(result);
                 } catch (_) {
                     root.error = "Could not read the playback codec result.";
                 }
             }
         }
-        onExited: code => {
-            root.busy = false;
-            if (code !== 0 && !root.error)
-                root.error = "Could not change the playback codec.";
-        }
+        onExited: code => root.finishPlayback(code)
     }
     Process {
         id: backend
@@ -418,24 +563,7 @@ SurfaceCard {
             onRead: data => {
                 try {
                     const message = JSON.parse(data);
-                    if (message.state)
-                        root.earState = message.state;
-                    if (message.event === "ready") {
-                        root.ready = true;
-                        startupDeadline.stop();
-                    }
-                    if (message.event === "complete" || message.event === "error") {
-                        root.busy = false;
-                        commandDeadline.stop();
-                    }
-                    if (message.event === "error")
-                        root.error = message.message;
-                    if (message.event === "restart") {
-                        root.leaving = true;
-                        root.restartRequested();
-                    }
-                    if (message.fatal)
-                        root.failed(message.message);
+                    root.handleBackendMessage(message);
                 } catch (_) {
                     root.error = "Invalid earbud response.";
                 }
@@ -469,7 +597,7 @@ SurfaceCard {
     Text {
         x: 28
         y: 93
-        text: "Connected" + (root.audio ? " · " + root.audio : "") + (root.ready ? "" : " · Reading controls…")
+        text: "Connected" + (root.playbackLabel ? " · " + root.playbackLabel : "") + (root.ready ? "" : " · Reading controls…")
         color: Theme.colors.muted
         font.family: Theme.typography.family
         font.pixelSize: Theme.typography.small
@@ -489,6 +617,54 @@ SurfaceCard {
         height: 1
         color: Theme.colors.border
     }
+    Item {
+        x: 16
+        y: 165
+        width: root.width - 32
+        height: root.height - 257
+        clip: true
+        visible: !root.ready
+        Column {
+            width: parent.width
+            spacing: 4
+            Repeater {
+                model: 6
+                Rectangle {
+                    id: placeholder
+                    required property int index
+                    width: root.width - 32
+                    height: Theme.dimensions.rowHeight
+                    radius: Theme.radii.medium
+                    color: Theme.colors.elevated
+                    opacity: 0.3
+                    Rectangle {
+                        x: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 38
+                        height: 38
+                        radius: 10
+                        color: Theme.colors.border
+                    }
+                    Rectangle {
+                        x: 66
+                        y: 19
+                        width: 115 + placeholder.index % 3 * 30
+                        height: 7
+                        radius: 3
+                        color: Theme.colors.muted
+                    }
+                    Rectangle {
+                        x: 66
+                        y: 35
+                        width: 155 + placeholder.index % 2 * 45
+                        height: 5
+                        radius: 2
+                        color: Theme.colors.border
+                    }
+                }
+            }
+        }
+    }
     ListView {
         id: list
         x: 16
@@ -500,6 +676,13 @@ SurfaceCard {
         spacing: 4
         // A numeric model keeps delegates and scroll position alive across state updates.
         model: root.rows.length
+        visible: root.ready
+        opacity: root.ready ? 1 : 0
+        Behavior on opacity {
+            NumberAnimation {
+                duration: Theme.timing.normal
+            }
+        }
         SelectionWheel {
             onStepped: delta => root.navigate(delta)
         }
@@ -513,8 +696,13 @@ SurfaceCard {
             }
             iconSource: "../assets/bluetooth-headphones.svg"
             selected: root.selected === index
-            actionLabel: root.busy && root.pendingRowId === entry.key + ":" + String(entry.extra ?? "") ? "…" : ["anc", "eq", "listening", "bass", "customEq", "gestures"].includes(entry.key) ? "‹  ›" : "↵"
-            opacity: root.ready ? 1 : Theme.opacity.disabled
+            actionLabel: entry.key === "none" ? "" : ["anc", "eq", "listening", "bass", "customEq", "gestures"].includes(entry.key) ? "‹  ›" : "↵"
+            settingState: entry.settingState ?? null
+            settingValue: entry.settingValue || ""
+            pending: root.busy && root.pendingRowId === entry.key + ":" + String(entry.extra ?? "")
+            pendingLabel: root.pendingLabel()
+            confirmed: root.confirmedRowId === entry.key + ":" + String(entry.extra ?? "")
+            interactive: root.ready && !root.busy && entry.key !== "none"
             onHovered: {
                 if (root.hoverNavigationEnabled && index < root.rows.length)
                     root.selected = index;

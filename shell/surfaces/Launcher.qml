@@ -45,7 +45,7 @@ PanelWindow {
         exitAnimation.start();
     }
     function launchSelected(): void {
-        if (results.length > 0 && applications.launch(results[selectedIndex]))
+        if (!closing && results.length > 0 && applications.launch(results[selectedIndex]))
             dismiss();
     }
     function navigate(delta: int): void {
@@ -160,16 +160,25 @@ PanelWindow {
             height: 38
             placeholderText: "Search applications…"
             Keys.onPressed: event => {
+                const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
+                if (root.closing || (activate && event.isAutoRepeat)) {
+                    event.accepted = true;
+                    return;
+                }
                 if (event.key === Qt.Key_Escape)
                     root.dismiss();
                 else if (event.key === Qt.Key_Down || (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier)))
                     root.navigate(1);
                 else if (event.key === Qt.Key_Up || (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)))
                     root.navigate(-1);
-                else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp)
+                    root.navigate((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(list.height / 66)));
+                else if (activate)
                     root.launchSelected();
+                else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)))
+                    root.navigate(-1);
                 else if (event.key === Qt.Key_Tab)
-                    root.navigate((event.modifiers & Qt.ShiftModifier) ? -1 : 1);
+                    root.navigate(1);
                 else
                     return;
                 event.accepted = true;

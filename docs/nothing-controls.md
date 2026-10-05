@@ -3,7 +3,12 @@
 Super+B is still the Bluetooth entry point. A connected device advertising the
 Nothing control UUID offers **Controls**. Enter/click opens the native page;
 Escape/Back returns to paired devices, then Escape closes. Wheel/Up/Down change
-selection only. Left/Right adjust a selected value; Enter cycles presets or toggles.
+selection only. Left/Right adjust a selected value; Enter or Space cycles presets,
+toggles, or activates the selected action. Tab/Shift+Tab move forward/backward;
+Home/End jump to the first/last row, and Page Up/Down move by the visible row count.
+Informational rows remain reachable and scrollable with the keyboard. For
+ordinary switches, Left selects Off and Right selects On. Adjustment keys do not
+open pages, disconnect, ring, start a fit test, or restart the earbuds.
 Custom EQ, gestures, Find and information have secondary pages. Find warns to remove
 the earbuds and sends a three-second ring followed by stop, including on normal
 Back/outside-click cancellation. Ring has no readable device-state command in the
@@ -13,6 +18,24 @@ The card, rows, selection, typography, colors, blur namespace and entrance anima
 reuse the existing shell. Normal Bluetooth connection/disconnection and Blueman
 fallback remain unchanged. Unsupported identities/protocol failures return to the
 list with an explanation and generic Disconnect; closing/reopening permits retry.
+
+Opening Controls reserves a six-row card and shows a quiet graphite placeholder
+until the Rust helper's coherent `ready` snapshot arrives. Partial discovery
+responses never expose incomplete controls or move the card/footer. Battery text
+shows a single reading state during startup, then the reported components. Escape
+or Back remains available during loading and cancels an in-progress command by
+closing the helper normally; the existing forced-shutdown deadline remains.
+
+Switches show their actual On/Off state at all times, including when another row
+is selected. Presets and levels have persistent value badges. While a command is
+in progress, the last reported values and selection remain visible with a
+Saving/Testing/Ringing indicator on that row. New device state is published when
+the command finishes. A brief row accent confirms a successful setting only after
+the backend completes and the actual readback matches the request. Errors retain
+actual returned values and never show that confirmation. Ring/refresh/fit actions
+do not masquerade as confirmed settings. Host playback choices use the finite
+Rust helper's verified actual sink codec; firmware restart remains unconfirmed
+until reconnect and a fresh device query.
 
 ## Backend and source
 

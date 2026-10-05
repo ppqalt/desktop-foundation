@@ -14,6 +14,9 @@ PanelWindow {
     required property var lifecycle
     property var targetScreen: null
     property int selected: 0
+    property string selectionKey: ""
+    property bool hoverNavigationEnabled: false
+    property point lastPointer: Qt.point(-1, -1)
     property bool closing: false
     property bool entered: false
     Component.onCompleted: Qt.callLater(() => {
@@ -24,6 +27,7 @@ PanelWindow {
     property bool discoveryDone: false
     property string pendingActivation: ""
     property var pendingControls: null
+    readonly property bool controlsOpening: pendingActivation !== "" || pendingControls !== null
     property var batteryDevice: null
     property var batteryQueue: []
     property var deviceBatteries: ({})
@@ -66,6 +70,8 @@ PanelWindow {
         return codec ? String(codec).toUpperCase().replace(/_/g, " ") : profile === "a2dp-sink" ? "A2DP" : profile ? "Headset" : "";
     }
     function detail(device): string {
+        if (pendingControls === device || pendingActivation === device.dbusPath)
+            return "Opening controls…";
         if (busy && pendingDevice === device)
             return pendingAction === "disconnect" ? "Disconnecting…" : device.connected ? "Preparing audio…" : "Connecting…";
         const parts = [device.connected ? "Connected" : "Not connected"];
@@ -87,7 +93,7 @@ PanelWindow {
         return parts.join(" · ");
     }
     function toggleRadio(): void {
-        if (busy || radioBusy || closing)
+        if (busy || radioBusy || controlsOpening || closing)
             return;
         const adapters = Bluetooth.adapters.values;
         if (!adapters.length) {
@@ -120,11 +126,36 @@ PanelWindow {
         }
     }
     function navigate(delta: int): void {
-        selected = Math.max(-1, Math.min(devices.length, selected + delta));
+        selectIndex(selected + delta);
+    }
+    function selectIndex(index: int): void {
+        hoverNavigationEnabled = false;
+        selected = Math.max(-1, Math.min(devices.length, index));
         if (selected >= 0 && selected < devices.length)
             list.positionViewAtIndex(selected, ListView.Contain);
     }
+    function rememberSelection(): void {
+        selectionKey = selected === -1 ? "radio" : selected === devices.length ? "manage" : devices[selected]?.dbusPath ?? "";
+    }
+    function pointerSelection(index: int, x: real, y: real): void {
+        const moved = lastPointer.x >= 0 && Math.abs(x - lastPointer.x) + Math.abs(y - lastPointer.y) > 1;
+        lastPointer = Qt.point(x, y);
+        if (moved && !closing && !controlDevice) {
+            hoverNavigationEnabled = true;
+            selected = index;
+        }
+    }
+    function restoreFocus(): void {
+        hoverNavigationEnabled = false;
+        lastPointer = Qt.point(-1, -1);
+        Qt.callLater(() => {
+            if (!root.controlDevice && !root.closing)
+                card.forceActiveFocus();
+        });
+    }
     function dismiss(): void {
+        if (closing)
+            return;
         if (controlDevice && controlsLoader.item) {
             closeAfterControls = true;
             controlsLoader.item.leaving = true;
@@ -138,7 +169,7 @@ PanelWindow {
         return controlPaths.includes(device.dbusPath) && !unsupportedPaths.includes(device.dbusPath);
     }
     function activate(index: int, forceDisconnect = false): void {
-        if (busy || radioBusy || closing)
+        if (busy || radioBusy || controlsOpening || closing)
             return;
         selected = index;
         if (index === -1) {
@@ -163,6 +194,7 @@ PanelWindow {
         }
         if (device.connected && supportsControls(device) && !forceDisconnect) {
             error = "";
+            hoverNavigationEnabled = false;
             batteryQueue = [];
             if (batteryProbe.running) {
                 pendingControls = device;
@@ -184,6 +216,7 @@ PanelWindow {
             visible: !closing,
             busy: busy,
             radioBusy: radioBusy,
+            controlsOpening: controlsOpening,
             powered: adapterAvailable,
             controls: controlsLoader.item ? {
                 page: controlsLoader.item.page,
@@ -211,7 +244,13 @@ PanelWindow {
                     }))
         };
     }
-    onDevicesChanged: selected = Math.min(selected, devices.length)
+    onSelectedChanged: rememberSelection()
+    onDevicesChanged: {
+        hoverNavigationEnabled = false;
+        const index = devices.findIndex(d => d.dbusPath === selectionKey);
+        selected = selectionKey === "radio" ? -1 : selectionKey === "manage" ? devices.length : index >= 0 ? index : Math.min(selected, devices.length);
+        rememberSelection();
+    }
     Process {
         id: discovery
         command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/nothing-backend", "--discover"]
@@ -305,14 +344,14 @@ PanelWindow {
                 if (root.closeAfterControls)
                     root.dismiss();
                 else
-                    card.forceActiveFocus();
+                    root.restoreFocus();
             }
             onFailed: message => {
                 if (root.controlDevice)
                     root.unsupportedPaths = [...root.unsupportedPaths, root.controlDevice.dbusPath];
                 root.error = message.includes("br-connection-create-socket") || message.includes("br-connection-busy") ? "Control channel unavailable. Close other earbud control apps, then reopen Bluetooth." : message;
                 root.controlDevice = null;
-                card.forceActiveFocus();
+                root.restoreFocus();
             }
             onRestartRequested: {
                 root.pendingDevice = root.controlDevice;
@@ -322,12 +361,12 @@ PanelWindow {
                 root.result = ({});
                 action.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "bluetooth", "reconnect", root.pendingDevice.dbusPath];
                 action.running = true;
-                card.forceActiveFocus();
+                root.restoreFocus();
             }
             onDisconnect: {
                 const index = root.devices.indexOf(root.controlDevice);
                 root.controlDevice = null;
-                card.forceActiveFocus();
+                root.restoreFocus();
                 if (index >= 0)
                     root.activate(index, true);
             }
@@ -401,6 +440,7 @@ PanelWindow {
         }
         focus: true
         Component.onCompleted: forceActiveFocus()
+        Keys.priority: Keys.BeforeItem
         SelectionWheel {
             onStepped: delta => root.navigate(delta)
         }
@@ -408,15 +448,23 @@ PanelWindow {
             anchors.fill: parent
         }
         Keys.onPressed: event => {
-            if (event.key === Qt.Key_Escape)
-                root.dismiss();
-            else if (event.key === Qt.Key_Up)
+            if (event.key === Qt.Key_Escape) {
+                if (!event.isAutoRepeat)
+                    root.dismiss();
+            } else if (event.key === Qt.Key_Up)
                 root.navigate(-1);
             else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
                 root.navigate(event.key === Qt.Key_Backtab || event.modifiers & Qt.ShiftModifier ? -1 : 1);
-            else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !event.isAutoRepeat)
-                root.activate(root.selected);
-            else
+            else if (event.key === Qt.Key_Home)
+                root.selectIndex(-1);
+            else if (event.key === Qt.Key_End)
+                root.selectIndex(root.devices.length);
+            else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown)
+                root.navigate((event.key === Qt.Key_PageUp ? -1 : 1) * Math.max(1, Math.floor(list.height / 66)));
+            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                if (!event.isAutoRepeat)
+                    root.activate(root.selected);
+            } else
                 return;
             event.accepted = true;
         }
@@ -465,7 +513,7 @@ PanelWindow {
             color: root.selected === -1 ? Theme.colors.selected : radioMouse.containsMouse ? Theme.colors.hover : "transparent"
             border.width: root.selected === -1 ? 1 : 0
             border.color: Theme.colors.selectionBorder
-            opacity: root.busy || !Bluetooth.adapters.values.length ? 0.5 : 1
+            opacity: root.busy || root.controlsOpening || !Bluetooth.adapters.values.length ? 0.5 : 1
             Text {
                 x: 4
                 anchors.verticalCenter: parent.verticalCenter
@@ -503,8 +551,13 @@ PanelWindow {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onEntered: root.selected = -1
                 onClicked: root.activate(-1)
+            }
+            HoverHandler {
+                onPointChanged: {
+                    if (hovered)
+                        root.pointerSelection(-1, point.scenePosition.x, point.scenePosition.y);
+                }
             }
         }
         Rectangle {
@@ -519,7 +572,7 @@ PanelWindow {
             x: 16
             y: 126
             width: card.width - 32
-            height: Math.max(1, Math.min(6, root.devices.length)) * 66
+            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 66, Math.max(1, card.height - 226 - (root.error ? 38 : 0)))
             model: root.devices
             clip: true
             interactive: false
@@ -553,8 +606,8 @@ PanelWindow {
                     })
                 iconSource: root.deviceIcon(modelData)
                 selected: root.selected === index
-                actionLabel: root.busy && root.pendingDevice === modelData ? "…" : modelData.connected ? root.supportsControls(modelData) ? "Controls" : "Disconnect" : "Connect"
-                onHovered: root.selected = index
+                actionLabel: (root.busy && root.pendingDevice === modelData) || root.pendingControls === modelData || root.pendingActivation === modelData.dbusPath ? "…" : modelData.connected ? root.supportsControls(modelData) ? "Controls" : "Disconnect" : "Connect"
+                onPointerMoved: (x, y) => root.pointerSelection(index, x, y)
                 onChosen: root.activate(index)
             }
         }
@@ -600,8 +653,13 @@ PanelWindow {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onEntered: root.selected = root.devices.length
                 onClicked: root.activate(root.devices.length)
+            }
+            HoverHandler {
+                onPointChanged: {
+                    if (hovered)
+                        root.pointerSelection(root.devices.length, point.scenePosition.x, point.scenePosition.y);
+                }
             }
         }
         Rectangle {
