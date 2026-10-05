@@ -244,7 +244,7 @@ class BluetoothBackend(unittest.TestCase):
     def test_invalid_cli_and_device_paths_never_spawn_commands(self):
         for args in [('power', 'toggle'), ('power', 'on', 'extra'), ('codecs',),
                      ('codecs', '/org/bluez/hci/dev_AB_CD_EF_01_02_03'),
-                     ('codecs', DEVICE + ';touch'), ('connect', DEVICE)]:
+                     ('codecs', DEVICE + ';touch'), ('unknown-action', DEVICE)]:
             with self.subTest(args=args):
                 result = self.invoke('bluetooth', *args)
                 self.assertNotEqual(result.returncode, 0)

@@ -176,7 +176,7 @@ PanelWindow {
         busy = true;
         error = "";
         result = {};
-        action.command = ["python3", Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-action.py", pendingAction, device.dbusPath];
+        action.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "bluetooth", pendingAction, device.dbusPath];
         action.running = true;
     }
     function snapshot(): var {
@@ -320,7 +320,7 @@ PanelWindow {
                 root.busy = true;
                 root.error = "Reconnecting after codec change…";
                 root.result = ({});
-                action.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-action.py", "reconnect", root.pendingDevice.dbusPath];
+                action.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "bluetooth", "reconnect", root.pendingDevice.dbusPath];
                 action.running = true;
                 card.forceActiveFocus();
             }

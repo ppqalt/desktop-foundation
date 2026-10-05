@@ -219,3 +219,14 @@ finite Bluetooth/audio helper, with a reboot delay and bounded retries. Successf
 reconnect restores playback routing and closes the popup. SBC switches the live
 PipeWire profile without rebooting or disconnecting. This quick patch was not tested
 at the user's request.
+
+
+### Host playback codecs
+
+The Quality page offers SBC and SBC XQ separately when PipeWire advertises their
+A2DP profiles for the connected device. These use the shared Rust Bluetooth action
+backend and affect playback on this computer, without a firmware write or earbud
+reboot. AAC/LDAC firmware preferences retain their existing separate behavior.
+Profile requests and reported sink codecs must agree before success; selecting
+SBC XQ cannot silently select regular SBC. No codec was switched on the physical
+headset during this migration; acceptance uses isolated command fixtures only.

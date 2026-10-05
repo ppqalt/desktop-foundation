@@ -1,6 +1,9 @@
-//! Finite Bluetooth radio requests and playback-codec discovery. Native services
-//! still own Bluetooth/PipeWire state; this module never connects a device.
+//! Finite Bluetooth requests and event-driven playback routing. Native services
+//! own Bluetooth/PipeWire state; no helper remains between requests.
+mod actions;
+mod audio;
 use crate::{Error, Result, invalid, process};
+pub use actions::action;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
@@ -13,11 +16,10 @@ const POWER_BUDGET: Duration = Duration::from_secs(5);
 const RETRY_PAUSE: Duration = Duration::from_millis(150);
 
 fn request(args: &[&str], timeout: Duration) -> Result<Vec<u8>> {
-    Ok(process::checked(
+    Ok(process::checked_c_locale(
         &args.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>(),
-        None,
         timeout,
-        true,
+        64 * 1024,
     )?
     .stdout)
 }
@@ -229,7 +231,7 @@ pub fn codecs(path: &str) -> Result<Value> {
             .filter(|s| valid_address(s, ':'))
             .ok_or_else(|| invalid("Bluetooth device address is invalid"))?
             .to_ascii_uppercase();
-        let snapshot = process::checked_capture(
+        let snapshot = process::checked_c_locale(
             &["pactl", "--format=json", "list", "cards"].map(String::from),
             Duration::from_secs(8),
             2 * 1024 * 1024,

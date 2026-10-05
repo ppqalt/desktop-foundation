@@ -36,6 +36,8 @@ SurfaceCard {
         })
     readonly property var backendPid: backend.processId
     property var playbackCodecs: []
+    readonly property string playbackCodec: audio.trim().toLowerCase().replace(/[-_\s]+/g, "_")
+    property string requestedPlaybackCodec: "sbc"
     property var previousRows: []
     property string previousPage: ""
     readonly property real scrollY: list.contentY
@@ -111,8 +113,15 @@ SurfaceCard {
         let result = [];
         if (page === "info")
             return [row("Model", s.modelCode || "Unknown", "none"), row("Firmware", s.firmware || "Unavailable", "none"), row("Bluetooth address", device.address, "none"), row("Advanced equalizer", s.advanced === undefined ? "No reliable response" : "Band controls unavailable in the reference protocol", "none"), row("Back", "Earbud controls", "back")];
-        if (page === "quality")
-            return [row("AAC", (s.quality === 0 && audio.toLowerCase() !== "sbc" ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 0), row("LDAC", (s.quality === 2 && audio.toLowerCase() !== "sbc" ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 2)].concat(playbackCodecs.includes("sbc") ? [row("SBC", (audio.toLowerCase() === "sbc" ? "Selected · " : "") + "Playback on this computer · No earbud reboot", "sbc")] : []).concat([row("Current playback", audio || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")]);
+        if (page === "quality") {
+            const usingSbc = ["sbc", "sbc_xq"].includes(playbackCodec);
+            result = [row("AAC", (s.quality === 0 && !usingSbc ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 0), row("LDAC", (s.quality === 2 && !usingSbc ? "Selected · " : "") + "Changing quality reboots earbuds", "quality", 2)];
+            for (const codec of ["sbc", "sbc_xq"]) {
+                if (playbackCodecs.includes(codec))
+                    result.push(row(codec === "sbc" ? "SBC" : "SBC XQ", (playbackCodec === codec ? "Selected · " : "") + "Playback on this computer · No earbud reboot", codec));
+            }
+            return result.concat([row("Current playback", audio || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")]);
+        }
         if (page === "fit")
             return [row("Wear both earbuds", "The test plays sound for about 10 seconds", "none"), row("Start fit test", "Check the seal of each ear tip", "fitStart"), row("Left earbud", fitLabel(s.fit?.left), "none"), row("Right earbud", fitLabel(s.fit?.right), "none"), row("Back", "Earbud controls", "back")];
         if (page === "find")
@@ -270,10 +279,11 @@ SurfaceCard {
             send({
                 action: "fit"
             });
-        else if (key === "sbc") {
+        else if (["sbc", "sbc_xq"].includes(key)) {
             busy = true;
             error = "";
-            pendingRowId = "sbc:";
+            pendingRowId = key + ":";
+            requestedPlaybackCodec = key;
             playbackChange.running = true;
         } else if (key === "quality")
             send({
@@ -380,7 +390,7 @@ SurfaceCard {
     }
     Process {
         id: playbackChange
-        command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/bluetooth-action.py", "codec", root.device.dbusPath, "--codec", "sbc"]
+        command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "bluetooth", "codec", root.device.dbusPath, "--codec", root.requestedPlaybackCodec]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {

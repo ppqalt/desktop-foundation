@@ -236,3 +236,72 @@ fn image_capture_has_a_separate_binary_cap_and_keeps_error_limits() {
         .is_err()
     );
 }
+
+#[test]
+fn subscription_delivers_bounded_chunks_then_eof_and_reaps_on_drop() {
+    let mut subscription = process::Subscription::open(&[
+        "sh".into(),
+        "-c".into(),
+        "printf 'first\\nsecond\\n'".into(),
+    ])
+    .unwrap();
+    let pid = subscription.pid() as libc::pid_t;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let mut data = Vec::new();
+    loop {
+        match subscription.read(deadline).unwrap() {
+            process::StreamRead::Data(chunk) => {
+                assert!(chunk.len() <= 8192);
+                data.extend(chunk);
+            }
+            process::StreamRead::Eof => break,
+            process::StreamRead::Timeout => panic!("Fixture exited without reaching EOF"),
+        }
+    }
+    assert_eq!(data, b"first\nsecond\n");
+    drop(subscription);
+    // SAFETY: signal zero probes only the known, now-reaped fixture child.
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ESRCH)
+    );
+}
+
+#[test]
+fn subscription_deadline_waits_for_events_and_drop_stops_its_group() {
+    let mut subscription =
+        process::Subscription::open(&["sh".into(), "-c".into(), "sleep 20 & wait".into()]).unwrap();
+    let pid = subscription.pid() as libc::pid_t;
+    let start = Instant::now();
+    assert!(matches!(
+        subscription
+            .read(start + Duration::from_millis(150))
+            .unwrap(),
+        process::StreamRead::Timeout
+    ));
+    assert!(start.elapsed() >= Duration::from_millis(140));
+    assert!(start.elapsed() < Duration::from_secs(2));
+    drop(subscription);
+    // SAFETY: the direct child belongs to the isolated subscription fixture.
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+}
+
+#[test]
+fn machine_requests_and_subscription_use_c_locale() {
+    let args = ["sh".into(), "-c".into(), "printf '%s' \"$LC_ALL\"".into()];
+    assert_eq!(
+        process::checked_c_locale(&args, Duration::from_secs(2), 64)
+            .unwrap()
+            .stdout,
+        b"C"
+    );
+    let mut subscription = process::Subscription::open(&args).unwrap();
+    match subscription
+        .read(Instant::now() + Duration::from_secs(2))
+        .unwrap()
+    {
+        process::StreamRead::Data(data) => assert_eq!(data, b"C"),
+        _ => panic!("Fixture must report its effective locale"),
+    }
+}

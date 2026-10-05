@@ -31,10 +31,12 @@ No discovery, pairing, forgetting, PIN agent, adapter polling or bluetoothctl.
 codec/profile reporting. Battery is BlueZ Battery1 through Quickshell, only shown
 when supplied. Missing battery/codec information is omitted, never invented.
 
-Generic Bluetooth does not require a native backend. Quickshell's device connect API returns void and
-has no detailed error signal; its PipeWire API does not expose card profile lists.
-A finite `scripts/bluetooth-action.py` fills these two gaps: `busctl` invokes BlueZ
-Device1 methods directly over D-Bus, awaits method completion and verifies Connected.
+Quickshell's device connect API returns void and has no detailed error signal;
+its PipeWire API does not expose card profile lists. The shared finite Rust backend
+fills these gaps: `busctl` invokes BlueZ Device1 methods directly over D-Bus, awaits
+method completion and verifies Connected. The popup calls the release binary
+for connect/disconnect/reconnect and SBC/SBC XQ selection; `scripts/bluetooth-action.py`
+only forwards older callers.
 It checks pairing and blocked/powered state before connection. Errors are translated
 rather than dumping D-Bus names. After playback setup it verifies the device remains
 connected. Disconnect is similarly confirmed. Cancellation cleans child processes.
@@ -45,6 +47,7 @@ The existing PipeWire-Pulse compatibility server exposes JSON cards/profiles/sin
 through `pactl`. On intentional connection to a device advertising Audio Sink UUID,
 the helper subscribes to server events before its first snapshot, then waits on
 those events with a single 12-second deadline. There is no repeated timer polling.
+The deadline includes snapshots/actions, each separately capped at eight seconds.
 All addresses, card/sink names and profile IDs come from live state.
 
 Available A2DP profiles rank **LDAC, AAC, then the remaining advertised priority**.
@@ -115,3 +118,19 @@ References: [Quickshell BluetoothDevice](https://quickshell.org/docs/v0.3.1/type
 Connected supported devices offer Controls rather than immediate Disconnect. The
 Controls page retains an explicit Disconnect action. The generic list/connection
 helper remains the same. See [native controls, licensing and validation](nothing-controls.md).
+
+
+## Rust action migration, 2026-10-05
+
+Connection/disconnection, firmware-restart reconnection and event-driven playback
+routing now live in `native/foundation/src/bluetooth/{actions,audio}.rs`. The radio
+and codec discovery paths were already native. QML remains responsible for visual
+surfaces and watching native state; Nothing/CMF firmware protocol remains in its
+separate Rust backend. No live Bluetooth/audio interactions were performed for
+this migration. The older Tops validation above describes the previous helper,
+not physical acceptance of this Rust port.
+
+Isolated command fixtures cover state checks, friendly errors, paired/bonded
+devices, LDAC rejection/AAC fallback, exact SBC/SBC XQ selection, stale sinks, partial
+and ignored events, snapshot bounds, timeouts and child cleanup. See
+[backend implementation and measurements](backend.md#bluetooth-connection-and-playback-follow-up).

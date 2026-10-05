@@ -62,7 +62,7 @@ pub fn run(
     timeout: Duration,
     capture: bool,
 ) -> Result<Output> {
-    run_with_limit(args, input, Some(timeout), capture, MAX_OUTPUT)
+    run_with_limit(args, input, Some(timeout), capture, MAX_OUTPUT, false)
 }
 
 fn run_with_limit(
@@ -71,6 +71,7 @@ fn run_with_limit(
     timeout: Option<Duration>,
     capture: bool,
     stdout_limit: u64,
+    c_locale: bool,
 ) -> Result<Output> {
     let name = args
         .first()
@@ -94,30 +95,10 @@ fn run_with_limit(
         } else {
             Stdio::null()
         });
-    #[cfg(target_os = "linux")]
-    {
-        let parent = std::process::id() as libc::pid_t;
-        // SAFETY: this hook only uses async-signal-safe libc calls and constructs
-        // a raw-errno error. It runs after fork, before exec, in our child.
-        unsafe {
-            command.pre_exec(move || {
-                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
-                    return Err(std::io::Error::last_os_error());
-                }
-                if libc::getppid() != parent {
-                    return Err(std::io::Error::from_raw_os_error(libc::ESRCH));
-                }
-                Ok(())
-            });
-        }
+    if c_locale {
+        command.env("LC_ALL", "C");
     }
-    let mut owned = OwnedChild {
-        child: command.spawn().map_err(|e| Error::Process {
-            command: name.clone(),
-            detail: e.to_string(),
-        })?,
-        completed: false,
-    };
+    let mut owned = spawn_owned(command, name)?;
     // Poll child exit alongside its pipes instead of adding a 5 ms reap delay
     // when a fast native command closes its streams just before exiting.
     #[cfg(target_os = "linux")]
@@ -264,6 +245,110 @@ fn nonblocking(fd: libc::c_int) -> Result<()> {
     Ok(())
 }
 
+fn spawn_owned(mut command: Command, name: &str) -> Result<OwnedChild> {
+    #[cfg(target_os = "linux")]
+    {
+        let parent = std::process::id() as libc::pid_t;
+        // SAFETY: this hook only uses async-signal-safe libc calls and constructs
+        // a raw-errno error. It runs after fork, before exec, in our child.
+        unsafe {
+            command.pre_exec(move || {
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::getppid() != parent {
+                    return Err(std::io::Error::from_raw_os_error(libc::ESRCH));
+                }
+                Ok(())
+            });
+        }
+    }
+    Ok(OwnedChild {
+        child: command.spawn().map_err(|error| Error::Process {
+            command: name.to_owned(),
+            detail: error.to_string(),
+        })?,
+        completed: false,
+    })
+}
+
+pub enum StreamRead {
+    Data(Vec<u8>),
+    Eof,
+    Timeout,
+}
+
+/// An event source scoped to a finite request, never a resident supervisor.
+/// Dropping this guard stops/reaps the owned child and its process group.
+pub struct Subscription {
+    owned: OwnedChild,
+    stdout: std::process::ChildStdout,
+}
+
+impl Subscription {
+    pub fn open(args: &[String]) -> Result<Self> {
+        let name = args
+            .first()
+            .ok_or_else(|| invalid("Empty subscription command"))?;
+        let mut command = Command::new(name);
+        command
+            .args(&args[1..])
+            .process_group(0)
+            .env("LC_ALL", "C")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        let mut owned = spawn_owned(command, name)?;
+        let stdout = owned
+            .child
+            .stdout
+            .take()
+            .ok_or_else(|| invalid("Subscription stdout unavailable"))?;
+        nonblocking(stdout.as_raw_fd())?;
+        Ok(Self { owned, stdout })
+    }
+
+    /// Wait for actual events without timed snapshots or a stream-reading thread.
+    /// Each returned chunk is bounded; callers separately bound partial lines.
+    pub fn read(&mut self, deadline: Instant) -> Result<StreamRead> {
+        let mut buffer = [0_u8; 8192];
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Ok(StreamRead::Timeout);
+            }
+            match self.stdout.read(&mut buffer) {
+                Ok(0) => return Ok(StreamRead::Eof),
+                Ok(count) => return Ok(StreamRead::Data(buffer[..count].to_vec())),
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(error) => return Err(error.into()),
+            }
+            let mut fd = libc::pollfd {
+                fd: self.stdout.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Ok(StreamRead::Timeout);
+            }
+            let timeout = remaining.as_millis().clamp(1, libc::c_int::MAX as u128) as libc::c_int;
+            // SAFETY: stdout remains live, fd points to a valid single pollfd.
+            if unsafe { libc::poll(&mut fd, 1, timeout) } < 0 {
+                let error = std::io::Error::last_os_error();
+                if error.kind() != std::io::ErrorKind::Interrupted {
+                    return Err(error.into());
+                }
+            }
+        }
+    }
+
+    pub fn pid(&self) -> u32 {
+        self.owned.child.id()
+    }
+}
+
 fn collect(reader: &mut Option<impl Read>, bytes: &mut Vec<u8>, limit: u64) -> Result<()> {
     let mut buffer = [0; 8192];
     while let Some(pipe) = reader.as_mut() {
@@ -307,7 +392,22 @@ pub fn checked_capture(args: &[String], timeout: Duration, stdout_limit: u64) ->
     }
     ensure_success(
         args,
-        run_with_limit(args, None, Some(timeout), true, stdout_limit)?,
+        run_with_limit(args, None, Some(timeout), true, stdout_limit, false)?,
+    )
+}
+
+/// Machine-readable native requests retain stable diagnostics without changing
+/// the locale of launched apps or the parent process. Both output streams are
+/// bounded; only snapshot callers opt into a larger stdout limit.
+pub fn checked_c_locale(args: &[String], timeout: Duration, stdout_limit: u64) -> Result<Output> {
+    if !(1..=16 * 1024 * 1024).contains(&stdout_limit) {
+        return Err(invalid(
+            "Captured stdout limit must be between 1 byte and 16 MiB",
+        ));
+    }
+    ensure_success(
+        args,
+        run_with_limit(args, None, Some(timeout), true, stdout_limit, true)?,
     )
 }
 
@@ -315,7 +415,7 @@ pub fn checked_capture(args: &[String], timeout: Duration, stdout_limit: u64) ->
 /// empty/explicit stdin and the same cancellation/child cleanup as timed tools.
 /// Return the exit status so callers can distinguish cancellation from failure.
 pub fn interactive(args: &[String], input: Option<Vec<u8>>) -> Result<Output> {
-    run_with_limit(args, input, None, true, MAX_OUTPUT)
+    run_with_limit(args, input, None, true, MAX_OUTPUT, false)
 }
 
 /// Binary screenshot payloads can exceed the text-command limit. This opt-in
@@ -323,7 +423,7 @@ pub fn interactive(args: &[String], input: Option<Vec<u8>>) -> Result<Output> {
 pub fn checked_image(args: &[String], timeout: Duration) -> Result<Output> {
     ensure_success(
         args,
-        run_with_limit(args, None, Some(timeout), true, MAX_IMAGE)?,
+        run_with_limit(args, None, Some(timeout), true, MAX_IMAGE, false)?,
     )
 }
 

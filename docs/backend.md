@@ -12,6 +12,8 @@ Commands:
 - `volume up|down`
 - `bluetooth power on|off`
 - `bluetooth codecs DEVICE_PATH`
+- `bluetooth connect|disconnect|reconnect DEVICE_PATH`
+- `bluetooth codec DEVICE_PATH --codec sbc|sbc_xq`
 - `screenshot [--backend niri|hyprland] region|window|output`
 - `power suspend|logout|reboot|poweroff [--check]`
 - `actions list|plan ID|invoke ID`
@@ -87,9 +89,9 @@ creation and prevents a stalled status command from blocking a keypress forever.
 
 The Bluetooth popup's radio switch and earbud Controls' playback-codec discovery
 call the shared release binary directly. Existing `bluetooth-power.py` and
-`bluetooth-action.py codecs` callers forward to it. Connection, reconnection,
-codec changes and event-driven audio routing retain their existing implementation;
-Nothing/CMF protocol control remains in its separate Rust backend. QML appearance,
+`bluetooth-action.py` callers forward to it. Connection, reconnection, explicit
+SBC/SBC XQ selection and event-driven playback routing now also use Rust, as described
+below. Nothing/CMF protocol control remains in its separate Rust backend. QML appearance,
 navigation, scroll behavior, battery reporting and actions are preserved.
 
 Radio requests discover every `hciN` adapter, unblock the software radio only on
@@ -206,3 +208,80 @@ installer dependency is required.
 Validation uses static QML/native config checks and the existing fake shell IPC
 wrapper test, extended to cover the new clock command. Ten isolated session/IPC
 tests and all 40 Rust tests pass; no clock was opened or tested on the desktop.
+
+
+## Bluetooth connection and playback follow-up
+
+The popup calls the shared release executable directly for connect/disconnect and
+reconnection after a Nothing codec restart. SBC/SBC XQ selection does the same; device
+firmware controls remain in `native/nothing`. `scripts/bluetooth-action.py` is now
+an exec-only compatibility entry point, including the existing `codecs` command.
+No QML appearance, navigation, battery reporting, shortcut or native microphone
+policy changes are included.
+
+`bluetooth/actions.rs` checks pairing/bonding, power and blocked state, invokes
+native BlueZ methods, and verifies the final Connected property. Friendly JSON
+errors preserve the existing UI contract. Invalid paths/codec choices fail before
+native commands. Connect retains a 40-second native/45-second outer limit;
+disconnect retains 15/20 seconds. Property requests have eight seconds. Firmware
+restart reconnection retains its five-second initial pause, followed by a shared
+30-second budget covering attempts, verification and two-second retry pauses.
+These are operation limits, not a resident retry worker.
+
+`bluetooth/audio.rs` starts its scoped `pactl subscribe` child before snapshots.
+Only complete card/sink/server events trigger another snapshot; its own client
+queries and source/stream events cannot create a polling loop. One 12-second
+budget includes commands, snapshots and waiting; each command is additionally
+limited to eight seconds. Available playback profiles retain LDAC → AAC → other
+advertised priority. Address/path matching uses reported state, and only the
+default playback sink is changed. Selected-profile/codec confirmation rejects
+stale sinks. Explicit SBC/SBC XQ cannot report success against another codec
+sink when a profile change fails; an already-confirmed matching A2DP sink can succeed. SBC XQ is offered in the
+Quality page only when native profile discovery advertises it; it changes this
+computer's playback profile without rebooting the earbuds. The CLI accepts
+`sbc_xq` and the equivalent `sbc-xq` spelling, with matching reported codec aliases.
+Connection remains successful with an audio warning if optional routing fails.
+
+The process layer supplies a finite event subscription guard. Native events wait
+in `poll`, with bounded chunks/64 KiB unfinished lines and no timer-driven query.
+Snapshots allow 2 MiB stdout while stderr/ordinary command output retain 64 KiB.
+Bluetooth subprocesses alone use the C locale. The guard stops/reaps its child
+and owned group on return/error, and direct children retain Linux parent-death
+protection. There are no new crates, services, listeners or idle helpers.
+
+Build with `scripts/build-backend`; installer deployment already builds the same
+crate. Publish the compatible executable before the watched QML source update.
+Rollback requires the previous source commit plus its release binary, or a rebuild
+of that source. No Bluetooth service, compositor or user session restart is needed.
+
+Validation and measurements use only isolated command fixtures; live desktop and
+physical Bluetooth/audio tests are intentionally omitted at the user's request.
+
+
+### Isolated measurements, 2026-10-05
+
+`python3 scripts/bluetooth-actions-bench.py --runs 24` compares the unchanged
+`72f6d8d` action helper with release Rust. PATH contains only synthetic shell
+executables and all state/endpoints are private. Two warmups precede 24 paired,
+alternating samples per implementation, including startup. Exact JSON and native
+mutation argv parity are asserted, and every fixture subscription must stop.
+
+| Helper path | Python | Rust |
+|---|---:|---:|
+| Non-audio connect | 76.437 ms | 10.670 ms |
+| Disconnect | 62.825 ms | 4.988 ms |
+| Connect with immediately available A2DP | 87.626 ms | 15.412 ms |
+
+These are helper-path measurements, not radio/device latency. User/audio waits are
+excluded; foreground activity/frequency were uncontrolled. Peak RSS was
+unavailable because `/usr/bin/time` was not installed. Reconnect's intentional
+five-second restart pause is preserved and not benchmarked.
+
+Final validation passes 202 Python/integration tests with both opt-in live Qt
+fixtures skipped (204 discovered), all 50 Rust tests across both crates,
+warnings-denied Clippy, release build and repository static/native config checks.
+Thirty-one action CLI fixtures replace the old helper-internal tests; additional
+pure Rust tests cover profile/error rules and the finite subscription owner.
+The release executable is 1,651,168 bytes, up 75,120 bytes from the previous
+screenshot/clock build. No Cargo dependencies were added. Physical desktop,
+Bluetooth and audio acceptance was not run.

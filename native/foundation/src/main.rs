@@ -40,7 +40,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
         );
         return Ok(());
     }
@@ -117,8 +117,19 @@ fn run() -> Result<()> {
                     bluetooth::power(mode == "on")
                 }
                 [action, path] if action == "codecs" => bluetooth::codecs(path),
+                [action, path]
+                    if matches!(action.as_str(), "connect" | "disconnect" | "reconnect") =>
+                {
+                    bluetooth::action(action, path, None)
+                }
+                [action, path, option, codec] if action == "codec" && option == "--codec" => {
+                    bluetooth::action(action, path, Some(codec))
+                }
+                [action, path, option] if action == "codec" && option.starts_with("--codec=") => {
+                    bluetooth::action(action, path, option.strip_prefix("--codec="))
+                }
                 _ => Err(invalid(
-                    "Expected bluetooth power on|off or bluetooth codecs DEVICE_PATH",
+                    "Expected bluetooth power on|off, codecs|connect|disconnect|reconnect DEVICE_PATH or codec DEVICE_PATH --codec sbc|sbc_xq",
                 )),
             };
             match result {
