@@ -136,3 +136,18 @@ End/PageDown to reach the first and last actions, Enter/Space to execute, and
 Escape to close. The existing immediate action keys 1–4 still work. Holding an
 activation key cannot repeat a power action; holding navigation keys can move
 selection normally.
+
+Super+B initially selects the top paired device. While the list is still empty,
+the radio is highlighted; the first arriving device becomes selected only if
+no keyboard, wheel or pointer choice has been made. Explicit Manage/radio choices
+and device identity survive subsequent list updates. Reopening starts fresh.
+
+Launcher, clipboard, Bluetooth, earbud controls and power now share one footer,
+graphite card/selection language, spacing and entrance/exit timing. Escape/Back
+and the selected action hint are also clickable. Power retains its immediate
+1–4 actions, while search fields retain ordinary text editing. Clock and volume
+remain appropriately small, passive overlays using the same theme.
+
+Clipboard uses the standard fade/scale entrance once output geometry resolves.
+Initial sizing and history loading do not run the confirmation resize effect;
+the existing Clear all shrink/expand transition keeps its duration and easing.

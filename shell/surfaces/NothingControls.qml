@@ -724,58 +724,16 @@ SurfaceCard {
         font.pixelSize: Theme.typography.small
         wrapMode: Text.Wrap
     }
-    Rectangle {
+    SurfaceFooter {
         x: 28
         y: root.height - 48
         width: root.width - 56
-        height: 1
-        color: Theme.colors.border
-    }
-    Row {
-        x: 28
-        y: root.height - 35
-        spacing: 7
-        Keycap {
-            label: "↑ ↓"
-        }
-        Text {
-            text: "navigate"
-            color: Theme.colors.muted
-            font.family: Theme.typography.family
-            font.pixelSize: 11
-        }
-        Keycap {
-            label: "← →"
-        }
-        Text {
-            text: "adjust"
-            color: Theme.colors.muted
-            font.family: Theme.typography.family
-            font.pixelSize: 11
-        }
-        Keycap {
-            label: "esc"
-        }
-        Text {
-            text: "back"
-            color: Theme.colors.muted
-            font.family: Theme.typography.family
-            font.pixelSize: 11
-        }
-    }
-    Text {
-        anchors.right: parent.right
-        anchors.rightMargin: 28
-        y: root.height - 35
-        text: "Back ‹"
-        color: Theme.colors.accent
-        font.family: Theme.typography.family
-        font.pixelSize: 11
-        MouseArea {
-            anchors.fill: parent
-            anchors.margins: -8
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.goBack()
-        }
+        adjustable: true
+        escapeLabel: "back"
+        escapeEnabled: !root.leaving
+        onEscapeRequested: root.goBack()
+        actionText: !root.ready ? "Reading controls…" : root.busy ? root.pendingLabel() : root.rows[root.selected]?.key === "back" ? "Back" : root.rows[root.selected]?.settingState != null ? "Toggle setting" : "Activate"
+        actionEnabled: root.ready && !root.busy && !root.leaving && root.rows[root.selected]?.key !== "none"
+        onActivated: root.activate(root.selected, 0)
     }
 }

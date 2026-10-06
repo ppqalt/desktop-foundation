@@ -7,6 +7,7 @@ Rectangle {
     required property var entry
     required property bool selected
     property string iconSource: Quickshell.iconPath(root.entry.icon, true) || "../assets/application.svg"
+    property string iconText: ""
     property string actionLabel: "↵"
     // Setting indicators use reported state; the caller confirms successful readback.
     property var settingState: null
@@ -65,14 +66,22 @@ Rectangle {
             sourceSize.width: 32
             sourceSize.height: 32
             smooth: true
-            visible: status !== Image.Error
+            visible: root.iconText === "" && status !== Image.Error
         }
         Image {
             anchors.centerIn: parent
             width: 26
             height: 26
             source: "../assets/application.svg"
-            visible: icon.status === Image.Error
+            visible: root.iconText === "" && icon.status === Image.Error
+        }
+        Text {
+            anchors.centerIn: parent
+            visible: root.iconText !== ""
+            text: root.iconText
+            color: Theme.colors.accent
+            font.family: Theme.typography.family
+            font.pixelSize: 24
         }
     }
     Column {

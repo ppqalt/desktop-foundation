@@ -6,6 +6,7 @@ pub mod clipboard;
 pub mod packages;
 pub mod process;
 pub mod screenshot;
+pub mod session;
 pub mod shell;
 pub mod state;
 pub mod theme;

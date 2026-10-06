@@ -190,7 +190,10 @@ PanelWindow {
     }
     Component.onCompleted: {
         lifecycle.clipboardAlive = true;
-        entered = true;
+        Qt.callLater(() => {
+            if (!root.closing)
+                root.entered = true;
+        });
         search.forceActiveFocus();
     }
     Component.onDestruction: lifecycle.clipboardAlive = false
@@ -224,14 +227,18 @@ PanelWindow {
             onStepped: delta => root.navigate(delta)
         }
         width: Math.min(root.confirmClear ? 440 : Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(root.confirmClear ? 268 : 182 + Math.max(2, Math.min(6, root.results.length)) * 66, root.height - 64)
+        height: Math.min(root.confirmClear ? 268 : 182 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 66, root.height - 64)
         Behavior on width {
+            // Initial output geometry uses the shared fade/scale entrance.
+            // Keep the existing confirmation morph once opened (or requested).
+            enabled: root.confirmClear || (root.entered && panel.opacity === 1 && !root.closing)
             NumberAnimation {
                 duration: Theme.timing.normal
                 easing.type: Theme.easing
             }
         }
         Behavior on height {
+            enabled: root.confirmClear || (root.entered && panel.opacity === 1 && !root.closing)
             NumberAnimation {
                 duration: Theme.timing.normal
                 easing.type: Theme.easing
@@ -492,57 +499,28 @@ PanelWindow {
             font.pixelSize: 11
             elide: Text.ElideRight
         }
-        Rectangle {
+        SurfaceFooter {
             x: 28
             y: panel.height - 48
             width: panel.width - 56
-            height: 1
-            color: Theme.colors.border
-        }
-        Row {
-            visible: !history.error
-            x: 28
-            y: panel.height - 35
-            spacing: 7
-            Keycap {
-                label: root.confirmClear ? "Tab" : "↑ ↓"
+            navigationKeys: root.confirmClear ? "Tab" : "↑ ↓"
+            navigationLabel: root.confirmClear ? "choose" : "navigate"
+            escapeLabel: root.confirmClear ? "cancel" : "close"
+            hintsVisible: !history.error
+            actionText: root.confirmClear ? (root.clearChoice ? "Clear history" : "Cancel") : (history.busy ? "Copying…" : (root.clearSelected ? "Clear all" : "Copy & close"))
+            actionEnabled: !root.closing && !history.busy && (root.confirmClear || root.clearSelected || root.results.length > 0)
+            onActivated: {
+                if (root.confirmClear)
+                    root.acceptClear();
+                else
+                    root.launchSelected();
             }
-            Text {
-                text: root.confirmClear ? "choose" : "navigate"
-                color: Theme.colors.muted
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Item {
-                width: 8
-                height: 1
-            }
-            Keycap {
-                label: "esc"
-            }
-            Text {
-                text: root.confirmClear ? "cancel" : "close"
-                color: Theme.colors.muted
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: 28
-            y: panel.height - 35
-            spacing: 7
-            Text {
-                text: root.confirmClear ? (root.clearChoice ? "Clear history" : "Cancel") : (history.busy ? "Copying…" : (root.clearSelected ? "Clear all" : "Copy & close"))
-                color: Theme.colors.accent
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Keycap {
-                label: "↵"
+            escapeEnabled: !root.closing && !history.busy
+            onEscapeRequested: {
+                if (root.confirmClear)
+                    root.confirmClear = false;
+                else
+                    root.dismiss();
             }
         }
     }

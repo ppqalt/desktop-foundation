@@ -1,8 +1,6 @@
 """One Niri-session-owned swaybg; no resident custom worker."""
 import os
 from pathlib import Path
-import shutil
-import tomllib
 import hashlib
 import json
 import tempfile
@@ -59,24 +57,21 @@ def quote(value):
 
 
 def main():
-    if not os.environ.get('NIRI_SOCKET'):
-        raise RuntimeError('Wallpaper startup requires a Niri session')
-    from theme_runtime import config as wallpaper_config, current
-    config = wallpaper_config()
-    image = Path(config['image']).expanduser()
-    if not image.is_file():
-        raise RuntimeError(f'Wallpaper image unavailable: {image}')
-    mode = config.get('mode', 'fill')
-    if mode not in {'fill', 'fit', 'center', 'tile'}:
-        raise ValueError('Choose an aspect-preserving wallpaper mode: fill, fit, center or tile')
-    state = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'desktop-foundation'
-    executable = shutil.which('swaybg') or str(state / 'bin/swaybg')
-    if not Path(executable).is_file():
-        raise RuntimeError('swaybg unavailable: install it with scripts/bootstrap')
-    if current() is None:
-        cache_backdrop(image, mode)
-    os.execv(executable, [executable, '--image', str(image), '--mode', mode])
+    """Compatibility entry point; ordinary startup is handled by Rust."""
+    binary = ROOT / 'native/foundation/target/release/desktop-foundationctl'
+    os.execv(binary, [str(binary), '--root', str(ROOT), 'wallpaper', 'start'])
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    if len(sys.argv) == 4 and sys.argv[1] == '--prepare-backdrop':
+        image, mode = Path(sys.argv[2]).expanduser(), sys.argv[3]
+        if mode not in {'fill', 'fit', 'center', 'tile'}:
+            raise SystemExit('Invalid wallpaper scaling mode')
+        # Legacy/no-bundle recovery retains the existing exact Pillow blur.
+        # The native startup driver invokes this once, then execs swaybg.
+        cache_backdrop(image, mode)
+    elif len(sys.argv) == 1:
+        main()
+    else:
+        raise SystemExit('Expected no arguments or --prepare-backdrop IMAGE MODE')

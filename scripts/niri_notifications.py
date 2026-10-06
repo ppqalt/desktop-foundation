@@ -1,12 +1,12 @@
 """Compatibility entry point: start the already-deployed notification unit."""
 import os
-import subprocess
+from pathlib import Path
 
 
 def main():
-    if not os.environ.get('NIRI_SOCKET'):
-        raise RuntimeError('Notification startup requires a Niri session')
-    subprocess.run(['systemctl', '--user', 'start', 'desktop-foundation-notifications.service'], check=True)
+    root = Path(__file__).resolve().parent.parent
+    binary = root / 'native/foundation/target/release/desktop-foundationctl'
+    os.execv(binary, [str(binary), '--root', str(root), 'notifications', 'start'])
 
 
 if __name__ == '__main__':

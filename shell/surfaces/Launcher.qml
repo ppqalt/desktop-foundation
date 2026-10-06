@@ -69,7 +69,10 @@ PanelWindow {
     }
     Component.onCompleted: {
         lifecycle.launcherAlive = true;
-        entered = true;
+        Qt.callLater(() => {
+            if (!root.closing)
+                root.entered = true;
+        });
         search.forceActiveFocus();
     }
     Component.onDestruction: lifecycle.launcherAlive = false
@@ -104,6 +107,7 @@ PanelWindow {
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
         height: Math.min(182 + Math.max(2, Math.min(6, root.results.length)) * 66, root.height - 64)
         Behavior on height {
+            enabled: root.entered && panel.opacity === 1 && !root.closing
             NumberAnimation {
                 duration: Theme.timing.normal
                 easing.type: Theme.easing
@@ -236,57 +240,15 @@ PanelWindow {
                 font.pixelSize: 12
             }
         }
-        Rectangle {
+        SurfaceFooter {
             x: 28
             y: panel.height - 48
             width: panel.width - 56
-            height: 1
-            color: Theme.colors.border
-        }
-        Row {
-            x: 28
-            y: panel.height - 35
-            spacing: 7
-            Keycap {
-                label: "↑ ↓"
-            }
-            Text {
-                text: "navigate"
-                color: Theme.colors.muted
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Item {
-                width: 8
-                height: 1
-            }
-            Keycap {
-                label: "esc"
-            }
-            Text {
-                text: "close"
-                color: Theme.colors.muted
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: 28
-            y: panel.height - 35
-            spacing: 7
-            Text {
-                text: "Open application"
-                color: Theme.colors.accent
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Keycap {
-                label: "↵"
-            }
+            actionText: "Open application"
+            actionEnabled: !root.closing && root.results.length > 0
+            onActivated: root.launchSelected()
+            escapeEnabled: !root.closing
+            onEscapeRequested: root.dismiss()
         }
     }
 }

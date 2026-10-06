@@ -62,3 +62,28 @@ not validate layer-shell exclusivity, physical key delivery or hardware actions.
 No testing on the running desktop, radio, audio, clipboard or power services was
 performed. Deployment updates the managed QML and rebuilt Nothing helper; normal
 source watching handles reload without restarting the compositor.
+
+## Consistency follow-up, 2026-10-06
+
+All interactive shortcut menus now share `SurfaceFooter.qml`, including keycaps,
+separator, action hint and clickable Escape/Back. Power uses the same SurfaceCard,
+640px maximum width, 62px rows, icon tiles, selected border and fade/scale as the
+other list menus. Clipboard's compact confirmation keeps its existing animated
+size transition. Its initial output geometry settles without that size morph;
+the opening uses the common fade/scale instead. The application launcher uses
+the same entrance scheduling. No desktop keybindings or global blur/opacity
+settings change.
+
+Bluetooth's empty startup list no longer treats index zero as a remembered
+Manage choice. A separate initial-selection flag chooses the first paired row
+when available, until deliberate keyboard, wheel, click or pointer interaction.
+Subsequent device updates retain explicit choices and device identity; removal
+falls back to a device/radio rather than accidentally selecting Manage.
+
+Isolated actual-Qt checks cover Power's focus, inert action failure and animated
+keyboard/mouse exit, alongside existing Nothing/Clipboard navigation. Clipboard
+also checks initial geometry settling and the retained confirmation morph.
+Bluetooth initial/late list loading, explicit choices and reopening are checked
+against extracted production policy with fake data. Offscreen Power and compact
+Clipboard previews were reviewed. Physical input/layer-shell behavior and live
+desktop actions remain untested, per the user's restriction.

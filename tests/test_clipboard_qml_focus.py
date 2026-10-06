@@ -42,6 +42,7 @@ ShellRoot {
     function check(condition, detail) {
         if (!condition) { failures++; console.error("FOCUS_FAIL " + detail); }
     }
+    function card() { return clip.contentItem.children.find(child => child.radius === 24); }
     function capture(name) {
         const directory = Quickshell.env("DF_QOL_PREVIEW_DIR");
         const card = clip.contentItem.children.find(child => child.radius === 24);
@@ -59,7 +60,19 @@ ShellRoot {
             const s = clip.snapshot();
             if (fixture.stage === 0) {
                 if (s.loading) return;
-                clip.requestActivate(); clip.present();
+                // The layer-shell host can deliver output geometry after QML
+                // construction. It must settle without the clear-dialog morph.
+                clip.entered = false;
+                clip.width = 220;
+                Qt.callLater(() => {
+                    fixture.check(fixture.card().width === 172, "Initial geometry starts a size morph: " + fixture.card().width);
+                    clip.width = 900;
+                    Qt.callLater(() => {
+                        fixture.check(fixture.card().width === 640, "Initial output width animates instead of settling");
+                        clip.entered = true;
+                        clip.requestActivate(); clip.present();
+                    });
+                });
                 fixture.check(s.count === 13, "Fixture history not loaded");
             } else if (fixture.stage === 1) {
                 fixture.check(clip.snapshot().inputFocused, "Search is not the active Qt input");
@@ -71,6 +84,7 @@ ShellRoot {
                 fixture.check(clip.clearSelected, "Shift+Tab cannot reach header Clear all");
                 keyboard.keyClick(Qt.Key_Return);
                 fixture.check(clip.confirmClear, "Enter on header does not open confirmation");
+                fixture.check(fixture.card().width > 440 && fixture.card().height > 268, "Clear confirmation lost its size morph");
             } else if (fixture.stage === 2) {
                 fixture.check(clip.snapshot().confirmationFocused && !clip.snapshot().inputFocused, "Confirmation has no actual Qt button focus");
                 if (Quickshell.env("DF_QOL_PREVIEW_DIR") && !fixture.saved) {

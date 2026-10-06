@@ -1,6 +1,6 @@
 use desktop_foundationctl::{
     Result, actions, apps, bluetooth, cache, clipboard, invalid, packages, process, screenshot,
-    shell, theme, volume,
+    session, shell, theme, volume,
 };
 use std::{
     io::{self, Read},
@@ -40,7 +40,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
         );
         return Ok(());
     }
@@ -103,6 +103,12 @@ fn run() -> Result<()> {
         Some("shell") if args.get(1).map(String::as_str) == Some("call") => {
             shell::call(&root, &args[2..])
         }
+        Some("wallpaper") if args.len() == 2 && args[1] == "start" => session::wallpaper(&root),
+        Some("notifications") if args.len() == 2 => match args[1].as_str() {
+            "start" => session::notifications_start(),
+            "check-owner" => session::notifications_available(),
+            _ => Err(invalid("Expected notifications start or check-owner")),
+        },
         Some("volume") if args.len() == 2 => volume::adjust(&root, &args[1]),
         Some("screenshot") => {
             let mut backend = std::env::var("DF_COMPOSITOR").unwrap_or_else(|_| "niri".into());
@@ -182,7 +188,7 @@ fn run() -> Result<()> {
             actions::invoke(&root, &args[2])
         }
         _ => Err(invalid(
-            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, theme, actions list|plan|invoke or cache plan|prune",
+            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, theme, wallpaper start, notifications, actions list|plan|invoke or cache plan|prune",
         )),
     }
 }

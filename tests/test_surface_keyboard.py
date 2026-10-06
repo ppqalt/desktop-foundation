@@ -187,7 +187,10 @@ for (let index = 1; index <= 4; index++) {
     key(String(index)); assert.equal(context.actionProcess.command[1], context.actions[index - 1].id);
 }
 context.busy = false;
-key('Escape'); assert.equal(context.lifecycle.powerEnabled, false);
+key('Escape'); assert.equal(context.closing, true);
+assert.equal(events.includes('dismiss'), true);
+const lastCommand = Array.from(context.actionProcess.command);
+key('Return'); assert.deepEqual(Array.from(context.actionProcess.command), lastCommand);
 ''')
 
     def test_bluetooth_keyboard_actions_selection_and_focus_handoff(self):
@@ -233,11 +236,11 @@ key('Return'); assert.equal(context.action.running, false);
 context.controlsOpening = false;
 context.selected = 1; context.rememberSelection();
 context.devices = [{dbusPath: '/new'}, {dbusPath: '/first'}, {dbusPath: '/second'}];
-DEVICES_CHANGED;
+context.updateDeviceSelection();
 assert.equal(context.selected, 2); assert.equal(context.selectionKey, '/second');
 context.selected = 3; context.rememberSelection();
 context.devices = [{dbusPath: '/second'}];
-DEVICES_CHANGED;
+context.updateDeviceSelection();
 assert.equal(context.selected, 1);
 context.pointerSelection(0, 50, 50); assert.equal(context.selected, 1);
 context.pointerSelection(0, 50, 50); assert.equal(context.selected, 1);
@@ -256,8 +259,72 @@ key('End'); key('Space');
 assert.deepEqual(Array.from(events.find(e => e[0] === 'detached')[1]), ['blueman-manager']);
 assert.equal(context.closing, true);
 '''
-        checks = checks.replace('DEVICES_CHANGED;',
-                                'vm.runInContext(' + json.dumps('(function() {' + block(source, 'onDevicesChanged:') + '})()') + ', context);')
-        self.run_policy('BluetoothPopup', ['navigate', 'selectIndex', 'rememberSelection',
+        self.assertIn('onDevicesChanged: updateDeviceSelection()', source)
+        self.run_policy('BluetoothPopup', ['navigate', 'selectIndex', 'rememberSelection', 'updateDeviceSelection',
                                           'pointerSelection', 'restoreFocus', 'dismiss',
                                           'supportsControls', 'activate', 'toggleRadio'], checks)
+
+    def test_bluetooth_async_start_defaults_to_first_device_without_stealing_user_choice(self):
+        source = (ROOT / 'shell/surfaces/BluetoothPopup.qml').read_text()
+        self.assertIn('property int selected: -1', source)
+        self.assertIn('property bool defaultSelectionPending: true', source)
+        self.assertIn('root.updateDeviceSelection();', block(source, 'Component.onCompleted:'))
+        self.run_policy('BluetoothPopup', ['navigate', 'selectIndex', 'rememberSelection',
+                                          'updateDeviceSelection', 'pointerSelection'], r'''
+Object.assign(context, {
+    devices: [], selected: -1, selectionKey: '', defaultSelectionPending: true,
+    controlDevice: null, hoverNavigationEnabled: false, lastPointer: {x: -1, y: -1}
+});
+Qt.point = (x, y) => ({x, y});
+context.updateDeviceSelection();
+assert.equal(context.selected, -1, 'empty initial list uses radio, never Manage');
+assert.equal(context.defaultSelectionPending, true);
+context.updateDeviceSelection();
+assert.equal(context.defaultSelectionPending, true, 'empty updates do not consume first-device choice');
+context.devices = [{dbusPath: '/first'}, {dbusPath: '/second'}];
+context.updateDeviceSelection();
+assert.equal(context.selected, 0);
+assert.equal(context.selectionKey, '/first');
+assert.equal(context.defaultSelectionPending, false);
+context.devices = [{dbusPath: '/earlier'}, {dbusPath: '/first'}, {dbusPath: '/second'}];
+context.updateDeviceSelection();
+assert.equal(context.selected, 1, 'selected device identity survives later insertions');
+context.devices = [{dbusPath: '/second'}];
+context.updateDeviceSelection();
+assert.equal(context.selected, 0, 'removed device falls back to a device, not Manage');
+
+// An explicit Manage choice during initial loading must survive the arrival.
+Object.assign(context, {devices: [], selected: -1, selectionKey: '', defaultSelectionPending: true});
+context.selectIndex(0); context.rememberSelection();
+assert.equal(context.selectionKey, 'manage');
+context.devices = [{dbusPath: '/first'}, {dbusPath: '/second'}];
+context.updateDeviceSelection();
+assert.equal(context.selected, 2);
+
+// So must choosing the radio while loading, even when its index is unchanged.
+Object.assign(context, {devices: [], selected: -1, selectionKey: '', defaultSelectionPending: true});
+context.selectIndex(-1); context.rememberSelection();
+context.devices = [{dbusPath: '/first'}];
+context.updateDeviceSelection();
+assert.equal(context.selected, -1);
+assert.equal(context.selectionKey, 'radio');
+
+// A stationary pointer does not cancel the default; deliberate movement does.
+Object.assign(context, {devices: [], selected: -1, selectionKey: '', defaultSelectionPending: true,
+                        lastPointer: {x: -1, y: -1}});
+context.pointerSelection(0, 10, 10);
+assert.equal(context.defaultSelectionPending, true);
+context.pointerSelection(0, 10, 10);
+assert.equal(context.defaultSelectionPending, true);
+context.pointerSelection(0, 13, 10); context.rememberSelection();
+assert.equal(context.defaultSelectionPending, false);
+context.devices = [{dbusPath: '/first'}];
+context.updateDeviceSelection();
+assert.equal(context.selected, 1, 'deliberate Manage hover remains selected');
+
+// Reopening creates fresh state and chooses the top row, even after Manage.
+Object.assign(context, {selected: -1, selectionKey: '', defaultSelectionPending: true});
+context.updateDeviceSelection();
+assert.equal(context.selected, 0);
+assert.equal(context.selectionKey, '/first');
+''')

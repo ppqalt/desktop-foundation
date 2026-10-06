@@ -20,6 +20,8 @@ Commands:
 - `cache plan|prune`
 - `theme generate IMAGE`
 - `theme derive --source SOURCE --hash HASH` (material JSON on stdin)
+- `wallpaper start`
+- `notifications start|check-owner`
 - `system packages [--config FILE]`
 - `shell call METHOD [ARGS...]`
 
@@ -354,3 +356,48 @@ trial took 236.942 ms cold / 3.863 ms cached for Windows/Tux and 12.921 / 1.064 
 for the small solid-orange image (single samples, not comparative benchmarks).
 The release executable is 1,718,992 bytes, up 67,824 bytes. No Cargo dependencies
 or resident generation processes were added.
+
+## Native session startup, 2026-10-06
+
+The normal Niri wallpaper path now reads the immutable active wallpaper TOML in
+Rust, validates its image and aspect-preserving mode, resolves packaged swaybg
+before the state-local fallback, and execs it with literal argv. The Rust process
+becomes swaybg; no supervisor or Python process remains. Active runtime image
+failure never silently substitutes the repository wallpaper. Missing repository
+defaults retain the existing shipped-image basename recovery.
+
+The existing Pillow backdrop helpers remain for staging and exact blur pixels.
+Only legacy startup without a current bundle calls their explicit preparation
+entry once, with a 30-second deadline, before handing ownership to swaybg. Normal
+installed startup performs no palette/image generation or component reload.
+The existing wrapper/unit paths remain stable; unit regeneration is unnecessary.
+
+Notification startup directly execs the existing unit's systemctl start request.
+The owner check uses a two-second bounded busctl NameHasOwner query and accepts
+only `b false`. Occupied, failed, malformed or oversized replies return nonzero
+to the existing ExecCondition, keeping other providers intact. No new bus service,
+systemd unit or Cargo dependency is introduced. Python compatibility entry points
+only redirect to the built release backend.
+
+Validation passed **236 Python/Qt/integration checks** (238 discovered, two
+opt-in desktop checks skipped), **55 Rust tests**, Clippy, formatting and native
+configuration checks. Private fake swaybg/systemctl/busctl/Python commands verify
+config priority, literal spaced paths, executable fallback, exactly one legacy
+helper, final-exec PID ownership, failure-before-side-effects and bounded probes.
+QML consistency/focus/animation checks likewise use private offscreen hosts.
+No running desktop, wallpaper service, Bluetooth or power action was tested.
+
+Two warmups and 24 paired alternating samples compare `a459eac` startup drivers
+with release Rust using inert executables, private HOME/XDG and a wait4 parent.
+
+| Startup driver | Previous median | Rust median | Previous/Rust peak RSS |
+|---|---:|---:|---:|
+| Existing wallpaper bundle | 31.748 ms | 1.561 ms | 19,242 / 3,808 KiB |
+| Notification start | 19.468 ms | 1.475 ms | 11,936 / 3,780 KiB |
+| Notification ownership check | 1.842 ms | 1.729 ms | 3,886 / 3,846 KiB |
+
+These include helper startup with warm filesystem cache and fake native owners;
+they are not boot/login, actual swaybg rendering or D-Bus/service timings. The
+release executable is 1,764,232 bytes, up 45,240 bytes. Deployment updates the
+compatible binary and callers without restarting wallpaper, notifications or
+the compositor. Rollback retains the previous source and executable together.

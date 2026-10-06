@@ -13,15 +13,18 @@ PanelWindow {
     id: root
     required property var lifecycle
     property var targetScreen: null
-    property int selected: 0
+    property int selected: -1
     property string selectionKey: ""
+    property bool defaultSelectionPending: true
     property bool hoverNavigationEnabled: false
     property point lastPointer: Qt.point(-1, -1)
     property bool closing: false
     property bool entered: false
     Component.onCompleted: Qt.callLater(() => {
-        if (!root.closing)
+        if (!root.closing) {
+            root.updateDeviceSelection();
             root.entered = true;
+        }
     })
     property bool closeAfterControls: false
     property bool discoveryDone: false
@@ -129,6 +132,7 @@ PanelWindow {
         selectIndex(selected + delta);
     }
     function selectIndex(index: int): void {
+        defaultSelectionPending = false;
         hoverNavigationEnabled = false;
         selected = Math.max(-1, Math.min(devices.length, index));
         if (selected >= 0 && selected < devices.length)
@@ -137,10 +141,23 @@ PanelWindow {
     function rememberSelection(): void {
         selectionKey = selected === -1 ? "radio" : selected === devices.length ? "manage" : devices[selected]?.dbusPath ?? "";
     }
+    function updateDeviceSelection(): void {
+        hoverNavigationEnabled = false;
+        if (defaultSelectionPending) {
+            selected = devices.length ? 0 : -1;
+            if (devices.length)
+                defaultSelectionPending = false;
+        } else {
+            const index = devices.findIndex(d => d.dbusPath === selectionKey);
+            selected = selectionKey === "radio" ? -1 : selectionKey === "manage" ? devices.length : index >= 0 ? index : devices.length ? Math.min(Math.max(0, selected), devices.length - 1) : -1;
+        }
+        rememberSelection();
+    }
     function pointerSelection(index: int, x: real, y: real): void {
         const moved = lastPointer.x >= 0 && Math.abs(x - lastPointer.x) + Math.abs(y - lastPointer.y) > 1;
         lastPointer = Qt.point(x, y);
         if (moved && !closing && !controlDevice) {
+            defaultSelectionPending = false;
             hoverNavigationEnabled = true;
             selected = index;
         }
@@ -171,6 +188,7 @@ PanelWindow {
     function activate(index: int, forceDisconnect = false): void {
         if (busy || radioBusy || controlsOpening || closing)
             return;
+        defaultSelectionPending = false;
         selected = index;
         if (index === -1) {
             toggleRadio();
@@ -245,12 +263,7 @@ PanelWindow {
         };
     }
     onSelectedChanged: rememberSelection()
-    onDevicesChanged: {
-        hoverNavigationEnabled = false;
-        const index = devices.findIndex(d => d.dbusPath === selectionKey);
-        selected = selectionKey === "radio" ? -1 : selectionKey === "manage" ? devices.length : index >= 0 ? index : Math.min(selected, devices.length);
-        rememberSelection();
-    }
+    onDevicesChanged: updateDeviceSelection()
     Process {
         id: discovery
         command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/nothing-backend", "--discover"]
@@ -662,57 +675,15 @@ PanelWindow {
                 }
             }
         }
-        Rectangle {
+        SurfaceFooter {
             x: 28
             y: card.height - 48
             width: card.width - 56
-            height: 1
-            color: Theme.colors.border
-        }
-        Row {
-            x: 28
-            y: card.height - 35
-            spacing: 7
-            Keycap {
-                label: "↑ ↓"
-            }
-            Text {
-                text: "navigate"
-                color: Theme.colors.muted
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Item {
-                width: 8
-                height: 1
-            }
-            Keycap {
-                label: "esc"
-            }
-            Text {
-                text: "close"
-                color: Theme.colors.muted
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: 28
-            y: card.height - 35
-            spacing: 7
-            Text {
-                text: root.selected === -1 ? (root.adapterAvailable ? "Turn Bluetooth off" : "Turn Bluetooth on") : root.selected === root.devices.length ? "Open manager" : root.devices[root.selected]?.connected ? root.supportsControls(root.devices[root.selected]) ? "Device controls" : "Disconnect device" : "Connect device"
-                color: Theme.colors.accent
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Keycap {
-                label: "↵"
-            }
+            actionText: root.selected === -1 ? (root.adapterAvailable ? "Turn Bluetooth off" : "Turn Bluetooth on") : root.selected === root.devices.length ? "Open manager" : root.devices[root.selected]?.connected ? root.supportsControls(root.devices[root.selected]) ? "Device controls" : "Disconnect device" : "Connect device"
+            escapeEnabled: !root.closing
+            onEscapeRequested: root.dismiss()
+            actionEnabled: !root.closing && !root.busy && !root.radioBusy && !root.controlsOpening
+            onActivated: root.activate(root.selected)
         }
     }
 }
