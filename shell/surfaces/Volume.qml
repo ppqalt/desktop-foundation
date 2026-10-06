@@ -13,7 +13,7 @@ PanelWindow {
     property bool muted: false
     property bool shown: false
     property bool awaitingFrame: false
-    readonly property int feedbackDuration: 20
+    readonly property int feedbackDuration: 100
     screen: targetScreen
     visible: false
     implicitWidth: 260

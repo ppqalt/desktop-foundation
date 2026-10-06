@@ -162,6 +162,6 @@ different menu goes through the same animated dismiss path as Escape; its loader
 is removed only when that transition completes. Pending power actions cannot be
 discarded by another menu shortcut.
 
-Volume readout uses only a 20 ms fade in/out. Percentages and bar positions update
+Volume readout uses only a 100 ms fade in/out. Percentages and bar positions update
 immediately from the same reported Rust value, with no bar interpolation. The
 native 3% step, 100% cap, mute readout and 1.5-second expiry are preserved.

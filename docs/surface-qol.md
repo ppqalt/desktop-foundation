@@ -118,7 +118,7 @@ instance with watching disabled proves explicit reload reads an updated lazy
 component. Native Niri parsing validates the single-press repeat flags. None of
 these checks actuates the running desktop or any real power operation.
 
-Volume feedback animates only visibility with a 20 ms fade in/out, starting on
+Volume feedback animates only visibility with a 100 ms fade in/out, starting on
 its own first frame. Its bar and percentage update together immediately without
 interpolation. One readout, mute indication and 1.5-second expiry remain. Rust
 audio mutation/readback and fallback ordering are unchanged.

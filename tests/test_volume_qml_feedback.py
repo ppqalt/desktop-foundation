@@ -51,12 +51,12 @@ ShellRoot {
                 fixture.check(volume.awaitingFrame && !volume.shown,"Fade starts before a frame");
             } else if(fixture.stage===1) {
                 fixture.check(fixture.swaps>0 && volume.shown && !volume.awaitingFrame,"Volume never presents");
-                fixture.check(fixture.card.opacity===1,"Short visibility fade does not finish");
                 fixture.wanted=Math.round(fixture.bar.parent.width*.5);
                 volume.present(50,false);
                 fixture.check(volume.level===50,"Percentage does not update immediately");
                 fixture.check(fixture.bar.width===fixture.wanted,"Bar does not update immediately");
             } else if(fixture.stage===2) {
+                fixture.check(fixture.card.opacity===1,"Visibility fade does not finish");
                 fixture.check(fixture.bar.width===fixture.wanted,"Bar target differs from readout");
                 fixture.wanted=-1;volume.present(45,true);
                 fixture.check(fixture.bar.width===0,"Mute bar does not update immediately");
