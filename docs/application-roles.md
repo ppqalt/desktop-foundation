@@ -3,6 +3,10 @@
 `config/application-roles.json` maps each role to a package, executable, desktop
 entry and MIME types. Shortcut launch commands use the selected role.
 
+The browser shortcut launches without a URL, matching Brave's desktop launcher
+and native New Window action. It opens the browser's normal new-tab page in a
+new window rather than adding an `about:blank` tab to an existing window.
+
 | Role | Application |
 | --- | --- |
 | Terminal | Kitty |

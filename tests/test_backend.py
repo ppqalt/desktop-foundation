@@ -64,7 +64,7 @@ class Backend(unittest.TestCase):
                     role = application_roles.roles(personal)[name]
                     application_roles.validate_role(name, role)
                     expected = [str(self.root / 'scripts/launch'), role['executable']]
-                    expected += {'browser': ['about:blank'], 'files': [str(self.base)]}.get(name, [])
+                    expected += {'files': [str(self.base)]}.get(name, [])
                 self.assertEqual(json.loads(self.invoke('apps', 'launch', name, '--check').stdout), expected)
         self.assertEqual(self.calls(), [])
 
@@ -115,9 +115,9 @@ class Backend(unittest.TestCase):
         self.assertIn('sink unavailable', result.stderr)
         self.assertEqual(len(self.calls()), 1)
 
-    def test_role_launch_hands_off_process_ownership_and_preserves_argv(self):
+    def test_browser_launch_uses_native_new_window_without_an_explicit_url(self):
         self.invoke('apps', 'launch', 'browser')
-        self.assertEqual(self.calls(), [[str(self.root / 'scripts/launch'), 'df-test-browser', 'about:blank']])
+        self.assertEqual(self.calls(), [[str(self.root / 'scripts/launch'), 'df-test-browser']])
 
     def test_non_utf8_command_is_reported_without_a_panic(self):
         result = subprocess.run([str(BINARY), b'\xff'], capture_output=True)

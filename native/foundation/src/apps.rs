@@ -167,10 +167,8 @@ pub fn command(root: &Path, name: &str) -> Result<Vec<String>> {
         root.join("scripts/launch").to_string_lossy().into_owned(),
         role.executable,
     ];
-    match name {
-        "browser" => command.push("about:blank".into()),
-        "files" => command.push(state::home()?.to_string_lossy().into_owned()),
-        _ => {}
+    if name == "files" {
+        command.push(state::home()?.to_string_lossy().into_owned());
     }
     Ok(command)
 }

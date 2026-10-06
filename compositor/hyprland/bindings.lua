@@ -7,7 +7,7 @@ return function(command)
         bind("SUPER + " .. key, hl.dsp.exec_cmd(command("launch") .. " kitty"), "Open Kitty")
     end
     bind("SUPER + E", hl.dsp.exec_cmd(command("launch") .. ' xdg-open "$HOME"'), "Open default file manager")
-    bind("SUPER + W", hl.dsp.exec_cmd(command("launch") .. " xdg-open about:blank"), "Open default browser")
+    bind("SUPER + W", hl.dsp.exec_cmd(command("applications") .. " launch browser"), "Open default browser")
     bind("SUPER + Q", hl.dsp.window.close(), "Close focused window")
     bind("SUPER + D", hl.dsp.window.fullscreen({ mode = "maximized" }), "Toggle maximize")
     bind("SUPER + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }), "Toggle fullscreen")
