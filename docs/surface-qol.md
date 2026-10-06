@@ -87,3 +87,11 @@ Bluetooth initial/late list loading, explicit choices and reopening are checked
 against extracted production policy with fake data. Offscreen Power and compact
 Clipboard previews were reviewed. Physical input/layer-shell behavior and live
 desktop actions remain untested, per the user's restriction.
+
+Shortcut menus retain the underlying application scene with the existing dim
+scrim and blur. Their scoped Niri layer rule explicitly uses `xray false` so blur
+samples the windows beneath the menu rather than replacing them with wallpaper.
+Normal application-window rules and the separate overview backdrop keep their
+existing behavior. Non-xray blur needs recomputation when underlying content
+changes while a menu is shown; no hidden menu renders or polls. This setting was
+validated through the native config parser, without a live screenshot/input test.

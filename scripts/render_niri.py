@@ -57,7 +57,8 @@ window-rule {{
 // Niri applies opacity to toplevel content; client popups keep their own shape.
 // Keep terminal glyphs opaque; prefer native background alpha in Kitty.
 window-rule {{ match app-id="^kitty$"; opacity 1.0; }}
-layer-rule {{ match namespace="^desktop-foundation-(launcher|clipboard|power|bluetooth)$"; background-effect {{ blur true; xray true; }} }}
+// Shortcut menus soften the applications behind them instead of bypassing them.
+layer-rule {{ match namespace="^desktop-foundation-(launcher|clipboard|power|bluetooth)$"; background-effect {{ blur true; xray false; }} }}
 layer-rule {{
     match namespace="^desktop-foundation-overview-backdrop$"
     place-within-backdrop true
