@@ -69,7 +69,7 @@ PanelWindow {
         selectedIdentity = results[selectedIndex]?.id || "";
         const row = list.itemAtIndex(selectedIndex);
         if (row)
-            selectedViewportOffset = row.y - list.contentY;
+            selectedViewportOffset = row.y + (row.groupGap || 0) - list.contentY;
     }
     function selectIndex(index: int): void {
         selectedIndex = Math.max(0, Math.min(results.length - 1, index));
@@ -91,7 +91,8 @@ PanelWindow {
             if (revision !== root.selectionRevision || !identity || identity !== root.selectedIdentity || root.clearSelected)
                 return;
             list.positionViewAtIndex(root.selectedIndex, ListView.Beginning);
-            list.contentY = Math.max(0, Math.min(Math.max(0, list.contentHeight - list.height), list.contentY - savedOffset));
+            const row = list.itemAtIndex(root.selectedIndex);
+            list.contentY = Math.max(0, Math.min(Math.max(0, list.contentHeight - list.height), list.contentY + (row?.groupGap || 0) - savedOffset));
             root.rememberSelection();
         });
     }
@@ -346,7 +347,7 @@ PanelWindow {
             onStepped: delta => root.navigate(delta)
         }
         width: Math.min(root.confirmClear ? 440 : Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(root.confirmClear ? 268 : 182 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 66, root.height - 64)
+        height: Math.min(root.confirmClear ? 268 : 182 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 66 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height - 64)
         Behavior on width {
             // Initial output geometry uses the shared fade/scale entrance.
             // Keep the existing confirmation morph once opened (or requested).
@@ -479,34 +480,41 @@ PanelWindow {
             boundsBehavior: Flickable.StopAtBounds
             currentIndex: root.selectedIndex
             onContentYChanged: root.rememberSelection()
-            delegate: ClipboardRow {
+            delegate: Item {
                 required property var modelData
                 required property int index
+                readonly property int groupGap: index > 0 && !modelData.pinned && root.results[index - 1]?.pinned ? 12 : 0
                 width: list.width
-                entry: modelData
-                selected: !root.clearSelected && index === root.selectedIndex
-                actionFocus: selected ? root.actionFocus : -1
-                busy: history.busy
-                onPinned: {
-                    root.clearSelected = false;
-                    root.selectIndex(index);
-                    root.pinSelected();
-                }
-                onPlainCopied: {
-                    root.clearSelected = false;
-                    root.selectIndex(index);
-                    root.copyPlainSelected();
-                }
-                onRemoved: {
-                    root.clearSelected = false;
-                    root.selectIndex(index);
-                    root.deleteSelected();
-                }
-                onChosen: {
-                    root.clearSelected = false;
-                    root.actionFocus = 0;
-                    root.selectIndex(index);
-                    root.launchSelected();
+                height: row.implicitHeight + groupGap
+                ClipboardRow {
+                    id: row
+                    y: parent.groupGap
+                    width: parent.width
+                    entry: parent.modelData
+                    selected: !root.clearSelected && parent.index === root.selectedIndex
+                    actionFocus: selected ? root.actionFocus : -1
+                    busy: history.busy
+                    onPinned: {
+                        root.clearSelected = false;
+                        root.selectIndex(parent.index);
+                        root.pinSelected();
+                    }
+                    onPlainCopied: {
+                        root.clearSelected = false;
+                        root.selectIndex(parent.index);
+                        root.copyPlainSelected();
+                    }
+                    onRemoved: {
+                        root.clearSelected = false;
+                        root.selectIndex(parent.index);
+                        root.deleteSelected();
+                    }
+                    onChosen: {
+                        root.clearSelected = false;
+                        root.actionFocus = 0;
+                        root.selectIndex(parent.index);
+                        root.launchSelected();
+                    }
                 }
             }
         }
