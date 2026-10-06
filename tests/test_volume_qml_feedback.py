@@ -1,4 +1,4 @@
-"""Actual volume presentation and animation with private offscreen Qt windows.
+"""Actual instant bar updates and visibility fades in private offscreen Qt.
 
 Calls only the QML presenter. No audio command, real shell or device is used.
 """
@@ -21,8 +21,6 @@ ShellRoot {
     property int stage: 0
     property int failures: 0
     property int swaps: 0
-    property real updateStart: 0
-    property real updateElapsed: -1
     property real wanted: -1
     function check(value,detail) { if(!value) { failures++;console.error("VOLUME_FAIL "+detail); } }
     function find(item,name) {
@@ -39,16 +37,9 @@ ShellRoot {
         function onFrameSwapped() {
             if(fixture.swaps===0 && volume.visible) {
                 fixture.check(fixture.bar.width===Math.round(fixture.bar.parent.width*.8),"First bar value animated from zero");
-                fixture.check(fixture.card.opacity===0,"Fade completed before the first volume frame");
+                fixture.check(fixture.card.opacity===0,"Visibility fade completed before its first frame");
             }
             if(volume.visible)fixture.swaps++;
-        }
-    }
-    Connections {
-        target: fixture.bar
-        function onWidthChanged() {
-            if(fixture.wanted>=0 && fixture.updateElapsed<0 && Math.abs(fixture.bar.width-fixture.wanted)<.01)
-                fixture.updateElapsed=Date.now()-fixture.updateStart;
         }
     }
     Timer {
@@ -57,33 +48,33 @@ ShellRoot {
             if(fixture.stage===0) {
                 fixture.check(!volume.visible && !volume.shown,"Widget starts visible");
                 volume.present(80,false);
-                fixture.check(volume.awaitingFrame && !volume.shown,"Construction starts fade before a frame");
+                fixture.check(volume.awaitingFrame && !volume.shown,"Fade starts before a frame");
             } else if(fixture.stage===1) {
-                fixture.check(fixture.swaps>0 && volume.shown && !volume.awaitingFrame,"Volume never enters on its own frame");
-                fixture.check(fixture.card.opacity===1,"Short fade does not complete");
+                fixture.check(fixture.swaps>0 && volume.shown && !volume.awaitingFrame,"Volume never presents");
+                fixture.check(fixture.card.opacity===1,"Short visibility fade does not finish");
                 fixture.wanted=Math.round(fixture.bar.parent.width*.5);
-                fixture.updateStart=Date.now();fixture.updateElapsed=-1;
                 volume.present(50,false);
                 fixture.check(volume.level===50,"Percentage does not update immediately");
+                fixture.check(fixture.bar.width===fixture.wanted,"Bar does not update immediately");
             } else if(fixture.stage===2) {
-                fixture.check(fixture.updateElapsed>=0 && fixture.updateElapsed<80,"Bar still trails input: "+fixture.updateElapsed+"ms");
                 fixture.check(fixture.bar.width===fixture.wanted,"Bar target differs from readout");
                 fixture.wanted=-1;volume.present(45,true);
+                fixture.check(fixture.bar.width===0,"Mute bar does not update immediately");
             } else if(fixture.stage===3) {
                 fixture.check(volume.muted && volume.level===45 && fixture.bar.width===0,"Muted readout/bar is wrong");
                 volume.present(999,false);fixture.check(volume.level===100,"Display cap was lost");
             } else if(fixture.stage===4) {
                 fixture.check(fixture.bar.width===fixture.bar.parent.width,"Full level bar does not finish");
             } else if(fixture.stage===20) {
-                fixture.check(!volume.visible && !volume.shown && !volume.awaitingFrame,"Hold/fade does not hide widget");
+                fixture.check(!volume.visible && !volume.shown && !volume.awaitingFrame,"Expiry does not hide widget");
                 volume.present(25,false);
                 fixture.check(fixture.bar.width===Math.round(fixture.bar.parent.width*.25),"Reopened bar starts with stale width");
-                fixture.check(volume.awaitingFrame && !volume.shown,"Reopened widget lacks first-frame gate");
+                fixture.check(volume.awaitingFrame && !volume.shown,"Reopened widget lacks visibility fade gate");
                 // Simulate a host kept unmapped until its notification expires.
                 volume.visible=false;
             } else if(fixture.stage===37) {
-                fixture.check(!volume.visible && !volume.shown && !volume.awaitingFrame,"Unmapped expired widget retains a pending entrance");
-                console.log("VOLUME_RESULT "+JSON.stringify({failures:fixture.failures,update_ms:fixture.updateElapsed}));
+                fixture.check(!volume.visible && !volume.shown && !volume.awaitingFrame,"Unmapped expired widget reappears");
+                console.log("VOLUME_RESULT "+JSON.stringify({failures:fixture.failures}));
                 Qt.quit();
             }
             fixture.stage++;

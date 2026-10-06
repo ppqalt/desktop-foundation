@@ -113,13 +113,6 @@ PanelWindow {
                 width: Math.round(track.width * (root.muted ? 0 : root.level) / 100)
                 radius: 1
                 color: Theme.colors.accent
-                Behavior on width {
-                    enabled: root.shown && !root.awaitingFrame
-                    NumberAnimation {
-                        duration: root.feedbackDuration
-                        easing.type: Theme.easing
-                    }
-                }
             }
         }
     }
