@@ -1,28 +1,46 @@
-# Small compositor interface
+# Compositor interface
 
-The shell root loads one adapter and injects normalized state into shared surfaces.
-Default `DF_COMPOSITOR` is niri; hyprland explicitly selects the retained backend.
-Only adapter-local code interprets native IDs or executes native operations.
+`shell/shell.qml` selects one adapter and injects its state into shared surfaces.
+`DF_COMPOSITOR=hyprland` selects Hyprland; the default is Niri. Adapter code owns
+native identifiers, IPC messages and operation mapping.
 
-Reactive properties: ready, backend, capabilities, outputs, workspaces, windows,
-focusedWindow, activeWorkspace/focusedWorkspace. IDs are opaque strings and are
-not stable across sessions. Workspace records include name/index/output/active/focus;
-window records include app/title/workspace/output/focus, nullable geometry and
-nullable fullscreen/maximized/floating/urgent state. Null focus and cross-resource
-ordering during removal are normal. Never infer fullscreen from window size.
+## State
 
-Asynchronous requests: focus/close window, focus workspace, move window to stable
-workspace ID, window/workspace output moves, explicit floating state, direction
-focus/movement, overview toggle, column width cycle/centering/maximize, fullscreen
-toggle and screenshot region/window/output. Observe events to confirm results.
-Check capabilities before optional requests. Niri fullscreen/maximized state is
-unavailable in 26.04 IPC, so those fields are null and idempotent setters return
-false. Its native maximize action is a column operation. Hyprland retains its
-native state/setters and advertises no native overview.
+| Property | Meaning |
+|---|---|
+| `ready`, `backend`, `capabilities` | Connection readiness, adapter name and supported operations |
+| `outputs` | Connected outputs and focus information |
+| `workspaces` | ID, name/index, output, active and focused state |
+| `windows` | ID, app/title, workspace/output, focus, geometry and native state |
+| `focusedWindow` | Focused window, or null |
+| `activeWorkspace`, `focusedWorkspace` | Focused workspace, or null |
 
-Niri's EventStream supplies initial and incremental state, with one-shot reconnect
-backoff only on failure. Output requests coalesce on relevant events. Action requests
-use a bounded separate FIFO. Hyprland uses native Quickshell event subscriptions
-and coalesced relevant refreshes. No periodic resident subprocess/state poll exists.
-Niri layout and focus timestamps remain namespaced under `niri` in window records.
-Screenshot UX/storage is backend-owned, using common config path intent.
+IDs are opaque strings whose lifetime is one compositor session. Geometry and
+fullscreen/maximized/floating/urgent fields may be null when unavailable.
+Removal events can briefly leave related records out of order. Consumers should
+handle null focus and check capabilities before optional operations.
+
+## Requests
+
+Adapters support window focus/close, workspace focus, moving a window to a stable
+workspace ID, window/workspace output moves, floating state, directional focus
+and movement, column width cycling/centering/maximization, fullscreen toggling
+and region/window/output screenshots. Requests are asynchronous; events supply
+the resulting state.
+
+Niri's adapter exposes native overview and column operations. Its 26.04 IPC does
+not supply authoritative fullscreen/maximized state: those normalized fields
+are null, and `setFullscreen`/`setMaximized` return false. `toggleFullscreen` and
+`maximizeColumn` remain native actions. Hyprland exposes its native setters and
+reports no overview capability. Screenshot storage follows the selected backend.
+
+Niri uses one JSON IPC EventStream for initial and incremental state. Relevant
+events coalesce output refreshes. A separate request queue holds at most 64
+requests, with a three-second deadline per request; a timed-out action is not
+replayed. Connection failures trigger bounded backoff before a fresh snapshot.
+Niri-specific layout and focus data stays under the `niri` namespace in window
+records. Hyprland uses native Quickshell subscriptions and coalesced refreshes.
+
+The Niri adapter also centers a focused tiled window when it is the sole window
+on the focused workspace. Floating companions or additional windows prevent
+this policy from running; `Super+C` centers a column explicitly.

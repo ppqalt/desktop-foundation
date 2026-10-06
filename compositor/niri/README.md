@@ -1,6 +1,9 @@
-# Primary Niri backend
+# Niri configuration
 
-Native configuration and bindings live here; deployment renders shared input and
-visual intent into the installed KDL wrapper. Optional host KDL belongs in profiles.
-The real event-driven adapter is shell/adapters/niri/Adapter.qml. See
-../../docs/niri-port.md and ../../docs/niri-validation.md for semantics and limits.
+Deployment renders shared input and window settings into native KDL. Bindings
+live in `bindings.kdl`; output overrides live in `profiles/NAME/niri.kdl`.
+
+The shell adapter is `shell/adapters/niri/Adapter.qml`. See
+[compositor state and requests](../../docs/compositor-interface.md),
+[bindings](../../docs/input-bindings.md) and
+[window appearance](../../docs/window-appearance.md).

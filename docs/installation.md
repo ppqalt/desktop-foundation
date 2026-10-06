@@ -1,121 +1,90 @@
-# v0.12 installation and convergence
+# Installation
 
-There are two layers, not a collection of application-specific top-level commands:
+Desktop Foundation targets Arch-family systems with pacman. Start with a normal
+login user, sudo, network access, working graphics, Git and Python. Keep the
+checkout in a permanent directory and run the installer as that user.
 
-| Command | Purpose |
+```sh
+scripts/install-core --dry-run
+scripts/install-core
+```
+
+Core installs the Niri desktop, Quickshell, terminal configuration and default
+applications. It builds both Rust backends, deploys configuration, applies app
+roles and enables Bluetooth and AppArmor. The default greeter is greetd with a
+Matrix-capable tuigreet. Choose Niri at login, then run `scripts/doctor`.
+
+For Spotify, ChatGPT and Steam, use the full installer:
+
+```sh
+scripts/install-all --dry-run
+scripts/install-all
+```
+
+`scripts/install` is an alias for the full installation. `install --core` selects
+core. See [personal applications](personal-apps.md) for package sources and setup.
+
+| Option | Purpose |
 | --- | --- |
-| `scripts/install-core` | Complete portable Niri desktop, terminal and usable default apps |
-| `scripts/install-all` / `scripts/install` | Reuse core, then provision the personal applications |
-| `--check` | Read-only doctor/ownership/default inspection |
-| `--dry-run` / `--plan` | Read-only package/ownership/deployment plan |
-| `--no-packages` | Rebuild/deploy using installed dependencies; verify personal tools |
-| `--no-greeter` | Retain an existing display manager or deliberate TTY login |
-| `--hardware-profile NAME` | Select a tracked hardware profile; default is portable |
-| `--clean-boot` | Explicit separately journaled GRUB/mkinitcpio cleanup |
+| `--dry-run` or `--plan` | Show packages, application roles, deployment paths and ownership conflicts |
+| `--check` | Inspect the selected installation layer |
+| `--no-packages` | Build and deploy using installed dependencies |
+| `--no-greeter` | Use an existing display manager or TTY login |
+| `--hardware-profile NAME` or `--profile NAME` | Select a directory under `profiles/`; default is `default` |
+| `--clean-boot` | Apply the GRUB/mkinitcpio cleanup and boot optimization helpers |
 
-`install --core`, `--personal` and `--profile` remain compatible. Internal
-`install_engine.py` separates planning, core and personal convergence and reuses
-bootstrap, deployment, preferences and application helpers. It is not a new
-background framework.
+The installed Niri must accept the generated KDL, including its blur and
+background effects. The installer checks that configuration before deployment.
+Greeter setup checks tuigreet's Matrix support before writing login files. A
+system with another display manager should use `--no-greeter`.
 
-## Prerequisites and fresh installation
+The default profile uses automatic outputs and Finnish input. Shared input lives
+in `config/input.lua`; Niri output overrides belong in `profiles/NAME/niri.kdl`.
+The `dual-display-example` profile shows an explicit output layout.
 
-A reasonably clean Arch/CachyOS/EndeavourOS system must already have a normal user,
-sudo, network, working graphics, Git and Python. Run as that user, not root.
-Clone v0.12 into a permanent directory, inspect `install-core --dry-run`, then run
-`install-core`. Select Niri on the next login. Add `install-all` if desired.
+## Reinstall and update
 
-CachyOS is the tested reference. Native Niri parser validation must accept blur,
-background effects and the generated KDL; stock versions on other distros may
-not. Matrix tuigreet is likewise capability-checked before authentication-file
-changes. No external repository is added to solve incompatibility.
+Keep the checkout and `$XDG_STATE_HOME/desktop-foundation` state directory. Inspect
+the chosen revision and run the same installer's dry-run before applying it.
+Missing packages are installed with a full pacman upgrade. AUR recipes are built
+as the login user and presented for review.
 
-Core uses Finnish input, the existing graphite/window policy and strict native
-single-column centering. No monitor, GPU, hostname or disk name is required.
-Override hardware in `profiles/NAME/niri.kdl`; input remains in `config/input.lua`.
+Kitty, Fish and Fastfetch configuration directories are managed as complete units.
+Their originals and other replaced paths are saved in the deployment journal.
+MIME defaults have a separate journal for the designated application-role keys.
+Rerunning preserves the original backups. An externally replaced managed path or
+owned MIME key must be resolved before installation can continue.
 
-Full provisions Brave (configured repository or reviewed AUR), Spotify tools,
-ChatGPT (verified signed CachyOS package) and stock Steam (multilib). Read
-[personal applications](personal-apps.md) for availability/login boundaries.
-Millennium/Material is not included in the v0.12 installation promise.
+After a reported error, inspect the named path or helper journal, resolve the
+cause and rerun. Keep the journals and backups available for recovery. Package
+installation and the later configuration steps have separate recovery paths.
 
-## Existing machines and upgrades from v0.10/v0.11
+## Boot and login integration
 
-Keep the existing checkout and `$XDG_STATE_HOME/desktop-foundation` backups.
-Fetch and inspect the new tag; do not delete the installation or transplant its
-journal from another machine. Resolve uncommitted work without resetting it.
+AppArmor requires kernel activation as well as profile loading. If activation is
+needed, the installer uses the supported GRUB helper. Other bootloaders require
+their native kernel-command-line tools; see [AppArmor](APPARMOR.md).
 
-1. Run the selected installer's dry-run. Externally replaced owned links or MIME
-   keys report conflicts before package/system mutations.
-2. Use `--no-greeter` when another display manager owns login. No automatic
-   disabling/force-replacement of it is performed.
-3. Run the installer with packages enabled when dependencies change. Missing
-   packages use full `pacman -Syu --needed`; declared compatible package providers
-   satisfy core dependencies. AUR builds remain unprivileged and reviewed.
-4. Core deploys staged/validated links with original backups. Kitty, Fish and
-   Fastfetch directories are replaced with managed configurations and their old
-   directories retained; this is a deliberate replacement, not a merge.
-5. The old MIME whole-file journal migrates only keys the old installer actually
-   changed. Later unrelated associations/comments survive. Explicit new roles
-   repair wrong directory/browser choices. Original role values remain recoverable.
-6. Current runtime wallpaper and semantic colors are retained when templates are
-   re-rendered during deployment. No account data is imported.
-7. Already-pinned tools are reused. Known older Spicetify 2.45.1 upgrades to the
-   checksum-pinned 2.45.3 with its tool backup. Unknown versions/source conflicts
-   are refused. The managed Spotify launcher completes first-login patching.
+`--clean-boot` requires an existing GRUB setup with drop-in support, mkinitcpio
+presets and the CachyOS main-kernel menu policy required by `boot-optimize`.
+Mount the installed boot filesystem first. A dracut installation needs its own
+native boot configuration. See [boot setup and optimization](boot-optimization.md)
+for changes, prerequisites and restore order.
 
-Reruns do not accumulate original-config backups, reset accounts or spawn duplicate
-services. A deliberate deploy may create a new runtime revision to propagate
-changed templates; ordinary unchanged wallpaper applications are no-ops.
+Greetd and PAM configuration are backed up under
+`/var/lib/desktop-foundation/system`. Login changes take effect at the next boot.
+The clean-boot path also separates boot output on tty8 from the greeter on tty1;
+see [console routing](greeter-console.md).
 
-Package installation can finish before a later conflict is discovered; packages
-remain installed. Each protected mutation is journaled, not claimed to be a
-single atomic whole-system transaction. Fix a reported conflict and rerun;
-never delete a journal to suppress an error.
+## Restore
 
-## System and boot safety
+```sh
+scripts/uninstall
+scripts/uninstall --greeter
+```
 
-Bluetooth/AppArmor services are enabled. A kernel already enforcing AppArmor does
-not get boot files regenerated. If activation is required, the existing supported
-GRUB fragment helper preserves LSM arguments. Other bootloaders need native manual
-configuration; dracut and mkinitcpio are never converted into each other.
-
-Greetd/PAM files have protected backups; installation never restarts the active
-display manager. The validated Matrix/keyring path is retained. A conflicting
-manager stops this step and requires `--no-greeter` or an explicit manual choice.
-The prior tty1/tty8 non-Plymouth handoff fix remains unchanged.
-
-`--clean-boot` remains explicit and only supports an existing compatible
-GRUB/mkinitcpio setup. Saved boot transactions are reviewed/resumed/restored with
-their own helpers, rather than silently replacing the original recovery snapshot.
-See [AppArmor](APPARMOR.md), [boot setup](boot-security-proposal.md) and
-[boot optimizations](boot-optimization.md). No boot-affecting change is needed for
-this v0.12 upgrade on an already-valid reference installation.
-
-## Appearance and acceptance
-
-Core retains supported GTK dark preference/adw-gtk3-dark and Google Sans.
-Wallpaper changes map to the native discrete GNOME accent enum where supported;
-libadwaita/portal behavior determines which apps honor it. Neutral surfaces are
-not overridden with CSS. Niri notifications remain the existing managed Mako
-service, top-center with bounded timeout; Quickshell provides the volume OSD.
-
-Niri screenshots remain clipboard-only; Hyprland's secondary backend saves and
-copies. Application launcher uses desktop entries, not Fuzzel or polling.
-
-Run `scripts/doctor` (or `--personal`) and the
-[fresh-login checklist](fresh-install-v012.md). Physical login, graphics, earbud
-hardware and application account actions cannot be certified by a dry-run.
-
-## Rollback
-
-`uninstall` restores owned config/preference paths while leaving packages and
-account/application data installed. `uninstall --greeter` also restores greetd/PAM
-files. `spotify-setup restore` handles its optional links/config/tool upgrade;
-Brave preferences were not changed by the v0.12 installer. Any older opt-in
-preference seeding has its own `brave-config restore` journal.
-
-MIME restore changes only recorded Default Applications keys. External changes
-to an owned key/path cause a refusal; unrelated later edits are preserved.
-For startup problems, authenticate on another VT and use the documented helper
-from the same checkout. Never restart the display manager to repair an active chat.
+The first command restores managed user configuration and preferences. The second
+also restores greetd/PAM files. Packages remain installed. Spotify's optional
+links, configuration and tool backup use `scripts/spotify-setup restore`.
+Privileged boot helpers have separate restore commands. Follow
+[recovery](recovery.md) when restoring an interrupted deployment or boot setup.

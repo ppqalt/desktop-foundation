@@ -1,96 +1,48 @@
 # Terminal environment
 
-Clean Niri-first design; no previous Kitty/Fish/Fastfetch settings are imported.
-Kitty retains its standard URL opening, clipboard shortcuts, tab behavior and
-rendering defaults. Google Sans Code Nerd Font Mono 11 pt, 5 px padding, steady beam cursor and
-10,000 lines of scrollback keep it compact. Native Wayland background opacity
-is 0.90; Niri's Kitty rule remains at surface opacity 1.0, preserving glyphs.
+Kitty uses Google Sans Code Nerd Font Mono at 11 pt, 5 px padding, a steady beam
+cursor and 10,000 lines of scrollback. Its 90% background opacity leaves text
+opaque. Colors come from the shared semantic palette.
 
-Colors live in `palette.json`. Run `python3 scripts/render_terminal.py` from the
-repository root after editing it; generated Kitty/Fish/Fastfetch colors are
-checked in. No theme generator runs at terminal startup.
-
-Fish retains native history search, suggestions and key bindings. The prompt
-shows shortened directory, branch, `*` for tracked changes, failed command
-status and a prompt character. Git is refreshed on directory changes and after
-commands, never on a prompt repaint. Untracked scans, submodule inspection and
-ahead/behind counts are deliberately omitted. Detached checkouts say detached.
-Changes made by another process appear after the next command. No framework,
-Starship, custom command-not-found hook or inherited aliases are installed.
-
-Run `fastfetch` when wanted. It is intentionally not an automatic greeting:
-new terminals and nested shells remain quiet and immediately usable. The normal
-Arch logo sits beside aligned, vertically centered groups for the system, session
-and hardware. Muted labels keep the logo as the primary accent.
-Hostname and hardware are discovered dynamically. Disk uses the
-portable root mount, never a machine-specific device name.
-
-Interactive abbreviation `c` expands to `clear`. The native `fast` function
-clears the terminal, then runs `fastfetch`. Both live in the tracked Fish
-configuration and deploy through the same reversible system on either machine.
-
-## Deployment and rollback
-
-`scripts/deploy` validates and deploys the terminal along with the desktop.
-Each original configuration directory is moved intact to the existing state
-backup journal before its replacement is linked. Fish's writable universal
-variables live under the state directory, outside Git; history in the Fish data
-directory is untouched. New Fish sessions use the redesign. Open a new Kitty
-window to load its settings; existing terminals are not forcibly restarted.
-
-`scripts/dev restore` restores **all** foundation-owned configuration paths,
-including the desktop and these three terminal directories. It refuses to
-overwrite paths changed by another tool. Backups and manifest reside at
-`${XDG_STATE_HOME:-~/.local/state}/desktop-foundation`. No host-specific terminal
-paths, devices or hardware values are embedded in the source configurations.
-
-## Validation on Tops
-
-Twenty separate warm-cache launches before/after replacement:
-
-| Fish | Before median | After median | After p95 |
-| --- | ---: | ---: | ---: |
-| Noninteractive | 19.78 ms | 12.51 ms | 14.01 ms |
-| Interactive configuration | 28.47 ms | 18.43 ms | 20.84 ms |
-
-These measure shell startup (`fish -c exit`, `fish -i -c exit`), not GUI rendering.
-In a generated 3,000-file tracked repository, 100 cached prompt repaints took
-67.14 ms total (~0.67 ms each). Native Fish syntax checks, Kitty's actual config
-loader and Fastfetch's actual parser passed. A real Wayland Kitty was opened,
-captured and closed without disturbing existing application windows.
-
-Fonts are bundled with their licenses in `fonts/`, linked through deployment into
-the user font directory, and removed from that location by rollback. Google Sans
-is used by the shared shell; Google Sans Code supplies its monospaced labels.
+## Selection
 
 Ctrl+A creates a real Kitty selection across the retained main screen and full
-scrollback; it does not copy. Ctrl+C uses Kitty's normal `copy_or_interrupt` action:
-copy the selection, or interrupt when nothing is selected. The scrollback limit
-remains 10,000 lines. Escape clears selection and forwards Escape to the application;
-normal mouse selection can replace it. No automatic copy, notification or overlay.
+scrollback. Ctrl+C uses `copy_or_interrupt`: copy the selection, or interrupt
+when nothing is selected. Escape clears selection and passes Escape to the
+application. Mouse selection can replace it.
 
-Kitty has no built-in whole-scrollback selection action. The small tracked no-UI
-`select_all.py` kitten uses native scroll_home/start_selection/scroll_end/
-update_selection, anchoring endpoints at their respective scrollback offsets. It
-restores the original viewing position afterward. The highlight is actual Kitty
-selection state, including when scrolling upward. On an alternate screen it selects
-that screen only, matching Kitty's separate-screen model. These internal selection
-APIs were inspected against Kitty 0.49.2; review compatibility after major upgrades.
+Kitty has no built-in whole-scrollback selection action. The small `select_all.py`
+kitten uses Kitty's native scroll and selection APIs to anchor both endpoints,
+then restores the viewing position. On an alternate screen it selects that
+screen. These internal APIs require compatibility review when upgrading Kitty.
 
-Manual validation (interactive test deferred to the user for this change): print
-200 numbered lines, leave the bottom visible, set the clipboard to a known marker,
-then press Ctrl+A. Confirm the visible highlight remains when scrolling to line 1
-and the clipboard marker is unchanged. Return to the bottom and press Ctrl+C; paste
-into a temporary file and confirm lines 1 through 200. Check Escape and replacement
-mouse selections. Open a new Kitty window or reload its config to apply the binding.
+## Fish
 
+The prompt shows the shortened directory, Git branch, tracked changes and a failed
+command's status. Git state refreshes after commands and directory changes.
+Native history search, suggestions and bindings remain available.
 
-The Packages line combines Fastfetch's native `{pacman}` total with the number
-of `pacman -Qqm` entries, labelled AUR (foreign/local builds, not proof of AUR
-origin). Zero remains visible. The tracked `terminal/fastfetch/packages` helper
-caches only the foreign count under `$XDG_CACHE_HOME/desktop-foundation`.
-It invalidates on local package database directory changes, configured repository
-changes, and repository database changes. Pacman's DBPath and repository list are
-discovered dynamically. During a Pacman transaction it bypasses caching. Errors
-are not recorded as zero. No daemon, polling, TTL or startup refresh is needed.
-The native total still runs fresh from the minimal `packages.jsonc` each time.
+The abbreviation `c` expands to `clear`. The `fast` function clears the terminal
+and runs Fastfetch. Fastfetch is also available directly; it does not run at shell
+startup.
+
+## Fastfetch
+
+The package line combines Fastfetch's pacman total with a cached count of
+`pacman -Qqm` entries, labelled AUR. Zero remains visible. The foreign count
+includes local builds as well as AUR packages.
+
+The Rust backend invalidates that cache when the package databases or repository
+configuration change. It avoids cache reuse during a pacman transaction. The
+native total is read fresh on each invocation.
+
+## Configuration
+
+`palette.json` supplies the shipped colors. From the repository root, run
+`python3 scripts/render_terminal.py` after editing it. Wallpaper theme changes
+render the terminal from the active semantic palette.
+
+`scripts/deploy` deploys Kitty, Fish and Fastfetch together with the desktop.
+Open a new shell for Fish changes; Kitty supports native configuration reload.
+`scripts/dev restore` restores the backed-up desktop and terminal configuration.
+See [deployment](../docs/deployment.md) and [theme controls](../theme/README.md).

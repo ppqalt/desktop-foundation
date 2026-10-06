@@ -225,7 +225,6 @@ def main():
             report(True, 'Native Steam executable and desktop entry')
         except (RuntimeError, OSError) as error:
             report(False, str(error))
-        print('WARN: Millennium/Material excluded from v0.12; Steam account/library data unmanaged.')
     from application_roles import check as check_roles, paths as role_paths
     _, roles_journal = role_paths()
     selected_personal = args.personal or (roles_journal.exists() and json.loads(roles_journal.read_text()).get('profile') == 'personal')

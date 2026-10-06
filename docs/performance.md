@@ -1,50 +1,78 @@
-# Measure before optimizing
+# Performance measurement
 
-Always record software versions, profile, monitor refresh/scale, hardware, workload, power state and whether the probe/surface has ever opened. Distinguish an invisible fresh shell from a hidden shell after GPU resources were allocated. Do not interpret an empty foundation as the budget for finished visuals.
+Record software versions, profile, output refresh rate and scale, hardware,
+workload and power state with each comparison. Keep fresh shell processes and
+processes that have already opened a surface in separate groups. Compare repeated
+samples under the same conditions.
 
-Run `scripts/baseline.py PID --seconds 10` for RSS/PSS, CPU time as percent of one core, and main-thread voluntary/involuntary context switches. Context switches are NOT hardware wakeups, and zero CPU ticks is limited by kernel tick resolution. Capture longer controlled samples manually for very low idle activity. `/proc/PID/task/*/status` or a task-aware profiler is needed for all-thread context switches.
-
-Run `scripts/startup.py` for elapsed launch-to-backend-ready including the cost/resolution of test IPC readiness checks. `hyperfine --warmup 1 --runs 5 'scripts/startup.py'` measures the whole harness including process teardown and Python/IPC overhead; do not call that pure startup latency. Cold and warm startup should be measured separately. Readiness here does not assert the first visible frame.
-
-For wakeups/scheduling, optional `perf stat -p PID -e task-clock,context-switches,cpu-migrations -- sleep 30` provides scheduling counters. Exact wakeup sources require tracepoints (e.g. sched:sched_wakeup) and appropriate kernel permissions. Inspect `perf list` and permissions first; no permanent privilege relaxation. `strace -f -c -p PID` and a bounded `strace -f -e trace=process -p PID` identify syscalls/unnecessary spawning. Profilers perturb the workload; compare uninstrumented runs. Prefer native event integrations to polling.
-
-QML tooling lives in /usr/lib/qt6/bin: qmllint, qmlformat, qmlls, qmlprofiler, qsb. Use `quickshell --debug 3768 --waitfordebug --path shell` in a separate development instance and attach qmlprofiler (`qmlprofiler --attach localhost --port 3768 --output work/profile.qtd`). See tool help for capture controls. Use Qt Creator if a GUI profiler is wanted later. Profile binding evaluations, allocations, animations and scene-graph frames during open/close transitions, then assess p50/p95/p99 frame times against the output's frame budget. Check supported Qt scene-graph logging for the installed release. Keep profiling/debug endpoints development-only.
-
-Heaptrack can launch `heaptrack quickshell --path shell` for native allocations; it cannot by itself explain GPU memory or every QML object. Use Qt QML profiling alongside it. If a Rust backend is added, repeat CPU/PSS/allocations/startup measurements independently and track IPC latency and process count. Keep no invisible menu object trees alive without justification. Animations and blur remain desired; optimize concrete hot paths rather than disabling the visual design.
-
-## Repeatable hardened harness
-
-`scripts/bench` collects multiple fresh-process and warmed-process runs: RSS/PSS,
-CPU ticks, all surviving threads' context-switch deltas, changed thread sets,
-process-family endpoint counts, startup to backend-ready and actual probe object
-creation/destruction request roundtrips. Timing includes IPC overhead and is not
-first-frame presentation latency. Fresh process does not mean cold kernel caches.
-PSS sharing and user workload affect results. Endpoint snapshots cannot rule out
-short-lived subprocesses; attach `strace -f -e trace=process -p PID` for a finite
-window. Continuous runtime polling remains prohibited. Zero CPU ticks at the
-kernel's sampling resolution does not imply zero wakeups.
-
-Use `scripts/bench --trace` to additionally launch an owned shell under finite
-strace process tracing; the resident instance is untouched. Latest finite trace
-observed exactly one exec request (initial launch) and no subprocess execs.
-
-## Paired backend comparison
-
-Build `scripts/build-backend`, then run:
+## Shell processes
 
 ```sh
-python3 scripts/quality_bench.py --baseline-ref bbddde0 --samples 24 --image-samples 10 --output work/quality-comparison.json
+python3 scripts/baseline.py PID --seconds 10
+python3 scripts/startup.py
+scripts/bench --runs 3 --seconds 5 --output work/bench.json
+scripts/bench --runs 3 --seconds 5 --trace
 ```
 
-This finite test reads the old clipboard worker through Git, uses synthetic text
-and signature-only image payloads, and alternates old/new order after two warmups.
-Each sample creates a private fresh database on the checkout's filesystem. Index
-projections must match apart from timestamps/state paths. It never reads or changes
-the real clipboard. The optional `bench` Cargo feature builds a small Rust wait4
-driver so the Python driver's pre-exec memory does not dominate child peak RSS.
-Regular runtime builds do not include that measurement executable.
+`baseline.py` reports RSS, PSS, CPU time as a percentage of one core and main-thread
+context switches. `startup.py` measures launch through backend readiness, including
+readiness-probe overhead, and cleans up its process.
 
-Record wall time, child user/system CPU time and peak child RSS separately from
-resident PSS. Btrfs/fsync and background activity affect timings. Live idle samples
-with unchanged desktop code cannot establish an optimization gain. See the current
-code-quality review for results, methodology and remaining activation checks.
+`bench` starts owned shell processes and records fresh and warmed samples, memory,
+CPU ticks, surviving-thread context-switch deltas, process-family endpoints,
+backend readiness and probe creation/destruction IPC roundtrips. `--trace` adds a
+finite process-execution trace. Process endpoints miss short-lived subprocesses;
+use the trace when measuring process creation.
+
+CPU ticks have kernel sampling resolution. Context switches measure scheduling
+activity; wakeup sources require a scheduling trace. PSS accounts for shared pages.
+Popup IPC timings include the harness and end at reported creation/focus readiness.
+First-frame presentation requires separate compositor or graphics instrumentation.
+
+## Sessions and boots
+
+```sh
+scripts/doctor --startup --save before
+scripts/doctor --startup --save after
+scripts/doctor --startup --compare
+scripts/doctor --startup --benchmark
+python3 scripts/boot-report.py --boots 4 --save before
+```
+
+Startup samples are saved under
+`$XDG_CACHE_HOME/desktop-foundation/startup/samples`. Boot reports are saved under
+`~/.cache/desktop-foundation/boot-audit/optimization`.
+
+The startup report uses service and journal timestamps; retained user-manager
+events are separated from the current session. Comparison deduplicates captures
+of the same Niri process launch. Keep cold-boot logins and same-boot relogins in
+separate groups. Close foundation popups before the explicit popup benchmark.
+
+Boot reports separate firmware, loader, kernel, initrd and userspace stages.
+Menu interaction affects loader time. Keep kernel source and journal receipt
+timestamps separate when calculating intervals.
+
+## Profiling
+
+```sh
+python3 scripts/shell-profile.py --seconds 15
+python3 scripts/shell-profile.py --seconds 15 --popups
+```
+
+The profiler samples the resident shell and captures a QML trace from an isolated
+shell copy. `--popups` adds open/close cycles. Logs, JSON and `shell-qml.qtd` are saved
+under `~/.cache/desktop-foundation/boot-audit/optimization`. The debug trace adds
+overhead, so compare ordinary measurements separately.
+
+For targeted native profiling, use a finite capture:
+
+```sh
+perf stat -p PID -e task-clock,context-switches,cpu-migrations -- sleep 30
+timeout 30s strace -f -c -p PID
+heaptrack quickshell --path shell
+```
+
+Check available perf events and kernel permissions before capturing. Use QML
+profiling alongside heaptrack to inspect binding evaluation, allocation and
+animation activity. See [tooling](tooling.md) for dependencies and
+[startup](startup.md) for the session service layout.

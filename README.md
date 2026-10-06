@@ -1,156 +1,89 @@
 # Desktop Foundation
 
-A Niri-first Arch-family desktop with graphite/glass surfaces, wallpaper-derived
-accents and no permanent bar. CachyOS is the reference distribution. Arch and
-EndeavourOS can use the foundation when their packages pass the native capability
-checks; the installer never adds a repository or converts an initramfs stack.
+A Niri desktop for Arch and CachyOS with graphite menus, wallpaper-derived colors,
+Rust backends and a shared terminal setup.
 
-The desktop includes launcher, persistent text/image clipboard, Bluetooth and
-Nothing/CMF controls, power menu, quiet notifications, volume feedback,
-clipboard-only Niri screenshots, sharp wallpaper/blurred overview and a shared
-Kitty/Fish/Fastfetch environment. No account data is included.
+![Application launcher](docs/screenshots/launcher.png)
 
-**v0.12-1 is a maintenance prerelease** with a shared Rust backend and reliability
-improvements. Static/isolated integration checks pass; live candidate visual,
-audio/Bluetooth and full-session acceptance remain pending. See the
-[release notes](docs/releases/0.12-1.md).
+## Install
 
-Development after v0.12-1 moves Bluetooth radio/connection/codec actions and
-screenshots into the shared Rust backend, and adds a minimal corner clock. See [backend behavior and measurements](docs/backend.md).
-
-![Desktop Foundation launcher](docs/screenshots/launcher.png)
-
-[View the screenshot gallery](docs/screenshots/README.md) — launcher, clipboard,
-Bluetooth, power menu, terminal, overview and volume readout.
-
-## Install the desktop, then optionally your applications
-
-Use a normal sudo-enabled user with working graphics, networking, Git and Python.
-Keep the checkout in a permanent location: deployed links refer to it.
+Use a normal login user with sudo, Git and Python. Keep the checkout in a
+permanent location.
 
 ```sh
-git clone --branch v0.12-1 https://github.com/ppqalt/desktop-foundation.git
+git clone --branch v0.20 https://github.com/ppqalt/desktop-foundation.git
 cd desktop-foundation
 ./scripts/install-core --dry-run
 ./scripts/install-core
-# Optional: foundation plus personal applications
-./scripts/install-all --dry-run
-./scripts/install-all
 ```
 
-`install` remains the full-install alias; `install --core` and `install --personal`
-remain compatible. Both layers support `--check`, `--dry-run`, `--no-packages`,
-`--no-greeter` and `--hardware-profile NAME`. Full reuses the core implementation.
+Core includes the desktop, terminal, fonts, audio, Bluetooth, application defaults
+and login setup. For Spotify, Spicetify, Marketplace, ChatGPT and Steam, use
+`./scripts/install-all`.
 
-**Core** includes Niri/Quickshell, all shell surfaces, input/window behavior,
-wallpaper/Matugen, terminal/fonts, audio/Bluetooth, portals, authentication and
-reversible deployment. Brave Origin Nightly, Nautilus, Papers, Loupe and GNOME Text Editor
-provide working application roles without personal apps.
+Log into Niri after installation. Use `--no-greeter` to keep an existing login
+manager, or `--no-packages` when dependencies are already installed.
+[Installation options](docs/installation.md) cover profiles, upgrades and boot setup.
 
-**Full** additionally provisions/adopts Brave Origin Nightly, the verified
-CachyOS ChatGPT package, stock native Steam, and checksum-pinned user-local
-Spotify/Spicetify/Marketplace with graphite colors. ChatGPT must be available in
-your configured signed repositories; Steam requires multilib. Neither is silently
-substituted. **Millennium/Material is excluded from v0.12** pending loader/theme
-activation acceptance. See [personal applications](docs/personal-apps.md).
+## Desktop
 
-The installer uses full Pacman upgrades for missing packages and presents AUR
-recipes through Paru for review. Log into **Niri** after installation. The tested
-Niri 26.04 build supports native blur/background effects; preflight validates the
-actual parser. A version number alone is insufficient. Matrix-capable tuigreet
-is likewise checked. If you already use another login manager, select
-`--no-greeter`; it will not be displaced automatically.
+- Application launcher and searchable text/image clipboard history.
+- Bluetooth switch, paired-device connections and native Nothing/CMF controls.
+- Session menu with suspend, logout, reboot and power off.
+- Wallpaper-derived accents across the shell, terminal, notifications and apps.
+- A toggleable corner clock and volume readout with instant bar updates.
+- Scrolling columns, automatic single-column centering and manual centering.
+- Kitty, Fish and Fastfetch with Google Sans fonts and cached package counts.
+- Matrix login screen, AppArmor setup and boot configuration helpers.
 
-Existing machines are supported through backups and ownership journals. Owned
-paths changed externally cause a conflict, rather than being overwritten.
-Unrelated associations survive MIME updates and rollback. Existing terminal
-configurations are backed up as directories; they are not merged automatically.
-Read [installation and migration](docs/installation.md) before replacing an
-existing setup. The portable profile assumes no hostname, GPU or output size.
+Menus share the same card styling, keyboard navigation and animations. Applications
+remain visible behind their dimmed, blurred backgrounds. Volume uses only a 100 ms
+fade in/out; the bar and percentage update immediately.
 
-## Interaction and appearance
+| Shortcut | Action |
+| --- | --- |
+| Super+Space | Application launcher |
+| Super+V | Clipboard history |
+| Super+B | Bluetooth |
+| Super+Shift+Q | Session menu |
+| Super+Tab | Overview |
+| Super+Shift+C | Corner clock |
+| Super+T / Super+Enter | Terminal |
+| Super+E / Super+W | Files / browser |
+| Super+C | Center column |
+| Super+R | Cycle column width |
+| PageUp / PageDown | Volume +3% / −3% |
+| End | Play/pause |
+| Print / Super+Shift+S | Copy screen / selected region |
 
-- Finnish input; `/` uses Shift+7. Hardware/input configuration stays separate.
-- Scrolling columns; one tiled column centers natively, multiple columns retain
-  normal scrolling. Super+C centers manually.
-- Equal active/inactive 96% content opacity, 14 px corners, borders and soft
-  shadows for focus. Kitty uses native 90% background opacity and opaque glyphs.
-- Super+Space launcher; Super+V clipboard; Super+B Bluetooth;
-  Super+Shift+Q power/session. Wheel/arrows select; click/Enter activate.
-- Super+T/Enter terminal, Super+E files, Super+W browser, through explicit roles.
-- PageUp/PageDown change volume by 3%; End toggles playback.
-- Super+Shift+C toggles a small, click-through clock in the top left.
-- Print copies the current output; Super+Shift+S copies a dragged region.
-  Niri captures are clipboard-only. The secondary Hyprland backend also saves files.
-- Google Sans and Google Sans Code Nerd Font Mono; compact Fish prompt, `c` and
-  `fast`, cached foreign-package counts and retained 10,000-line Kitty scrollback.
-- One wallpaper process; transient top-center notifications. No wallpaper/theme
-  polling or resident Matugen process.
+Menu shortcuts fire once per press. Arrow keys, Tab and the mouse wheel select;
+Enter or a click activates. Escape closes. The default keyboard layout is Finnish;
+edit `config/input.lua` to change it. [All bindings](docs/input-bindings.md).
 
-Settings/cheatsheet bindings are reservations, not implemented control panels.
-See [bindings](docs/input-bindings.md), [Bluetooth](docs/bluetooth.md) and
-[native earbud controls](docs/nothing-controls.md).
-
-## Wallpaper and theme
+## Wallpaper and colors
 
 ```sh
-./scripts/wallpaper-set /path/to/image           # fill, preserving aspect ratio
+./scripts/wallpaper-set /path/to/image
 ./scripts/wallpaper-set /path/to/image --mode fit
 ./scripts/theme-rollback
 ```
 
-Wallpaper, semantic graphite colors, blurred overview and adapter outputs form
-an immutable runtime revision. Publication switches one pointer; staging failure
-leaves the current revision untouched. Ordinary changes do not dirty Git.
-Matugen supplies accents; surfaces remain mostly neutral graphite. Cached/no-op
-changes avoid regeneration. [Theme documentation](theme/README.md) describes
-transactions, fallback, promotion and reload behavior.
+Matugen supplies the accents while surfaces stay graphite. Theme changes are
+cached and saved as complete runtime revisions. [Theme controls](theme/README.md)
+include Brave and Spotify setup and reload commands.
 
-Quickshell/overview update live; Niri, Kitty and Mako reload. Native GTK accent
-uses the supported discrete setting where available, without CSS overrides.
-Fish/Fastfetch and Spotify take new colors on next launch (Spotify can use native
-Reload sooner). Brave generates a stable unpacked theme folder but needs native
-import/reload. Browser debugging is **off by default**, never enabled by installation.
-
-Spotify first login is yours: leave it open a minute, quit normally and reopen.
-The managed launcher finishes patching after the first unpatched launch.
-No credentials, sessions or application account preferences are copied.
-
-## Inspect and recover
+## Tools
 
 ```sh
+./scripts/doctor
 ./scripts/install-core --check
-./scripts/install-all --check
-./scripts/doctor --personal
-./scripts/session-acceptance
-./scripts/uninstall                    # configuration/preferences, not packages
-./scripts/uninstall --greeter          # also restore greetd/PAM files
-./scripts/spotify-setup restore        # optional app links/config/tool upgrade
+./scripts/shell-reload
+./scripts/uninstall
 ```
 
-Doctor is read-only. Browser profiles, Steam libraries/userdata, accounts,
-network/Bluetooth pairings, SSH/Git and personal files remain local. Keep the
-checkout and backups until restoration completes. [Application roles](docs/application-roles.md)
-explain per-key restoration and conflict handling.
+See [recovery](docs/recovery.md), [application defaults](docs/application-roles.md),
+[Bluetooth controls](docs/nothing-controls.md), [screenshots](docs/screenshots/README.md)
+and [v0.20 release notes](docs/releases/0.20.md).
 
-AppArmor remains part of the foundation. Already enabled kernels need no boot
-rewrite. Automated activation requires compatible GRUB drop-in support;
-[other boot setups need their documented native configuration](docs/APPARMOR.md).
-`--clean-boot` is an explicit, separately journaled GRUB/mkinitcpio transaction;
-never use it to convert dracut. Existing boot transactions need review before
-reinstallation. See [boot recovery](docs/boot-optimization.md).
-
-## Validation and limits
-
-v0.12 has automated preservation/rerun tests and focused live acceptance on the
-reference machine. A physical fresh OS install and lucky38 acceptance have not
-been performed for this release. See [release validation](docs/releases/0.12-validation.md)
-and the [fresh-install checklist](docs/fresh-install-v012.md); checks do not certify
-an untested GPU/package combination.
-
-Development: `scripts/bootstrap --dev`, `scripts/check`, `scripts/test`.
-Hyprland remains a secondary backend: `scripts/bootstrap --hyprland`, then explicit
-`deploy --compositor hyprland`; it is not the reference appearance target.
-See [contributing](CONTRIBUTING.md), [deployment](docs/deployment.md),
-[fonts and licenses](fonts/README.md), and [publication boundaries](docs/publication.md).
-The optional native device backend includes its AGPL license and attribution.
+[Development](CONTRIBUTING.md) · [Architecture](docs/architecture.md) ·
+[Rust commands](docs/backend.md) · [Fonts](fonts/README.md)

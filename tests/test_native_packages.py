@@ -118,7 +118,7 @@ class NativeForeignCache(unittest.TestCase):
         revision.mkdir(parents=True)
         palette = derive({'primary': '#ffb599', 'secondary': '#dfbfaf'}, 'test', 'hash')
         with patch('render_niri.render', return_value='// test'):
-            render(root, revision, palette, 'lucky38')
+            render(root, revision, palette, 'dual-display-example')
         current = revision.parents[1] / 'current'; current.symlink_to(revision)
         installed = self.base / 'config'; installed.mkdir()
         (installed / 'fastfetch').symlink_to(current / 'terminal/fastfetch')

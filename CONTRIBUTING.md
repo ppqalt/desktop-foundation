@@ -1,17 +1,21 @@
 # Contributing
 
-Use an Arch/CachyOS development machine and run `scripts/bootstrap --dev`.
-Run `scripts/check` for shell/QML/native config validation and `scripts/test` for
-portable tests. Live adapter coverage is opt-in: `DF_TEST_NIRI_IPC=1 scripts/test`
-requires Quickshell and a display/test environment. Use a temporary profile to test
-hardware choices; keep machine names and absolute user paths out of reusable code.
+Install development tools with `scripts/bootstrap --dev`.
 
-Niri is the reference compositor. Reuse shell/theme tokens and event-driven adapters;
-avoid polling or new persistent workers for presentation. Config replacements must
-remain reversible and startup work must survive logout/reboot. User-session and
-system authentication changes belong in separate installers.
+```sh
+scripts/build-backend
+scripts/build-nothing
+scripts/check
+scripts/test
+```
 
-Do not commit private screenshots, clipboard histories, credentials or generated
-font caches. Controlled live fixtures go under ignored `work/`. Assets retain their
-original licenses/provenance. Test destructive menu routing with `--check`, not
-by rebooting a contributor's active session.
+Niri handles layout, input and window effects. Quickshell provides the QML
+surfaces; Rust provides system and state operations. Reuse the shared theme and
+components when adding a surface. Keep hardware settings in profiles and retain
+the deployment journals when changing managed configuration.
+
+Tests use temporary state and command fixtures. Display-dependent tests are
+opt-in with `DF_TEST_NIRI_IPC=1`. Exercise power routing with `--check`.
+
+See [workflow](docs/workflow.md), [tooling](docs/tooling.md) and
+[backend commands](docs/backend.md). Preserve upstream licenses and attribution.

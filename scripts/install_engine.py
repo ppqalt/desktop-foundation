@@ -72,7 +72,7 @@ def plan(args):
         for app in [browser, chatgpt, json.loads((ROOT / 'apps/personal.json').read_text())['steam']]:
             print(f"personal: {app['package']}: " + ('adopt installed package' if installed(app['package']) else 'install from configured signed repository (Brave may use its verified AUR recipe)'))
         print('Spotify: checksum-pinned tools/Marketplace; first login, wait a minute, normal quit/reopen')
-        print('Steam: stock native client; Millennium/Material excluded from v0.12; see docs/steam-theme-plan.md')
+        print('Steam: native client from the configured multilib repository')
         print('Brave: stable generated theme folder; native Load unpacked required; debugging remains OFF')
     print('Firmware: ' + ', '.join(manifest('firmware')) + ' (repository preferred, reviewed AUR fallback)')
     print('Deploy backups: existing Kitty/Fish/Fastfetch directories and Niri config are retained in the ownership journal')
@@ -151,8 +151,8 @@ def personal(args):
     script('applications', 'apply', '--personal')
     # Browser preference seeds remain explicit post-install functionality. Normal
     # convergence never reads/writes a real profile, even to detect initialization.
-    print('Brave: import theme/brave via native Load unpacked; preferences/extensions are preserved.')
-    print('Native Steam provisioned/adopted; Millennium/Material excluded. Steam account/library files untouched.')
+    print('Brave theme: load theme/brave through the browser’s Load unpacked control.')
+    print('Native Steam configured.')
 
 
 def main(argv=None):

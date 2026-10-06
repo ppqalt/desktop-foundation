@@ -13,10 +13,5 @@
     "desktop": "steam.desktop",
     "source": "Configured Arch-family signed multilib repository",
     "referenceVersion": "1.0.0.87-3"
-  },
-  "millennium": {
-    "included": false,
-    "reason": "Material activation has not passed live acceptance; excluded from v0.12 provisioning promise",
-    "design": "docs/steam-theme-plan.md"
   }
 }

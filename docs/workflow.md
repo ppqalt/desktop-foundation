@@ -1,45 +1,46 @@
 # Development workflow
 
-Run from this checkout:
+Run development commands from the checkout. Install dependencies and build the
+release backends before deploying configuration:
 
-- `scripts/bootstrap`: install prerequisites (pacman needs physical sudo).
-- `scripts/deploy --profile Tops`: validate and journal selected compositor/shared shell links.
-- `scripts/restore`: recover originals, including interrupted deployment.
-- `scripts/check` / `scripts/lint`: ShellCheck/shfmt, qmllint/qmlformat, Lua syntax,
-  Python AST, installed Rust toolchain and all shipped/fallback Lua and Niri profiles.
-- `scripts/format`: format Bash and QML. Python uses standard-library syntax checks;
-  Lua uses luac. Optional Python/Lua formatters are not silently installed.
-- `scripts/test`: builds the debug Rust command backend, then runs isolated regression tests.
-- `scripts/doctor`: active session, service, environment, binaries and fi checks.
-- `scripts/bench --runs 3 --seconds 5 --output work/bench.json`: finite repeated measurements.
-- `scripts/reload`: check then reload compositor.
-- `scripts/shell-start` / `scripts/shell-stop`: independent bounded shell supervision.
-- `python3 scripts/smoke.py`: native-backend live test with owned temporary Kitty windows; restores focus.
+```sh
+scripts/bootstrap --dev
+scripts/build-backend
+scripts/build-nothing
+scripts/deploy --compositor niri --profile default
+```
 
-The `scripts/dev ACTION` dispatcher provides the same commands. The native Nothing crate is checked with
-Cargo fmt/clippy/test by scripts/check. Build it with scripts/build-nothing; its
-source, lockfile and license live under native/nothing.
-The shared `native/foundation` crate has the same format, Clippy and test gates.
-Build its release executable with `scripts/build-backend`. Direct deployment
-requires both this and `scripts/build-nothing` to have completed, before any
-links or state are changed. The core installer performs these builds itself.
-Runtime commands use the release executable without compiling code on demand. SQLite is linked from
-the system package; no second SQLite implementation is bundled.
-Perf is optional and absent on Tops: install with
-`sudo pacman -Syu --needed perf`. Optional formatters: `sudo pacman -Syu --needed ruff stylua`.
-Missing sudo credentials block package changes only. Existing Qt profiler, heaptrack,
-strace and hyperfine remain available. See the code-quality review for the complete
-inventory of runtime deadlines, bounded startup retries and event subscriptions.
+Add `--hyprland` to bootstrap for the secondary compositor or `--greeter` for login
+integration. Package installation requires sudo; AUR builds run as the login user.
 
-Profiles/default contains portable automatic monitor and input defaults. Tops and
-lucky38 own only host overrides. The lucky38 profile preserves the established
-AOC monitor / LG TV layout. A missing profile or category falls back to
-default. Shared input/animation/
-bindings never encode output names, resolution, refresh rate or GPU paths.
+| Command | Purpose |
+| --- | --- |
+| `scripts/check` or `scripts/lint` | Check Bash/QML formatting and lint, Lua/Python syntax, compositor profiles and Rust format/Clippy/tests |
+| `scripts/format` | Format Bash and QML files |
+| `scripts/test` | Build the debug command backend and run Python regression tests |
+| `scripts/doctor` | Inspect installation and active-session services |
+| `scripts/reload` | Run checks, then reload the active compositor configuration |
+| `scripts/shell-start` / `scripts/shell-stop` | Start or stop the supervised shell |
+| `scripts/restore` | Restore deployment-owned configuration |
+| `scripts/bench --runs 3 --seconds 5 --output work/bench.json` | Collect finite repeated shell measurements |
 
-For continued work on lucky38, see [the development baseline](development-baseline-lucky38.md).
+`scripts/dev ACTION` dispatches the same workflows. The native crates under
+`native/foundation` and `native/nothing` have their own Cargo manifests and lockfiles.
+Runtime commands use their built release executables. The shared backend links
+against the system SQLite package.
 
-`python3 scripts/failure.py` performs one real supervised shell crash and isolated
-bad-config/backend checks; keep it separate from routine pure unit tests.
-`bench --trace` appends finite process tracing. Probe lifecycle counters and debug
-raw-event counters are exposed through `quickshell ipc --path shell call foundation status`.
+`profiles/default` contains automatic output defaults. The
+`profiles/dual-display-example` directory demonstrates hardware overrides. Shared
+input and bindings belong in `config/` and compositor configuration rather than
+hardware profiles.
+
+## Interactive checks
+
+`python3 scripts/smoke.py` exercises the native compositor backend with temporary
+Kitty windows and restores focus. `python3 scripts/failure.py` deliberately crashes
+the supervised shell once, checks recovery and runs isolated bad-configuration
+checks. Run these explicitly in a desktop session when those behaviors need review.
+
+Use `scripts/bench --trace` for finite process tracing. Inspect runtime state with
+`quickshell ipc --path shell call foundation status`. See
+[tooling](tooling.md), [deployment](deployment.md) and [performance](performance.md).

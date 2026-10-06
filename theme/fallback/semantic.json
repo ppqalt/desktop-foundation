@@ -12,7 +12,7 @@
   "hover": "#222b38",
   "error": "#f1a5a5",
   "scrim": "#50080b10",
-  "source": "static-v0.11",
+  "source": "graphite-fallback",
   "accentStrong": "#b8ceee",
   "windowActive": "#485669",
   "windowInactive": "#2b323d"

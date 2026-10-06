@@ -1,48 +1,26 @@
-# Application roles and defaults
+# Application defaults
 
-`config/application-roles.json` is authoritative for package, executable,
-desktop entry and MIME assignments. Niri terminal/files/browser bindings call
-`scripts/applications launch ROLE`, which uses the selected installation profile.
-Launch validation and routing now use the shared Rust command backend. MIME
-ownership and restoration retain the separate per-key journal. See
-[backend contracts](backend.md) for command and action-registry details.
-This branch selects Brave Origin Nightly for both browser roles. Core remains
-usable without provisioning the personal application layer.
+`config/application-roles.json` maps each role to a package, executable, desktop
+entry and MIME types. Shortcut launch commands use the selected role.
 
-| Role | Core | Full |
-| --- | --- | --- |
-| Terminal | Kitty | Kitty |
-| Browser, HTML, HTTP/HTTPS/about/unknown | Brave Origin Nightly | Brave Origin Nightly |
-| Directories | Nautilus | Nautilus |
-| PDF | Papers | Papers |
-| PNG/JPEG | Loupe | Loupe |
-| Plain text | GNOME Text Editor | GNOME Text Editor |
-
-Before writing, the helper verifies each executable and its valid desktop entry,
-including that Exec resolves to the declared executable. It updates only the
-owned keys in `$XDG_CONFIG_HOME/mimeapps.list`'s Default Applications section,
-leaving other keys, sections and comments intact. Original values and pending
-publication are recorded in `$XDG_STATE_HOME/desktop-foundation/application-roles.json`.
-
-Afterward it queries every assigned MIME and `xdg-settings get default-web-browser`.
-Desktop-specific MIME overrides can defeat a generic file: verification reports
-that conflict rather than rewriting another desktop's file blindly.
-
-Old v0.10/v0.11 MIME journals migrate only defaults actually changed between the
-original and managed file. Unrelated intervening edits are accepted. The old
-backup/journal is retained as migration evidence, not restored wholesale.
-
-Rerunning preserves original values. A changed owned key is a conflict. Restore
-updates/removes only owned keys; unrelated later MIME edits survive. A new empty
-file can be removed after restore. Pending writes are recoverable by rerunning.
+| Role | Application |
+| --- | --- |
+| Terminal | Kitty |
+| Browser | Brave Origin Nightly |
+| Files | Nautilus |
+| PDF | Papers |
+| Images | Loupe |
+| Text | GNOME Text Editor |
 
 ```sh
+scripts/applications launch terminal
 scripts/applications check --personal
 scripts/applications apply --personal
 scripts/applications restore
 ```
 
-These are focused helpers; normal installation calls them automatically. Core
-inspection accepts an already-valid personal browser role when full was selected.
-Installing core explicitly selects core defaults; use install-all to retain full
-personal assignments. Unrelated apps are never removed.
+The installer verifies executables and desktop entries before assigning defaults.
+It updates the designated keys in `$XDG_CONFIG_HOME/mimeapps.list`, recording
+original values in `$XDG_STATE_HOME/desktop-foundation/application-roles.json`.
+Reruns retain those originals; restoration reverses the managed assignments.
+Externally changed managed keys are reported as conflicts.

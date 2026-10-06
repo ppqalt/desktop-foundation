@@ -1,37 +1,39 @@
-# Foundation architecture
+# Architecture
 
-Niri is the primary/reference compositor. Hyprland is supported as a secondary
-compatibility backend. Niri defines preferred interaction semantics where the
-native models differ; Hyprland approximates them using its own supported layout.
-Compositors own layout, input, output, decorations and effects. Quickshell owns the
-shared launcher and clipboard surfaces. No permanent bar or Rust daemon exists.
+Desktop Foundation combines native compositor configuration, an on-demand
+Quickshell interface and Rust command helpers. Niri is the reference compositor;
+Hyprland uses the same shell through a compatibility adapter.
 
-`native/foundation` supplies typed, one-shot system and state operations through
-`scripts/foundation`. QML consumes narrow command arguments and the existing
-watched clipboard index. The backend does not add a resident service or listener.
-`native/nothing` remains independently scoped to the open device-control surface.
+The compositor owns window layout, input, outputs, decorations and effects.
+Quickshell supplies the launcher, clipboard, Bluetooth controls, session menu,
+volume feedback, clock and Niri overview backdrop. Interactive menus are created
+when opened and destroyed after their exit animation.
 
-The composition root loads one adapter using `DF_COMPOSITOR` (default Niri).
-Niri subscribes directly to its JSON IPC EventStream; Hyprland retains native
-Quickshell integration. IDs and native operations stay inside adapters. Shared
-QML does not run `niri msg` or import Hyprland state. Both surfaces retain the same
-components, theme and lazy construction/destruction lifecycle.
+`shell/shell.qml` selects an adapter from `DF_COMPOSITOR`, defaulting to Niri.
+Adapters expose normalized windows, workspaces, outputs and capabilities to shared
+QML. Niri receives state from its JSON IPC EventStream; Hyprland uses Quickshell's
+native integration. Native identifiers and operations stay inside each adapter.
+See [the compositor interface](compositor-interface.md).
 
-Shared `config/input.lua` contains Finnish input; `config/window-appearance.lua`
-contains visual intent. Niri deployment renders these to native KDL. Hyprland
-translates them to Lua properties. Optional `profiles/<host>/niri.kdl` contains
-hardware overrides. Shared configuration has no output name, resolution or GPU.
-Native single-column centering belongs to Niri layout, not the shell.
+`native/foundation` builds `desktop-foundationctl` for clipboard storage,
+application roles, volume, Bluetooth actions, screenshots, theme generation,
+session startup and shell IPC. Commands run on request; long-lived native owners
+such as swaybg take over their startup process. `native/nothing` provides a
+separate, scoped helper for the [Nothing/CMF device protocol](nothing-controls.md).
+See [the command reference](backend.md).
 
-Niri's packaged systemd session owns graphical lifecycle, native
-xwayland-satellite integration and portal selection. Session startup imports
-Wayland/Niri environment and starts the packaged polkit agent, clipboard watchers
-and one runtime-only shell service. Restart limits protect against repeated shell
-failure. Basic Kitty, focus and close bindings do not depend on Quickshell.
-Hyprland keeps its UWSM/direct startup paths. COSMIC configuration is untouched.
+Shared input and window settings live in `config/input.lua` and
+`config/window-appearance.lua`. Deployment translates them to native Niri KDL or
+Hyprland Lua configuration. Profiles add hardware-specific output or device
+settings. The shell palette and application themes come from a published theme
+revision under `$XDG_STATE_HOME/desktop-foundation/theme/current`.
 
-Deployment validates first, journals each original before replacement and refuses
-foreign replacement paths during recovery. It replaces only explicitly owned
-configuration paths, including complete terminal directories with retained
-originals. See deployment/recovery and the compositor
-interface for details and version-specific limitations.
+Niri's packaged systemd session manages graphical lifecycle, xwayland-satellite
+and portal selection. Session startup imports its environment and starts the
+polkit agent, clipboard services, notifications and shell. Wallpaper and clipboard
+persistence have Niri-bound units; the shell and history watchers stop with the
+session. Hyprland supports UWSM and direct startup.
+
+Deployment validates configuration and journals originals before replacing managed
+paths. [Installation](installation.md) describes setup;
+[recovery](recovery.md) describes restoration.

@@ -21,7 +21,7 @@ spec = importlib.util.spec_from_file_location("deploy", "scripts/deploy.py")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 from render_niri import render
-for profile in ["default", "Tops", "lucky38", "missing-profile"]:
+for profile in ["default", "dual-display-example", "missing-profile"]:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".kdl") as niri_candidate:
         niri_candidate.write(render(m.ROOT, profile))
         niri_candidate.flush()

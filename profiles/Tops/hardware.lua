@@ -1,1 +1,0 @@
--- Tops currently requires no hardware overrides.
