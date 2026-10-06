@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+result=$("$root/native/foundation/target/release/desktop-foundationctl" --root "$root" shell call reloadConfiguration)
+if [[ $result != queued ]]; then
+	printf '%s\n' 'Shell source reload deferred while a session action is running.' >&2
+	exit 1
+fi

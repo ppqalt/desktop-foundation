@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Window
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -94,7 +95,6 @@ PanelWindow {
         }
         // qmllint enable signal-handler-parameters
     }
-    Component.onCompleted: Qt.callLater(() => root.entered = true)
     SequentialAnimation {
         id: exitAnimation
         PauseAnimation {
@@ -120,6 +120,15 @@ PanelWindow {
     }
     SurfaceCard {
         id: card
+        // Begin when this window queues its first frame for presentation.
+        // Construction can precede layer-shell configure/map: callLater is early.
+        Connections {
+            target: card.Window.window
+            enabled: !root.entered && !root.closing
+            function onFrameSwapped(): void {
+                root.entered = true;
+            }
+        }
         SelectionWheel {
             onStepped: delta => root.navigate(delta)
         }

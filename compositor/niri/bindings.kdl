@@ -1,12 +1,12 @@
 // Finnish keysyms: slash = Shift+7. Only one binding consumes that chord.
 binds {
     "Super+B" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/bluetooth-popup\""; }
-    "Super+Tab" { toggle-overview; }
-    "Super+Space" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launcher\""; }
-    "Super+V" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/clipboard\""; }
+    "Super+Tab" repeat=false { toggle-overview; }
+    "Super+Space" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launcher\""; }
+    "Super+V" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/clipboard\""; }
     "Super+Comma" { spawn "true"; }
     "Super+Shift+7" { spawn "true"; }
-    "Super+Shift+Q" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/power-menu\""; }
+    "Super+Shift+Q" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/power-menu\""; }
     "Super+T" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/applications\" launch terminal"; }
     "Super+Return" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/applications\" launch terminal"; }
     "Super+E" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/applications\" launch files"; }

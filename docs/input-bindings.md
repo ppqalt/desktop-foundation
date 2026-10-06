@@ -151,3 +151,13 @@ remain appropriately small, passive overlays using the same theme.
 Clipboard uses the standard fade/scale entrance once output geometry resolves.
 Initial sizing and history loading do not run the confirmation resize effect;
 the existing Clear all shrink/expand transition keeps its duration and easing.
+
+Niri menu toggles (Space, V, B, Shift+Q, Shift+C and Tab with Super) use native
+`repeat=false`: a held chord toggles once, and release/press toggles again. The
+input repeat settings and volume/navigation bindings retain their useful repeat.
+
+The session menu starts its entrance on its own Qt window's first presented
+frame, rather than at construction. Closing it with the shortcut or opening a
+different menu goes through the same animated dismiss path as Escape; its loader
+is removed only when that transition completes. Pending power actions cannot be
+discarded by another menu shortcut.

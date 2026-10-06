@@ -95,3 +95,25 @@ Normal application-window rules and the separate overview backdrop keep their
 existing behavior. Non-xray blur needs recomputation when underlying content
 changes while a menu is shown; no hidden menu renders or polls. This setting was
 validated through the native config parser, without a live screenshot/input test.
+
+## First-frame and shortcut follow-up, 2026-10-06
+
+The running shell could retain an old lazy component when file-watcher reload
+began partway through a batch of source replacements. `scripts/shell-reload`
+requests a supported final hard QML reload after the files are complete, without
+restarting Niri or applications. The IPC reply is sent before reload starts; it
+defers while a power action is pending. Use it after deliberate QML source updates
+instead of treating a mid-update watcher reload as proof the final source loaded.
+
+Power's entrance now starts from the card's own `Window.frameSwapped` signal.
+Construction-time callbacks can finish before a layer is first presented. The
+one-shot connection stops once entered or closing; no permanent frame timer is
+added. Shortcut and cross-menu closure now call `dismiss()` rather than directly
+disabling the lazy loader, so the shared exit animation can finish.
+
+Isolated checks hold the test window hidden while another window renders, then
+observe initial opacity/scale `0/.97`, intermediate values and final `1/1`.
+Production shell policies are exercised with action spies; a private Quickshell
+instance with watching disabled proves explicit reload reads an updated lazy
+component. Native Niri parsing validates the single-press repeat flags. None of
+these checks actuates the running desktop or any real power operation.

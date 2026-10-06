@@ -92,8 +92,22 @@ ShellRoot {
             lifecycle: root
         }
     }
+    function dismissPower(): bool {
+        if (powerLoader.item?.busy)
+            return false;
+        if (powerLoader.item)
+            powerLoader.item.dismiss();
+        return true;
+    }
     IpcHandler {
         target: "foundation"
+        function reloadConfiguration(): string {
+            if (powerLoader.item?.busy)
+                return "busy";
+            // Reply before replacing this IPC handler and its windows.
+            Qt.callLater(() => Quickshell.reload(true));
+            return "queued";
+        }
         function reloadTheme(): void {
             Theme.reload();
             if (backdropLoader.item)
@@ -119,7 +133,8 @@ ShellRoot {
             });
         }
         function toggleBluetooth(): void {
-            root.powerEnabled = false;
+            if (!root.dismissPower())
+                return;
             if (root.launcher)
                 root.launcher.dismiss();
             if (root.clipboard)
@@ -136,15 +151,19 @@ ShellRoot {
             });
         }
         function togglePower(): void {
-            if (bluetoothLoader.item)
-                bluetoothLoader.item.dismiss();
             if (powerLoader.item?.busy)
                 return;
+            if (root.powerEnabled) {
+                powerLoader.item?.dismiss();
+                return;
+            }
+            if (bluetoothLoader.item)
+                bluetoothLoader.item.dismiss();
             if (root.launcher)
                 root.launcher.dismiss();
             if (root.clipboard)
                 root.clipboard.dismiss();
-            root.powerEnabled = !root.powerEnabled;
+            root.powerEnabled = true;
         }
         function powerStatus(): string {
             const menu = powerLoader.item;
@@ -185,9 +204,10 @@ ShellRoot {
             root.compositorBackend.screenshotOutput();
         }
         function toggleClipboard(): void {
+            if (!root.dismissPower())
+                return;
             if (bluetoothLoader.item)
                 bluetoothLoader.item.dismiss();
-            root.powerEnabled = false;
             if (root.launcher)
                 root.launcher.dismiss();
             if (root.clipboard && !root.clipboard.closing)
@@ -198,6 +218,8 @@ ShellRoot {
                 root.clipboardEnabled = true;
         }
         function showClipboard(): void {
+            if (!root.dismissPower())
+                return;
             if (bluetoothLoader.item)
                 bluetoothLoader.item.dismiss();
             if (root.launcher)
@@ -221,9 +243,10 @@ ShellRoot {
             });
         }
         function toggleLauncher(): void {
+            if (!root.dismissPower())
+                return;
             if (bluetoothLoader.item)
                 bluetoothLoader.item.dismiss();
-            root.powerEnabled = false;
             if (root.clipboard)
                 root.clipboard.dismiss();
             if (root.launcherEnabled && !root.launcher.closing)
@@ -234,6 +257,8 @@ ShellRoot {
                 root.launcherEnabled = true;
         }
         function showLauncher(): void {
+            if (!root.dismissPower())
+                return;
             if (bluetoothLoader.item)
                 bluetoothLoader.item.dismiss();
             if (root.clipboard)

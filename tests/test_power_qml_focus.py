@@ -2,6 +2,8 @@
 
 Only the layer-shell transport is replaced. The action worker is an inert fixture
 that reports a deliberate error; no desktop, session or system action is invoked.
+Real Qt frame signals validate delayed visibility and the fade/scale progression;
+the offscreen host cannot prove physical layer-shell presentation or input delivery.
 """
 import os
 from pathlib import Path
@@ -26,6 +28,8 @@ ShellRoot {
     property int stage: 0
     property int failures: 0
     property bool saved: false
+    property bool shown: false
+    property var entranceSamples: []
     property var lifecycle: ({powerEnabled: true})
     function check(condition, detail) {
         if (!condition) { failures++; console.error("POWER_FAIL " + detail); }
@@ -40,18 +44,53 @@ ShellRoot {
     }
     PowerFixture {
         id: power
-        width: 900; height: 760; visible: true
+        width: 900; height: 760; visible: false
         lifecycle: fixture.lifecycle
         TestCase {id: keyboard; name: "PowerInput"; optional: true; when: false}
+    }
+    // Rendering another window must not consume Power's entrance while its
+    // own platform surface has yet to become visible.
+    Window {
+        width: 80; height: 80; visible: true
+        Rectangle {anchors.fill: parent; color: "black"}
+        FrameAnimation {running: !fixture.shown}
+    }
+    Connections {
+        target: power
+        function onFrameSwapped() {
+            if (fixture.stage !== 0 || !fixture.shown) return;
+            const card = power.contentItem.children.find(child => child.radius === 24);
+            fixture.entranceSamples.push({opacity: card.opacity, scale: card.scale});
+        }
+    }
+    Timer {
+        interval: 250; running: true
+        onTriggered: {
+            const card = power.contentItem.children.find(child => child.radius === 24);
+            fixture.check(!power.entered && card.opacity === 0 && card.scale === 0.97,
+                          "Hidden surface consumed the entrance before its own first frame");
+            fixture.shown = true;
+            power.visible = true;
+            power.requestActivate();
+        }
     }
     Timer {
         interval: 200; running: true; repeat: true
         onTriggered: {
+            if (!fixture.shown) return;
             const card = power.contentItem.children.find(child => child.radius === 24);
             if (fixture.stage === 0) {
+                if (!power.entered || card.opacity !== 1 || card.scale !== 1) return;
                 power.requestActivate();
                 fixture.check(card && card.width === 640, "Power does not share the standard card width");
                 fixture.check(card && card.opacity === 1 && card.scale === 1, "Entrance did not finish");
+                fixture.check(fixture.entranceSamples.length > 2, "Entrance had no rendered intermediate frames");
+                fixture.check(fixture.entranceSamples[0].opacity < 1 && fixture.entranceSamples[0].scale < 1,
+                              "First rendered frame appeared at the final opacity/scale");
+                fixture.check(fixture.entranceSamples.some(sample => sample.opacity > 0 && sample.opacity < 1
+                              && sample.scale > 0.97 && sample.scale < 1),
+                              "Rendered frames did not include the shared fade and scale transition");
+                console.log("POWER_ENTRANCE " + JSON.stringify(fixture.entranceSamples));
                 const list = card.children.find(child => child.model && child.count === 4);
                 fixture.check(list && list.itemAtIndex(0).height === 62, "Power rows do not share the standard rhythm");
             } else if (fixture.stage === 1) {
