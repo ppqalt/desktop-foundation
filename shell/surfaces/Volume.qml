@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Window
 import Quickshell
 import Quickshell.Wayland
 import "../theme"
@@ -11,6 +12,8 @@ PanelWindow {
     property int level: 0
     property bool muted: false
     property bool shown: false
+    property bool awaitingFrame: false
+    readonly property int feedbackDuration: 20
     screen: targetScreen
     visible: false
     implicitWidth: 260
@@ -24,19 +27,38 @@ PanelWindow {
     color: "transparent"
     mask: Region {}
     function present(percent: int, isMuted: bool): void {
+        if (!visible) {
+            shown = false;
+            awaitingFrame = true;
+        }
         level = Math.max(0, Math.min(100, percent));
         muted = isMuted;
         visible = true;
-        shown = true;
+        if (!awaitingFrame)
+            shown = true;
         expiry.restart();
     }
     Timer {
         id: expiry
         interval: 1500
-        onTriggered: root.shown = false
+        onTriggered: {
+            root.awaitingFrame = false;
+            root.shown = false;
+            if (card.opacity === 0)
+                root.visible = false;
+        }
     }
     Rectangle {
         id: card
+        objectName: "volume-card"
+        Connections {
+            target: card.Window.window
+            enabled: root.visible && root.awaitingFrame
+            function onFrameSwapped(): void {
+                root.awaitingFrame = false;
+                root.shown = true;
+            }
+        }
         anchors.fill: parent
         anchors.margins: 3
         radius: Theme.radii.medium
@@ -50,7 +72,7 @@ PanelWindow {
         }
         Behavior on opacity {
             NumberAnimation {
-                duration: Theme.timing.fast
+                duration: root.feedbackDuration
                 easing.type: Theme.easing
             }
         }
@@ -86,13 +108,15 @@ PanelWindow {
             radius: 1
             color: Theme.colors.selected
             Rectangle {
+                objectName: "volume-progress"
                 height: parent.height
                 width: Math.round(track.width * (root.muted ? 0 : root.level) / 100)
                 radius: 1
                 color: Theme.colors.accent
                 Behavior on width {
+                    enabled: root.shown && !root.awaitingFrame
                     NumberAnimation {
-                        duration: Theme.timing.fast
+                        duration: root.feedbackDuration
                         easing.type: Theme.easing
                     }
                 }

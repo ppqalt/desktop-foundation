@@ -161,3 +161,8 @@ frame, rather than at construction. Closing it with the shortcut or opening a
 different menu goes through the same animated dismiss path as Escape; its loader
 is removed only when that transition completes. Pending power actions cannot be
 discarded by another menu shortcut.
+
+Volume readout fade and bar interpolation now use 20 ms. The initial bar value
+is applied before the widget's first frame; subsequent percentages and bar
+targets use the same reported Rust value. The native 3% step, 100% cap, mute
+readout and 1.5-second expiry are preserved.

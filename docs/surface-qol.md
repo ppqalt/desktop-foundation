@@ -117,3 +117,15 @@ Production shell policies are exercised with action spies; a private Quickshell
 instance with watching disabled proves explicit reload reads an updated lazy
 component. Native Niri parsing validates the single-press repeat flags. None of
 these checks actuates the running desktop or any real power operation.
+
+Volume feedback uses 20 ms fade/bar transitions instead of 100 ms. A hidden
+widget seeds the reported bar position immediately and waits for its own first
+frame to begin fading in. It retains one readout, mute indication and expiry;
+an unmapped expired widget cancels its pending entrance. This change does not
+alter Rust audio mutation/readback or notification fallback ordering.
+
+A private Qt presenter check verifies initial bar position, short update timing,
+mute/cap, hide/reopen and expiry without running an audio command. The source
+reload wrapper also distinguishes a busy session action from Quickshell's brief
+not-ready response, waiting within a bounded request before retrying only this
+idempotent reload. An acknowledged reload is never replayed.

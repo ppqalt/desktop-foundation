@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-result=$("$root/native/foundation/target/release/desktop-foundationctl" --root "$root" shell call reloadConfiguration)
-if [[ $result != queued ]]; then
-	printf '%s\n' 'Shell source reload deferred while a session action is running.' >&2
+reload_deadline=$((SECONDS + 3))
+while true; do
+	result=$("$root/native/foundation/target/release/desktop-foundationctl" --root "$root" shell call reloadConfiguration)
+	case "$result" in
+	queued) exit 0 ;;
+	busy)
+		printf '%s\n' 'Shell source reload deferred while a session action is running.' >&2
+		exit 1
+		;;
+	'Not ready to accept queries yet.')
+		if ((SECONDS < reload_deadline)); then
+			sleep 0.05
+			continue
+		fi
+		;;
+	esac
+	printf 'Shell did not acknowledge source reload: %s\n' "$result" >&2
 	exit 1
-fi
+done

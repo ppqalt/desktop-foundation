@@ -117,11 +117,14 @@ ShellRoot {
             base=Path(directory);fake=base/'quickshell';trace=base/'calls'
             fake.write_text('#!'+sys.executable+'\nimport os,pathlib,sys\n'
                 'with pathlib.Path(os.environ["DF_RELOAD_LOG"]).open("a") as log:log.write(sys.argv[-1]+"\\n")\n'
-                'if sys.argv[-1]=="reloadConfiguration":print(os.environ["DF_RELOAD_REPLY"])\n')
+                'if sys.argv[-1]=="reloadConfiguration":\n'
+                ' reply=os.environ["DF_RELOAD_REPLY"]\n'
+                ' count=pathlib.Path(os.environ["DF_RELOAD_LOG"]).read_text().count("reloadConfiguration")\n'
+                ' print(("Not ready to accept queries yet." if count<3 else "queued") if reply=="warming" else reply)\n')
             fake.chmod(0o755)
             env=dict(os.environ,PATH=str(base)+':/usr/bin:/bin',DF_RELOAD_LOG=str(trace))
-            for reply,code in [('queued',0),('busy',1)]:
+            for reply,code in [('queued',0),('busy',1),('warming',0)]:
                 trace.unlink(missing_ok=True);env['DF_RELOAD_REPLY']=reply
                 result=subprocess.run(['/bin/bash',str(ROOT/'scripts/shell-reload')],env=env,capture_output=True,text=True,timeout=5)
                 self.assertEqual(result.returncode,code,result.stderr)
-                self.assertEqual(trace.read_text().splitlines(),['status','reloadConfiguration'])
+                self.assertEqual(trace.read_text().splitlines(),['status','reloadConfiguration']*(3 if reply=='warming' else 1))
