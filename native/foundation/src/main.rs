@@ -1,6 +1,6 @@
 use desktop_foundationctl::{
     Result, actions, apps, bluetooth, cache, clipboard, invalid, packages, process, screenshot,
-    shell, volume,
+    shell, theme, volume,
 };
 use std::{
     io::{self, Read},
@@ -40,7 +40,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
         );
         return Ok(());
     }
@@ -69,6 +69,25 @@ fn run() -> Result<()> {
                 _ => Err(invalid("Expected cache plan or cache prune")),
             }
         }
+        Some("theme") => match args.as_slice() {
+            [_, action, image] if action == "generate" => {
+                print_json(&theme::generate(&root, &PathBuf::from(image))?)
+            }
+            [_, action, source_option, source, hash_option, digest]
+                if action == "derive" && source_option == "--source" && hash_option == "--hash" =>
+            {
+                let mut input = Vec::new();
+                io::stdin().take(64 * 1024 + 1).read_to_end(&mut input)?;
+                if input.len() > 64 * 1024 {
+                    return Err(invalid("Material palette JSON is too large"));
+                }
+                let material = serde_json::from_slice(&input)?;
+                print_json(&theme::derive(&root, &material, source, digest)?)
+            }
+            _ => Err(invalid(
+                "Expected theme generate IMAGE or theme derive --source SOURCE --hash HASH",
+            )),
+        },
         Some("system") if args.get(1).map(String::as_str) == Some("packages") => {
             let config = match args.as_slice() {
                 [_, _] => root.join("terminal/fastfetch/packages.jsonc"),
@@ -163,7 +182,7 @@ fn run() -> Result<()> {
             actions::invoke(&root, &args[2])
         }
         _ => Err(invalid(
-            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, actions list|plan|invoke or cache plan|prune",
+            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, theme, actions list|plan|invoke or cache plan|prune",
         )),
     }
 }

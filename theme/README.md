@@ -52,6 +52,25 @@ The packaged Matugen executable runs once using an isolated empty configuration,
 user hooks, polling, theme daemon or boot-time generation is added. Cache hits
 skip Matugen; identical palette/image/mode skips publication and reload.
 
+Palette generation now runs in the finite Rust backend:
+
+```sh
+scripts/foundation theme generate /path/to/image
+# JSON response: {"palette": {...}, "cached": true|false}
+scripts/foundation theme derive --source example --hash example < material.json
+# material.json contains Matugen's resolved primary/secondary color roles
+```
+
+Rust owns hashing, Matugen execution, graphite mixing, contrast checks, cache
+validation and atomic cache publication. Existing `graphite-v1` cache identities
+and semantic role values remain compatible. `scripts/theme_pipeline.py` is a thin
+bridge for generation/derivation; it retains the Python transaction lock and
+application orchestration. It does not contain a second color implementation or
+silently use Python when the native backend is missing. Build it using
+`scripts/build-backend` before running theme commands in a new checkout.
+Adapter rendering, blur preparation and runtime publication/rollback retain
+their existing behavior. QML continues to consume the same semantic roles.
+
 Image verification, palette mapping, blur preparation, adapter rendering, Niri
 validation and Fish syntax validation finish in a new bundle before publication.
 Missing/failed Matugen, invalid input/colors or staging failure leaves the last
@@ -179,6 +198,13 @@ Observed warm cached publication/reload was about 0.21s, unchanged apply about
 0.008–0.011s. Timings vary by machine/image. No Matugen or theme pipeline process
 remains afterward: zero resident generation process and idle CPU cost. Existing
 QML file events plus explicit reload are used, without a polling timer.
+
+The Rust generator migration is checked separately with private HOME/XDG
+state, fake Matugen executables and native CLI integration tests. Test-side
+contrast/chroma calculations independently verify blue/orange graphite output;
+failure/cache checks do not publish a theme or connect to the desktop. The live
+transaction measurements above describe the earlier theming work, not a live
+migration test or a new speed claim.
 
 Primary references: [Matugen](https://github.com/InioX/matugen),
 [Chromium themes](https://developer.chrome.com/docs/extensions/develop/ui/themes),

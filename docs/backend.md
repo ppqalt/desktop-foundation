@@ -18,6 +18,8 @@ Commands:
 - `power suspend|logout|reboot|poweroff [--check]`
 - `actions list|plan ID|invoke ID`
 - `cache plan|prune`
+- `theme generate IMAGE`
+- `theme derive --source SOURCE --hash HASH` (material JSON on stdin)
 - `system packages [--config FILE]`
 - `shell call METHOD [ARGS...]`
 
@@ -285,3 +287,70 @@ pure Rust tests cover profile/error rules and the finite subscription owner.
 The release executable is 1,651,168 bytes, up 75,120 bytes from the previous
 screenshot/clock build. No Cargo dependencies were added. Physical desktop,
 Bluetooth and audio acceptance was not run.
+
+## Native wallpaper palette generation
+
+The shared Rust backend now owns the finite Matugen request, streamed wallpaper
+hashing, graphite semantic mapping, contrast validation and atomic palette cache.
+`theme generate IMAGE` returns `{palette, cached}`; `theme derive` accepts the
+primary/secondary material colors on stdin for standalone mapping and diagnostics.
+Generation does not publish a theme, reload applications or change wallpaper.
+
+`scripts/theme_pipeline.py` delegates generation and derivation to the built
+release executable. Its file/state helpers and derive/generate interfaces remain
+available to existing callers.
+The Python transaction still selects the active wallpaper, holds the existing
+lock, stages image/adapter outputs, validates them, publishes current/previous
+and performs reload or rollback. Rust does not acquire that transaction lock
+again. QML continues rendering the same semantic roles.
+
+The `graphite-v1` policy, SHA-256 cache names and valid existing palettes remain
+compatible. Color conversion preserves Python HLS operation order and
+ties-to-even channel rounding. The packaged Matugen process uses an isolated
+empty config and dry-run dark mode, with its existing 60-second deadline and
+bounded JSON output. Wallpaper hashing streams without a wallpaper-size cap.
+File identity, size and nanosecond modification/change stamps are checked around
+hashing and Matugen; a source changed during generation cannot publish its result
+under the old hash. This is a request-time check, without a resident watcher.
+Malformed palette data, failed Matugen and cache publication failures report
+errors before runtime publication; the last-known-good active bundle is retained.
+No crate, daemon, listener or idle theme process is added.
+
+Build with `scripts/build-backend`. For rollback, restore the previous source
+and release binary together, or rebuild the previous source. Deployment uses
+the compatible binary before updating its callers; no live theme is applied
+merely by upgrading these files.
+
+### Isolated validation and measurements, 2026-10-06
+
+All **221 Python/integration checks** passed (223 discovered; two opt-in desktop
+checks skipped), alongside **53 Rust tests**, Clippy, formatting and native config
+validation. Frozen baseline palettes cover exact colors and metadata; a wider
+audit matched 146 complete palettes and rejected the same 16 contrast failures.
+Private fixtures cover both Matugen layouts, old caches, malformed/bounded data,
+source replacement, unusual filenames, failed generation and existing rollback.
+
+Packaged Matugen 4.2.0 also ran on private copies of the Windows/Tux wallpaper
+and a synthetic orange image. Both results exactly matched the former generator.
+Blue retained background `#1f262f` / accent `#98ccf9`; orange produced background
+`#252429` / accent `#ffb59a`. These trials generated palettes only; no active
+wallpaper, desktop surface or application was tested or reloaded.
+
+`scripts/theme-generation-bench.py --runs 24` compares the `1ca553c` Python
+palette helper with release Rust, using private state, synthetic Matugen and a
+1,092,275-byte source. Two warmups precede 24 alternating paired measurements;
+startup is included, outputs match exactly, and Rust's wait4 parent measures RSS.
+
+| Palette helper | Python median | Rust median | Python/Rust peak RSS |
+|---|---:|---:|---:|
+| Derive | 38.777 ms | 0.870 ms | 19,690 / 4,048 KiB |
+| Generate, cache miss | 42.741 ms | 2.711 ms | 19,922 / 4,236 KiB |
+| Generate, cache hit | 40.795 ms | 1.599 ms | 19,998 / 4,134 KiB |
+
+These measure palette helper processes with warm filesystem cache. They exclude
+real Matugen extraction, the Python transaction, image blur and desktop reloads;
+they are not end-to-end wallpaper-set timings. The private packaged-generator
+trial took 236.942 ms cold / 3.863 ms cached for Windows/Tux and 12.921 / 1.064 ms
+for the small solid-orange image (single samples, not comparative benchmarks).
+The release executable is 1,718,992 bytes, up 67,824 bytes. No Cargo dependencies
+or resident generation processes were added.

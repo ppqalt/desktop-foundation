@@ -1,18 +1,13 @@
 """One-shot Matugen -> graphite semantics -> validated, reversible render outputs."""
 import argparse
-import colorsys
 import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
-import re
-import shutil
-import signal
 import subprocess
 import tempfile
 import time
-import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION = 'graphite-v1'
@@ -28,93 +23,36 @@ def read(path):
     return json.loads(path.read_text())
 
 
-def rgb(color):
-    if not re.fullmatch(r'#[0-9a-fA-F]{6}', color):
-        raise ValueError('Invalid palette color')
-    return tuple(int(color[i:i+2], 16) / 255 for i in (1, 3, 5))
-
-
-def hexcolor(values):
-    return '#' + ''.join(f'{round(max(0, min(1, v))*255):02x}' for v in values)
-
-
-def mix(base, tint, amount, saturation=None):
-    values = tuple(a*(1-amount)+b*amount for a,b in zip(rgb(base), rgb(tint)))
-    if saturation is not None:
-        h,l,s = colorsys.rgb_to_hls(*values)
-        values = colorsys.hls_to_rgb(h,l,min(s,saturation))
-    return hexcolor(values)
-
-
-def luminance(color):
-    values = [v/12.92 if v <= .04045 else ((v+.055)/1.055)**2.4 for v in rgb(color)]
-    return sum(v*w for v,w in zip(values, (.2126,.7152,.0722)))
-
-
-def contrast(a,b):
-    x,y = sorted((luminance(a),luminance(b)))
-    return (y+.05)/(x+.05)
+def native_theme(*arguments, material=None):
+    """Run the finite Rust palette backend without applying any runtime outputs."""
+    command = [str(ROOT/'scripts/foundation'), 'theme', *arguments]
+    try:
+        process = subprocess.run(command, input=json.dumps(material) if material is not None else None,
+                                 capture_output=True, text=True, check=True, timeout=75)
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(error.stderr.strip() or 'Native palette generation failed; current theme was left intact') from error
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError('Native palette generation timed out; current theme was left intact') from error
+    output = process.stdout
+    try:
+        result = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise RuntimeError('Native palette backend returned invalid JSON') from error
+    if not isinstance(result, dict):
+        raise RuntimeError('Native palette backend returned an invalid response')
+    return result
 
 
 def derive(material, source, digest):
-    p = dict(read(ROOT/'theme/fallback/semantic.json'))
-    primary,secondary = material['primary'],material['secondary']
-    p.update(source=source,wallpaperHash=digest,policy=VERSION)
-    p['background'] = mix('#171b22', primary,.06,.20)
-    p['elevated'] = mix('#222832',primary,.10,.20)
-    p['iconTile'] = mix('#172029',primary,.12,.22)
-    p['hover'] = mix('#222b38',primary,.12,.22)
-    p['selected'] = mix('#293649',primary,.17,.24)
-    p['border'] = mix('#38414e',primary,.18,.22)
-    p['selectionBorder'] = mix('#485a73',primary,.30,.25)
-    p['windowActive'] = mix('#485669',primary,.28,.25)
-    p['windowInactive'] = mix('#2b323d',primary,.10,.20)
-    p['accent'] = primary
-    p['accentStrong'] = mix(primary,secondary,.20)
-    # Foreground/muted/error/shadows remain neutral/readable static roles.
-    for key in ('accent','accentStrong'):
-        while min(contrast(p[key],p[b]) for b in ('background','elevated','selected')) < 4.5:
-            new = mix(p[key],'#ffffff',.10)
-            if new == p[key]:
-                raise ValueError('Could not satisfy accent contrast')
-            p[key] = new
-    for key in ('foreground','muted'):
-        if min(contrast(p[key],p[b]) for b in ('background','elevated','selected')) < (7 if key=='foreground' else 3):
-            raise ValueError('Text contrast constraint failed')
-    return p
+    """Compatibility entry point; all semantic color policy now lives in Rust."""
+    return native_theme('derive', '--source', str(source), '--hash', str(digest), material=material)
 
 
 def generate(image):
-    executable = shutil.which('matugen')
-    if not executable:
-        raise RuntimeError('matugen is missing; current theme was left intact')
-    image = image.expanduser().resolve(strict=True)
-    digest = file_hash(image)
-    cache = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'desktop-foundation/themes'
-    cache.mkdir(parents=True,exist_ok=True)
-    target = cache / (digest+'-'+VERSION+'.json')
-    if target.exists():
-        p = read(target)
-        for role in read(ROOT/'theme/fallback/semantic.json'):
-            if role not in {'source','scrim'}: rgb(p[role])
-        if p.get('policy') != VERSION:
-            raise ValueError('Cached palette policy mismatch; current theme left intact')
-        p['source'] = str(image.relative_to(ROOT)) if image.is_relative_to(ROOT) else str(image)
-        return p,True
-    # Isolate user templates/hooks; --dry-run ensures no Matugen mutations.
-    with tempfile.TemporaryDirectory() as directory:
-        config = Path(directory)/'config.toml'
-        config.write_text('[config]\n[templates]\n')
-        result = subprocess.run([executable,'--config',str(config),'--dry-run','--mode','dark',
-                                 '--json','hex','--source-color-index','0','image',str(image)],
-                                check=True,capture_output=True,text=True,timeout=60)
-    colors = json.loads(result.stdout)['colors']
-    # Matugen 4.x uses role -> mode -> color. Accept legacy mode -> role too.
-    material = colors.get('dark') or {name: value['dark']['color'] for name,value in colors.items()}
-    source = str(image.relative_to(ROOT)) if image.is_relative_to(ROOT) else str(image)
-    p = derive(material,source,digest)
-    atomic(target,json.dumps(p,indent=2)+'\n')
-    return p,False
+    result = native_theme('generate', str(Path(image).expanduser()))
+    if not isinstance(result.get('palette'), dict) or not isinstance(result.get('cached'), bool):
+        raise RuntimeError('Native palette backend returned an invalid generation response')
+    return result['palette'], result['cached']
 
 
 def atomic(path, content):

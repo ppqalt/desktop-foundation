@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -22,6 +23,9 @@ class RuntimeTheme(unittest.TestCase):
         env.start();self.addCleanup(env.stop)
         self.image=self.base/'wall.png';Image.new('RGB',(80,50),'orange').save(self.image)
         self.palette=pipeline.derive({'primary':'#ffb599','secondary':'#dfbfaf'},'test','hash')
+        # Keep orchestration spies local: palette derivation now calls the real Rust CLI.
+        processes=patch.object(runtime,'subprocess',SimpleNamespace(**vars(runtime.subprocess)))
+        processes.start();self.addCleanup(processes.stop)
         calls=patch.object(runtime.subprocess,'run');calls.start();self.addCleanup(calls.stop)
         niri=patch('render_niri.render',return_value='// validated separately by native checks\n');niri.start();self.addCleanup(niri.stop)
 

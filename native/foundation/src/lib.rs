@@ -8,6 +8,7 @@ pub mod process;
 pub mod screenshot;
 pub mod shell;
 pub mod state;
+pub mod theme;
 pub mod volume;
 
 use std::{fmt, io};
