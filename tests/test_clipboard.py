@@ -21,7 +21,11 @@ class History(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.state = Path(self.temporary.name) / 'clipboard'
-        self.env = dict(os.environ, CLIPBOARD_STATE='data')
+        # These storage/CLI tests must never contact the user's clipboard, even
+        # when run directly from an active Wayland desktop.
+        self.env = dict(os.environ, CLIPBOARD_STATE='data',
+                        XDG_RUNTIME_DIR=str(Path(self.temporary.name)),
+                        WAYLAND_DISPLAY='wayland-unavailable-test')
 
     def invoke(self, *args, payload=None, check=True):
         return subprocess.run([str(BINARY), 'clipboard', '--state', str(self.state), *args],
@@ -100,21 +104,48 @@ class History(unittest.TestCase):
         self.assertEqual(image.read_bytes(), payload)
         self.assertEqual(self.entries(), expected)
 
-    def test_copy_preserves_index_and_original_payload(self):
+    def test_failed_copy_preserves_index_and_original_payload(self):
         payload = 'ä\0🙂\nsynthetic selection'.encode()
         self.store('text', payload)
         identity = self.entries()[0]['id']
         index = self.state / 'index.json'
         before = (index.read_bytes(), index.stat().st_ino, index.stat().st_mtime_ns)
-        fake = Path(self.temporary.name) / 'wl-copy'
-        fake.write_text('#!/usr/bin/env python3\nimport json,os,pathlib,sys\np = pathlib.Path(os.environ["DF_COPY_TEST"])\np.write_bytes(sys.stdin.buffer.read())\np.with_suffix(".json").write_text(json.dumps(sys.argv[1:]))\n')
-        fake.chmod(0o700)
-        output = Path(self.temporary.name) / 'copied'
-        self.env.update(PATH=str(fake.parent) + os.pathsep + self.env['PATH'], DF_COPY_TEST=str(output))
-        self.invoke('copy', identity)
+        result = self.invoke('copy', identity, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'clipboard', result.stderr.lower())
         self.assertEqual((index.read_bytes(), index.stat().st_ino, index.stat().st_mtime_ns), before)
-        self.assertEqual(output.read_bytes(), payload)
-        self.assertEqual(json.loads(output.with_suffix('.json').read_text()), ['--type', 'text/plain;charset=utf-8'])
+        with closing(sqlite3.connect(self.state / 'history.sqlite')) as db:
+            self.assertEqual(db.execute('SELECT payload FROM clips').fetchone()[0], payload)
+
+    def test_pins_survive_normal_clear_and_explicit_clear_all_removes_them(self):
+        self.store('text', b'keep this')
+        identity = self.entries()[0]['id']
+        self.invoke('pin', identity)
+        self.store('text', b'ordinary')
+        self.invoke('clear')
+        self.assertEqual([entry['id'] for entry in self.entries()], [identity])
+        self.assertTrue(self.entries()[0]['pinned'])
+        self.invoke('clear-all')
+        self.assertEqual(self.entries(), [])
+
+    def test_manual_file_format_keeps_paths_and_reports_missing_files(self):
+        folder = Path(self.temporary.name) / 'folder'
+        folder.mkdir()
+        video = folder / 'video sample.mp4'
+        video.write_bytes(b'private video fixture')
+        code = folder / 'config.toml'
+        code.write_text('enabled = true\n')
+        uris = '\r\n'.join(path.as_uri() for path in [video, code, folder]) + '\r\n'
+        self.invoke('store', '--mime', 'text/uri-list', payload=uris.encode())
+        entry = self.entries()[0]
+        self.assertEqual(entry['kind'], 'files')
+        self.assertEqual(entry['fileCount'], 3)
+        self.assertFalse(entry['unavailable'])
+        video.unlink()
+        self.invoke('init')
+        self.assertTrue(self.entries()[0]['unavailable'])
+        result = self.invoke('copy', entry['id'], check=False)
+        self.assertNotEqual(result.returncode, 0)
 
     def test_invalid_id_and_corrupt_database_are_reported_without_reset(self):
         self.store('text', b'kept')

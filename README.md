@@ -11,7 +11,7 @@ Use a normal login user with sudo, Git and Python. Keep the checkout in a
 permanent location.
 
 ```sh
-git clone --branch v0.20 https://github.com/ppqalt/desktop-foundation.git
+git clone https://github.com/ppqalt/desktop-foundation.git
 cd desktop-foundation
 ./scripts/install-core --dry-run
 ./scripts/install-core
@@ -27,7 +27,8 @@ manager, or `--no-packages` when dependencies are already installed.
 
 ## Desktop
 
-- Application launcher and searchable text/image clipboard history.
+- Application launcher and searchable, pinnable clipboard history for text,
+  images and copied files/folders.
 - Bluetooth switch, paired-device connections and native Nothing/CMF controls.
 - Session menu with suspend, logout, reboot and power off.
 - Wallpaper-derived accents across the shell, terminal, notifications and apps.

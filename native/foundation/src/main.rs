@@ -1,11 +1,10 @@
 use desktop_foundationctl::{
-    Result, actions, apps, bluetooth, cache, clipboard, invalid, packages, process, screenshot,
-    session, shell, theme, volume,
+    Result, actions, apps, bluetooth, cache, clipboard, clipboard_transport, invalid, packages,
+    process, screenshot, session, shell, theme, volume,
 };
 use std::{
     io::{self, Read},
     path::PathBuf,
-    time::Duration,
 };
 
 fn run() -> Result<()> {
@@ -40,7 +39,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
         );
         return Ok(());
     }
@@ -212,6 +211,25 @@ fn run_clipboard(mut args: Vec<String>) -> Result<()> {
         .map(String::as_str)
         .ok_or_else(|| invalid("Clipboard action required"))?;
     if action == "store" {
+        if args.len() == 3 && args[1] == "--mime" {
+            if !clipboard::supported_mime(&args[2]) {
+                return Err(invalid("Unsupported clipboard format"));
+            }
+            if std::env::var("CLIPBOARD_STATE").is_ok_and(|state| state != "data") {
+                return Ok(());
+            }
+            let mut data = Vec::new();
+            io::stdin()
+                .take((clipboard::MAX_BYTES + 1) as u64)
+                .read_to_end(&mut data)?;
+            if data.is_empty() || data.len() > clipboard::MAX_BYTES {
+                return Ok(());
+            }
+            return clipboard::History::open(&directory)?.store_bundle(&[clipboard::Format {
+                mime: args[2].clone(),
+                data,
+            }]);
+        }
         if args.len() != 2 {
             return Err(invalid("store requires text or image"));
         }
@@ -226,27 +244,42 @@ fn run_clipboard(mut args: Vec<String>) -> Result<()> {
     }
     if !matches!(
         (action, args.len()),
-        ("init" | "clear", 1) | ("copy" | "delete", 2)
+        ("init" | "watch" | "serve" | "clear" | "clear-all", 1)
+            | ("copy" | "copy-plain" | "pin" | "unpin" | "delete", 2)
     ) {
         return Err(invalid(
-            "Expected clipboard init, clear, copy ID, delete ID or store text|image",
+            "Expected clipboard init, watch, copy/copy-plain/pin/unpin/delete ID, clear/clear-all or store text|image|--mime MIME",
         ));
+    }
+    if action == "watch" {
+        return clipboard_transport::watch(&directory);
+    }
+    if action == "serve" {
+        return clipboard_transport::serve_stdin();
     }
     let mut history = clipboard::History::open(&directory)?;
     match action {
         "init" => history.export(),
         "clear" => history.clear(),
+        "clear-all" => history.clear_all(),
+        "pin" => history.pin(&args[1], true),
+        "unpin" => history.pin(&args[1], false),
         "delete" => history.delete(&args[1]),
         "copy" => {
-            let (mime, payload) = history.payload(&args[1])?;
+            let formats = history.bundle(&args[1])?;
             drop(history); // Release storage ownership before contacting Wayland.
-            process::checked(
-                &["wl-copy".into(), "--type".into(), mime],
-                Some(payload),
-                Duration::from_secs(5),
-                false,
-            )?;
-            Ok(())
+            clipboard_transport::publish(formats, &args[1])
+        }
+        "copy-plain" => {
+            let data = history.plain_payload(&args[1])?;
+            drop(history);
+            clipboard_transport::publish(
+                vec![clipboard::Format {
+                    mime: "text/plain;charset=utf-8".into(),
+                    data,
+                }],
+                &args[1],
+            )
         }
         _ => Err(invalid("Unknown clipboard action")),
     }

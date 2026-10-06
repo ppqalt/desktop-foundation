@@ -8,7 +8,9 @@ deployment. Keep the executable and its callers from the same source revision.
 ## Commands
 
 ```text
-clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear
+clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME
+clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID
+clipboard [--state DIRECTORY] clear|clear-all
 apps launch [terminal|browser|files|pdf|image|text] [--check]
 volume up|down
 bluetooth power on|off
@@ -34,8 +36,9 @@ stderr and exit nonzero. Native command arguments are passed as arrays.
 
 ## Behavior
 
-- **Clipboard:** SQLite storage, deduplication, retention and atomic index/image
-  projections. Copy hands exact stored bytes to wl-copy. See [clipboard](clipboard.md).
+- **Clipboard:** SQLite MIME bundles, file lists, pinning, retention and atomic
+  index/image projections. Native Wayland capture and replay preserve formats
+  together; normal clearing retains pins. See [clipboard](clipboard.md).
 - **Applications:** role selection follows the installation journal and validates
   desktop entries against their configured executable. `--check` returns the
   launch plan. [Application roles](application-roles.md) also covers MIME defaults.

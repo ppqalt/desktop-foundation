@@ -3,6 +3,7 @@ pub mod apps;
 pub mod bluetooth;
 pub mod cache;
 pub mod clipboard;
+pub mod clipboard_transport;
 pub mod packages;
 pub mod process;
 pub mod screenshot;

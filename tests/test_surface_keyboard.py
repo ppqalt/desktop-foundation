@@ -60,18 +60,18 @@ class SurfaceKeyboard(unittest.TestCase):
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const events = [];
-const Qt = {ControlModifier: 1, ShiftModifier: 2};
+const Qt = {ControlModifier: 1, ShiftModifier: 2, callLater(fn) {fn();}};
 ['Escape', 'Down', 'Up', 'Left', 'Right', 'N', 'P', 'Return', 'Enter',
  'Space', 'Tab', 'Backtab', 'Delete', 'PageUp', 'PageDown', 'Home', 'End',
- 'A', '1', '2', '3', '4'].forEach((name, index) => Qt['Key_' + name] = index + 100);
+ 'A', 'C', '1', '2', '3', '4'].forEach((name, index) => Qt['Key_' + name] = index + 100);
 const context = {
     Qt, Math, closing: false, confirmClear: false, clearSelected: false,
-    clearChoice: true, selectedIndex: 0, selected: 0, busy: false, error: '',
-    results: Array.from({length: 12}, (_, index) => ({id: 'item-' + index})),
+    clearChoice: 0, clearChoiceCount: 3, pinnedCount: 1, actionFocus: 0, selectedIdentity: "item-0", selectedViewportOffset: 0, selectionRevision: 0, selectedIndex: 0, selected: 0, busy: false, error: '',
+    results: Array.from({length: 12}, (_, index) => ({id: 'item-' + index, kind: index === 0 ? 'rich' : 'text', mime: 'text/plain', pinned: false})),
     actions: ['suspend', 'logout', 'reboot', 'poweroff'].map(id => ({id})),
     search: {focus: true, text: 'query', forceActiveFocus() {events.push('focus');}},
-    list: {height: 198, positionViewAtIndex(index) {events.push(['visible', index]);}},
-    ListView: {Contain: 1}, exitAnimation: {start() {events.push('dismiss');}},
+    list: {height: 198, contentHeight: 792, contentY: 0, itemAtIndex(index) {return {y: index * 66};}, positionViewAtBeginning() {this.contentY = 0;}, positionViewAtIndex(index, mode) {events.push(['visible', index]); if (mode === 2) this.contentY = index * 66;}},
+    ListView: {Contain: 1, Beginning: 2}, exitAnimation: {start() {events.push('dismiss');}},
     applications: {launch(entry) {events.push(['launch', entry.id]); return true;}},
     history: {entries: Array.from({length: 12}, (_, index) => ({id: 'item-' + index})),
               busy: false, request(action, identity) {events.push([action, identity]);}},
@@ -110,59 +110,115 @@ assert.equal(context.closing, true);
 key('Return'); assert.equal(events.filter(e => e[0] === 'launch').length, 1);
 ''')
 
-    def test_clipboard_all_actions_are_reachable_and_confirmation_is_modal(self):
-        self.run_policy('Clipboard', ['dismiss', 'launchSelected', 'navigate', 'tabNavigate',
-                                    'beginClear', 'acceptClear', 'deleteSelected', 'keyboardNavigate', 'handleKey'], r'''
+    CLIPBOARD_FUNCTIONS = ['dismiss', 'launchSelected', 'navigate', 'tabNavigate',
+                           'beginClear', 'acceptClear', 'deleteSelected', 'keyboardNavigate',
+                           'handleKey', 'plainAvailable', 'pinSelected', 'copyPlainSelected',
+                           'rememberSelection', 'selectIndex', 'reconcileSelection', 'queryChanged']
+
+    def test_clipboard_actions_pin_plain_text_and_keyboard_focus(self):
+        self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
 key('PageDown'); assert.equal(context.selectedIndex, 3);
 key('PageUp'); assert.equal(context.selectedIndex, 0);
-key('Up'); assert.equal(context.clearSelected, true);
+key('P', Qt.ControlModifier); assert.equal(context.clearSelected, true, 'Ctrl+P remains previous-row navigation');
 key('Down'); assert.equal(context.clearSelected, false); assert.equal(context.selectedIndex, 0);
-key('Backtab'); assert.equal(context.clearSelected, true);
-key('Tab'); assert.equal(context.clearSelected, false); assert.equal(context.selectedIndex, 0);
-key('Tab', Qt.ShiftModifier); assert.equal(context.clearSelected, true);
-key('Return'); assert.equal(context.confirmClear, true);
-const before = context.selectedIndex;
-key('A'); key('Delete', Qt.ControlModifier); key('PageDown');
-assert.equal(context.search.text, 'query'); assert.equal(context.selectedIndex, before);
-assert.equal(events.some(e => e[0] === 'delete' || e[0] === 'copy'), false);
-key('Backtab'); assert.equal(context.clearChoice, false);
-key('Space'); assert.equal(context.confirmClear, false);
-assert.equal(events.some(e => e[0] === 'clear'), false);
-key('Delete', Qt.ControlModifier | Qt.ShiftModifier, true);
-assert.equal(context.confirmClear, false);
-key('Delete', Qt.ControlModifier | Qt.ShiftModifier); assert.equal(context.confirmClear, true);
-key('Return', 0, true); assert.equal(events.some(e => e[0] === 'clear'), false);
-key('Return'); assert.deepEqual(events.find(e => e[0] === 'clear'), ['clear', '']);
-assert.equal(context.confirmClear, false);
-key('Delete', Qt.ControlModifier, true); assert.equal(events.some(e => e[0] === 'delete'), false);
-key('Delete', Qt.ControlModifier); assert.deepEqual(events.find(e => e[0] === 'delete'), ['delete', 'item-0']);
+key('P', Qt.ControlModifier | Qt.ShiftModifier, true); assert.equal(events.some(e => e[0] === 'pin'), false);
+key('P', Qt.ControlModifier | Qt.ShiftModifier); assert.deepEqual(events.find(e => e[0] === 'pin'), ['pin', 'item-0']);
+context.results[0].pinned = true;
+key('P', Qt.ControlModifier | Qt.ShiftModifier); assert.deepEqual(events.find(e => e[0] === 'unpin'), ['unpin', 'item-0']);
+key('Tab'); assert.equal(context.actionFocus, 1, 'Tab reaches Pin');
+key('Tab'); assert.equal(context.actionFocus, 2, 'Tab reaches Delete');
+key('Tab'); assert.equal(context.actionFocus, 3, 'Tab reaches Copy plain text');
+key('Return', 0, true); assert.equal(events.some(e => e[0] === 'copy-plain'), false);
+key('Return'); assert.deepEqual(events.find(e => e[0] === 'copy-plain'), ['copy-plain', 'item-0']);
+key('Tab'); assert.equal(context.selectedIndex, 1); assert.equal(context.actionFocus, 0);
+key('Backtab'); assert.equal(context.selectedIndex, 0); assert.equal(context.actionFocus, 3);
+key('Escape'); assert.equal(context.actionFocus, 0); assert.equal(context.closing, false);
 for (const name of ['Home', 'End', 'Left', 'Right', 'Space', 'A'])
     assert.equal(key(name), false, name + ' belongs to the search field');
-key('Return', 0, true); assert.equal(events.some(e => e[0] === 'copy'), false);
+key('C', Qt.ControlModifier | Qt.ShiftModifier); assert.equal(events.filter(e => e[0] === 'copy-plain').length, 2);
+key('Delete', Qt.ControlModifier, true); assert.equal(events.some(e => e[0] === 'delete'), false);
+key('Delete', Qt.ControlModifier); assert.deepEqual(events.find(e => e[0] === 'delete'), ['delete', 'item-0']);
 key('Return'); assert.deepEqual(events.find(e => e[0] === 'copy'), ['copy', 'item-0']);
+context.results[0].kind = 'files'; context.actionFocus = 2;
+key('Tab'); assert.equal(context.selectedIndex, 1); assert.equal(context.actionFocus, 0, 'Files do not expose copy-plain');
+key('Escape'); assert.equal(context.closing, true);
+''')
+
+    def test_clipboard_cleanup_defaults_cancel_and_explicitly_preserves_pins(self):
+        self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
+key('Up'); assert.equal(context.clearSelected, true);
+key('Return'); assert.equal(context.confirmClear, true); assert.equal(context.clearChoice, 0);
+const before = context.selectedIndex;
+key('A'); key('Delete', Qt.ControlModifier); key('PageDown'); key('P', Qt.ControlModifier | Qt.ShiftModifier);
+assert.equal(context.search.text, 'query'); assert.equal(context.selectedIndex, before);
+assert.equal(events.some(e => ['delete', 'pin', 'copy'].includes(e[0])), false);
+key('Return'); assert.equal(context.confirmClear, false); assert.equal(events.some(e => e[0] === 'clear'), false);
+key('Delete', Qt.ControlModifier | Qt.ShiftModifier, true); assert.equal(context.confirmClear, false);
+key('Delete', Qt.ControlModifier | Qt.ShiftModifier); assert.equal(context.clearChoice, 0);
+key('Right'); assert.equal(context.clearChoice, 1);
+key('Return', 0, true); assert.equal(events.some(e => e[0] === 'clear'), false);
+key('Return'); assert.deepEqual(events.find(e => e[0] === 'clear'), ['clear', '']);
+key('Delete', Qt.ControlModifier | Qt.ShiftModifier); key('End'); assert.equal(context.clearChoice, 2);
+key('Space'); assert.deepEqual(events.find(e => e[0] === 'clear-all'), ['clear-all', '']);
 key('Delete', Qt.ControlModifier | Qt.ShiftModifier); key('Escape');
 assert.equal(context.confirmClear, false); assert.equal(context.closing, false);
-key('Escape'); assert.equal(context.closing, true);
 ''')
         source = (ROOT / 'shell/surfaces/Clipboard.qml').read_text()
         self.assertIn('readOnly: root.confirmClear', source)
         self.assertIn('enabled: !root.confirmClear', source)
 
-    def test_clipboard_empty_filtered_results_still_reach_clear_all(self):
-        self.run_policy('Clipboard', ['dismiss', 'launchSelected', 'navigate', 'tabNavigate',
-                                    'beginClear', 'acceptClear', 'deleteSelected', 'keyboardNavigate', 'handleKey'], r'''
+    def test_clipboard_empty_filtered_results_still_reach_cleanup(self):
+        self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
 context.results = [];
 key('Tab'); assert.equal(context.clearSelected, true);
-key('Return'); assert.equal(context.confirmClear, true);
-key('Left'); assert.equal(context.clearChoice, false);
-key('Home'); assert.equal(context.clearChoice, false);
-key('End'); assert.equal(context.clearChoice, true);
+key('Return'); assert.equal(context.confirmClear, true); assert.equal(context.clearChoice, 0);
+key('Right'); assert.equal(context.clearChoice, 1);
+key('End'); assert.equal(context.clearChoice, 2);
+key('Home'); assert.equal(context.clearChoice, 0);
 key('Escape'); assert.equal(context.confirmClear, false);
-context.history.entries = [];
-context.clearSelected = false;
+context.history.entries = []; context.clearSelected = false;
 key('Tab'); key('Delete', Qt.ControlModifier | Qt.ShiftModifier);
 assert.equal(context.confirmClear, false);
-assert.equal(events.some(e => ['clear', 'copy', 'delete'].includes(e[0])), false);
+assert.equal(events.some(e => ['clear', 'clear-all', 'copy', 'delete'].includes(e[0])), false);
+''')
+
+    def test_clipboard_all_pinned_history_can_reach_explicit_clear_everything(self):
+        self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
+context.results = [{id: 'pin-only', pinned: true, kind: 'image'}];
+context.history.entries = context.results; context.pinnedCount = 1;
+context.selectedIndex = 0; context.selectedIdentity = 'pin-only';
+key('Up'); assert.equal(context.clearSelected, true);
+key('Return'); assert.equal(context.confirmClear, true); assert.equal(context.clearChoice, 0);
+key('Tab'); assert.equal(context.clearChoice, 1);
+key('Tab'); assert.equal(context.clearChoice, 2);
+key('Return'); assert.deepEqual(events.find(e => e[0] === 'clear-all'), ['clear-all', '']);
+''')
+
+    def test_clipboard_pin_reordering_preserves_identity_and_viewport_anchor(self):
+        self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
+context.selectIndex(5); context.list.contentY = 264; context.rememberSelection();
+assert.equal(context.selectedIdentity, 'item-5'); assert.equal(context.selectedViewportOffset, 66);
+const pinned = context.results.splice(5, 1)[0]; pinned.pinned = true; context.results.unshift(pinned);
+context.reconcileSelection(); assert.equal(context.selectedIndex, 0);
+assert.equal(context.selectedIdentity, 'item-5'); assert.equal(context.list.contentY, 0);
+const item = context.results.splice(0, 1)[0]; context.results.splice(7, 0, item);
+context.selectedViewportOffset = 66; context.reconcileSelection();
+assert.equal(context.selectedIndex, 7); assert.equal(context.selectedIdentity, 'item-5');
+assert.equal(context.list.contentY, 396, 'Same selected row retains its viewport offset');
+context.results.splice(7, 1); context.reconcileSelection();
+assert.equal(context.selectedIndex, 7); assert.equal(context.selectedIdentity, 'item-8', 'Deletion chooses neighboring item');
+''')
+
+    def test_clipboard_new_query_cancels_stale_history_scroll_restore(self):
+        self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
+const deferred = []; Qt.callLater = callback => deferred.push(callback);
+context.selectIndex(5); context.list.contentY = 500; context.rememberSelection();
+context.reconcileSelection();
+context.results = [context.results[5]];
+context.queryChanged(); assert.equal(context.list.contentY, 0);
+for (const callback of deferred) callback();
+assert.equal(context.selectedIdentity, 'item-5');
+assert.equal(context.list.contentY, 0, 'Older index refresh must not scroll new search results');
 ''')
 
     def test_power_keyboard_navigation_and_actions_only_call_harmless_spies(self):

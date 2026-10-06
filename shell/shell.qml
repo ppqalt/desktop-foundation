@@ -9,6 +9,7 @@ import "theme"
 
 ShellRoot {
     id: root
+    Component.onCompleted: Quickshell.watchFiles = false
     LazyLoader {
         id: backdropLoader
         active: Quickshell.env("DF_COMPOSITOR") === "niri"

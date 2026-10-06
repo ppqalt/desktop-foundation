@@ -66,10 +66,30 @@ QtObject {
                 root.error = "";
                 root.completed(action);
             } else {
-                root.error = actionErrors.text.includes("history was not reset") ? "Clipboard history is unavailable. Saved items were kept." : "Could not " + action + " this history item. Try again.";
+                root.error = root.failureMessage(action, actionErrors.text);
             }
         }
         // qmllint enable signal-handler-parameters
+    }
+    function failureMessage(action: string, message: string): string {
+        const lines = message.split("\n").map(line => line.trim()).filter(line => line);
+        const first = lines.find(line => line.startsWith("Foundation:")) || lines[0] || "";
+        const detail = first.replace(/^Foundation:\s*/, "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 220);
+        if (message.includes("history was not reset"))
+            return "Clipboard history is unavailable. Saved items were kept.";
+        if ((action === "pin" || action === "unpin") && detail.startsWith("Pinned history is full"))
+            return detail;
+        if ((action === "copy" || action === "copy-plain") && /file.*(unavailable|no longer available|missing)/i.test(detail))
+            return detail.replace(/\.$/, "") + ". Restore the original, then try again.";
+        if (action === "copy" || action === "copy-plain")
+            return "Could not copy this item. Try again.";
+        if (action === "pin" || action === "unpin")
+            return "Could not change this pin. Try again.";
+        if (action === "clear" || action === "clear-all")
+            return "Could not clear clipboard history. Try again.";
+        if (action === "init")
+            return "Clipboard history could not be refreshed.";
+        return "Could not " + action + " this history item. Try again.";
     }
     function request(action: string, identity: string): void {
         if (actionProcess.running)

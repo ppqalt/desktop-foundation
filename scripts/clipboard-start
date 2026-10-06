@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec systemctl --user start desktop-foundation-clipboard@text.service desktop-foundation-clipboard@image.service
+systemctl --user stop desktop-foundation-clipboard@text.service desktop-foundation-clipboard@image.service || true
+exec systemctl --user start desktop-foundation-clipboard.service

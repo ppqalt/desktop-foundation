@@ -14,13 +14,13 @@ def definitions(root, state):
             '[Unit]\nDescription=Desktop foundation interactive session\n'
             'PartOf=graphical-session.target\n'
             'Wants=desktop-foundation-shell.service desktop-foundation-notifications.service '
-            'desktop-foundation-clipboard-init.service desktop-foundation-clipboard@text.service '
-            'desktop-foundation-clipboard@image.service hyprpolkitagent.service\n'),
+            'desktop-foundation-clipboard-init.service desktop-foundation-clipboard.service '
+            'hyprpolkitagent.service\n'),
         'desktop-foundation-shell.service': common + '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/run-shell') + '\nRestart=on-failure\nRestartSec=1\n',
         'desktop-foundation-clipboard-init.service': common + '[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=' + quote(root / 'native/foundation/target/release/desktop-foundationctl') + ' --root ' + quote(root) + ' clipboard init\nUMask=0077\n',
-        'desktop-foundation-clipboard@.service': common +
+        'desktop-foundation-clipboard.service': common +
             'Requires=desktop-foundation-clipboard-init.service\nAfter=desktop-foundation-clipboard-init.service\n'
-            '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/clipboard-watch') + ' %i\nRestart=on-failure\nRestartSec=1\nUMask=0077\n',
+            '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/clipboard-watch') + '\nRestart=on-failure\nRestartSec=1\nUMask=0077\n',
         'desktop-foundation-notifications.service': common + 'ConditionEnvironment=NIRI_SOCKET\n'
             '[Service]\nType=dbus\nBusName=org.freedesktop.Notifications\nExecCondition=' + quote(root / 'scripts/notification-owner-check') + '\n'
             'ExecStart=' + quote(executable) + ' --config ' + quote(state / 'theme/current/notifications.conf') + '\nRestart=on-failure\nRestartSec=1\n',

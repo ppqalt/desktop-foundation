@@ -42,7 +42,7 @@ def session_main():
     for variable in ['WAYLAND_DISPLAY', 'NIRI_SOCKET' if niri else 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']:
         if not os.environ.get(variable):
             failures.append(f'Missing {variable}: run from the active compositor session')
-    for unit in [*(['desktop-foundation-clipboard-persist'] if niri else []), 'pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', *(['xdg-desktop-portal-gnome', 'xdg-desktop-portal-gtk'] if niri else ['xdg-desktop-portal-hyprland']), 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard@text', 'desktop-foundation-clipboard@image']:
+    for unit in [*(['desktop-foundation-clipboard-persist'] if niri else []), 'pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', *(['xdg-desktop-portal-gnome', 'xdg-desktop-portal-gtk'] if niri else ['xdg-desktop-portal-hyprland']), 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard']:
         code, state = run('systemctl', '--user', 'is-active', unit + '.service')
         print(f'{unit}: {state}')
         if code and unit == 'pipewire-pulse':

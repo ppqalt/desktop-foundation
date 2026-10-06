@@ -13,14 +13,14 @@ foundation session target
 ├─ Quickshell
 ├─ Mako on Niri
 ├─ polkit
-└─ clipboard initialization → text and image watchers
+└─ clipboard initialization → Rust format watcher
 
 Niri session
 ├─ wallpaper
 └─ clipboard persistence
 ```
 
-The shell starts independently of auxiliary services. Clipboard watchers wait for
+The shell starts independently of auxiliary services. The clipboard watcher waits for
 database initialization. The clipboard popup retries a missing index for up to
 three seconds. Launcher, clipboard, Bluetooth and power surfaces are created on
 demand; Nothing controls and audio setup also run on demand.
