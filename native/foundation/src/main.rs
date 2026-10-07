@@ -1,6 +1,6 @@
 use desktop_foundationctl::{
     Result, actions, apps, bluetooth, cache, clipboard, clipboard_transport, invalid, packages,
-    process, screenshot, session, shell, theme, volume,
+    preferences, process, screenshot, session, shell, theme, volume,
 };
 use std::{
     io::{self, Read},
@@ -39,7 +39,7 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
         );
         return Ok(());
     }
@@ -83,10 +83,20 @@ fn run() -> Result<()> {
                 let material = serde_json::from_slice(&input)?;
                 print_json(&theme::derive(&root, &material, source, digest)?)
             }
+            [_, action] if action == "gtk-accent" => {
+                let mut input = Vec::new();
+                io::stdin().take(64 * 1024 + 1).read_to_end(&mut input)?;
+                if input.len() > 64 * 1024 {
+                    return Err(invalid("Palette JSON is too large"));
+                }
+                let palette = serde_json::from_slice(&input)?;
+                print_json(&serde_json::json!({"accent": theme::gtk_accent(&palette)?}))
+            }
             _ => Err(invalid(
-                "Expected theme generate IMAGE or theme derive --source SOURCE --hash HASH",
+                "Expected theme generate IMAGE, theme derive --source SOURCE --hash HASH or theme gtk-accent",
             )),
         },
+        Some("preferences") => run_preferences(args[1..].to_vec()),
         Some("system") if args.get(1).map(String::as_str) == Some("packages") => {
             let config = match args.as_slice() {
                 [_, _] => root.join("terminal/fastfetch/packages.jsonc"),
@@ -187,7 +197,7 @@ fn run() -> Result<()> {
             actions::invoke(&root, &args[2])
         }
         _ => Err(invalid(
-            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, theme, wallpaper start, notifications, actions list|plan|invoke or cache plan|prune",
+            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, theme, preferences, wallpaper start, notifications, actions list|plan|invoke or cache plan|prune",
         )),
     }
 }
@@ -195,6 +205,47 @@ fn run() -> Result<()> {
 fn print_json(value: &impl serde::Serialize) -> Result<()> {
     println!("{}", serde_json::to_string(value)?);
     Ok(())
+}
+
+fn run_preferences(mut args: Vec<String>) -> Result<()> {
+    let mut directory = preferences::directory()?;
+    let mut lock_fd = None;
+    for option in ["--state", "--lock-fd"] {
+        if let Some(index) = args.iter().position(|argument| argument == option) {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| invalid(format!("{option} requires a value")))?;
+            if option == "--state" {
+                directory = PathBuf::from(value)
+            } else {
+                let fd = value
+                    .parse::<i32>()
+                    .map_err(|_| invalid("Invalid inherited preference lock descriptor"))?;
+                if fd < 0 {
+                    return Err(invalid("Invalid inherited preference lock descriptor"));
+                }
+                lock_fd = Some(fd);
+            }
+            args.drain(index..=index + 1);
+        }
+    }
+    let result = match args.as_slice() {
+        [action, kind, key, value] if action == "set" => {
+            preferences::manage_setting(&directory, [kind.clone(), key.clone()], value, lock_fd)
+        }
+        [action] if action == "check" => preferences::check(&directory, lock_fd),
+        [action] if action == "prepare-restore" => {
+            preferences::prepare_restore(&directory, lock_fd)
+        }
+        [action] if action == "restore" => preferences::restore(&directory, lock_fd),
+        [action] if action == "gtk-refresh" && lock_fd.is_none() => {
+            preferences::gtk_refresh(&directory)
+        }
+        _ => Err(invalid(
+            "Expected preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh",
+        )),
+    }?;
+    print_json(&result)
 }
 
 fn run_clipboard(mut args: Vec<String>) -> Result<()> {

@@ -15,7 +15,9 @@ scripts/theme-promote                          # save the active palette in Git
 
 The packaged Matugen executable extracts wallpaper colors once and exits. The
 Rust backend hashes the image, runs Matugen, derives semantic graphite roles,
-checks contrast and caches the result. Unchanged inputs reuse the cache.
+checks contrast and caches the result. Unchanged inputs reuse the cache. Rust
+also maps the accent to GNOME's supported enum and records owned preference
+changes for rollback; Python keeps installation and theme transaction orchestration.
 
 Background, elevated, icon, hover, selected and border roles blend the graphite
 base with primary at 6%, 10%, 12%, 12%, 17% and 18%. Surface saturation is capped

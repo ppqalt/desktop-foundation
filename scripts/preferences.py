@@ -8,31 +8,32 @@ import os
 from pathlib import Path
 import subprocess
 
+ROOT = Path(__file__).resolve().parent.parent
 STATE = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'desktop-foundation'
 
 
-def run(*args):
-    return subprocess.check_output(args, text=True, timeout=10).strip()
-
-
-def get(key):
-    return run('gsettings', 'get', 'org.gnome.desktop.interface', key[1]) if key[0] == 'gsettings' else run('xdg-mime', 'query', 'default', key[1])
-
-
-def set_value(key, value):
-    if key[0] == 'gsettings':
-        subprocess.run(['gsettings', 'set', 'org.gnome.desktop.interface', key[1], value], check=True, timeout=10)
-    elif value:
-        subprocess.run(['xdg-mime', 'default', value, key[1]], check=True, timeout=10)
-    else:
-        # MIME settings are restored by the deploy journal's file backup instead.
-        pass
+def native(*arguments, lock=None):
+    """Finite backend call; inherited recovery lock spans MIME restoration."""
+    command = [str(ROOT / 'scripts/foundation'), 'preferences', '--state', str(STATE), *arguments]
+    descriptors = ()
+    if lock is not None:
+        descriptors = (lock.fileno(),)
+        command += ['--lock-fd', str(lock.fileno())]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True,
+                                timeout=75, pass_fds=descriptors)
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(error.stderr.strip() or 'Native preference operation failed') from error
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError('Native preference operation timed out; recovery journal retained') from error
+    value = json.loads(result.stdout)
+    if not isinstance(value, dict):
+        raise RuntimeError('Native preference backend returned an invalid response')
+    return value
 
 
 def manage_setting(key, value):
-    """Per-setting original ownership; journal before the supported native write."""
-    with preference_lock():
-        _manage_setting(key, value)
+    native('set', *key, value)
 
 
 @contextmanager
@@ -41,52 +42,16 @@ def preference_lock():
     fd = os.open(STATE / 'preferences.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        yield
-
-
-def _manage_setting(key, value):
-    from theme_pipeline import atomic
-    path = STATE / 'preferences.json'
-    entries = json.loads(path.read_text()) if path.exists() else []
-    current = get(key)
-    entry = next((e for e in entries if e['key'] == key), None)
-    if entry and current not in {entry['managed'], entry.get('pending', entry['managed'])}:
-        raise RuntimeError('Preference changed outside installation: ' + key[1])
-    if not entry:
-        entry = {'key': key, 'original': current, 'managed': current}
-        entries.append(entry)
-    entry['pending'] = value
-    atomic(path, json.dumps(entries, indent=2) + '\n')
-    if current != value:
-        set_value(key, value)
-    entry['managed'] = entry.pop('pending')
-    atomic(path, json.dumps(entries, indent=2) + '\n')
+        yield lock
 
 
 def restore_preferences():
-    from theme_pipeline import atomic
     from application_roles import restore as restore_roles
-    with preference_lock():
-        path = STATE / 'preferences.json'
-        entries = json.loads(path.read_text()) if path.exists() else []
-        for entry in entries:
-            if get(entry['key']) not in {entry['managed'], entry.get('pending', entry['managed'])}:
-                raise RuntimeError('Preference changed outside installation: ' + entry['key'][1])
+    with preference_lock() as lock:
+        # Check every owned preference before changing the separate MIME journal.
+        native('prepare-restore', lock=lock)
         restore_roles()
-        while entries:
-            entry = entries[0]
-            current = get(entry['key'])
-            if current not in {entry['managed'], entry.get('pending', entry['managed'])}:
-                raise RuntimeError('Preference changed outside installation: ' + entry['key'][1])
-            # Write-ahead restoration makes a crash after the native write
-            # resumable: the original value is then an accepted pending value.
-            entry['pending'] = entry['original']
-            atomic(path, json.dumps(entries, indent=2) + '\n')
-            if current != entry['original']:
-                set_value(entry['key'], entry['original'])
-            entries.pop(0)
-            atomic(path, json.dumps(entries, indent=2) + '\n')
-        path.unlink(missing_ok=True)
+        native('restore', lock=lock)
 
 
 def main():

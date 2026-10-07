@@ -113,6 +113,36 @@ fn rgb_to_hls([r, g, b]: [f64; 3]) -> [f64; 3] {
     [(hue / 6.).rem_euclid(1.), lightness, saturation]
 }
 
+/// Match wallpaper accents to GNOME's supported discrete accent enum. Anchor
+/// order also preserves the original policy when two hues are equally close.
+pub fn gtk_accent(palette: &Value) -> Result<&'static str> {
+    const ANCHORS: [(&str, &str); 8] = [
+        ("blue", "#3584e4"),
+        ("teal", "#2190a4"),
+        ("green", "#3a944a"),
+        ("yellow", "#c88800"),
+        ("orange", "#ed5b00"),
+        ("red", "#e62d42"),
+        ("pink", "#d56199"),
+        ("purple", "#9141ac"),
+    ];
+    let [hue, _, saturation] = rgb_to_hls(rgb(color(palette, "accent")?)?);
+    if saturation < 0.12 {
+        return Ok("slate");
+    }
+    let mut selected = "blue";
+    let mut nearest = f64::INFINITY;
+    for (name, anchor) in ANCHORS {
+        let difference = (rgb_to_hls(rgb(anchor)?)[0] - hue).abs();
+        let distance = difference.min(1. - difference);
+        if distance < nearest {
+            selected = name;
+            nearest = distance;
+        }
+    }
+    Ok(selected)
+}
+
 fn hls_to_rgb([hue, lightness, saturation]: [f64; 3]) -> [f64; 3] {
     if saturation == 0. {
         return [lightness; 3];
@@ -521,6 +551,31 @@ pub fn generate(root: &Path, image: &Path) -> Result<Generation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_gtk_accent_preserves_anchors_neutral_threshold_and_hue_wrap() {
+        for (accent, expected) in [
+            ("#98ccf9", "blue"),
+            ("#ffb599", "orange"),
+            ("#9141ac", "purple"),
+            ("#888888", "slate"),
+            ("#000000", "slate"),
+            ("#ffffff", "slate"),
+            ("#8f7171", "slate"),
+            ("#907070", "red"),
+            ("#ff0001", "red"),
+            ("#ff0100", "red"),
+        ] {
+            assert_eq!(gtk_accent(&json!({"accent": accent})).unwrap(), expected);
+        }
+        for bad in [
+            json!({}),
+            json!({"accent": "invalid"}),
+            json!({"accent": null}),
+        ] {
+            assert!(gtk_accent(&bad).is_err());
+        }
+    }
 
     #[test]
     fn color_quantization_matches_python_ties_and_hls_edges() {

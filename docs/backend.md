@@ -23,6 +23,8 @@ actions list|plan ID|invoke ID
 cache plan|prune
 theme generate IMAGE
 theme derive --source SOURCE --hash HASH
+theme gtk-accent
+preferences [--state DIRECTORY] set TYPE KEY VALUE|check|restore|gtk-refresh
 wallpaper start
 notifications start|check-owner
 system packages [--config FILE]
@@ -30,7 +32,8 @@ shell call METHOD [ARGS...]
 ```
 
 Clipboard `store` reads bytes from stdin. `theme derive` reads material-palette
-JSON from stdin. State responses use JSON; `system packages` returns a display
+JSON from stdin. `theme gtk-accent` reads semantic palette JSON and returns the
+nearest supported GNOME accent. State responses use JSON; `system packages` returns a display
 string and shell calls return the invoked method's response. Failures report to
 stderr and exit nonzero. Native command arguments are passed as arrays.
 
@@ -58,6 +61,10 @@ stderr and exit nonzero. Native command arguments are passed as arrays.
   contrast checks and palette caching. `generate` returns `{palette, cached}`.
   The theme transaction stages and publishes the active revision separately.
   See [theme controls](../theme/README.md).
+- **Preferences:** native setting reads/writes and the existing per-setting
+  ownership journal. Pending writes preserve recovery across interruptions;
+  restoration checks ownership before changing settings. GTK refresh selects
+  the accent from the active palette and checks the installed enum.
 - **Wallpaper:** reads the active wallpaper configuration and replaces itself
   with swaybg. Legacy startup prepares the overview image before that handoff.
 - **Notifications:** starts the configured session unit. `check-owner` succeeds
