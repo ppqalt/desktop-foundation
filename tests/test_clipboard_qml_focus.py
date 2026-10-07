@@ -78,9 +78,7 @@ ShellRoot {
                 keyboard.keyClick(Qt.Key_Tab);
                 fixture.check(clip.actionFocus === 1, "Tab cannot reach Pin");
                 keyboard.keyClick(Qt.Key_Tab);
-                fixture.check(clip.actionFocus === 2, "Tab cannot reach Delete");
-                keyboard.keyClick(Qt.Key_Tab);
-                fixture.check(clip.actionFocus === 3, "Tab cannot reach Copy plain");
+                fixture.check(clip.actionFocus === 2, "Tab cannot reach Copy plain");
                 keyboard.keyClick(Qt.Key_Escape);
                 fixture.check(!clip.closing && clip.actionFocus === 0, "Escape cannot return to normal row selection");
                 keyboard.keyClick(Qt.Key_Up);
@@ -138,7 +136,7 @@ ShellRoot {
                 fixture.check(s.inputFocused && s.count === 1, "Filename search or focus restoration fails");
                 if (!s.error) { keyboard.keyClick(Qt.Key_Return); return; }
                 fixture.check(!clip.closing && s.error.includes("Restore the original"), "Missing file copy closes surface or loses recovery message");
-                keyboard.keyClick(Qt.Key_Tab); keyboard.keyClick(Qt.Key_Tab); keyboard.keyClick(Qt.Key_Tab);
+                keyboard.keyClick(Qt.Key_Tab); keyboard.keyClick(Qt.Key_Tab);
                 fixture.check(clip.clearSelected, "Files expose a nonfunctional plain-copy control or cannot reach Clear history");
                 keyboard.keyClick(Qt.Key_Return);
                 keyboard.keyClick(Qt.Key_Right);

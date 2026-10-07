@@ -18,8 +18,8 @@ item and closes the menu; a paste uses the formats accepted by the destination.
 | Escape | Cancel a dialog or close the menu |
 
 Search matches copied text, filenames and format labels. Pinning keeps the item
-at the top and preserves selection when the list reorders. Row actions are also
-available with the mouse.
+at the top and preserves selection when the list reorders. Pinning and copying are also available with the mouse. Delete an individual
+item with Ctrl+Delete; the rows keep their controls compact.
 
 ## Pins and clearing
 

@@ -14,7 +14,6 @@ Rectangle {
     readonly property string title: entry.label || (kind === "image" ? "Copied image" : (entry.preview || "Clipboard item").replace(/\s+/g, " ").trim())
     readonly property string detail: entry.unavailable ? "Original file is unavailable" : (entry.detail || ((kind === "rich" ? "Formatted text" : (kind === "files" ? (entry.fileCount || 1) + " file" + (entry.fileCount > 1 ? "s" : "") : (kind === "image" ? (entry.mime || "image").split("/")[1].toUpperCase() : "Text"))) + " · " + (entry.size >= 1024 ? (entry.size / 1024).toFixed(1) + " KB" : (entry.size || 0) + " bytes")))
     signal chosen
-    signal removed
     signal pinned
     signal plainCopied
     implicitHeight: Theme.dimensions.rowHeight
@@ -58,7 +57,7 @@ Rectangle {
     }
     Column {
         x: 66
-        width: parent.width - 224 + root.actionInset
+        width: parent.width - 186 + root.actionInset
         anchors.verticalCenter: parent.verticalCenter
         spacing: 4
         Text {
@@ -92,7 +91,7 @@ Rectangle {
     Controls.ToolTip {
         id: filesTip
         width: Math.min(420, root.width - 32)
-        visible: root.kind === "files" && mouse.containsMouse && !pinMouse.containsMouse && !plainMouse.containsMouse && !deleteMouse.containsMouse
+        visible: root.kind === "files" && mouse.containsMouse && !pinMouse.containsMouse && !plainMouse.containsMouse
         delay: 500
         text: (root.entry.preview || root.title).slice(0, 512)
         background: Rectangle {
@@ -111,7 +110,7 @@ Rectangle {
     }
     Text {
         anchors.right: parent.right
-        anchors.rightMargin: 130 - root.actionInset
+        anchors.rightMargin: 92 - root.actionInset
         anchors.verticalCenter: parent.verticalCenter
         text: "↵"
         color: Theme.colors.accent
@@ -121,7 +120,7 @@ Rectangle {
     Rectangle {
         id: pinButton
         anchors.right: parent.right
-        anchors.rightMargin: 88 - root.actionInset
+        anchors.rightMargin: 50 - root.actionInset
         anchors.verticalCenter: parent.verticalCenter
         width: 30
         height: 30
@@ -205,8 +204,8 @@ Rectangle {
         height: 30
         radius: Theme.radii.small
         visible: root.plainAvailable
-        color: root.selected && root.actionFocus === 3 ? Theme.colors.iconTile : (plainMouse.containsMouse ? Theme.colors.hover : "transparent")
-        border.width: root.selected && root.actionFocus === 3 ? 1 : 0
+        color: root.selected && root.actionFocus === 2 ? Theme.colors.iconTile : (plainMouse.containsMouse ? Theme.colors.hover : "transparent")
+        border.width: root.selected && root.actionFocus === 2 ? 1 : 0
         border.color: Theme.colors.accent
         enabled: !root.busy
         Accessible.role: Accessible.Button
@@ -218,7 +217,7 @@ Rectangle {
             font.family: Theme.typography.family
             font.pixelSize: 14
             font.underline: true
-            color: plainMouse.containsMouse || (root.selected && root.actionFocus === 3) ? Theme.colors.accent : Theme.colors.subtle
+            color: plainMouse.containsMouse || (root.selected && root.actionFocus === 2) ? Theme.colors.accent : Theme.colors.subtle
         }
         MouseArea {
             id: plainMouse
@@ -239,52 +238,6 @@ Rectangle {
             }
             contentItem: Text {
                 text: plainTip.text
-                color: Theme.colors.foreground
-                font.family: Theme.typography.family
-                font.pixelSize: 11
-            }
-        }
-    }
-    Rectangle {
-        id: deleteButton
-        anchors.right: parent.right
-        anchors.rightMargin: 50 - root.actionInset
-        anchors.verticalCenter: parent.verticalCenter
-        width: 30
-        height: 30
-        radius: Theme.radii.small
-        color: root.selected && root.actionFocus === 2 ? Theme.colors.iconTile : (deleteMouse.containsMouse ? Theme.colors.hover : "transparent")
-        border.width: root.selected && root.actionFocus === 2 ? 1 : 0
-        border.color: Theme.colors.error
-        enabled: !root.busy
-        Accessible.role: Accessible.Button
-        Accessible.name: "Delete item"
-        Accessible.onPressAction: root.removed()
-        Text {
-            anchors.centerIn: parent
-            text: "×"
-            font.pixelSize: 19
-            color: deleteMouse.containsMouse || (root.selected && root.actionFocus === 2) ? Theme.colors.error : Theme.colors.subtle
-        }
-        MouseArea {
-            id: deleteMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.removed()
-        }
-        Controls.ToolTip {
-            id: deleteTip
-            visible: deleteMouse.containsMouse
-            delay: 400
-            text: "Delete item · Ctrl+Delete"
-            background: Rectangle {
-                color: Theme.colors.elevated
-                radius: Theme.radii.small
-                border.color: Theme.colors.border
-            }
-            contentItem: Text {
-                text: deleteTip.text
                 color: Theme.colors.foreground
                 font.family: Theme.typography.family
                 font.pixelSize: 11

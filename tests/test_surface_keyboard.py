@@ -66,11 +66,11 @@ const Qt = {ControlModifier: 1, ShiftModifier: 2, callLater(fn) {fn();}};
  'A', 'C', '1', '2', '3', '4'].forEach((name, index) => Qt['Key_' + name] = index + 100);
 const context = {
     Qt, Math, closing: false, confirmClear: false, clearSelected: false,
-    clearChoice: 0, clearChoiceCount: 3, pinnedCount: 1, actionFocus: 0, selectedIdentity: "item-0", selectedViewportOffset: 0, selectionRevision: 0, selectedIndex: 0, selected: 0, busy: false, error: '',
+    clearChoice: 0, clearChoiceCount: 3, pinnedCount: 1, actionFocus: 0, selectedIdentity: "item-0", selectedViewportOffset: 0, selectionRevision: 0, resultsQuery: "query", viewportRestorePending: false, viewportAtTop: true, viewportIdentity: "", viewportOffset: 0, viewportContentY: 0, selectedIndex: 0, selected: 0, busy: false, error: '',
     results: Array.from({length: 12}, (_, index) => ({id: 'item-' + index, kind: index === 0 ? 'rich' : 'text', mime: 'text/plain', pinned: false})),
     actions: ['suspend', 'logout', 'reboot', 'poweroff'].map(id => ({id})),
     search: {focus: true, text: 'query', forceActiveFocus() {events.push('focus');}},
-    list: {height: 198, contentHeight: 792, contentY: 0, itemAtIndex(index) {return {y: index * 66};}, positionViewAtBeginning() {this.contentY = 0;}, positionViewAtIndex(index, mode) {events.push(['visible', index]); if (mode === 2) this.contentY = index * 66;}},
+    list: {height: 198, contentHeight: 792, originY: 0, contentY: 0, forceLayout() {}, indexAt(x, y) {return Math.floor(y / 66);}, itemAtIndex(index) {return {y: index * 66, height: 62};}, positionViewAtBeginning() {this.contentY = 0;}, positionViewAtIndex(index, mode) {events.push(['visible', index]); if (mode === 2) this.contentY = index * 66;}},
     ListView: {Contain: 1, Beginning: 2}, exitAnimation: {start() {events.push('dismiss');}},
     applications: {launch(entry) {events.push(['launch', entry.id]); return true;}},
     history: {entries: Array.from({length: 12}, (_, index) => ({id: 'item-' + index})),
@@ -113,7 +113,7 @@ key('Return'); assert.equal(events.filter(e => e[0] === 'launch').length, 1);
     CLIPBOARD_FUNCTIONS = ['dismiss', 'launchSelected', 'navigate', 'tabNavigate',
                            'beginClear', 'acceptClear', 'deleteSelected', 'keyboardNavigate',
                            'handleKey', 'plainAvailable', 'pinSelected', 'copyPlainSelected',
-                           'rememberSelection', 'selectIndex', 'reconcileSelection', 'queryChanged']
+                           'rememberSelection', 'captureViewport', 'selectIndex', 'reconcileSelection', 'queryChanged']
 
     def test_clipboard_actions_pin_plain_text_and_keyboard_focus(self):
         self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
@@ -126,12 +126,11 @@ key('P', Qt.ControlModifier | Qt.ShiftModifier); assert.deepEqual(events.find(e 
 context.results[0].pinned = true;
 key('P', Qt.ControlModifier | Qt.ShiftModifier); assert.deepEqual(events.find(e => e[0] === 'unpin'), ['unpin', 'item-0']);
 key('Tab'); assert.equal(context.actionFocus, 1, 'Tab reaches Pin');
-key('Tab'); assert.equal(context.actionFocus, 2, 'Tab reaches Delete');
-key('Tab'); assert.equal(context.actionFocus, 3, 'Tab reaches Copy plain text');
+key('Tab'); assert.equal(context.actionFocus, 2, 'Tab reaches Copy plain text');
 key('Return', 0, true); assert.equal(events.some(e => e[0] === 'copy-plain'), false);
 key('Return'); assert.deepEqual(events.find(e => e[0] === 'copy-plain'), ['copy-plain', 'item-0']);
 key('Tab'); assert.equal(context.selectedIndex, 1); assert.equal(context.actionFocus, 0);
-key('Backtab'); assert.equal(context.selectedIndex, 0); assert.equal(context.actionFocus, 3);
+key('Backtab'); assert.equal(context.selectedIndex, 0); assert.equal(context.actionFocus, 2);
 key('Escape'); assert.equal(context.actionFocus, 0); assert.equal(context.closing, false);
 for (const name of ['Home', 'End', 'Left', 'Right', 'Space', 'A'])
     assert.equal(key(name), false, name + ' belongs to the search field');
@@ -139,7 +138,7 @@ key('C', Qt.ControlModifier | Qt.ShiftModifier); assert.equal(events.filter(e =>
 key('Delete', Qt.ControlModifier, true); assert.equal(events.some(e => e[0] === 'delete'), false);
 key('Delete', Qt.ControlModifier); assert.deepEqual(events.find(e => e[0] === 'delete'), ['delete', 'item-0']);
 key('Return'); assert.deepEqual(events.find(e => e[0] === 'copy'), ['copy', 'item-0']);
-context.results[0].kind = 'files'; context.actionFocus = 2;
+context.results[0].kind = 'files'; context.actionFocus = 1;
 key('Tab'); assert.equal(context.selectedIndex, 1); assert.equal(context.actionFocus, 0, 'Files do not expose copy-plain');
 key('Escape'); assert.equal(context.closing, true);
 ''')
@@ -194,26 +193,29 @@ key('Tab'); assert.equal(context.clearChoice, 2);
 key('Return'); assert.deepEqual(events.find(e => e[0] === 'clear-all'), ['clear-all', '']);
 ''')
 
-    def test_clipboard_pin_reordering_preserves_identity_and_viewport_anchor(self):
+    def test_clipboard_background_copy_preserves_top_and_scrolled_viewports(self):
         self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
-context.selectIndex(5); context.list.contentY = 264; context.rememberSelection();
-assert.equal(context.selectedIdentity, 'item-5'); assert.equal(context.selectedViewportOffset, 66);
-const pinned = context.results.splice(5, 1)[0]; pinned.pinned = true; context.results.unshift(pinned);
-context.reconcileSelection(); assert.equal(context.selectedIndex, 0);
-assert.equal(context.selectedIdentity, 'item-5'); assert.equal(context.list.contentY, 0);
-const item = context.results.splice(0, 1)[0]; context.results.splice(7, 0, item);
-context.selectedViewportOffset = 66; context.reconcileSelection();
-assert.equal(context.selectedIndex, 7); assert.equal(context.selectedIdentity, 'item-5');
-assert.equal(context.list.contentY, 396, 'Same selected row retains its viewport offset');
-context.results.splice(7, 1); context.reconcileSelection();
-assert.equal(context.selectedIndex, 7); assert.equal(context.selectedIdentity, 'item-8', 'Deletion chooses neighboring item');
+context.results[0].pinned = true;
+context.selectIndex(1); context.rememberSelection(); context.captureViewport();
+context.results.splice(1, 0, {id: 'new-top', pinned: false, kind: 'text'});
+context.reconcileSelection();
+assert.equal(context.selectedIdentity, 'item-1'); assert.equal(context.selectedIndex, 2);
+assert.equal(context.list.contentY, 0, 'Incoming copy must not hide the top pinned item');
+context.list.contentY = 264; context.captureViewport();
+assert.equal(context.viewportIdentity, 'item-3');
+context.results.splice(1, 0, {id: 'new-scrolled', pinned: false, kind: 'text'});
+context.reconcileSelection();
+assert.equal(context.list.contentY, 330, 'First visible item keeps its old viewport offset');
+assert.equal(context.selectedIdentity, 'item-1');
+context.results.splice(context.selectedIndex, 1); context.reconcileSelection();
+assert.equal(context.selectedIdentity, 'item-2', 'Deletion chooses a neighboring item');
 ''')
 
     def test_clipboard_new_query_cancels_stale_history_scroll_restore(self):
         self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
 const deferred = []; Qt.callLater = callback => deferred.push(callback);
 context.selectIndex(5); context.list.contentY = 500; context.rememberSelection();
-context.reconcileSelection();
+context.captureViewport(); context.reconcileSelection();
 context.results = [context.results[5]];
 context.queryChanged(); assert.equal(context.list.contentY, 0);
 for (const callback of deferred) callback();

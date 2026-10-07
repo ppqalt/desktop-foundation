@@ -28,6 +28,7 @@ PanelWindow {
     color: "transparent"
     ClipboardHistory {
         id: history
+        onAboutToUpdate: root.captureViewport()
         onCompleted: action => {
             if (action === "copy" || action === "copy-plain")
                 root.dismiss();
@@ -39,9 +40,15 @@ PanelWindow {
     property string selectedIdentity: ""
     property real selectedViewportOffset: 0
     property int selectionRevision: 0
+    property string resultsQuery: ""
+    property bool viewportRestorePending: false
+    property bool viewportAtTop: true
+    property string viewportIdentity: ""
+    property real viewportOffset: 0
+    property real viewportContentY: 0
     property bool confirmClear: false
     property bool clearSelected: false
-    // 0 = copy, 1 = pin, 2 = delete, 3 = copy as plain text.
+    // 0 = copy, 1 = pin, 2 = copy as plain text.
     property int actionFocus: 0
     // Confirmation always starts on Cancel. Clearing pins is a distinct action.
     property int clearChoice: 0
@@ -71,33 +78,76 @@ PanelWindow {
         if (row)
             selectedViewportOffset = row.y + (row.groupGap || 0) - list.contentY;
     }
+    function captureViewport(): void {
+        if (viewportRestorePending)
+            return;
+        rememberSelection();
+        viewportRestorePending = true;
+        viewportContentY = list.contentY;
+        viewportAtTop = list.contentY <= list.originY + 1;
+        let index = list.indexAt(1, list.contentY + 1);
+        if (index < 0) {
+            for (let candidate = 0; candidate < results.length; candidate++) {
+                const item = list.itemAtIndex(candidate);
+                if (item && item.y + item.height > list.contentY) {
+                    index = candidate;
+                    break;
+                }
+            }
+        }
+        const row = index >= 0 ? list.itemAtIndex(index) : null;
+        viewportIdentity = results[index]?.id || "";
+        viewportOffset = row ? row.y + (row.groupGap || 0) - list.contentY : 0;
+    }
     function selectIndex(index: int): void {
         selectedIndex = Math.max(0, Math.min(results.length - 1, index));
         selectedIdentity = results[selectedIndex]?.id || "";
     }
     function reconcileSelection(): void {
         const revision = ++selectionRevision;
-        const savedOffset = selectedViewportOffset;
+        const queryChanged = resultsQuery !== search.text;
+        resultsQuery = search.text;
+        const restoreViewport = viewportRestorePending && !queryChanged;
+        const savedAtTop = viewportAtTop;
+        const savedIdentity = viewportIdentity;
+        const savedOffset = viewportOffset;
+        const savedContentY = viewportContentY;
         const found = results.findIndex(entry => entry.id === selectedIdentity);
-        selectIndex(found >= 0 ? found : selectedIndex);
+        selectIndex(queryChanged ? 0 : (found >= 0 ? found : selectedIndex));
+        if (queryChanged) {
+            viewportRestorePending = false;
+            list.positionViewAtBeginning();
+        }
         if (!results.length)
             actionFocus = 0;
-        else if (actionFocus === 3 && !plainAvailable())
+        else if (actionFocus === 2 && !plainAvailable())
             actionFocus = 0;
-        // An index refresh recreates delegates. Keep the same item and its
-        // viewport position instead of jumping to the first newly pinned row.
-        const identity = selectedIdentity;
+        // Keep scrolling independent from selection. Background copies must
+        // not hide pins just to hold the selected ordinary row at one pixel.
         Qt.callLater(() => {
-            if (revision !== root.selectionRevision || !identity || identity !== root.selectedIdentity || root.clearSelected)
+            if (revision !== root.selectionRevision || !restoreViewport)
                 return;
-            list.positionViewAtIndex(root.selectedIndex, ListView.Beginning);
-            const row = list.itemAtIndex(root.selectedIndex);
-            list.contentY = Math.max(0, Math.min(Math.max(0, list.contentHeight - list.height), list.contentY + (row?.groupGap || 0) - savedOffset));
+            list.forceLayout();
+            if (savedAtTop)
+                list.positionViewAtBeginning();
+            else {
+                const index = root.results.findIndex(entry => entry.id === savedIdentity);
+                let position = savedContentY;
+                if (index >= 0) {
+                    list.positionViewAtIndex(index, ListView.Beginning);
+                    const row = list.itemAtIndex(index);
+                    if (row)
+                        position = row.y + (row.groupGap || 0) - savedOffset;
+                }
+                list.contentY = Math.max(list.originY, Math.min(list.originY + Math.max(0, list.contentHeight - list.height), position));
+            }
+            root.viewportRestorePending = false;
             root.rememberSelection();
         });
     }
     function queryChanged(): void {
         selectionRevision++;
+        viewportRestorePending = false;
         clearSelected = false;
         actionFocus = 0;
         selectIndex(0);
@@ -132,8 +182,6 @@ PanelWindow {
             if (actionFocus === 1)
                 pinSelected();
             else if (actionFocus === 2)
-                deleteSelected();
-            else if (actionFocus === 3)
                 copyPlainSelected();
             else
                 history.request("copy", results[selectedIndex].id);
@@ -174,10 +222,10 @@ PanelWindow {
             clearSelected = !results.length;
             if (results.length) {
                 selectIndex(delta > 0 ? 0 : results.length - 1);
-                actionFocus = delta > 0 ? 0 : (plainAvailable() ? 3 : 2);
+                actionFocus = delta > 0 ? 0 : (plainAvailable() ? 2 : 1);
             }
         } else {
-            const lastAction = plainAvailable() ? 3 : 2;
+            const lastAction = plainAvailable() ? 2 : 1;
             if (actionFocus + delta >= 0 && actionFocus + delta <= lastAction)
                 actionFocus += delta;
             else if ((delta < 0 && selectedIndex === 0) || (delta > 0 && selectedIndex === results.length - 1)) {
@@ -185,7 +233,7 @@ PanelWindow {
                 actionFocus = 0;
             } else {
                 selectIndex(selectedIndex + delta);
-                actionFocus = delta > 0 ? 0 : (plainAvailable() ? 3 : 2);
+                actionFocus = delta > 0 ? 0 : (plainAvailable() ? 2 : 1);
             }
         }
         if (!clearSelected) {
@@ -479,7 +527,10 @@ PanelWindow {
             model: root.results
             boundsBehavior: Flickable.StopAtBounds
             currentIndex: root.selectedIndex
-            onContentYChanged: root.rememberSelection()
+            onContentYChanged: {
+                if (!root.viewportRestorePending)
+                    root.rememberSelection();
+            }
             delegate: Item {
                 required property var modelData
                 required property int index
@@ -503,11 +554,6 @@ PanelWindow {
                         root.clearSelected = false;
                         root.selectIndex(parent.index);
                         root.copyPlainSelected();
-                    }
-                    onRemoved: {
-                        root.clearSelected = false;
-                        root.selectIndex(parent.index);
-                        root.deleteSelected();
                     }
                     onChosen: {
                         root.clearSelected = false;
@@ -690,7 +736,7 @@ PanelWindow {
             navigationLabel: root.confirmClear ? "choose" : "navigate"
             escapeLabel: root.confirmClear ? "cancel" : "close"
             hintsVisible: !history.error
-            actionText: root.confirmClear ? (["Cancel", "Clear history", "Clear everything"][root.clearChoice]) : (history.busy ? "Working…" : (root.clearSelected ? "Clear history" : (root.actionFocus === 1 ? (root.results[root.selectedIndex]?.pinned ? "Unpin · Ctrl⇧P" : "Pin · Ctrl⇧P") : (root.actionFocus === 2 ? "Delete item" : (root.actionFocus === 3 ? "Copy plain · Ctrl⇧C" : "Copy & close")))))
+            actionText: root.confirmClear ? (["Cancel", "Clear history", "Clear everything"][root.clearChoice]) : (history.busy ? "Working…" : (root.clearSelected ? "Clear history" : (root.actionFocus === 1 ? (root.results[root.selectedIndex]?.pinned ? "Unpin · Ctrl⇧P" : "Pin · Ctrl⇧P") : (root.actionFocus === 2 ? "Copy plain · Ctrl⇧C" : "Copy & close"))))
             actionEnabled: !root.closing && !history.busy && (root.confirmClear || root.clearSelected || root.results.length > 0)
             onActivated: {
                 if (root.confirmClear)

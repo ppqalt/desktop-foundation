@@ -14,6 +14,7 @@ QtObject {
     property int startupRetries: 0
     property string error: ""
     readonly property bool busy: actionProcess.running
+    signal aboutToUpdate
     signal completed(string action)
     property var indexFile: FileView {
         path: root.stateDirectory + "/index.json"
@@ -25,6 +26,7 @@ QtObject {
                 const saved = JSON.parse(text());
                 if (!Array.isArray(saved))
                     throw new Error("History index is not a list");
+                root.aboutToUpdate();
                 root.entries = saved;
                 root.loading = false;
                 root.error = "";
