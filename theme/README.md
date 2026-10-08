@@ -19,17 +19,18 @@ checks contrast and caches the result. Unchanged inputs reuse the cache. Rust
 also maps the accent to GNOME's supported enum and records owned preference
 changes for rollback; Python keeps installation and theme transaction orchestration.
 
-Background, elevated, icon, hover, selected and border roles blend the graphite
-base with primary at 6%, 10%, 12%, 12%, 17% and 18%. Surface saturation is capped
-at 20–24%. Foreground and muted text stay near-neutral; shadows stay black.
+Background, elevated, icon, hover, selected and border roles use the wallpaper
+primary's hue at fixed graphite lightness. Neutral bases remove the old blue cast;
+surface saturation is capped at 18–25%. Wallpaper brightness cannot brighten the
+panels. Foreground and muted text stay near-neutral; shadows stay black.
 Accents use primary and an 80/20 primary/secondary blend. Contrast targets are
 7:1 for foreground, 3:1 for muted text and 4.5:1 for accents on opaque panels.
 
 | Role | Blue source | Orange source |
 | --- | --- | --- |
-| Background | `#1f262f` | `#252429` |
-| Elevated | `#2e3845` | `#38363c` |
-| Selected | `#3e5065` | `#4d4c57` |
+| Background | `#161b20` | `#201916` |
+| Elevated | `#212b33` | `#332621` |
+| Selected | `#304150` | `#503930` |
 | Accent | `#98ccf9` | `#ffb599` |
 | Foreground | `#eef1f6` | `#eef1f6` |
 
@@ -63,6 +64,8 @@ tracked `theme/generated.json`; changing the shipped wallpaper is a separate edi
 Cache maintenance retains six theme revisions, 32 palettes and 16 overview images,
 protecting current and previous references. Use `scripts/foundation cache plan`
 to inspect candidates or `scripts/foundation cache prune` to remove eligible files.
+The hue-based palette uses the `graphite-v2` cache namespace; existing theme
+revisions and `graphite-v1` palettes remain available for rollback.
 
 ## Refresh
 

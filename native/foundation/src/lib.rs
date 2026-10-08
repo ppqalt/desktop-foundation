@@ -4,6 +4,8 @@ pub mod bluetooth;
 pub mod cache;
 pub mod clipboard;
 pub mod clipboard_transport;
+pub mod diagnostics;
+pub mod local_ai;
 pub mod packages;
 pub mod preferences;
 pub mod process;

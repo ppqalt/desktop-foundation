@@ -69,8 +69,8 @@ def plan(args):
             print(f'{group}: {package}: ' + ('already installed' if installed(package) else 'missing'))
     if args.personal:
         browser = roles(True)['browser']; chatgpt = json.loads((ROOT / 'apps/personal.json').read_text())['chatgpt']
-        for app in [browser, chatgpt, json.loads((ROOT / 'apps/personal.json').read_text())['steam']]:
-            print(f"personal: {app['package']}: " + ('adopt installed package' if installed(app['package']) else 'install from configured signed repository (Brave may use its verified AUR recipe)'))
+        for app in [browser, chatgpt, *[json.loads((ROOT / 'apps/personal.json').read_text())[name] for name in ['steam', 'vesktop']]]:
+            print(f"personal: {app['package']}: " + ('adopt installed package' if installed(app['package']) else 'install from configured signed repository (Brave/Vesktop may use their reviewed AUR recipe)'))
         print('Spotify: checksum-pinned tools/Marketplace; first login, wait a minute, normal quit/reopen')
         print('Steam: native client from the configured multilib repository')
         print('Brave: stable generated theme folder; native Load unpacked required; debugging remains OFF')
@@ -142,17 +142,19 @@ def personal(args):
         provision_package(roles(True)['browser'], aur=True)
         provision_package(json.loads((ROOT / 'apps/personal.json').read_text())['chatgpt'])
         provision_package(json.loads((ROOT / 'apps/personal.json').read_text())['steam'])
+        provision_package(json.loads((ROOT / 'apps/personal.json').read_text())['vesktop'], aur=True)
         script('spotify-setup', 'install')
     else:
         validate_role('browser', roles(True)['browser'])
         validate_role('chatgpt', json.loads((ROOT / 'apps/personal.json').read_text())['chatgpt'])
         validate_role('steam', json.loads((ROOT / 'apps/personal.json').read_text())['steam'])
+        validate_role('vesktop', json.loads((ROOT / 'apps/personal.json').read_text())['vesktop'])
         script('spotify-setup', 'check')
     script('applications', 'apply', '--personal')
     # Browser preference seeds remain explicit post-install functionality. Normal
     # convergence never reads/writes a real profile, even to detect initialization.
     print('Brave theme: load theme/brave through the browser’s Load unpacked control.')
-    print('Native Steam configured.')
+    print('Native Steam and Vesktop configured.')
 
 
 def main(argv=None):

@@ -70,3 +70,9 @@ scripts/foundation clipboard clear-all
 
 `init` refreshes the index, including file availability. Session startup runs the
 watcher; clipboard persistence keeps a selection available after its source exits.
+
+Image previews retain verified payload hashes and file fingerprints in an
+optional private projection cache. Unchanged previews skip a second file read;
+stored bundles remain authoritative and are validated on publication and replay.
+Changed previews are repaired from those bundles. This does not cache file
+availability or copy the contents of referenced files.

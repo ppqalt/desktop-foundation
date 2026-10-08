@@ -39,6 +39,6 @@ return {
         activeBorder = palette.windowActive or "#485669",
         inactiveBorder = palette.windowInactive or "#2b323d",
     },
-    opacity = { active = 0.96, inactive = 0.96, fullscreen = 1.0 },
+    opacity = { active = 0.90, inactive = 0.90, fullscreen = 1.0 },
     fullscreen = { decorated = false },
 }

@@ -1,6 +1,6 @@
 # Optional applications
 
-`scripts/install-all` adds Spotify, Spicetify, Marketplace, ChatGPT and Steam to
+`scripts/install-all` adds Spotify, Spicetify, Marketplace, ChatGPT, Steam and Vesktop to
 the core desktop. The application manifest is `apps/personal.json`.
 
 ## Brave Origin Nightly
@@ -29,3 +29,11 @@ uses the `steam` package from multilib. Enable the required package source befor
 running the full installer.
 
 Use `scripts/install-all --check` to inspect the application layer.
+
+## Vesktop
+
+The installer uses `vesktop-bin` from the configured CachyOS repository, with the
+upstream-recommended AUR package as a fallback on Arch. Its `vesktop.desktop`
+entry is available in the application launcher. Existing installations are
+reused. [Vesktop installation](https://vesktop.dev/install/linux/) describes the
+native package options.

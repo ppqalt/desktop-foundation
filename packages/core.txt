@@ -31,7 +31,7 @@ xwayland-satellite
 xdg-desktop-portal
 xdg-desktop-portal-gnome
 xdg-desktop-portal-gtk
-gnome-keyring
+oo7
 nautilus
 brave-origin-nightly-bin
 hyprpolkitagent

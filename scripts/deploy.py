@@ -115,6 +115,8 @@ def main():
         paths.extend([(CONFIG / 'niri/config.kdl', STATE / 'niri.kdl'),
                       (CONFIG / 'quickshell/desktop-foundation', ROOT / 'shell')])
         paths.extend(common_targets())
+        from local_ai_launcher import targets as local_ai_targets
+        paths.extend(local_ai_targets(ROOT, CONFIG, STATE, DATA, write=False))
         for path, source in paths:
             print(f'Deploy with backup: {path} <- {source}')
         return
@@ -175,6 +177,8 @@ def main():
                 link.symlink_to(child)
         subprocess.run(['fish', '--no-config', '-n', str(ROOT / 'terminal/fish/config.fish')], check=True)
         targets.extend(common_targets())
+        from local_ai_launcher import targets as local_ai_targets
+        targets.extend(local_ai_targets(ROOT, CONFIG, STATE, DATA))
         for path, src in targets:
             entries = [e for e in manifest['entries'] if e['path'] == str(path)]
             if entries and not owned(entries[0]):

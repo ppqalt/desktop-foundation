@@ -15,6 +15,7 @@ pub const MAX_TOTAL: usize = 32 * 1024 * 1024;
 pub const MAX_ITEMS: usize = 100;
 const TEXT: &str = "text/plain;charset=utf-8";
 mod formats;
+mod projections;
 pub use formats::supported_mime;
 use formats::{
     files, image_mime, normalized, plain_mime, plain_text, primary, rich_mime, validate,
@@ -79,7 +80,10 @@ fn interrupted_publication(name: &str) -> bool {
     };
     // The old worker used fixed temporary names. The native publisher adds a
     // dot, positive process ID and sequence; match that exact owned shape.
-    if temporary == "index.json" || image_projection(temporary) {
+    if temporary == "index.json"
+        || temporary == projections::CACHE_NAME
+        || image_projection(temporary)
+    {
         return true;
     }
     let Some(native) = temporary.strip_prefix('.') else {
@@ -91,7 +95,9 @@ fn interrupted_publication(name: &str) -> bool {
     let Some((destination, pid)) = publication.rsplit_once('-') else {
         return false;
     };
-    (destination == "index.json" || image_projection(destination))
+    (destination == "index.json"
+        || destination == projections::CACHE_NAME
+        || image_projection(destination))
         && pid
             .parse::<u32>()
             .is_ok_and(|n| n > 0 && n.to_string() == pid)
@@ -351,7 +357,8 @@ impl History {
             .collect::<std::result::Result<_, _>>()?;
         let mut entries = Vec::new();
         let mut images = std::collections::HashSet::new();
-        let mut projection_bytes: Vec<(PathBuf, Vec<u8>)> = Vec::new();
+        let mut projection_cache = projections::Cache::load(&self.directory);
+        let mut projection_bytes: Vec<(String, PathBuf, Vec<u8>)> = Vec::new();
         let mut counts = [0usize; 2];
         let mut totals = [0usize; 2];
         for (id, mime, updated, pinned) in rows {
@@ -371,7 +378,10 @@ impl History {
                 return Err(invalid("Clipboard history retention limit exceeded"));
             }
             let paths = files(&formats)?;
-            let unavailable = paths.iter().any(|path| fs::metadata(path).is_err());
+            // Availability and folder classification share the same snapshot.
+            // File references remain live; their contents are never read.
+            let path_metadata: Vec<_> = paths.iter().map(|path| fs::metadata(path).ok()).collect();
+            let unavailable = path_metadata.iter().any(Option::is_none);
             let mut image = String::new();
             let (kind, label, detail, text) = if !paths.is_empty() {
                 let names: Vec<String> = paths
@@ -383,9 +393,9 @@ impl History {
                             .into_owned()
                     })
                     .collect();
-                let folders = paths
+                let folders = path_metadata
                     .iter()
-                    .filter(|path| fs::metadata(path).is_ok_and(|m| m.is_dir()))
+                    .filter(|metadata| metadata.as_ref().is_some_and(|m| m.is_dir()))
                     .count();
                 let label = if paths.len() == 1 {
                     names[0].chars().take(120).collect()
@@ -438,16 +448,11 @@ impl History {
                         .ok_or_else(|| invalid("Invalid image MIME"))?
                 );
                 let filename = self.directory.join(&name);
-                if fs::symlink_metadata(&filename).is_ok_and(|m| !m.is_file()) {
-                    return Err(invalid("Invalid image projection path"));
-                }
-                images.insert(name);
-                // Recheck owned projections, so an externally replaced image
-                // never disagrees with the stored clipboard payload.
-                if !fs::metadata(&filename).is_ok_and(|m| m.len() == format.data.len() as u64)
-                    || fs::read(&filename).ok().as_deref() != Some(format.data.as_slice())
-                {
-                    projection_bytes.push((filename.clone(), format.data.clone()));
+                images.insert(name.clone());
+                // Bundles are always freshly validated above. Only the second
+                // read of an unchanged image projection can use the cache.
+                if !projection_cache.verify(&name, &filename, &format.data)? {
+                    projection_bytes.push((name, filename.clone(), format.data.clone()));
                 }
                 image = state::file_uri(&filename)?;
                 (
@@ -493,8 +498,11 @@ impl History {
                 formats: formats.iter().map(|f| f.mime.clone()).collect(),
             });
         }
-        for (filename, bytes) in projection_bytes {
+        for (name, filename, bytes) in projection_bytes {
             state::atomic(&filename, &bytes, 0o600)?;
+            // A cache miss is safe, including a race with an external writer.
+            // Cache publication never decides whether history was stored.
+            let _ = projection_cache.verify(&name, &filename, &bytes);
         }
         state::atomic(
             &self.directory.join("index.json"),
@@ -517,6 +525,7 @@ impl History {
         if removed {
             fs::File::open(&self.directory)?.sync_all()?;
         }
+        projection_cache.publish(&self.directory, &images);
         Ok(())
     }
 }

@@ -28,7 +28,9 @@ def main():
     journal = STATE / 'manifest.json'
     entries = json.loads(journal.read_text()) if journal.exists() else {}
     if args.action == 'install':
-        subprocess.run(['pacman', '-Q', 'greetd', 'greetd-tuigreet', 'gnome-keyring', 'niri'], check=True)
+        subprocess.run(['pacman', '-Q', 'greetd', 'greetd-tuigreet', 'oo7', 'niri'], check=True)
+        if not Path('/usr/lib/security/pam_oo7.so').is_file():
+            raise RuntimeError('oo7 PAM module missing; system files unchanged')
         if not Path('/usr/share/wayland-sessions/niri.desktop').is_file():
             raise RuntimeError('Niri session entry missing')
         probe = subprocess.run(['tuigreet', '--background', 'matrix', '--dump-config'], capture_output=True, text=True)
@@ -37,10 +39,16 @@ def main():
         display_manager = Path('/etc/systemd/system/display-manager.service')
         if display_manager.is_symlink() and display_manager.resolve().name != 'greetd.service':
             raise RuntimeError('Another display manager owns login; use --no-greeter. No login files changed.')
+        # A manually installed file identical to our new template can be
+        # adopted without replacing the original rollback backup. Check every
+        # file first so an unrelated edit cannot leave a partial update.
         for name, source in FILES.items():
             path = Path(name)
-            if name in entries and digest(path) != entries[name]['managed']:
+            if name in entries and (not path.is_file() or
+                    digest(path) not in {entries[name]['managed'], digest(source)}):
                 raise RuntimeError('Modified outside deployment: ' + name)
+        for name, source in FILES.items():
+            path = Path(name)
             if name not in entries:
                 backup = STATE / path.name
                 if path.exists():

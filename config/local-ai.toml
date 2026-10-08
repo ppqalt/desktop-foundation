@@ -1,0 +1,5 @@
+# Adopt an existing Odysseus Compose project. The launcher does not install models.
+compose_directory = "~/odysseus"
+url = "http://localhost:7000/"
+ollama_url = "http://localhost:11434/"
+startup_timeout_seconds = 90

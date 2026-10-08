@@ -29,6 +29,9 @@ wallpaper start
 notifications start|check-owner
 system packages [--config FILE]
 shell call METHOD [ARGS...]
+local-ai start|status|plan
+build-info
+doctor --json
 ```
 
 Clipboard `store` reads bytes from stdin. `theme derive` reads material-palette
@@ -47,6 +50,9 @@ stderr and exit nonzero. Native command arguments are passed as arrays.
   launch plan. [Application roles](application-roles.md) also covers MIME defaults.
 - **Volume:** 3% changes, capped at 100%, followed by sink readback. The shell shows
   the resulting percentage; Mako provides a fallback when shell IPC is unavailable.
+  Audio changes are serialized independently of feedback. Repeated presses keep
+  applying their steps while a single finite feedback owner catches up to the
+  latest volume, so slow shell IPC does not hold the audio-change lock.
 - **Bluetooth:** BlueZ radio and connection operations with state confirmation,
   plus PipeWire codec discovery and playback routing. See [Bluetooth](bluetooth.md).
 - **Screenshots:** backend-specific capture and clipboard handoff. Selection waits
@@ -75,6 +81,10 @@ stderr and exit nonzero. Native command arguments are passed as arrays.
 - **Shell IPC:** waits up to three seconds for readiness, then sends the requested
   method once with a three-second deadline. Use `scripts/shell-reload` after
   replacing QML source. See [surface behavior](surface-qol.md).
+- **Local AI:** starts the configured existing Ollama/Odysseus installation and
+  opens its browser UI. See [local AI](local-ai.md).
+- **Diagnostics:** embedded source/build identity and read-only JSON deployment
+  metadata. See [diagnostics](diagnostics.md).
 
 ## Cache maintenance
 

@@ -1,4 +1,7 @@
 """Deployment-owned session units: no unit generation during login."""
+import json
+from pathlib import Path
+
 from niri_wallpaper import quote
 
 
@@ -57,6 +60,21 @@ def targets(root, config, state, data, write=True, niri=True):
             result.append((config / 'systemd/user/niri.service.wants' / unit, source))
     for name in ['gnome-keyring-pkcs11.desktop', 'gnome-keyring-secrets.desktop']:
         result.append((config / 'autostart' / name, root / 'session/keyring' / name))
+    # Use oo7's packaged unit, including its PAM credential handling and
+    # sandboxing. A pre-existing mask belongs to the user, even on rollback.
+    manifest = state / 'manifest.json'
+    recorded = {entry['path'] for entry in json.loads(manifest.read_text()).get('entries', [])} if manifest.exists() else set()
+    keyring_links = [
+        (config / 'systemd/user/default.target.wants/oo7-daemon.service',
+         Path('/usr/lib/systemd/user/oo7-daemon.service')),
+        (config / 'systemd/user/gnome-keyring-daemon.service', Path('/dev/null')),
+        (config / 'systemd/user/gnome-keyring-daemon.socket', Path('/dev/null')),
+    ]
+    for path, source in keyring_links:
+        if (str(path) not in recorded and path.is_symlink()
+                and path.readlink() == source):
+            continue
+        result.append((path, source))
     if niri:
         # Mako's packaged D-Bus activation names mako.service. Both that unit and
         # our Type=dbus unit cannot independently register the same BusName.

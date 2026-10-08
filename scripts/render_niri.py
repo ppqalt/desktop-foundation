@@ -54,7 +54,8 @@ window-rule {{
     background-effect {{ blur true; xray true; }}
     popups {{ background-effect {{ blur false; }}; }}
 }}
-// Niri applies opacity to toplevel content; client popups keep their own shape.
+// Niri applies opacity to toplevel content and makes fullscreen content opaque natively.
+// Client popups keep their own shape.
 // Keep terminal glyphs opaque; prefer native background alpha in Kitty.
 window-rule {{ match app-id="^kitty$"; opacity 1.0; }}
 // Shortcut menus soften the applications behind them instead of bypassing them.

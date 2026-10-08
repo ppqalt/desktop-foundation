@@ -42,7 +42,7 @@ def session_main():
     for variable in ['WAYLAND_DISPLAY', 'NIRI_SOCKET' if niri else 'HYPRLAND_INSTANCE_SIGNATURE', 'XDG_CURRENT_DESKTOP', 'XDG_RUNTIME_DIR']:
         if not os.environ.get(variable):
             failures.append(f'Missing {variable}: run from the active compositor session')
-    for unit in [*(['desktop-foundation-clipboard-persist'] if niri else []), 'pipewire', 'pipewire-pulse', 'wireplumber', 'xdg-desktop-portal', *(['xdg-desktop-portal-gnome', 'xdg-desktop-portal-gtk'] if niri else ['xdg-desktop-portal-hyprland']), 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard']:
+    for unit in [*(['desktop-foundation-clipboard-persist'] if niri else []), 'pipewire', 'pipewire-pulse', 'wireplumber', 'oo7-daemon', 'xdg-desktop-portal', *(['xdg-desktop-portal-gnome', 'xdg-desktop-portal-gtk'] if niri else ['xdg-desktop-portal-hyprland']), 'hyprpolkitagent', 'desktop-foundation-shell', 'desktop-foundation-clipboard']:
         code, state = run('systemctl', '--user', 'is-active', unit + '.service')
         print(f'{unit}: {state}')
         if code and unit == 'pipewire-pulse':
@@ -78,16 +78,18 @@ def session_main():
                 failures.append('greetd PAM configuration unreadable: inspect /etc/pam.d/greetd')
             else:
                 hooks = [line.split('#', 1)[0].split() for line in pam.splitlines()]
-                auth = any(line and line[0] == 'auth' and 'pam_gnome_keyring.so' in line for line in hooks)
-                session = any(line and line[0] == 'session' and 'pam_gnome_keyring.so' in line and 'auto_start' in line for line in hooks)
+                auth = any(line and line[0] == 'auth' and 'pam_oo7.so' in line for line in hooks)
+                session = any(line and line[0] == 'session' and 'pam_oo7.so' in line for line in hooks)
                 if not auth or not session:
                     failures.append('greetd keyring login unlock missing: sudo scripts/system-setup install, then password-login again')
-        for process in ['swaybg', 'wl-clip-persist', 'gnome-keyring-daemon']:
-            code, pids = run('pgrep', '-x', process if len(process) <= 15 else 'gnome-keyring-d')
+        for process in ['swaybg', 'wl-clip-persist', 'oo7-daemon']:
+            code, pids = run('pgrep', '-x', process)
             count = len(pids.splitlines()) if not code else 0
             print(process + ' instances:', count)
-            if process != 'gnome-keyring-daemon' and count != 1 or process == 'gnome-keyring-daemon' and count > 1:
+            if count != 1:
                 failures.append(process + ': unexpected process count')
+        if run('pgrep', '-x', 'gnome-keyring-d')[0] == 0:
+            failures.append('GNOME Keyring is competing with oo7: inspect user services and autostart entries')
         code, failed = run('systemctl', '--user', '--failed', '--no-legend', '--plain')
         if failed:
             failures.append('Failed user services: ' + failed)
@@ -154,11 +156,18 @@ def main():
     parser.add_argument('--save', metavar='LABEL')
     parser.add_argument('--compare', action='store_true')
     parser.add_argument('--installation', action='store_true', help='Check installed state before Niri login')
+    parser.add_argument('--json', action='store_true', help='Read-only native build/deployment metadata')
     layer = parser.add_mutually_exclusive_group()
     layer.add_argument('--personal', action='store_true')
     layer.add_argument('--core', action='store_true')
     parser.add_argument('--no-greeter', action='store_true')
     args, _ = parser.parse_known_args()
+    if args.json:
+        import sys
+        if sys.argv[1:] != ['--json']:
+            parser.error('--json reports current metadata and must be used on its own')
+        root = Path(__file__).resolve().parent.parent
+        os.execv(str(root / 'scripts/foundation'), [str(root / 'scripts/foundation'), 'doctor', '--json'])
     if args.startup:
         from startup_report import main as startup_main
         import sys
@@ -191,6 +200,32 @@ def main():
     report(code == 0 and not failed, 'No failed system services')
     config = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
     data = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
+    report(Path('/usr/lib/oo7-daemon').is_file(), 'oo7 packaged daemon')
+    report(Path('/usr/lib/security/pam_oo7.so').is_file(), 'oo7 PAM module')
+    report(run('systemctl', '--user', 'is-enabled', 'oo7-daemon.service')[0] == 0,
+           'oo7 login activation', warning=args.installation and not os.environ.get('XDG_RUNTIME_DIR'))
+    for unit in ['gnome-keyring-daemon.service', 'gnome-keyring-daemon.socket']:
+        code, status = run('systemctl', '--user', 'show', unit, '--property=LoadState', '--value')
+        report(code == 0 and status in {'masked', 'not-found'}, unit + ' inactive provider',
+               warning=args.installation and code != 0)
+    activation = data / 'dbus-1/services/org.freedesktop.secrets.service'
+    if not activation.exists():
+        activation = Path('/usr/share/dbus-1/services/org.freedesktop.secrets.service')
+    try:
+        import configparser
+        descriptor = configparser.ConfigParser(interpolation=None)
+        descriptor.read(activation)
+        report(descriptor['D-BUS Service'].get('SystemdService') == 'dbus-org.freedesktop.secrets.service',
+               'Secret Service activation uses packaged oo7 alias')
+    except (OSError, KeyError, configparser.Error) as error:
+        report(False, 'Secret Service activation unreadable: ' + str(error))
+    if not args.no_greeter:
+        try:
+            hooks = [line.split('#', 1)[0].split() for line in Path('/etc/pam.d/greetd').read_text().splitlines()]
+            report(all(any(line and line[0] == stack and 'pam_oo7.so' in line for line in hooks)
+                       for stack in ['auth', 'session']), 'greetd oo7 password unlock hooks; see docs/keyring.md')
+        except OSError as error:
+            report(False, 'greetd PAM configuration unreadable: ' + str(error))
     for name in ['niri/config.kdl', 'quickshell/desktop-foundation', 'kitty', 'fish', 'fastfetch']:
         report((config / name).exists(), 'Deployed ' + name)
     report(run('niri', 'validate', '-c', str(config / 'niri/config.kdl'))[0] == 0, 'Niri configuration capabilities')
@@ -213,13 +248,20 @@ def main():
         result, details = run(str(root / 'scripts/spotify-setup'), 'check')
         report(result == 0, 'Spotify/Spicetify paths and color adapter: ' + details)
         from application_roles import validate_role
-        chatgpt = json.loads((root / 'apps/personal.json').read_text())['chatgpt']
+        personal = json.loads((root / 'apps/personal.json').read_text())
+        chatgpt = personal['chatgpt']
         try:
             validate_role('ChatGPT', chatgpt)
             report(run('pacman', '-Q', chatgpt['package'])[0] == 0, 'Verified ChatGPT package and desktop entry')
         except (RuntimeError, OSError) as error:
             report(False, str(error))
-        steam = json.loads((root / 'apps/personal.json').read_text())['steam']
+        vesktop = personal['vesktop']
+        try:
+            validate_role('Vesktop', vesktop)
+            report(run('pacman', '-Q', vesktop['package'])[0] == 0, 'Verified Vesktop package and desktop entry')
+        except (RuntimeError, OSError) as error:
+            report(False, str(error))
+        steam = personal['steam']
         try:
             validate_role('Steam', steam)
             report(True, 'Native Steam executable and desktop entry')
