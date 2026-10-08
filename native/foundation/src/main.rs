@@ -1,7 +1,7 @@
 use desktop_foundationctl::{
     Result, actions, apps, bluetooth, browser_policy, cache, clipboard, clipboard_transport,
-    diagnostics, invalid, local_ai, monitor, packages, preferences, process, screenshot, session,
-    shell, theme, volume,
+    diagnostics, invalid, local_ai, monitor, monitor_shader, packages, preferences, process,
+    screenshot, session, shell, theme, volume,
 };
 use std::{
     io::{self, Read},
@@ -38,6 +38,12 @@ fn run() -> Result<()> {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
         }
     };
+    // Compiler arguments, including --help, belong to Slang rather than our CLI.
+    if args.first().map(String::as_str) == Some("monitor")
+        && args.get(1).map(String::as_str) == Some("shader-compiler")
+    {
+        return monitor_shader::compiler(&args[2..]);
+    }
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
             "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  build-info\n  doctor --json\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
@@ -51,7 +57,10 @@ fn run() -> Result<()> {
             "serve" => monitor::serve(&root),
             "status" => print_json(&monitor::status(&root)?),
             "refresh" => monitor::refresh(&root),
-            _ => Err(invalid("Expected monitor toggle, close, status or refresh")),
+            "prepare" => monitor::prepare(&root),
+            _ => Err(invalid(
+                "Expected monitor toggle, close, status, refresh or prepare",
+            )),
         },
         Some("browser-theme") => match args.as_slice() {
             [_, action] if action == "status" => print_json(&browser_policy::status()?),

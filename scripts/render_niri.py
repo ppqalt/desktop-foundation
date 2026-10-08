@@ -67,7 +67,7 @@ window-rule {{ match app-id="^kitty$"; opacity 1.0; }}
 layer-rule {{ match namespace="^desktop-foundation-(launcher|clipboard|power|bluetooth)$"; background-effect {{ blur true; xray false; }} }}
 layer-rule {{
     match namespace="^desktop-foundation:monitor$"
-    geometry-corner-radius {monitor_radius}
+    geometry-corner-radius {monitor_radius} 0 0 {monitor_radius}
     shadow {{ on; softness {v['shadow']['range']}; spread 0; offset x={v['shadow']['offset']['x']} y={v['shadow']['offset']['y']}; color {q(color(v['shadow']['activeOpacity']))}; }}
     background-effect {{ blur true; xray false; }}
 }}

@@ -142,6 +142,7 @@ def main():
         from theme_runtime import ensure
         ensure(args.profile)
         if args.compositor == 'niri':
+            subprocess.run([str(ROOT / 'scripts/monitor'), 'prepare'], check=True)
             wrapper = 'include ' + json.dumps(str(STATE / 'theme/current/niri.kdl')) + '\n'
             with tempfile.NamedTemporaryFile(mode='w', suffix='.kdl') as candidate:
                 candidate.write(wrapper)

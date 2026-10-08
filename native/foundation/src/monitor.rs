@@ -296,18 +296,9 @@ fn config_path(path: &Path) -> Result<String> {
     Ok(path.to_owned())
 }
 
-fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, PathBuf, PathBuf)> {
-    let theme =
-        state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation/theme/current");
-    let colors = theme.join("terminal/kitty/colors.conf");
-    let themes = theme.join("btop");
-    if !colors.is_file() || !themes.join("desktop-foundation.theme").is_file() {
-        return Err(invalid(
-            "The monitor theme is unavailable; deploy the current desktop theme",
-        ));
-    }
+fn shader(paths: &Paths, settings: &Settings, scale: f64) -> Result<String> {
     let pipeline = paths.directory.join("rounding.pipeline");
-    let shaders = if settings.corner_radius == 0 {
+    Ok(if settings.corner_radius == 0 {
         String::new()
     } else {
         if !apps::executable("slangc") {
@@ -333,7 +324,96 @@ fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, Pa
             "custom_shaders {}\n",
             shell_words::quote(&config_path(&pipeline)?)
         )
+    })
+}
+
+fn kitty_environment(root: &Path, command: &mut Command) -> Result<()> {
+    let cache = state::xdg("XDG_CACHE_HOME", ".cache")?.join("desktop-foundation/monitor/kitty");
+    state::private_directory(&cache)?;
+    let compiler = format!(
+        "{} --root {} monitor shader-compiler",
+        shell_words::quote(&config_path(&std::env::current_exe()?)?),
+        shell_words::quote(&config_path(root)?),
+    );
+    command
+        .env("SLANGC", compiler)
+        .env("KITTY_CACHE_DIRECTORY", cache);
+    Ok(())
+}
+
+/// Prepare the shader headlessly at deployment; no panel or sampler is started.
+pub fn prepare(root: &Path) -> Result<()> {
+    if std::env::var_os("XDG_RUNTIME_DIR").is_none() {
+        return Ok(()); // An offline installation can compile on its first opening.
+    }
+    let settings = settings(root)?;
+    if settings.corner_radius == 0 {
+        return Ok(());
+    }
+    let paths = Paths::new()?;
+    // Share toggle's lock order so deployment cannot race a normal panel start.
+    let _request = state::lock(
+        &paths.directory.join("request.lock"),
+        Duration::from_secs(6),
+    )?;
+    if request(&paths, "status")?.is_some() {
+        return Ok(()); // The visible monitor already owns its prepared pipeline.
+    }
+    let _owner = match state::lock(
+        &paths.directory.join("owner.lock"),
+        Duration::from_millis(100),
+    ) {
+        Ok(owner) => owner,
+        Err(crate::Error::Invalid(_)) => return Ok(()), // A direct service start owns it.
+        Err(error) => return Err(error),
     };
+    let scale = if std::env::var_os("NIRI_SOCKET").is_some() {
+        niri("focused-output")?["logical"]["scale"]
+            .as_f64()
+            .filter(|scale| scale.is_finite() && (0.5..=8.0).contains(scale))
+            .unwrap_or(1.0)
+    } else {
+        1.0
+    };
+    shader(&paths, &settings, scale)?;
+    let mut environment = Command::new("kitty");
+    kitty_environment(root, &mut environment)?;
+    let mut args = vec![
+        "env".into(),
+        "-u".into(),
+        "DISPLAY".into(),
+        "-u".into(),
+        "WAYLAND_DISPLAY".into(),
+    ];
+    for (key, value) in environment.get_envs() {
+        if let Some(value) = value {
+            args.push(format!(
+                "{}={}",
+                key.to_string_lossy(),
+                value.to_string_lossy()
+            ));
+        }
+    }
+    args.extend([
+        "kitty".into(), "+runpy".into(),
+        "import sys; from kitty.shaders.slang import parse_pipeline,build_custom_shader_pipeline_glsl; build_custom_shader_pipeline_glsl(parse_pipeline(sys.argv[1]))".into(),
+        config_path(&paths.directory.join("rounding.pipeline"))?,
+    ]);
+    process::checked(&args, None, Duration::from_secs(5), true)?;
+    Ok(())
+}
+
+fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, PathBuf, PathBuf)> {
+    let theme =
+        state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation/theme/current");
+    let colors = theme.join("terminal/kitty/colors.conf");
+    let themes = theme.join("btop");
+    if !colors.is_file() || !themes.join("desktop-foundation.theme").is_file() {
+        return Err(invalid(
+            "The monitor theme is unavailable; deploy the current desktop theme",
+        ));
+    }
+    let shaders = shader(paths, settings, scale)?;
     let kitty = paths.directory.join("kitty.conf");
     state::atomic(
         &kitty,
@@ -536,6 +616,7 @@ impl Motion {
 }
 
 pub fn serve(root: &Path) -> Result<()> {
+    let initializing = Instant::now();
     let cgroup = fs::read_to_string("/proc/self/cgroup")?;
     if std::env::var_os("INVOCATION_ID").is_none()
         || !cgroup.lines().any(|line| {
@@ -585,7 +666,7 @@ pub fn serve(root: &Path) -> Result<()> {
     let spacing = 2.0 * f64::from(settings.padding) * scale;
     let content_size = |outer: u32| (f64::from(outer) - spacing - 1.0).ceil().max(1.0) as u32;
     let hidden = width as i32 + 12;
-    let shown = (width - pane_width) as i32 - 12;
+    let shown = (width - pane_width) as i32;
     let (kitty_config, btop_config, themes) = config(&paths, &settings, scale)?;
     let listener = UnixListener::bind(&paths.control)?;
     fs::set_permissions(&paths.control, fs::Permissions::from_mode(0o600))?;
@@ -605,8 +686,10 @@ pub fn serve(root: &Path) -> Result<()> {
         libc::signal(libc::SIGINT, stop as *const () as libc::sighandler_t);
         libc::signal(libc::SIGHUP, stop as *const () as libc::sighandler_t);
     }
+    let mut kitty = Command::new("kitty");
+    kitty_environment(root, &mut kitty)?;
     let mut panel = OwnedPanel(
-        Command::new("kitty")
+        kitty
             .args([
                 "+kitten",
                 "panel",
@@ -797,6 +880,10 @@ pub fn serve(root: &Path) -> Result<()> {
             if socket(&paths.kitty)? {
                 place(&paths, panel.0.id(), hidden, false)?;
                 ready = true;
+                eprintln!(
+                    "Monitor terminal ready in {} ms",
+                    initializing.elapsed().as_millis()
+                );
                 motion.started = Instant::now();
             } else if Instant::now() >= startup {
                 return Err(invalid(

@@ -9,6 +9,7 @@ pub mod diagnostics;
 pub mod keyring;
 pub mod local_ai;
 pub mod monitor;
+pub mod monitor_shader;
 pub mod packages;
 pub mod preferences;
 pub mod process;
