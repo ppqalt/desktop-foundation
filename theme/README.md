@@ -81,6 +81,20 @@ revisions and `graphite-v1` palettes remain available for rollback.
 | GTK | Native dark preference and nearest supported accent |
 | Spotify | Refresh generated assets; native UI reload or next launch |
 | Brave | Load unpacked, or opt-in approved DevTools refresh |
+| btop | Theme prepared in the bundle; no application, launch or reload |
+
+## btop
+
+New theme revisions include `btop/desktop-foundation.theme`, derived from the same
+semantic colors as the shell and terminal. Background, text, borders, selection
+and graph colors use graphite roles; high temperature and resource usage use the
+error color. Reset renders from the static palette. The file is staged before the
+active pointer changes, so failed generation preserves the working revision.
+
+This adapter prepares colors only. It does not change `~/.config/btop`, launch a
+monitor, signal existing btop processes or add an installer dependency. An older
+rollback revision may have no btop theme. Sidebar hosting remains undecided; see
+[sidebar investigation](../docs/sidebars.md).
 
 ## Brave
 

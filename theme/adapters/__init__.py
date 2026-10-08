@@ -16,6 +16,7 @@ MODES = {
     'gtk': {'mode': 'RELOADABLE', 'reload': 'supported native accent-color enum; dark neutral surfaces unchanged'},
     'spotify': {'mode': 'NEXT-LAUNCH', 'reload': 'spicetify refresh --no-restart; native UI reload optional'},
     'brave': {'mode': 'RELOADABLE', 'reload': 'opt-in approved CDP Extensions.loadUnpacked; native manual import fallback; no profile edits'},
+    'btop': {'mode': 'NEXT-LAUNCH', 'reload': 'prepared theme only; no automatic application or reload'},
 }
 
 
@@ -75,4 +76,7 @@ def render(root, target, p, profile, reset=False):
     from spotify_theme import colors
     (target/'spotify').mkdir()
     (target/'spotify/color.ini').write_text(colors(p))
+    from .btop import colors as btop_colors
+    (target/'btop').mkdir()
+    (target/'btop/desktop-foundation.theme').write_text(btop_colors(p))
     (target/'adapters.json').write_text(json.dumps(MODES,indent=2)+'\n')

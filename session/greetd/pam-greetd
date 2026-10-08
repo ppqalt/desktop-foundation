@@ -6,4 +6,5 @@ auth       include      system-local-login
 auth       optional     pam_oo7.so
 account    include      system-local-login
 session    include      system-local-login
+session    [success=ok ignore=ignore default=1] pam_exec.so quiet type=open_session /usr/local/libexec/desktop-foundation-oo7-ready
 session    optional     pam_oo7.so
