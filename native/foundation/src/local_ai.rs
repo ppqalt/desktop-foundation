@@ -13,6 +13,7 @@ use std::{
 };
 
 const MAX_CONFIG: u64 = 64 * 1024;
+const MAX_MODEL_INVENTORY: u64 = 1024 * 1024;
 const QUERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Default, Deserialize)]
@@ -190,7 +191,7 @@ pub fn plan(root: &Path) -> Result<Value> {
         "url": config.browser.url,
         "ollamaUrl": config.ollama.url,
         "startupTimeoutSeconds": config.timeout.as_secs(),
-        "tools": { "docker": apps::executable("docker"), "systemctl": apps::executable("systemctl") },
+        "tools": { "docker": apps::executable("docker"), "systemctl": apps::executable("systemctl"), "curl": apps::executable("curl") },
         "browserCommand": apps::command(root, "browser").ok(),
         "containerAction": "start-existing",
     }))
@@ -404,13 +405,76 @@ fn wait_ready(config: &Config) -> Result<()> {
     }
 }
 
+#[derive(Deserialize)]
+struct ModelInventory {
+    models: Vec<ModelIdentity>,
+}
+
+#[derive(Deserialize)]
+struct ModelIdentity {
+    name: String,
+}
+
+fn require_installed_model(endpoint: &Endpoint) -> Result<()> {
+    let mut command = vec![
+        "curl".into(),
+        "--disable".into(),
+        "--silent".into(),
+        "--show-error".into(),
+        "--fail".into(),
+        "--noproxy".into(),
+        "*".into(),
+        "--proto".into(),
+        "=http".into(),
+        "--connect-timeout".into(),
+        "2".into(),
+        "--max-time".into(),
+        "5".into(),
+        "--max-filesize".into(),
+        MAX_MODEL_INVENTORY.to_string(),
+    ];
+    if let Some(port) = endpoint.authority.strip_prefix("localhost:") {
+        // Avoid DNS and proxy configuration: both candidates stay loopback.
+        command.extend([
+            "--resolve".into(),
+            format!("localhost:{port}:127.0.0.1,[::1]"),
+        ]);
+    }
+    command.extend(["--url".into(), format!("{}api/tags", endpoint.url)]);
+    let output = process::checked_capture(
+        &command,
+        QUERY_TIMEOUT + Duration::from_secs(1),
+        MAX_MODEL_INVENTORY,
+    )
+    .map_err(|_| {
+        invalid("Cannot read the active Ollama model inventory; check Ollama and install curl")
+    })?;
+    let inventory: ModelInventory = serde_json::from_slice(&output.stdout)
+        .map_err(|_| invalid("The active Ollama service returned an invalid model inventory"))?;
+    if inventory.models.is_empty() {
+        return Err(invalid(
+            "No installed models in this Ollama service; import or pull a model before opening Odysseus. A model in ~/.ollama/models may belong to a different Ollama instance.",
+        ));
+    }
+    if inventory
+        .models
+        .iter()
+        .any(|model| model.name.trim().is_empty())
+    {
+        return Err(invalid(
+            "The active Ollama service returned an invalid model identity",
+        ));
+    }
+    Ok(())
+}
+
 fn start_inner(root: &Path) -> Result<()> {
     let config = configuration(root)?;
     let mut browser = apps::command(root, "browser")?;
     compose(&config, &[])?;
-    if !apps::executable("docker") || !apps::executable("systemctl") {
+    if !apps::executable("docker") || !apps::executable("systemctl") || !apps::executable("curl") {
         return Err(invalid(
-            "Install Docker, Docker Compose and Ollama before starting local AI",
+            "Install Docker, Docker Compose, Ollama and curl before starting local AI",
         ));
     }
     let runtime = state::xdg("XDG_RUNTIME_DIR", ".cache")?;
@@ -440,6 +504,7 @@ fn start_inner(root: &Path) -> Result<()> {
         }
     }
     wait_ready(&config)?;
+    require_installed_model(&config.ollama)?;
     drop(_lock);
     browser.extend(["--new-window".into(), config.browser.url]);
     process::replace(&browser)

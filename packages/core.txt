@@ -8,6 +8,7 @@ glib2
 gsettings-desktop-schemas
 adw-gtk-theme
 xdg-utils
+curl
 qt6-svg
 quickshell
 kitty
