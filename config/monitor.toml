@@ -1,5 +1,8 @@
 # The monitor runs only while its sidebar is open.
 width = 720
 font_size = 10.0
-animation_ms = 180
+animation_ms = 240
+closing_animation_ms = 180
+corner_radius = 14
+padding = 12
 update_ms = 2000

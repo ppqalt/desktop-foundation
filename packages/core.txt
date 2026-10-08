@@ -12,6 +12,7 @@ curl
 qt6-svg
 quickshell
 kitty
+shader-slang
 btop
 fish
 fastfetch

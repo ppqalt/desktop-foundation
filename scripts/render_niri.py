@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import subprocess
+import tomllib
 
 
 def data(path):
@@ -23,6 +24,10 @@ def render(root, profile, semantic=None):
         v['focus']['activeBorder'] = semantic['windowActive']
         v['focus']['inactiveBorder'] = semantic['windowInactive']
     keyboard = data(root / 'config/input.lua')
+    monitor = tomllib.loads((root / 'config/monitor.toml').read_text())
+    monitor_radius = monitor.get('corner_radius', 14)
+    if type(monitor_radius) is not int or not 0 <= monitor_radius <= 32:
+        raise ValueError('Monitor corner radius must be an integer from 0 to 32')
     color = lambda opacity: v['shadow']['color'] + f'{round(opacity * 255):02x}'
     q = json.dumps
     text = f'''// Generated from repository-managed shared visual/input intent.
@@ -60,7 +65,12 @@ window-rule {{
 window-rule {{ match app-id="^kitty$"; opacity 1.0; }}
 // Shortcut menus soften the applications behind them instead of bypassing them.
 layer-rule {{ match namespace="^desktop-foundation-(launcher|clipboard|power|bluetooth)$"; background-effect {{ blur true; xray false; }} }}
-layer-rule {{ match namespace="^desktop-foundation:monitor$"; background-effect {{ blur true; xray false; }} }}
+layer-rule {{
+    match namespace="^desktop-foundation:monitor$"
+    geometry-corner-radius {monitor_radius}
+    shadow {{ on; softness {v['shadow']['range']}; spread 0; offset x={v['shadow']['offset']['x']} y={v['shadow']['offset']['y']}; color {q(color(v['shadow']['activeOpacity']))}; }}
+    background-effect {{ blur true; xray false; }}
+}}
 layer-rule {{
     match namespace="^desktop-foundation-overview-backdrop$"
     place-within-backdrop true

@@ -1,5 +1,5 @@
 //! An on-demand, real Kitty layer-shell panel running btop. No hidden sampler.
-use crate::{Result, invalid, process, state};
+use crate::{Result, apps, invalid, process, state};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -20,7 +20,7 @@ use std::{
 };
 
 const UNIT: &str = "desktop-foundation-monitor.service";
-const FRAME: Duration = Duration::from_millis(16);
+const FRAME: Duration = Duration::from_millis(8);
 const RPC_TIMEOUT: Duration = Duration::from_millis(250);
 static STOP: AtomicBool = AtomicBool::new(false);
 
@@ -34,7 +34,25 @@ struct Settings {
     width: u32,
     font_size: f32,
     animation_ms: u64,
+    #[serde(default = "closing_animation_ms")]
+    closing_animation_ms: u64,
+    #[serde(default = "corner_radius")]
+    corner_radius: u32,
+    #[serde(default = "padding")]
+    padding: u32,
     update_ms: u32,
+}
+
+fn closing_animation_ms() -> u64 {
+    180
+}
+
+fn corner_radius() -> u32 {
+    14
+}
+
+fn padding() -> u32 {
+    12
 }
 
 struct Paths {
@@ -242,10 +260,13 @@ fn settings(root: &Path) -> Result<Settings> {
         || !settings.font_size.is_finite()
         || !(8.0..=18.0).contains(&settings.font_size)
         || !(80..=400).contains(&settings.animation_ms)
+        || !(80..=400).contains(&settings.closing_animation_ms)
+        || settings.corner_radius > 32
+        || settings.padding > 24
         || !(1000..=10000).contains(&settings.update_ms)
     {
         return Err(invalid(
-            "Monitor size, font, animation or update interval is out of range",
+            "Monitor size, font, corners, padding, animation or update interval is out of range",
         ));
     }
     Ok(settings)
@@ -275,7 +296,7 @@ fn config_path(path: &Path) -> Result<String> {
     Ok(path.to_owned())
 }
 
-fn config(paths: &Paths, settings: &Settings) -> Result<(PathBuf, PathBuf, PathBuf)> {
+fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let theme =
         state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation/theme/current");
     let colors = theme.join("terminal/kitty/colors.conf");
@@ -285,12 +306,42 @@ fn config(paths: &Paths, settings: &Settings) -> Result<(PathBuf, PathBuf, PathB
             "The monitor theme is unavailable; deploy the current desktop theme",
         ));
     }
+    let pipeline = paths.directory.join("rounding.pipeline");
+    let shaders = if settings.corner_radius == 0 {
+        String::new()
+    } else {
+        if !apps::executable("slangc") {
+            return Err(invalid(
+                "Rounded monitor corners require shader-slang; install it through scripts/bootstrap",
+            ));
+        }
+        state::atomic(
+            &paths.directory.join("monitor-rounding.slang"),
+            include_bytes!("../../../terminal/monitor/monitor-rounding.slang"),
+            0o600,
+        )?;
+        state::atomic(
+            &pipeline,
+            format!(
+                "startgroup\n    animation_step 0\n    var float RADIUS = {}\n    shaders monitor-rounding\nendgroup\n",
+                f64::from(settings.corner_radius) * scale,
+            ).as_bytes(),
+            0o600,
+        )?;
+        // Unlike include, custom_shaders uses shell-style tokenization.
+        format!(
+            "custom_shaders {}\n",
+            shell_words::quote(&config_path(&pipeline)?)
+        )
+    };
     let kitty = paths.directory.join("kitty.conf");
     state::atomic(
         &kitty,
         format!(
-            "include {}\nlinux_display_server wayland\nfont_family GoogleSansCode Nerd Font Mono\nfont_size {}\nbackground_opacity 0.90\nwindow_padding_width 0\nwindow_margin_width 0\nscrollback_lines 0\ncursor_blink_interval 0\nconfirm_os_window_close -1\nclose_on_child_death yes\nclear_all_shortcuts yes\nallow_remote_control password\nremote_control_password \"\" resize-os-window close-window load-config signal-child\n",
+            "include {}\nlinux_display_server wayland\nfont_family GoogleSansCode Nerd Font Mono\nfont_size {}\nbackground_opacity 0.90\nwindow_padding_width {}\nwindow_margin_width 0\nwindow_border_width 0px\nscrollback_lines 0\ncursor_blink_interval 0\nconfirm_os_window_close -1\nclose_on_child_death yes\nclear_all_shortcuts yes\nallow_remote_control password\nremote_control_password \"\" resize-os-window close-window load-config signal-child\n{}",
             config_path(&colors)?, settings.font_size,
+            // Kitty padding uses points; Wayland uses 96 DPI at scale one.
+            f64::from(settings.padding) * 0.75, shaders,
         ).as_bytes(),
         0o600,
     )?;
@@ -391,24 +442,86 @@ fn place(paths: &Paths, pid: u32, x: i32, focus: bool) -> Result<()> {
 
 struct Motion {
     x: f64,
+    velocity: f64,
     from: f64,
+    initial_velocity: f64,
     to: f64,
+    shown: f64,
+    hidden: f64,
     started: Instant,
     duration: Duration,
+    opening_duration: Duration,
+    closing_duration: Duration,
     opening: bool,
 }
 impl Motion {
     fn sample(&mut self) -> bool {
-        let fraction =
-            (self.started.elapsed().as_secs_f64() / self.duration.as_secs_f64()).min(1.0);
-        let eased = 1.0 - (1.0 - fraction).powi(3);
-        self.x = self.from + (self.to - self.from) * eased;
-        fraction >= 1.0
+        let seconds = self.duration.as_secs_f64();
+        let t = (self.started.elapsed().as_secs_f64() / seconds).min(1.0);
+        if t >= 1.0 {
+            self.x = self.to;
+            self.velocity = 0.0;
+            return true;
+        }
+        // Cubic Hermite interpolation starts from the current position and
+        // velocity, and arrives at rest. Reversals brake smoothly rather than
+        // restarting an ease-out curve with a discontinuous velocity.
+        let distance = self.to - self.from;
+        let x = self.from
+            + distance * (3.0 * t * t - 2.0 * t * t * t)
+            + self.initial_velocity * seconds * (t - 2.0 * t * t + t * t * t);
+        self.x = x.clamp(self.shown, self.hidden);
+        self.velocity = if self.x == x {
+            distance * (6.0 * t - 6.0 * t * t) / seconds
+                + self.initial_velocity * (1.0 - 4.0 * t + 3.0 * t * t)
+        } else {
+            // Repeated reversals can carry momentum toward an output edge.
+            // Keep the entire motion inside its two endpoint positions.
+            0.0
+        };
+        false
     }
     fn target(&mut self, opening: bool, shown: i32, hidden: i32) {
         self.sample();
         self.from = self.x;
+        self.initial_velocity = self.velocity;
         self.to = f64::from(if opening { shown } else { hidden });
+        self.duration = if opening {
+            self.opening_duration
+        } else {
+            self.closing_duration
+        };
+        let distance = self.to - self.from;
+        let speed = self.initial_velocity.abs();
+        if speed > 0.0 {
+            let room = if self.initial_velocity > 0.0 {
+                self.hidden - self.from
+            } else {
+                self.from - self.shown
+            };
+            if room <= 0.0 || distance == 0.0 {
+                // An outward velocity at an endpoint cannot be retained.
+                self.initial_velocity = 0.0;
+                self.velocity = 0.0;
+            } else {
+                let maximum_seconds = if self.initial_velocity * distance < 0.0 {
+                    // The wrong-way Hermite term peaks at 4/27 * speed * T.
+                    27.0 / 4.0 * room / speed
+                } else {
+                    // A normalized initial slope at most 3 stays monotonic.
+                    3.0 * distance.abs() / speed
+                };
+                let duration =
+                    Duration::from_secs_f64(self.duration.as_secs_f64().min(maximum_seconds));
+                if duration.is_zero() {
+                    // Sub-nanosecond braking cannot be represented by Instant.
+                    self.initial_velocity = 0.0;
+                    self.velocity = 0.0;
+                } else {
+                    self.duration = duration;
+                }
+            }
+        }
         self.started = Instant::now();
         self.opening = opening;
     }
@@ -462,9 +575,18 @@ pub fn serve(root: &Path) -> Result<()> {
         .filter(|height| (480..=32768).contains(height))
         .ok_or_else(|| invalid("The output is too short for the monitor"))? as u32;
     let pane_width = settings.width.min(width - 26);
+    let scale = geometry
+        .get("scale")
+        .and_then(Value::as_f64)
+        .filter(|scale| scale.is_finite() && (0.5..=8.0).contains(scale))
+        .ok_or_else(|| invalid("The monitor output has an invalid scale"))?;
+    // Kitty adds scaled edge spacing and one sizing pixel to pixel requests.
+    // Keep the outer surface full-height and the TUI clear of rounded corners.
+    let spacing = 2.0 * f64::from(settings.padding) * scale;
+    let content_size = |outer: u32| (f64::from(outer) - spacing - 1.0).ceil().max(1.0) as u32;
     let hidden = width as i32 + 12;
-    let shown = (width - pane_width) as i32 - 13;
-    let (kitty_config, btop_config, themes) = config(&paths, &settings)?;
+    let shown = (width - pane_width) as i32 - 12;
+    let (kitty_config, btop_config, themes) = config(&paths, &settings, scale)?;
     let listener = UnixListener::bind(&paths.control)?;
     fs::set_permissions(&paths.control, fs::Permissions::from_mode(0o600))?;
     listener.set_nonblocking(true)?;
@@ -494,9 +616,9 @@ pub fn serve(root: &Path) -> Result<()> {
                 "--focus-policy=not-allowed",
                 "--app-id=desktop-foundation:monitor",
             ])
-            .arg(format!("--columns={pane_width}px"))
-            .arg(format!("--lines={}px", height - 24))
-            .arg("--margin-top=12")
+            .arg(format!("--columns={}px", content_size(pane_width)))
+            .arg(format!("--lines={}px", content_size(height)))
+            .arg("--margin-top=0")
             .arg(format!("--margin-left={hidden}"))
             .arg(format!("--output-name={name}"))
             .arg(format!("--listen-on=unix:{}", paths.kitty.display()))
@@ -525,10 +647,16 @@ pub fn serve(root: &Path) -> Result<()> {
     let pidfd = unsafe { OwnedFd::from_raw_fd(fd as i32) };
     let mut motion = Motion {
         x: f64::from(hidden),
+        velocity: 0.0,
         from: f64::from(hidden),
+        initial_velocity: 0.0,
         to: f64::from(shown),
+        shown: f64::from(shown),
+        hidden: f64::from(hidden),
         started: Instant::now(),
         duration: Duration::from_millis(settings.animation_ms),
+        opening_duration: Duration::from_millis(settings.animation_ms),
+        closing_duration: Duration::from_millis(settings.closing_animation_ms),
         opening: true,
     };
     let startup = Instant::now() + Duration::from_secs(5);
@@ -635,6 +763,7 @@ pub fn serve(root: &Path) -> Result<()> {
                         settled = false;
                         if ready {
                             place(&paths, panel.0.id(), motion.x.round() as i32, false)?;
+                            last_x = motion.x.round() as i32;
                         }
                         true
                     }
