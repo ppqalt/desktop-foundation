@@ -6,9 +6,9 @@ the core desktop. The application manifest is `apps/personal.json`.
 ## Brave Origin Nightly
 
 The installer selects Brave Origin Nightly as the browser role. Packages come
-from the configured repository or its reviewed AUR recipe. Load the generated
-theme folder through the browser's **Load unpacked** control. See
-[theme controls](../theme/README.md).
+from the configured repository or its reviewed AUR recipe. The full installer
+adds the root-owned color policy and native live refresh. See
+[managed browser colors](browser-policy.md) and [theme controls](../theme/README.md).
 
 `scripts/post-install brave` applies the bundled browser settings through the
 browser configuration helper.

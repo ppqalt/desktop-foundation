@@ -73,7 +73,7 @@ def plan(args):
             print(f"personal: {app['package']}: " + ('adopt installed package' if installed(app['package']) else 'install from configured signed repository (Brave/Vesktop may use their reviewed AUR recipe)'))
         print('Spotify: checksum-pinned tools/Marketplace; first login, wait a minute, normal quit/reopen')
         print('Steam: native client from the configured multilib repository')
-        print('Brave: stable generated theme folder; native Load unpacked required; debugging remains OFF')
+        print('Brave: root-owned managed theme policy with native live refresh; unpacked theme fallback')
     print('Firmware: ' + ', '.join(manifest('firmware')) + ' (repository preferred, reviewed AUR fallback)')
     print('Deploy backups: existing Kitty/Fish/Fastfetch directories and Niri config are retained in the ownership journal')
     print('Roles: ' + ', '.join(f"{name}={role['desktop']}" for name, role in roles(args.personal).items()))
@@ -151,9 +151,11 @@ def personal(args):
         validate_role('vesktop', json.loads((ROOT / 'apps/personal.json').read_text())['vesktop'])
         script('spotify-setup', 'check')
     script('applications', 'apply', '--personal')
+    command('sudo', ROOT / 'scripts/browser-policy-setup', 'install')
+    script('theme-apply')
     # Browser preference seeds remain explicit post-install functionality. Normal
     # convergence never reads/writes a real profile, even to detect initialization.
-    print('Brave theme: load theme/brave through the browser’s Load unpacked control.')
+    print('Brave theme: native managed color policy with automatic refresh.')
     print('Native Steam and Vesktop configured.')
 
 

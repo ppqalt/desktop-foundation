@@ -84,6 +84,8 @@ def stage(p,image,mode='fill',reset=False,selected_profile=None):
 
 
 def reload(wallpaper=False):
+    from brave_policy import refresh as brave_refresh
+    policy_applied = brave_refresh(json.loads((state()/'current/semantic.json').read_text()))
     if os.environ.get('NIRI_SOCKET'):
         if wallpaper:
             # Explicit user transactions may occur faster than the automatic
@@ -94,6 +96,7 @@ def reload(wallpaper=False):
         subprocess.run(['niri','msg','action','load-config-file'],check=True)
         result=subprocess.run([str(ROOT/'scripts/shell-ipc'),'reloadTheme'],capture_output=True,text=True)
         if result.returncode:raise RuntimeError('Shell theme reload failed: '+result.stderr.strip())
+        subprocess.run([str(ROOT/'scripts/monitor'), 'refresh'], check=True)
     if shutil.which('makoctl'):
         result=subprocess.run(['makoctl','reload'],capture_output=True)
         if result.returncode:print('Mako absent; rendered colors apply on next launch.')
@@ -106,7 +109,9 @@ def reload(wallpaper=False):
     gtk_refresh()
     from spotify_theme import refresh as spotify_refresh
     spotify_refresh()
-    if (state()/'brave-devtools.json').exists():
+    if policy_applied:
+        pass
+    elif (state()/'brave-devtools.json').exists():
         subprocess.run([str(ROOT/'scripts/brave-theme-reload')],check=True)
     else:
         print('Brave theme prepared: '+str(state()/'brave')+' (native refresh required; DevTools adapter not opted in).')
@@ -178,6 +183,8 @@ def apply(p,reset=False,image=None,wallpaper=False,mode=None):
     digest=file_hash(image)
     desired_mode=mode or c.get('mode','fill')
     if old and {k:v for k,v in json.loads((old/'semantic.json').read_text()).items() if k!='source'}=={k:v for k,v in p.items() if k!='source'} and json.loads((old/'metadata.json').read_text())['wallpaperHash']==digest and desired_mode==c['mode']:
+        from brave_policy import refresh as brave_refresh
+        brave_refresh(p)
         print('Already active; no publication or reload needed.');return
     target=stage(p,image,desired_mode,reset)
     publish(target,wallpaper)

@@ -13,6 +13,12 @@ def definitions(root, state):
     common = ('[Unit]\nPartOf=desktop-foundation-session.target graphical-session.target\n'
               'ConditionEnvironment=WAYLAND_DISPLAY\nStartLimitIntervalSec=60\nStartLimitBurst=3\n')
     units = {
+        'desktop-foundation-monitor.service': (
+            '[Unit]\nDescription=Desktop Foundation btop sidebar\n'
+            'PartOf=niri.service graphical-session.target\nAfter=niri.service\n'
+            'ConditionEnvironment=NIRI_SOCKET\nStartLimitIntervalSec=0\n'
+            '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/monitor') + ' serve\n'
+            'Restart=no\nKillMode=control-group\nSendSIGHUP=yes\nTimeoutStopSec=2\nUMask=0077\n'),
         'desktop-foundation-session.target': (
             '[Unit]\nDescription=Desktop foundation interactive session\n'
             'PartOf=graphical-session.target\n'
@@ -48,7 +54,7 @@ def targets(root, config, state, data, write=True, niri=True):
         generated.mkdir(parents=True, exist_ok=True)
     result = [(data / 'wallpapers/wallhaven-135w7w.png', root / 'wallpapers/wallhaven-135w7w.png')] if niri else []
     for unit, content in definitions(root, state).items():
-        if not niri and unit in {'desktop-foundation-wallpaper.service', 'desktop-foundation-clipboard-persist.service'}:
+        if not niri and unit in {'desktop-foundation-wallpaper.service', 'desktop-foundation-clipboard-persist.service', 'desktop-foundation-monitor.service'}:
             continue
         source = generated / unit
         if write and (not source.exists() or source.read_text() != content):

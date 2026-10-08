@@ -33,6 +33,7 @@ manager, or `--no-packages` when dependencies are already installed.
 - Session menu with suspend, logout, reboot and power off.
 - Wallpaper-derived accents across the shell, terminal, notifications and apps.
 - A toggleable corner clock and volume readout with instant bar updates.
+- A sliding btop sidebar with a Rust lifecycle and wallpaper-derived colors.
 - Scrolling columns, automatic single-column centering and manual centering.
 - Kitty, Fish and Fastfetch with Google Sans fonts and cached package counts.
 - Matrix login screen, AppArmor setup and boot configuration helpers.
@@ -48,6 +49,7 @@ fade in/out; the bar and percentage update immediately.
 | Super+Space | Application launcher |
 | Super+V | Clipboard history |
 | Super+B | Bluetooth |
+| Super+X | btop sidebar |
 | Super+Shift+Q | Session menu |
 | Super+Tab | Overview |
 | Super+Shift+C | Corner clock |

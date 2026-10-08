@@ -80,8 +80,8 @@ revisions and `graphite-v1` palettes remain available for rollback.
 | Mako | Native reload, or next launch |
 | GTK | Native dark preference and nearest supported accent |
 | Spotify | Refresh generated assets; native UI reload or next launch |
-| Brave | Load unpacked, or opt-in approved DevTools refresh |
-| btop | Theme prepared in the bundle; no application, launch or reload |
+| Brave | Managed BrowserThemeColor policy and native live refresh; unpacked fallback |
+| btop sidebar | Owned panel reload and native btop theme refresh while open |
 
 ## btop
 
@@ -91,12 +91,21 @@ and graph colors use graphite roles; high temperature and resource usage use the
 error color. Reset renders from the static palette. The file is staged before the
 active pointer changes, so failed generation preserves the working revision.
 
-This adapter prepares colors only. It does not change `~/.config/btop`, launch a
-monitor, signal existing btop processes or add an installer dependency. An older
-rollback revision may have no btop theme. Sidebar hosting remains undecided; see
-[sidebar investigation](../docs/sidebars.md).
+Super+X opens the [btop sidebar](../docs/monitor.md). Its isolated configuration
+uses this theme; normal `~/.config/btop` settings are preserved. Theme updates
+refresh only the owned sidebar process. The [sidebar comparison](../docs/sidebars.md)
+describes the host and animation choices.
 
 ## Brave
+
+The full installer uses a root-owned `BrowserThemeColor` policy and Brave Origin
+Nightly's native policy refresh. It updates a single validated color while
+preserving active browser preferences and the previously selected extension
+theme. See [managed browser colors](../docs/browser-policy.md) for setup, scope,
+verification and restoration.
+
+Without the policy writer, use the unpacked theme fallback below. Policy mode
+does not use the DevTools adapter.
 
 Open `brave://extensions`, enable Developer mode and use **Load unpacked** with:
 

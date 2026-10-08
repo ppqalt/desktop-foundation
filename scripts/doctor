@@ -260,6 +260,12 @@ def main():
         code, matrix = run('tuigreet', '--background', 'matrix', '--dump-config')
         report(code == 0 and 'kind = "matrix"' in matrix, 'Matrix-capable tuigreet')
     if args.personal:
+        code, browser_policy = run(str(root / 'scripts/foundation'), 'browser-theme', 'status')
+        try:
+            report(code == 0 and json.loads(browser_policy).get('enabled', False),
+                   'Brave root-owned managed theme policy adapter; see docs/browser-policy.md')
+        except (ValueError, TypeError):
+            report(False, 'Brave theme policy state unavailable')
         for binary in ['brave-origin-nightly']:
             report(bool(shutil.which(binary)), 'Personal executable ' + binary)
         for name in ['spotify', 'spicetify']:

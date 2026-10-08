@@ -14,6 +14,10 @@ name = "foundation-oo7-ready"
 path = "src/bin/oo7-ready.rs"
 
 [[bin]]
+name = "foundation-browser-policy"
+path = "src/bin/browser-policy.rs"
+
+[[bin]]
 name = "foundation-measure"
 path = "src/bin/measure.rs"
 required-features = ["bench"]

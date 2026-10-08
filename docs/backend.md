@@ -32,6 +32,8 @@ shell call METHOD [ARGS...]
 local-ai start|status|plan
 build-info
 doctor --json
+monitor toggle|close|status|refresh
+browser-theme status|apply COLOR|remove
 ```
 
 Clipboard `store` reads bytes from stdin. `theme derive` reads material-palette

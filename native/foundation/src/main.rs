@@ -1,6 +1,7 @@
 use desktop_foundationctl::{
-    Result, actions, apps, bluetooth, cache, clipboard, clipboard_transport, diagnostics, invalid,
-    local_ai, packages, preferences, process, screenshot, session, shell, theme, volume,
+    Result, actions, apps, bluetooth, browser_policy, cache, clipboard, clipboard_transport,
+    diagnostics, invalid, local_ai, monitor, packages, preferences, process, screenshot, session,
+    shell, theme, volume,
 };
 use std::{
     io::{self, Read},
@@ -39,11 +40,29 @@ fn run() -> Result<()> {
     };
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  build-info\n  doctor --json"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  build-info\n  doctor --json\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
         );
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("monitor") if args.len() == 2 => match args[1].as_str() {
+            "toggle" => monitor::toggle(&root),
+            "close" => monitor::close(&root),
+            "serve" => monitor::serve(&root),
+            "status" => print_json(&monitor::status(&root)?),
+            "refresh" => monitor::refresh(&root),
+            _ => Err(invalid("Expected monitor toggle, close, status or refresh")),
+        },
+        Some("browser-theme") => match args.as_slice() {
+            [_, action] if action == "status" => print_json(&browser_policy::status()?),
+            [_, action, color] if action == "apply" => {
+                print_json(&browser_policy::refresh(&root, color)?)
+            }
+            [_, action] if action == "remove" => print_json(&browser_policy::remove(&root)?),
+            _ => Err(invalid(
+                "Expected browser-theme status, apply COLOR or remove",
+            )),
+        },
         Some("build-info") if args.len() == 1 => print_json(&diagnostics::build_info()),
         Some("doctor") if args.as_slice() == ["doctor", "--json"] => {
             print_json(&diagnostics::report(&root)?)

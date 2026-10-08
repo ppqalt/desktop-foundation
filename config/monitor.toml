@@ -1,0 +1,5 @@
+# The monitor runs only while its sidebar is open.
+width = 720
+font_size = 10.0
+animation_ms = 180
+update_ms = 2000

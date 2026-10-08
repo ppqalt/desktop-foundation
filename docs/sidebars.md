@@ -1,8 +1,9 @@
-# Sidebar groundwork
+# Sidebar architecture
 
 Desktop Foundation's left control center will use QML for presentation and Rust
-for behavior. The right monitor host remains undecided. Neither sidebar nor a
-new keybinding is installed by this groundwork.
+for behavior. The right monitor uses a Kitty layer-shell panel running genuine
+btop, controlled by the Rust backend. Super+X toggles it. The left control center
+remains groundwork.
 
 The existing shell supplies the semantic palette, focused-output selection,
 layer-shell surfaces, lazy loading, keyboard navigation and finite Rust actions.
@@ -19,16 +20,15 @@ benchmark results.
 | Host | Integration and maintenance | Animation | Resource cost |
 | --- | --- | --- | --- |
 | Ordinary floating Kitty + btop | App-id rules and Niri IPC position a real terminal. It belongs to a workspace; hidden-workspace and focus handling add complexity. | Niri animates window opening/closing and movement. Position clamping prevents simply sliding it fully offscreen to hide it. | Kitty and btop run while open; keeping them hidden does not stop btop sampling. |
-| Kitty's built-in layer-shell panel + btop | Supported right-edge panel, dedicated namespace, overlay layer and native visibility toggle. No additional dependency on this machine. | Show/hide immediately maps/unmaps the surface. Neither Kitty's panel options nor Niri 26.04's layer lifecycle provides a fluent edge slide. | Same terminal and monitor processes. Stop or suspend sampling deliberately when hidden. |
+| Kitty's built-in layer-shell panel + btop | Selected host; dedicated namespace, overlay layer and isolated configuration. | Built-in show/hide is immediate. Desktop Foundation slides the real fixed viewport using supported panel-position RPC. | Kitty and btop exist only while the sidebar is open; the owned service cleans up both on close. |
 | Native QML monitor + Rust collectors | Reuses the shell and semantic theme, but owns monitoring code. It is a custom monitor, not btop. | QML animates content translation and opacity in one fixed surface, matching the control center. | No second terminal renderer; collectors can exist only while visible. |
 | btop rendered inside QML | Requires a PTY plus a terminal renderer covering ANSI, truecolor, alternate screen, input and resize. No such component is present. | QML can animate the host item once a renderer exists. | Adds a dependency and terminal integration maintenance. Foreign Wayland Kitty cannot simply be embedded as a QML item. |
 
-If actual btop is required, the built-in Kitty panel is the smallest supported
-host and is preferable to a workspace-bound floating window. Its instant
-visibility change does not satisfy the requested slide animation. If matching,
-fluent drawers take priority, a native QML monitor with Rust collectors is the
-cleaner fit. Embedding actual btop needs an explicit decision about adding a
-terminal renderer. No host has been selected.
+The selected Kitty host keeps btop's native behavior. Its panel remains anchored
+to the output with a fixed terminal viewport; Rust animates its positive left
+margin from beyond the right edge to the final inset. This uses Kitty's public
+`resize-os-window --action=os-panel` interface and Niri's layer placement, rather
+than window hiding or terminal reflow. See [monitor behavior](monitor.md).
 
 btop needs an interactive terminal and has no supported JSON/export API. Parsing
 its screen would not create a stable Rust monitoring backend. Its native
@@ -62,9 +62,9 @@ a particular monitoring engine:
 - Reuse semantic palette roles and transactional theme revisions. A failed
   adapter render must leave the last complete revision active.
 
-Only the pure btop color renderer is implemented now. New theme bundles contain
-`btop/desktop-foundation.theme`; no btop configuration or process is changed.
-The same file can support either terminal host without choosing one in advance.
+Theme bundles contain `btop/desktop-foundation.theme`. The sidebar uses an isolated
+btop configuration and updates the owned process when colors change. Its Rust
+actor has no idle timer while fully open and exits with its children on close.
 
 Sources: [Kitty panels](https://sw.kovidgoyal.net/kitty/kittens/panel/),
 [Kitty Wayland visibility](https://github.com/kovidgoyal/kitty/blob/v0.49.2/glfw/wl_window.c#L1688),
