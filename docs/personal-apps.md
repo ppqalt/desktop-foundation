@@ -1,7 +1,8 @@
 # Optional applications
 
 `scripts/install-all` adds Spotify, Spicetify, Marketplace, ChatGPT, Steam and Vesktop to
-the core desktop. The application manifest is `apps/personal.json`.
+the core desktop. The application manifest is `apps/personal.json`; add-ons are
+selected in `config/app-mods.json` through [the app-modification installer](app-modifications.md).
 
 ## Brave Origin Nightly
 
@@ -30,8 +31,8 @@ running the full installer.
 
 Use `scripts/install-all --check` to inspect the application layer.
 
-For Geometry Dash, the optional [Geode installer](../apps/geode/README.md) adds
-the mod loader to an existing Steam installation: `scripts/geode-setup install`.
+The configured [Geode add-on](../apps/geode/README.md) installs when Geometry Dash
+is ready in Steam. Use `scripts/install-app-mods install geode` afterward if pending.
 
 ## Vesktop
 

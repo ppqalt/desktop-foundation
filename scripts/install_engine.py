@@ -29,6 +29,19 @@ def script(name, *args):
     command(ROOT / 'scripts' / name, *args)
 
 
+def app_modifications():
+    enabled = {}
+    override = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'desktop-foundation/app-mods.json'
+    for path in [ROOT / 'config/app-mods.json', override]:
+        if path == override and not path.exists():
+            continue
+        for name, entry in json.loads(path.read_text()).items():
+            if name not in {'spicetify', 'geode'} or set(entry) != {'enabled'} or type(entry['enabled']) is not bool:
+                raise RuntimeError('Invalid application modification configuration')
+            enabled[name] = entry['enabled']
+    return [name for name in ['spicetify', 'geode'] if enabled.get(name, False)]
+
+
 def parse(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     choice = p.add_mutually_exclusive_group()
@@ -71,9 +84,13 @@ def plan(args):
         browser = roles(True)['browser']; chatgpt = json.loads((ROOT / 'apps/personal.json').read_text())['chatgpt']
         for app in [browser, chatgpt, *[json.loads((ROOT / 'apps/personal.json').read_text())[name] for name in ['steam', 'vesktop']]]:
             print(f"personal: {app['package']}: " + ('adopt installed package' if installed(app['package']) else 'install from configured signed repository (Brave/Vesktop may use their reviewed AUR recipe)'))
-        print('Spotify: checksum-pinned tools/Marketplace; first login, wait a minute, normal quit/reopen')
+        if 'spicetify' in app_modifications():
+            print('Spotify: checksum-pinned tools/Marketplace; first login, wait a minute, normal quit/reopen')
         print('Steam: native client from the configured multilib repository')
         print('Brave: root-owned managed theme policy with native live refresh; unpacked theme fallback')
+        print('Application modifications: ' + ', '.join(app_modifications()))
+        if 'geode' in app_modifications():
+            print('Geode: apply when Geometry Dash has been installed and launched once through Steam')
     print('Firmware: ' + ', '.join(manifest('firmware')) + ' (repository preferred, reviewed AUR fallback)')
     print('Deploy backups: existing Kitty/Fish/Fastfetch directories and Niri config are retained in the ownership journal')
     print('Roles: ' + ', '.join(f"{name}={role['desktop']}" for name, role in roles(args.personal).items()))
@@ -143,13 +160,16 @@ def personal(args):
         provision_package(json.loads((ROOT / 'apps/personal.json').read_text())['chatgpt'])
         provision_package(json.loads((ROOT / 'apps/personal.json').read_text())['steam'])
         provision_package(json.loads((ROOT / 'apps/personal.json').read_text())['vesktop'], aur=True)
-        script('spotify-setup', 'install')
+        if 'geode' in app_modifications():
+            missing = [p for p in ['protontricks', 'libarchive'] if not installed(p)]
+            if missing:
+                command('sudo', 'pacman', '-Syu', '--needed', *missing)
     else:
         validate_role('browser', roles(True)['browser'])
         validate_role('chatgpt', json.loads((ROOT / 'apps/personal.json').read_text())['chatgpt'])
         validate_role('steam', json.loads((ROOT / 'apps/personal.json').read_text())['steam'])
         validate_role('vesktop', json.loads((ROOT / 'apps/personal.json').read_text())['vesktop'])
-        script('spotify-setup', 'check')
+    script('install-app-mods', 'install' if args.packages else 'check', '--skip-unavailable')
     script('applications', 'apply', '--personal')
     command('sudo', ROOT / 'scripts/browser-policy-setup', 'install')
     script('theme-apply')

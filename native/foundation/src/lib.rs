@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod app_mods;
 pub mod apps;
 pub mod bluetooth;
 pub mod browser_policy;

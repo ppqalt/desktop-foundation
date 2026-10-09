@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ $# == 0 ]]; then set -- install --skip-unavailable; fi
+exec "$root/scripts/foundation" app-mods "$@"

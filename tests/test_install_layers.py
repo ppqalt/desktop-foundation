@@ -41,7 +41,26 @@ class InstallerLayers(unittest.TestCase):
             installer.core(args)
         called = [c.args[0] for c in script.call_args_list]
         self.assertNotIn('spotify-setup', called); self.assertNotIn('paru-bootstrap', called)
+        self.assertNotIn('install-app-mods', called)
         self.assertNotIn('personal', str(command.call_args_list))
+
+    def test_full_installer_uses_shared_modification_layer(self):
+        args = installer.parse(['--no-packages'])
+        with patch.object(installer, 'script') as script, patch.object(installer, 'command'), patch.object(installer, 'validate_role'):
+            installer.personal(args)
+        self.assertIn(('install-app-mods', 'check', '--skip-unavailable'), [c.args for c in script.call_args_list])
+        self.assertNotIn('spotify-setup', [c.args[0] for c in script.call_args_list])
+
+    def test_addon_configuration_user_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'repo'
+            (root / 'config').mkdir(parents=True)
+            (root / 'config/app-mods.json').write_text('{"spicetify":{"enabled":true},"geode":{"enabled":true}}')
+            user = Path(directory) / 'config'
+            (user / 'desktop-foundation').mkdir(parents=True)
+            (user / 'desktop-foundation/app-mods.json').write_text('{"geode":{"enabled":false}}')
+            with patch.object(installer, 'ROOT', root), patch.dict(os.environ, {'XDG_CONFIG_HOME': str(user)}):
+                self.assertEqual(installer.app_modifications(), ['spicetify'])
 
     def test_installed_personal_package_is_adopted_without_mutation(self):
         app = {'package': 'package', 'desktop': 'app.desktop', 'executable': 'app'}

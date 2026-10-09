@@ -268,12 +268,14 @@ def main():
             report(False, 'Brave theme policy state unavailable')
         for binary in ['brave-origin-nightly']:
             report(bool(shutil.which(binary)), 'Personal executable ' + binary)
-        for name in ['spotify', 'spicetify']:
-            report((data / 'desktop-foundation/apps' / name).is_dir(), 'Pinned application ' + name)
-        report((config / 'spicetify/CustomApps/marketplace/manifest.json').is_file(), 'Marketplace installed')
-        report((config / 'spotify/prefs').exists(), 'Spotify initialized; first login then normal quit/reopen completes setup', warning=True)
-        result, details = run(str(root / 'scripts/spotify-setup'), 'check')
-        report(result == 0, 'Spotify/Spicetify paths and color adapter: ' + details)
+        from install_engine import app_modifications
+        if 'spicetify' in app_modifications():
+            for name in ['spotify', 'spicetify']:
+                report((data / 'desktop-foundation/apps' / name).is_dir(), 'Pinned application ' + name)
+            report((config / 'spicetify/CustomApps/marketplace/manifest.json').is_file(), 'Marketplace installed')
+            report((config / 'spotify/prefs').exists(), 'Spotify initialized; first login then normal quit/reopen completes setup', warning=True)
+            result, details = run(str(root / 'scripts/spotify-setup'), 'check')
+            report(result == 0, 'Spotify/Spicetify paths and color adapter: ' + details)
         from application_roles import validate_role
         personal = json.loads((root / 'apps/personal.json').read_text())
         chatgpt = personal['chatgpt']

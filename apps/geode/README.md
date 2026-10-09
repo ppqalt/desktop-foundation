@@ -8,6 +8,9 @@ scripts/geode-setup install
 scripts/geode-setup status
 ```
 
+Geode is enabled in `config/app-mods.json`. The full installer applies it when
+the game is ready; `scripts/install-app-mods install geode` runs it independently.
+
 The Rust backend locates Steam app 322170 through Protontricks, verifies the game's
 executable against the supported release, and downloads the pinned Windows Geode
 archive. It verifies SHA-256 before copying the loader files into the game folder.
