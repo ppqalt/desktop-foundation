@@ -30,6 +30,9 @@ running the full installer.
 
 Use `scripts/install-all --check` to inspect the application layer.
 
+For Geometry Dash, the optional [Geode installer](../apps/geode/README.md) adds
+the mod loader to an existing Steam installation: `scripts/geode-setup install`.
+
 ## Vesktop
 
 The installer uses `vesktop-bin` from the configured CachyOS repository, with the

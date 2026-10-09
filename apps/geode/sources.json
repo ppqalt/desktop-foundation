@@ -1,0 +1,7 @@
+{
+  "version": "v5.10.1",
+  "url": "https://github.com/geode-sdk/geode/releases/download/v5.10.1/geode-v5.10.1-win.zip",
+  "sha256": "49f0fbcaee398cda467979acb40c067145f9df92fd8ce3661e853f1fc05b53d8",
+  "gdTimestamp": 1768959392,
+  "files": ["Geode.dll", "Geode.lib", "Geode.pdb", "GeodeUpdater.exe", "XInput1_4.dll"]
+}
