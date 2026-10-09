@@ -22,6 +22,22 @@ use tokio::{
 };
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 const UUID: &str = "aeac4a03-dff5-498f-843a-34487cf133eb";
+#[derive(Debug)]
+enum UnsupportedControls {
+    MissingService,
+    UnknownModel,
+}
+impl std::fmt::Display for UnsupportedControls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::MissingService => "Device does not advertise Nothing controls",
+            Self::UnknownModel => {
+                "Unrecognized Nothing/CMF model; generic Bluetooth remains available"
+            }
+        })
+    }
+}
+impl Error for UnsupportedControls {}
 fn emit(value: Value) {
     println!("{value}");
     let _ = io::stdout().flush();
@@ -318,21 +334,31 @@ async fn run() -> Result<()> {
         let session = bluer::Session::new().await?;
         let uuid = uuid::Uuid::parse_str(UUID)?;
         let mut paths = vec![];
+        let mut errors = vec![];
         for name in session.adapter_names().await? {
             let adapter = session.adapter(&name)?;
             for address in adapter.device_addresses().await? {
                 let device = adapter.device(address)?;
-                if device.is_paired().await?
-                    && device.uuids().await?.unwrap_or_default().contains(&uuid)
-                {
-                    paths.push(format!(
-                        "/org/bluez/{name}/dev_{}",
-                        address.to_string().replace(':', "_")
-                    ));
+                let path = format!(
+                    "/org/bluez/{name}/dev_{}",
+                    address.to_string().replace(':', "_")
+                );
+                // A disappearing unrelated device must not hide valid controls.
+                let eligible: Result<bool> = async {
+                    Ok((device.is_connected().await?
+                        || device.is_paired().await?
+                        || device.is_trusted().await?)
+                        && device.uuids().await?.unwrap_or_default().contains(&uuid))
+                }
+                .await;
+                match eligible {
+                    Ok(true) => paths.push(path),
+                    Ok(false) => {}
+                    Err(error) => errors.push(json!({"path":path,"message":error.to_string()})),
                 }
             }
         }
-        emit(json!({"devices":paths}));
+        emit(json!({"devices":paths,"errors":errors}));
         return Ok(());
     }
     let parts: Vec<_> = path.split('/').collect();
@@ -347,12 +373,12 @@ async fn run() -> Result<()> {
     let session = bluer::Session::new().await?;
     let adapter = session.adapter(parts[3])?;
     let device = adapter.device(address)?;
-    if !device.is_paired().await? || !device.is_connected().await? {
-        return Err("Connect the paired earbuds first".into());
+    if !device.is_connected().await? {
+        return Err("Connect the earbuds first".into());
     }
     let uuid = uuid::Uuid::parse_str(UUID)?;
     if !device.uuids().await?.unwrap_or_default().contains(&uuid) {
-        return Err("Device does not advertise Nothing controls".into());
+        return Err(UnsupportedControls::MissingService.into());
     }
     let mut profile = session
         .register_profile(Profile {
@@ -411,8 +437,7 @@ async fn run() -> Result<()> {
         battery_at: None,
     };
     let serial = ear.query(0xc006, &[0x4006]).await?;
-    let model = settings::identify(&serial)
-        .ok_or("Unrecognized Nothing/CMF model; generic Bluetooth remains available")?;
+    let model = settings::identify(&serial).ok_or(UnsupportedControls::UnknownModel)?;
     ear.state["model"] = json!(model.name);
     ear.state["modelCode"] = json!(model.base.as_str());
     emit(json!({"event":"identified","state":ear.state}));
@@ -458,15 +483,26 @@ async fn run() -> Result<()> {
     }
     // The references only expose advanced-EQ enabled state, not a reliable band codec.
     requests.push((0xc04c, 0x404c));
-    for (get, response) in requests {
-        let responses = match get {
-            0xc007 => vec![0x4007, 0xe001],
-            0xc01e => vec![0x401e, 0xe003],
-            _ => vec![response],
-        };
-        if let Err(e) = ear.query(get, &responses).await {
-            emit(json!({"event":"unavailable","command":get,"reason":e.to_string()}));
+    // Optional feature probes share a total budget. Missing responses must not
+    // outlive the UI startup deadline or discard controls already read correctly.
+    if timeout(Duration::from_secs(30), async {
+        for (get, response) in requests {
+            let responses = match get {
+                0xc007 => vec![0x4007, 0xe001],
+                0xc01e => vec![0x401e, 0xe003],
+                _ => vec![response],
+            };
+            if let Err(e) = ear.query(get, &responses).await {
+                emit(json!({"event":"unavailable","command":get,"reason":e.to_string()}));
+            }
         }
+    })
+    .await
+    .is_err()
+    {
+        emit(
+            json!({"event":"unavailable","reason":"Some controls did not respond before the initialization deadline. Reopen Controls to retry."}),
+        );
     }
     ear.state["findAvailable"] = json!(!model.base.is_over_ear());
     emit(json!({"event":"ready","state":ear.state}));
@@ -540,12 +576,15 @@ async fn run() -> Result<()> {
                     }
                 } else {
                     let setting=value["setting"].as_str().unwrap_or("").to_owned();
-                    let result=ear.action(value).await;
+                    let result=timeout(Duration::from_secs(30), async {
+                        let result=ear.action(value).await;
+                        if result.is_ok() && ["eq","listening","bass","customEq","spatial","personal"].contains(&setting.as_str()) {
+                            // EQ/bass modes can affect each other; resynchronize only on this user event.
+                            ear.synchronize_sound().await;
+                        }
+                        result
+                    }).await.map_err(|_| "Control operation timed out; reopen Controls to read actual device settings")?;
                     if result.is_ok() && setting=="quality" && ear.state["quality"].is_null() { break; }
-                    if result.is_ok() && ["eq","listening","bass","customEq","spatial","personal"].contains(&setting.as_str()) {
-                        // EQ/bass modes can affect each other. Synchronize after this user event.
-                        ear.synchronize_sound().await;
-                    }
                     emit(match result {Ok(())=>json!({"event":"complete","success":true}),Err(e)=>json!({"event":"error","message":e.to_string()})});
                 }
             },
@@ -575,7 +614,9 @@ async fn run() -> Result<()> {
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     if let Err(error) = run().await {
-        emit(json!({"event":"error","fatal":true,"message":error.to_string()}));
+        emit(
+            json!({"event":"error","fatal":true,"unsupported":matches!(error.downcast_ref::<UnsupportedControls>(), Some(UnsupportedControls::UnknownModel)),"message":error.to_string()}),
+        );
         std::process::exit(1);
     }
     // Tokio stdin uses a blocking reader; do not wait for it at runtime shutdown.

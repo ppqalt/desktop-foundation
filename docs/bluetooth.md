@@ -18,13 +18,14 @@ power state and accepts one request at a time.
 
 ## Devices and playback
 
-Quickshell watches paired/bonded BlueZ devices across adapters. The list is sorted
+Quickshell watches paired, bonded, trusted and connected BlueZ devices across
+adapters. The list is sorted
 by name/address. Secondary text shows connected state, reported battery and the
 codec reported by PipeWire. Unavailable battery or codec information is omitted.
 Nothing/CMF probes can add separate left, right and case batteries when reported.
 
-The Rust backend invokes BlueZ connection methods, validates pairing and radio
-state, and checks the final Connected property. Playback setup subscribes to
+The Rust backend invokes BlueZ connection methods, delegates authentication to
+BlueZ, validates radio state, and checks the final Connected property. Playback setup subscribes to
 PipeWire-Pulse events before taking snapshots. Relevant card/sink/server events
 drive updates within a 12-second budget, with eight-second command limits.
 
@@ -38,6 +39,9 @@ per-device volume, disconnect fallback and microphone-driven headset switching.
 enables headset autoswitch and disables persistent headset-state storage.
 Connections made outside the popup follow WirePlumber's policy. Popup connection
 notifications use the top-center provider and a two-second expiry.
+
+Temporary control-channel or discovery failures leave a retry action available.
+Only an identified unsupported model suppresses Controls for the current popup.
 
 ## Management and commands
 

@@ -16,6 +16,10 @@ only after matching device readback. Errors retain returned values. Reopening
 performs fresh queries. The control channel accepts one client at a time; close
 other earbud-control applications before opening this page.
 
+Temporary connection and query failures keep Controls available for retry.
+Optional feature queries share a 30-second budget so working controls remain
+available when another feature does not respond.
+
 ## Controls
 
 | Control | Behavior |

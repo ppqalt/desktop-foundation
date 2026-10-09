@@ -200,6 +200,7 @@ Object.assign(context, {
     selectionKey: '', hoverNavigationEnabled: false, lastPointer: {x: -1, y: -1},
     radioBusy: false, controlsOpening: false, pendingActivation: '', pendingControls: null,
     controlDevice: null, discoveryDone: true, controlPaths: ['/first'], unsupportedPaths: [],
+    retryControlsPaths: [], discoveryError: '', discoveryIssues: [],
     adapterAvailable: true, batteryQueue: [], batteryProbe: {running: false},
     radioAction: {command: [], running: false}, action: {command: [], running: false},
     devices: [{dbusPath: '/first', name: 'First', connected: true, adapter: {enabled: true}},
@@ -259,7 +260,7 @@ key('End'); key('Space');
 assert.deepEqual(Array.from(events.find(e => e[0] === 'detached')[1]), ['blueman-manager']);
 assert.equal(context.closing, true);
 '''
-        self.assertIn('onDevicesChanged: updateDeviceSelection()', source)
+        self.assertIn('updateDeviceSelection();', block(source, 'onDevicesChanged:'))
         self.run_policy('BluetoothPopup', ['navigate', 'selectIndex', 'rememberSelection', 'updateDeviceSelection',
                                           'pointerSelection', 'restoreFocus', 'dismiss',
                                           'supportsControls', 'activate', 'toggleRadio'], checks)

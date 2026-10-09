@@ -136,11 +136,8 @@ fn reconnect(path: &str) -> Result<()> {
 }
 
 fn inner(action: &str, path: &str, codec: Option<&str>) -> Result<Value> {
-    if !(boolean_property(path, DEVICE, "Paired", PROPERTY_LIMIT)?
-        || boolean_property(path, DEVICE, "Bonded", PROPERTY_LIMIT)?)
-    {
-        return Err(invalid("Device is not paired"));
-    }
+    // BlueZ owns authentication. Display flags can lag an authenticated link;
+    // reconnect must also work after the earbuds intentionally reboot.
     match action {
         "codec" => {
             let address = address(path)?;
@@ -220,7 +217,13 @@ fn inner(action: &str, path: &str, codec: Option<&str>) -> Result<Value> {
             Ok(result)
         }
         "disconnect" => {
-            call(path, "Disconnect", "--timeout=15s", Duration::from_secs(20))?;
+            if connected(path, PROPERTY_LIMIT)? {
+                match call(path, "Disconnect", "--timeout=15s", Duration::from_secs(20)) {
+                    Ok(()) => {}
+                    Err(Error::Process { .. }) if !connected(path, PROPERTY_LIMIT)? => {}
+                    Err(error) => return Err(error),
+                }
+            }
             if connected(path, PROPERTY_LIMIT)? {
                 return Err(invalid("BlueZ did not confirm disconnection"));
             }

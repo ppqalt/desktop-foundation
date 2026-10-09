@@ -37,6 +37,10 @@ PanelWindow {
     property var controlDevice: null
     property var controlPaths: []
     property var unsupportedPaths: []
+    property var retryControlsPaths: []
+    property string discoveryError: ""
+    property var discoveryIssues: []
+    property bool discoveryQueued: false
     property bool radioBusy: false
     property bool radioTarget: false
     property bool busy: false
@@ -44,7 +48,7 @@ PanelWindow {
     property string pendingAction: ""
     property string error: ""
     property var result: ({})
-    readonly property var devices: Bluetooth.devices.values.filter(d => d.paired || d.bonded).sort((a, b) => a.name.localeCompare(b.name) || a.address.localeCompare(b.address))
+    readonly property var devices: Bluetooth.devices.values.filter(d => d.paired || d.bonded || d.trusted || d.connected).sort((a, b) => a.name.localeCompare(b.name) || a.address.localeCompare(b.address))
     readonly property bool adapterAvailable: Bluetooth.adapters.values.some(a => a.enabled)
     screen: targetScreen
     anchors {
@@ -183,9 +187,9 @@ PanelWindow {
         closeTimer.start();
     }
     function supportsControls(device): bool {
-        return controlPaths.includes(device.dbusPath) && !unsupportedPaths.includes(device.dbusPath);
+        return (controlPaths.includes(device.dbusPath) || retryControlsPaths.includes(device.dbusPath)) && !unsupportedPaths.includes(device.dbusPath);
     }
-    function activate(index: int, forceDisconnect = false): void {
+    function activate(index: int, forceDisconnect = false, capabilitiesChecked = false): void {
         if (busy || radioBusy || controlsOpening || closing)
             return;
         defaultSelectionPending = false;
@@ -206,8 +210,14 @@ PanelWindow {
             error = device.blocked ? "Device blocked. Open Bluetooth Manager to change this." : "Bluetooth is off. Use the switch above to turn it on.";
             return;
         }
-        if (device.connected && !discoveryDone && !forceDisconnect) {
+        if (device.connected && !forceDisconnect && (!discoveryDone || !supportsControls(device) && !capabilitiesChecked)) {
             pendingActivation = device.dbusPath;
+            if (discoveryDone)
+                refreshDiscovery();
+            return;
+        }
+        if (device.connected && !forceDisconnect && !supportsControls(device) && (discoveryError || discoveryIssues.some(issue => issue.path === device.dbusPath))) {
+            error = discoveryError || "Device services could not be read. Select the device to retry.";
             return;
         }
         if (device.connected && supportsControls(device) && !forceDisconnect) {
@@ -256,6 +266,9 @@ PanelWindow {
                         name: d.name,
                         dbusPath: d.dbusPath,
                         connected: d.connected,
+                        paired: d.paired,
+                        bonded: d.bonded,
+                        trusted: d.trusted,
                         battery: d.batteryAvailable ? Math.round(d.battery * 100) : null,
                         audio: audioDetail(d),
                         detail: detail(d)
@@ -263,29 +276,62 @@ PanelWindow {
         };
     }
     onSelectedChanged: rememberSelection()
-    onDevicesChanged: updateDeviceSelection()
+    onDevicesChanged: {
+        updateDeviceSelection();
+        Qt.callLater(refreshDiscovery);
+    }
+    function refreshDiscovery(): void {
+        if (closing || controlDevice || pendingControls)
+            return;
+        if (discovery.running) {
+            discoveryQueued = true;
+            return;
+        }
+        discoveryDone = false;
+        discoveryError = "";
+        discovery.running = true;
+    }
     Process {
         id: discovery
+        property var response: null
         command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/nothing-backend", "--discover"]
         running: true
+        onStarted: response = null
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    root.controlPaths = JSON.parse(text).devices || [];
-                    root.batteryQueue = root.devices.filter(d => d.connected && root.controlPaths.includes(d.dbusPath));
-                    root.nextBattery();
+                    const result = JSON.parse(text);
+                    if (Array.isArray(result.devices))
+                        discovery.response = result;
                 } catch (_) {}
             }
         }
-        onExited: root.finishDiscovery()
+        onExited: exitCode => {
+            if (exitCode === 0 && response) {
+                root.controlPaths = response.devices;
+                root.discoveryError = "";
+                root.discoveryIssues = response.errors || [];
+                root.batteryQueue = root.devices.filter(d => d.connected && root.supportsControls(d));
+            } else {
+                root.discoveryError = "Could not discover device controls. Select the device to retry.";
+                root.batteryQueue = [];
+            }
+            root.finishDiscovery();
+            root.nextBattery();
+        }
     }
     function finishDiscovery(): void {
         discoveryDone = true;
+        if (discoveryQueued) {
+            discoveryQueued = false;
+            refreshDiscovery();
+            return;
+        }
         if (pendingActivation) {
             const index = devices.findIndex(d => d.dbusPath === pendingActivation);
             pendingActivation = "";
             if (index >= 0 && !closing)
-                activate(index);
+                activate(index, false, true);
         }
     }
     function forgetBattery(device): void {
@@ -305,7 +351,7 @@ PanelWindow {
         batteryExpiry.restart();
     }
     function nextBattery(): void {
-        if (closing || controlDevice || pendingControls || !batteryQueue.length)
+        if (closing || controlDevice || pendingControls || discovery.running || batteryProbe.running || !batteryQueue.length)
             return;
         batteryDevice = batteryQueue[0];
         batteryQueue = batteryQueue.slice(1);
@@ -352,6 +398,10 @@ PanelWindow {
             device: root.controlDevice
             audio: root.audioDetail(root.controlDevice)
             onBatteryReported: battery => root.rememberBattery(root.controlDevice, battery)
+            onReadyReported: {
+                if (root.controlDevice)
+                    root.retryControlsPaths = root.retryControlsPaths.filter(path => path !== root.controlDevice.dbusPath);
+            }
             onBack: {
                 root.controlDevice = null;
                 if (root.closeAfterControls)
@@ -359,10 +409,15 @@ PanelWindow {
                 else
                     root.restoreFocus();
             }
-            onFailed: message => {
-                if (root.controlDevice)
-                    root.unsupportedPaths = [...root.unsupportedPaths, root.controlDevice.dbusPath];
-                root.error = message.includes("br-connection-create-socket") || message.includes("br-connection-busy") ? "Control channel unavailable. Close other earbud control apps, then reopen Bluetooth." : message;
+            onFailed: (message, unsupported) => {
+                if (root.controlDevice) {
+                    const path = root.controlDevice.dbusPath;
+                    if (unsupported)
+                        root.unsupportedPaths = [...new Set([...root.unsupportedPaths, path])];
+                    else
+                        root.retryControlsPaths = [...new Set([...root.retryControlsPaths, path])];
+                }
+                root.error = message.includes("br-connection-create-socket") || message.includes("br-connection-busy") ? "Control channel unavailable. Close other earbud control apps, then select Controls to retry." : message;
                 root.controlDevice = null;
                 root.restoreFocus();
             }
@@ -494,7 +549,7 @@ PanelWindow {
             anchors.right: parent.right
             anchors.rightMargin: 28
             y: 23
-            text: root.devices.length + " paired"
+            text: root.devices.length + (root.devices.some(d => !d.paired && !d.bonded) ? root.devices.length === 1 ? " device" : " devices" : " paired")
             color: Theme.colors.subtle
             font.family: Theme.typography.mono
             font.pixelSize: 10
@@ -511,7 +566,7 @@ PanelWindow {
             y: 63
             width: card.width - 182
             elide: Text.ElideRight
-            text: root.adapterAvailable ? "Paired devices" : "Bluetooth is turned off"
+            text: root.adapterAvailable ? (root.devices.some(d => !d.paired && !d.bonded) ? "Bluetooth devices" : "Paired devices") : "Bluetooth is turned off"
             color: Theme.colors.foreground
             font.family: Theme.typography.family
             font.pixelSize: Theme.typography.heading
@@ -596,7 +651,7 @@ PanelWindow {
             Text {
                 anchors.centerIn: parent
                 visible: root.devices.length === 0
-                text: "No paired devices yet"
+                text: "No saved or connected devices yet"
                 color: Theme.colors.muted
                 font.family: Theme.typography.family
                 font.pixelSize: Theme.typography.body
@@ -608,6 +663,19 @@ PanelWindow {
                     function onConnectedChanged() {
                         if (!deviceRow.modelData.connected)
                             root.forgetBattery(deviceRow.modelData);
+                        else {
+                            root.unsupportedPaths = root.unsupportedPaths.filter(path => path !== deviceRow.modelData.dbusPath);
+                            root.refreshDiscovery();
+                        }
+                    }
+                    function onPairedChanged() {
+                        root.refreshDiscovery();
+                    }
+                    function onBondedChanged() {
+                        root.refreshDiscovery();
+                    }
+                    function onTrustedChanged() {
+                        root.refreshDiscovery();
                     }
                 }
                 required property var modelData
@@ -619,7 +687,7 @@ PanelWindow {
                     })
                 iconSource: root.deviceIcon(modelData)
                 selected: root.selected === index
-                actionLabel: (root.busy && root.pendingDevice === modelData) || root.pendingControls === modelData || root.pendingActivation === modelData.dbusPath ? "…" : modelData.connected ? root.supportsControls(modelData) ? "Controls" : "Disconnect" : "Connect"
+                actionLabel: (root.busy && root.pendingDevice === modelData) || root.pendingControls === modelData || root.pendingActivation === modelData.dbusPath ? "…" : modelData.connected ? root.supportsControls(modelData) ? root.retryControlsPaths.includes(modelData.dbusPath) ? "Retry controls" : "Controls" : "Disconnect" : "Connect"
                 onPointerMoved: (x, y) => root.pointerSelection(index, x, y)
                 onChosen: root.activate(index)
             }

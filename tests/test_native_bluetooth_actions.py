@@ -219,19 +219,35 @@ class BluetoothActions(unittest.TestCase):
         self.assertEqual(self.audio_calls(), [])
 
     def test_disconnect_confirms_native_state_and_never_touches_playback(self):
+        self.configure(property_sequences={'Connected': [True, False]})
         payload = self.assert_success(self.action('disconnect'))
         self.assertEqual(payload, {'success': True, 'connected': False})
         self.assertEqual(self.bus_calls()[0]['args'], ['--system', '--timeout=15s', 'call',
                          'org.bluez', DEVICE, 'org.bluez.Device1', 'Disconnect'])
         self.assertEqual(self.audio_calls(), [])
 
-    def test_bonded_device_is_accepted_and_unpaired_device_never_connects(self):
-        self.configure(Paired=False, Bonded=True)
-        self.assert_success(self.action())
-        self.clear_fixture_state()
-        self.configure(Paired=False, Bonded=False)
-        self.assert_failure(self.action())
+    def test_bluez_authenticates_when_display_pairing_flags_lag(self):
+        for configuration in ({'Paired': False, 'Bonded': True},
+                              {'Paired': False, 'Bonded': False}):
+            with self.subTest(configuration=configuration):
+                self.configure(**configuration)
+                self.clear_fixture_state()
+                self.assert_success(self.action())
+                self.assertEqual(len(self.bus_calls()), 1)
+                properties = [c['args'][-1] for c in self.calls() if 'get-property' in c['args']]
+                self.assertNotIn('Paired', properties)
+                self.assertNotIn('Bonded', properties)
+
+    def test_disconnect_already_disconnected_skips_native_method(self):
+        self.configure(Connected=False, call_error=True)
+        self.assert_success(self.action('disconnect'))
         self.assertEqual(self.bus_calls(), [])
+        self.assertEqual(self.audio_calls(), [])
+
+    def test_disconnect_accepts_a_concurrent_native_disconnection(self):
+        self.configure(call_error=True, property_sequences={'Connected': [True, False]})
+        self.assert_success(self.action('disconnect'))
+        self.assertEqual(len(self.bus_calls()), 1)
         self.assertEqual(self.audio_calls(), [])
 
     def test_off_adapter_and_blocked_device_stop_before_connect_with_friendly_errors(self):
@@ -265,12 +281,12 @@ class BluetoothActions(unittest.TestCase):
                 self.clear_fixture_state()
                 payload = self.assert_failure(self.action())
                 self.assertIn(expected, payload['error'].lower())
-        self.configure(call_error=True)
+        self.configure(call_error=True, Connected=True)
         self.clear_fixture_state()
         self.assertIn('disconnect', self.assert_failure(self.action('disconnect'))['error'].lower())
 
     def test_malformed_properties_and_address_refuse_connect_before_mutation(self):
-        fixtures = [{'malformed_property': 'Paired'}, {'Paired': 'true'},
+        fixtures = [{'malformed_property': 'Powered'}, {'Powered': 'true'},
                     {'Address': 'not-an-address'}, {'UUIDs': 'not-a-list'}]
         for fixture in fixtures:
             with self.subTest(fixture=fixture):
