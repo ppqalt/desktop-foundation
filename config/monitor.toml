@@ -5,4 +5,6 @@ animation_ms = 240
 closing_animation_ms = 180
 corner_radius = 14
 padding = 12
+background_opacity = 0.75
+# Initial value only; btop's saved profile controls subsequent update intervals.
 update_ms = 2000

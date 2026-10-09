@@ -1,5 +1,5 @@
 //! An on-demand, real Kitty layer-shell panel running btop. No hidden sampler.
-use crate::{Result, apps, invalid, process, state};
+use crate::{Result, apps, invalid, monitor_config, process, state};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -40,6 +40,8 @@ struct Settings {
     corner_radius: u32,
     #[serde(default = "padding")]
     padding: u32,
+    #[serde(default = "background_opacity")]
+    background_opacity: f32,
     update_ms: u32,
 }
 
@@ -53,6 +55,10 @@ fn corner_radius() -> u32 {
 
 fn padding() -> u32 {
     12
+}
+
+fn background_opacity() -> f32 {
+    0.75
 }
 
 struct Paths {
@@ -263,10 +269,12 @@ fn settings(root: &Path) -> Result<Settings> {
         || !(80..=400).contains(&settings.closing_animation_ms)
         || settings.corner_radius > 32
         || settings.padding > 24
+        || !settings.background_opacity.is_finite()
+        || !(0.0..=1.0).contains(&settings.background_opacity)
         || !(1000..=10000).contains(&settings.update_ms)
     {
         return Err(invalid(
-            "Monitor size, font, corners, padding, animation or update interval is out of range",
+            "Monitor size, font, corners, padding, opacity, animation or update interval is out of range",
         ));
     }
     Ok(settings)
@@ -343,10 +351,11 @@ fn kitty_environment(root: &Path, command: &mut Command) -> Result<()> {
 
 /// Prepare the shader headlessly at deployment; no panel or sampler is started.
 pub fn prepare(root: &Path) -> Result<()> {
+    let settings = settings(root)?;
+    monitor_config::btop(settings.update_ms)?;
     if std::env::var_os("XDG_RUNTIME_DIR").is_none() {
         return Ok(()); // An offline installation can compile on its first opening.
     }
-    let settings = settings(root)?;
     if settings.corner_radius == 0 {
         return Ok(());
     }
@@ -375,7 +384,7 @@ pub fn prepare(root: &Path) -> Result<()> {
     } else {
         1.0
     };
-    shader(&paths, &settings, scale)?;
+    config(&paths, &settings, scale)?;
     let mut environment = Command::new("kitty");
     kitty_environment(root, &mut environment)?;
     let mut args = vec![
@@ -418,44 +427,52 @@ fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, Pa
     state::atomic(
         &kitty,
         format!(
-            "include {}\nlinux_display_server wayland\nfont_family GoogleSansCode Nerd Font Mono\nfont_size {}\nbackground_opacity 0.90\nwindow_padding_width {}\nwindow_margin_width 0\nwindow_border_width 0px\nscrollback_lines 0\ncursor_blink_interval 0\nconfirm_os_window_close -1\nclose_on_child_death yes\nclear_all_shortcuts yes\nallow_remote_control password\nremote_control_password \"\" resize-os-window close-window load-config signal-child\n{}",
-            config_path(&colors)?, settings.font_size,
+            "include {}\nlinux_display_server wayland\nfont_family GoogleSansCode Nerd Font Mono\nfont_size {}\nbackground_opacity {}\nwindow_padding_width {}\nwindow_margin_width 0\nwindow_border_width 0px\nscrollback_lines 0\ncursor_blink_interval 0\nconfirm_os_window_close -1\nclose_on_child_death yes\nclear_all_shortcuts yes\nallow_remote_control password\nremote_control_password \"\" resize-os-window close-window load-config signal-child\n{}",
+            config_path(&colors)?, settings.font_size, settings.background_opacity,
             // Kitty padding uses points; Wayland uses 96 DPI at scale one.
             f64::from(settings.padding) * 0.75, shaders,
         ).as_bytes(),
         0o600,
     )?;
-    let state = state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation/monitor");
-    state::private_directory(&state)?;
-    let btop = state.join("btop.conf");
-    // btop saves its own layout changes here; neither Git nor normal btop settings
-    // are writable through this panel. Initial defaults are installed only once.
-    if !btop.exists() {
-        state::atomic(
-            &btop,
-            format!("color_theme = \"desktop-foundation\"\ntheme_background = false\ntruecolor = true\nrounded_corners = true\nterminal_sync = true\nshown_boxes = \"cpu mem net proc\"\nupdate_ms = {}\n", settings.update_ms).as_bytes(),
-            0o600,
-        )?;
-    } else if !fs::symlink_metadata(&btop)?.is_file() {
-        return Err(invalid(
-            "The monitor btop configuration must be a regular file",
-        ));
-    }
+    let btop = monitor_config::btop(settings.update_ms)?;
     Ok((kitty, btop, themes))
 }
 
-struct OwnedPanel(Child);
-impl Drop for OwnedPanel {
+struct OwnedPanel<'a> {
+    child: Child,
+    paths: &'a Paths,
+}
+impl Drop for OwnedPanel<'_> {
     fn drop(&mut self) {
-        // The user unit also owns every descendant in its cgroup. KillMode=
-        // control-group provides final cleanup if Kitty or btop fails to exit.
-        // Allow a native btop quit/TERM to finish saving its isolated layout.
-        let deadline = Instant::now() + Duration::from_millis(250);
-        while matches!(self.0.try_wait(), Ok(None)) && Instant::now() < deadline {
+        // btop saves on SIGINT/q, but not SIGTERM or terminal hangup. Keep its
+        // PTY alive until it saves and close_on_child_death lets Kitty exit.
+        if matches!(self.child.try_wait(), Ok(None)) {
+            let _ = rpc(
+                self.paths,
+                self.child.id(),
+                "signal-child",
+                json!({"match":"all","signals":["SIGINT"]}),
+            );
+        }
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while matches!(self.child.try_wait(), Ok(None)) && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(10));
         }
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+        if matches!(self.child.try_wait(), Ok(None)) {
+            let _ = rpc(
+                self.paths,
+                self.child.id(),
+                "close-window",
+                json!({"match":"all","ignore_no_match":true}),
+            );
+            let deadline = Instant::now() + Duration::from_millis(100);
+            while matches!(self.child.try_wait(), Ok(None)) && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            let _ = self.child.kill();
+        }
+        let _ = self.child.wait();
+        // The session unit's final cgroup kill reaps any unresponsive descendants.
     }
 }
 
@@ -688,8 +705,8 @@ pub fn serve(root: &Path) -> Result<()> {
     }
     let mut kitty = Command::new("kitty");
     kitty_environment(root, &mut kitty)?;
-    let mut panel = OwnedPanel(
-        kitty
+    let mut panel = OwnedPanel {
+        child: kitty
             .args([
                 "+kitten",
                 "panel",
@@ -712,17 +729,15 @@ pub fn serve(root: &Path) -> Result<()> {
             .arg(&btop_config)
             .arg("--themes-dir")
             .arg(&themes)
-            .arg("--no-tty")
-            .arg("--update")
-            .arg(settings.update_ms.to_string())
             .process_group(0)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::inherit())
             .spawn()?,
-    );
+        paths: &paths,
+    };
     // SAFETY: pidfd_open receives the PID of our own newly spawned child.
-    let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, panel.0.id(), 0) };
+    let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, panel.child.id(), 0) };
     if fd < 0 {
         return Err(std::io::Error::last_os_error().into());
     }
@@ -787,7 +802,7 @@ pub fn serve(root: &Path) -> Result<()> {
             }
             return Err(error.into());
         }
-        if descriptors[1].revents != 0 || panel.0.try_wait()?.is_some() {
+        if descriptors[1].revents != 0 || panel.child.try_wait()?.is_some() {
             return Ok(());
         }
         if descriptors[2].revents & (libc::POLLHUP | libc::POLLERR) != 0 {
@@ -845,7 +860,7 @@ pub fn serve(root: &Path) -> Result<()> {
                         }
                         settled = false;
                         if ready {
-                            place(&paths, panel.0.id(), motion.x.round() as i32, false)?;
+                            place(&paths, panel.child.id(), motion.x.round() as i32, false)?;
                             last_x = motion.x.round() as i32;
                         }
                         true
@@ -854,16 +869,12 @@ pub fn serve(root: &Path) -> Result<()> {
                     Some("refresh") if ready => {
                         rpc(
                             &paths,
-                            panel.0.id(),
+                            panel.child.id(),
                             "load-config",
                             json!({"paths":[],"override":[],"ignore_overrides":false}),
                         )?;
-                        rpc(
-                            &paths,
-                            panel.0.id(),
-                            "signal-child",
-                            json!({"match":"all","signals":["SIGUSR2"]}),
-                        )?;
+                        // SIGUSR2 would reload saved settings and discard any
+                        // unsaved btop changes. Its own theme updates next open.
                         true
                     }
                     Some("refresh") => true,
@@ -878,7 +889,7 @@ pub fn serve(root: &Path) -> Result<()> {
                 return Ok(());
             }
             if socket(&paths.kitty)? {
-                place(&paths, panel.0.id(), hidden, false)?;
+                place(&paths, panel.child.id(), hidden, false)?;
                 ready = true;
                 eprintln!(
                     "Monitor terminal ready in {} ms",
@@ -896,23 +907,11 @@ pub fn serve(root: &Path) -> Result<()> {
             settled = motion.sample();
             let x = motion.x.round() as i32;
             if x != last_x || settled {
-                place(&paths, panel.0.id(), x, settled && motion.opening)?;
+                place(&paths, panel.child.id(), x, settled && motion.opening)?;
                 last_x = x;
             }
             if settled && !motion.opening {
-                // Let btop clean up before the service reaps its cgroup.
-                let _ = rpc(
-                    &paths,
-                    panel.0.id(),
-                    "signal-child",
-                    json!({"match":"all","signals":["SIGTERM"]}),
-                );
-                let _ = rpc(
-                    &paths,
-                    panel.0.id(),
-                    "close-window",
-                    json!({"match":"all","ignore_no_match":true}),
-                );
+                // OwnedPanel keeps the terminal alive for btop's native save.
                 return Ok(());
             }
         }

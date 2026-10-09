@@ -18,7 +18,7 @@ def definitions(root, state):
             'PartOf=niri.service graphical-session.target\nAfter=niri.service\n'
             'ConditionEnvironment=NIRI_SOCKET\nStartLimitIntervalSec=0\n'
             '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/monitor') + ' serve\n'
-            'Restart=no\nKillMode=control-group\nSendSIGHUP=yes\nTimeoutStopSec=2\nUMask=0077\n'),
+            'Restart=no\nKillMode=mixed\nSendSIGHUP=no\nTimeoutStopSec=3\nUMask=0077\n'),
         'desktop-foundation-session.target': (
             '[Unit]\nDescription=Desktop foundation interactive session\n'
             'PartOf=graphical-session.target\n'
