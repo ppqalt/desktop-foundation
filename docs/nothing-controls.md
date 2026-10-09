@@ -30,7 +30,7 @@ other earbud-control applications before opening this page.
 | Personal sound profile | Ear (3), B173: enable an existing hearing profile |
 | Super Mic / auto-transparency | Ear (3), B173: case microphone and transparency during calls |
 | Spatial audio | Ear (3), B173: Off or Fixed |
-| Audio quality | Ear (3), B173: AAC/LDAC firmware preference and available host SBC/SBC XQ choices |
+| Audio quality | SBC, SBC XQ, AAC and LDAC playback profiles advertised by this computer |
 | Ear-tip fit test | Ear (3), B173: separate left/right seal results |
 | Find earbuds | Three-second sound for an available side; excludes B181 |
 | Information / refresh / disconnect | Device model, firmware and address; explicit battery refresh; Bluetooth disconnect |
@@ -47,13 +47,12 @@ For the fit test, wear both earbuds. The test plays sound for about ten seconds;
 results mean good seal, adjust tip or check worn state. The helper waits up to
 20 seconds for the result. A timeout leaves the result unavailable.
 
-AAC/LDAC preference changes restart the earbuds. The popup discards the old control
-state, waits for the reboot and attempts reconnection with bounded retries.
-Successful reconnection attempts playback setup and closes the popup. A notification
-reports any audio-routing warning. Reopen Controls to read the new firmware preference. PipeWire supplies the actual playback codec.
-SBC/SBC XQ instead switch this computer's advertised A2DP profile and confirm the
-matching sink codec. These choices apply to the connection; reconnect uses the
-normal LDAC/AAC preference order.
+SBC, SBC XQ, AAC and LDAC switch this computer's advertised PipeWire A2DP profile
+and confirm the matching sink codec. Unavailable profiles cannot be selected.
+The selected badge and playback summary show the actual PipeWire codec. These
+choices apply to the connection; reconnect uses the normal LDAC/AAC preference
+order. Audio quality uses the host audio service; other earbud settings keep using
+the Nothing control channel.
 
 ## Backend and protocol
 

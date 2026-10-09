@@ -17,6 +17,8 @@ fn canonical_codec(codec: &str) -> Option<&'static str> {
     match codec {
         "sbc" => Some("sbc"),
         "sbc_xq" | "sbc-xq" => Some("sbc_xq"),
+        "aac" => Some("aac"),
+        "ldac" => Some("ldac"),
         _ => None,
     }
 }
@@ -30,7 +32,7 @@ fn validate(action: &str, path: &str, codec: Option<&str>) -> Result<()> {
     }
     if codec.is_some_and(|codec| canonical_codec(codec).is_none()) {
         return Err(invalid(
-            "Only SBC or SBC XQ playback can be selected through this action",
+            "Only SBC, SBC XQ, AAC or LDAC playback can be selected through this action",
         ));
     }
     if action == "codec" && codec.is_none() {
@@ -249,12 +251,16 @@ mod tests {
         assert!(validate("codec", path, Some("sbc")).is_ok());
         assert!(validate("codec", path, Some("sbc_xq")).is_ok());
         assert!(validate("codec", path, Some("sbc-xq")).is_ok());
+        assert!(validate("codec", path, Some("aac")).is_ok());
+        assert!(validate("codec", path, Some("ldac")).is_ok());
         assert_eq!(canonical_codec("sbc-xq"), Some("sbc_xq"));
         assert_eq!(canonical_codec("sbc_xq"), Some("sbc_xq"));
         assert_eq!(canonical_codec("sbc"), Some("sbc"));
+        assert_eq!(canonical_codec("aac"), Some("aac"));
+        assert_eq!(canonical_codec("ldac"), Some("ldac"));
         assert_eq!(canonical_codec("SBC XQ"), None);
         assert!(validate("codec", path, None).is_err());
-        assert!(validate("codec", path, Some("ldac")).is_err());
+        assert!(validate("codec", path, Some("aptx")).is_err());
         assert!(validate("power", path, None).is_err());
         assert!(validate("connect", "/org/bluez/hci0/dev_bad", None).is_err());
     }

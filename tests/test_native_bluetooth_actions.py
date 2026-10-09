@@ -427,6 +427,47 @@ class BluetoothActions(unittest.TestCase):
         self.assertEqual(routes[0]['event_parts'], 2)
         self.assert_subscription_stopped()
 
+    def test_explicit_aac_and_ldac_use_advertised_profile_and_fresh_codec_readback(self):
+        profiles = {'a2dp-sink-sbc': {'description': 'codec SBC', 'priority': 9999},
+                    'a2dp-sink-sbc_xq': {'description': 'codec SBC XQ', 'priority': 9998},
+                    'a2dp-sink-aac': {'description': 'codec AAC', 'priority': 9997},
+                    'a2dp-sink': {'description': 'codec LDAC', 'priority': 1}}
+        for codec, profile in (('aac', 'a2dp-sink-aac'), ('ldac', 'a2dp-sink')):
+            with self.subTest(codec=codec):
+                self.clear_fixture_state()
+                selected = card(profile=profile, profiles=profiles)
+                stale = dict(selected, active_profile='a2dp-sink-sbc')
+                self.configure(Connected=True, cards_snapshots=[[stale], [selected]],
+                               sinks_snapshots=[[sink(codec='sbc')], [sink(codec=codec.upper())]],
+                               events=[{'chunk': "Event 'change' on card #21\n", 'after_snapshots': 2}])
+                payload = self.assert_success(self.invoke('codec', DEVICE, '--codec', codec))
+                self.assertEqual(payload, {'success': True, 'routed': True, 'codec': codec.upper()})
+                setters = [c['args'] for c in self.audio_calls() if c['args'][0].startswith('set-')]
+                self.assertEqual(setters, [['set-card-profile', 'bluez_card.dynamic', profile],
+                                          ['set-default-sink', 'bluez_output.dynamic']])
+                self.assertEqual(len(self.snapshots()), 4)
+                self.assertEqual(self.bus_calls(), [])
+                self.assert_subscription_stopped()
+
+    def test_aac_and_ldac_unavailable_or_rejected_never_select_another_codec(self):
+        for codec, profile, available in (('aac', 'a2dp-sink-aac', False),
+                                          ('ldac', 'a2dp-sink', 'no'),
+                                          ('aac', 'a2dp-sink-aac', True),
+                                          ('ldac', 'a2dp-sink', True)):
+            with self.subTest(codec=codec, available=available):
+                self.clear_fixture_state()
+                profiles = {'a2dp-sink-sbc': {'description': 'codec SBC', 'priority': 9999},
+                            profile: {'description': 'codec ' + codec.upper(), 'available': available}}
+                self.configure(Connected=True, cards=[card(profile='a2dp-sink-sbc', profiles=profiles)],
+                               sinks=[sink(codec='sbc')], profile_errors=[profile], subscribe_eof=True)
+                result = self.invoke('codec', DEVICE, '--codec', codec)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assert_unsuccessful(result)
+                setters = [c['args'] for c in self.audio_calls() if c['args'][0].startswith('set-')]
+                self.assertEqual(setters, [['set-card-profile', 'bluez_card.dynamic', profile]] if available is True else [])
+                self.assertEqual(self.bus_calls(), [])
+                self.assert_subscription_stopped()
+
     def test_missing_matching_card_does_not_allow_stale_selected_profile_sink(self):
         sbc_card = card(profile='a2dp-sink-sbc', profiles={'a2dp-sink-sbc': {'priority': 10}})
         self.configure(Connected=True, cards_snapshots=[[sbc_card], []],
@@ -530,7 +571,7 @@ class BluetoothActions(unittest.TestCase):
         fixtures = [('connect',), ('connect', DEVICE, 'extra'), ('disconnect', DEVICE, '--codec', 'sbc'),
                     ('connect', '/org/bluez/custom/dev_AB_CD_EF_01_02_03'),
                     ('connect', DEVICE + ';sh'), ('codec', DEVICE),
-                    ('codec', DEVICE, '--codec', 'ldac'), ('codec', DEVICE, '--codec', 'sbc', 'extra'),
+                    ('codec', DEVICE, '--codec', 'aptx'), ('codec', DEVICE, '--codec', 'sbc', 'extra'),
                     ('unknown', DEVICE), ('reconnect', DEVICE, '--codec', 'sbc')]
         for args in fixtures:
             with self.subTest(args=args):
@@ -555,6 +596,7 @@ print(json.dumps({'success': True}))
         foundation.chmod(0o755)
         actions = [('connect', DEVICE), ('disconnect', DEVICE), ('reconnect', DEVICE),
                    ('codec', DEVICE, '--codec', 'sbc'), ('codec', DEVICE, '--codec', 'sbc_xq'),
+                   ('codec', DEVICE, '--codec', 'aac'), ('codec', DEVICE, '--codec', 'ldac'),
                    ('codecs', DEVICE)]
         for args in actions:
             with self.subTest(args=args):

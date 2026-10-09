@@ -5,6 +5,7 @@ QtTest sends ordinary key events through the focused Qt window and the actual
 Keys handler. Synthetic auto-repeat and backend responses are injected into the
 same policy functions; real layer-shell focus remains outside this fixture.
 """
+import json
 import os
 from pathlib import Path
 import shutil
@@ -149,6 +150,11 @@ ShellRoot {
                 controls.error = "";
                 controls.playbackCodecs = ["sbc", "sbc_xq"];
                 controls.page = "quality";
+                fixture.check(controls.rows.filter(row => ["sbc", "sbc_xq", "aac", "ldac"].includes(row.key)).length === 4, "Quality does not expose four host codec choices");
+                fixture.check(!controls.rows.some(row => row.key === "quality"), "Quality still exposes a firmware setting");
+                fixture.select("ldac"); fixture.key(Qt.Key_Return);
+                fixture.check(!controls.busy && !controls.leaving, "Unavailable LDAC starts an action");
+                fixture.check(controls.rows[controls.selected].enabled === false && controls.rows[controls.selected].genericName.includes("Unavailable"), "Unavailable codec is not marked disabled");
                 fixture.select("sbc_xq");
                 fixture.key(Qt.Key_Left); fixture.key(Qt.Key_Right);
                 fixture.check(!controls.busy, "Adjust key starts codec action");
@@ -158,7 +164,7 @@ ShellRoot {
                 controls.finishPlayback(0);
                 fixture.check(controls.playbackCodec === "sbc_xq" && controls.confirmedRowId === "sbc_xq:", "Verified host codec not reflected");
                 fixture.check(controls.rows.find(row => row.key === "sbc_xq").settingValue === "Selected", "Host codec selected badge missing");
-                fixture.check(controls.rows.find(row => row.key === "quality" && row.extra === 2).settingValue === "", "Firmware preference also shown selected");
+                fixture.check(controls.rows.find(row => row.key === "ldac").settingValue === "", "Firmware preference also shown selected");
                 controls.audio = "AAC";
                 fixture.check(controls.playbackCodec === "aac", "Local readback overrides later native codec");
                 controls.page = "main";
@@ -179,16 +185,33 @@ ShellRoot {
                 fixture.check(sample.hasSettingState && sample.hasSetting && sample.pending, "Shared row loses switch during pending request");
                 sample.pending = false; sample.confirmed = true;
                 fixture.check(sample.border.width === 1, "Confirmed shared row has no visible border");
-            } else if (fixture.stage === 16) {
+            } else if ([3, 5, 7, 9].includes(fixture.stage)) {
+                const codec = ["aac", "ldac", "sbc", "sbc_xq"][(fixture.stage - 3) / 2];
+                controls.playbackCodecs = ["sbc", "sbc_xq", "aac", "ldac"];
+                controls.page = "quality";
+                fixture.select(codec);
+                fixture.key(Qt.Key_Left); fixture.key(Qt.Key_Right);
+                fixture.check(!controls.busy, "Adjust key starts " + codec + " playback change");
+                fixture.key(Qt.Key_Return);
+                fixture.check(controls.busy && controls.requestedPlaybackCodec === codec && controls.pendingCommand === null, "Codec does not use host playback action: " + codec);
+                fixture.check(controls.pendingLabel() === "Switching…", "Host codec has no switching label: " + codec);
+            } else if ([4, 6, 8, 10].includes(fixture.stage)) {
+                const codec = ["aac", "ldac", "sbc", "sbc_xq"][(fixture.stage - 4) / 2];
+                fixture.check(!controls.busy && !controls.leaving, "Host codec does not finish in controls: " + codec);
+                fixture.check(controls.playbackCodec === codec && controls.confirmedRowId === codec + ":", "Host codec is not confirmed: " + codec);
+                fixture.check(controls.rows.find(row => row.key === codec).settingValue === "Selected", "Active PipeWire codec badge missing: " + codec);
+                fixture.check(controls.earState.quality === 2, "Host codec rewrites earbud preference: " + codec);
+                controls.page = "main";
+            } else if (fixture.stage === 24) {
                 controls.navigateEdge(false);
-            } else if (fixture.stage === 17) {
+            } else if (fixture.stage === 25) {
                 fixture.check(controls.confirmedRowId === "", "Confirmed highlight stays resident");
                 fixture.capture("ready");
-            } else if (fixture.stage === 18) {
+            } else if (fixture.stage === 26) {
                 controls.ready = false;
                 fixture.key(Qt.Key_Escape);
                 fixture.check(controls.leaving, "Escape cannot cancel startup");
-            } else if (fixture.stage === 20) {
+            } else if (fixture.stage === 28) {
                 fixture.check(fixture.backCount > 0, "Backend shutdown does not return");
                 console.log("QOL_RESULT " + JSON.stringify({failures: fixture.failures}));
                 Qt.quit();
@@ -209,11 +232,28 @@ class NothingSurfaceQol(unittest.TestCase):
             (base / 'app').symlink_to(ROOT / 'shell', target_is_directory=True)
             scripts = base / 'scripts'; scripts.mkdir()
             backend = scripts / 'nothing-backend'
-            backend.write_text('#!' + sys.executable + '\nimport sys\nfor line in sys.stdin: pass\n')
+            backend.write_text('#!' + sys.executable + '\n' + r'''
+import os, pathlib, sys
+base = pathlib.Path(os.environ['DF_FOUNDATION_ROOT'])
+for line in sys.stdin:
+    with (base / 'nothing-calls.jsonl').open('a') as log:
+        log.write(line)
+''')
             backend.chmod(0o755)
             native = base / 'native/foundation/target/release'; native.mkdir(parents=True)
             command = native / 'desktop-foundationctl'
-            command.write_text('#!' + sys.executable + '\nimport json\nprint(json.dumps({"success":True,"codecs":["sbc","sbc_xq"]}))\n')
+            command.write_text('#!' + sys.executable + '\n' + r'''
+import json, os, pathlib, sys
+base = pathlib.Path(os.environ['DF_FOUNDATION_ROOT'])
+with (base / 'native-calls.jsonl').open('a') as log:
+    log.write(json.dumps(sys.argv[1:]) + '\n')
+result = {'success': True}
+if 'codecs' in sys.argv:
+    result['codecs'] = ['sbc', 'sbc_xq', 'aac', 'ldac']
+else:
+    result.update(routed=True, codec=sys.argv[-1])
+print(json.dumps(result))
+''')
             command.chmod(0o755)
             (base / 'shell.qml').write_text(QML)
             env = dict(os.environ)
@@ -237,6 +277,12 @@ class NothingSurfaceQol(unittest.TestCase):
             self.assertNotIn('TypeError', log)
             self.assertNotIn('ReferenceError', log)
             self.assertNotIn('Failed to load configuration', log)
+            native_calls = [json.loads(line) for line in (base / 'native-calls.jsonl').read_text().splitlines()]
+            codec_calls = [call for call in native_calls if 'codec' in call]
+            self.assertEqual([call[-1] for call in codec_calls], ['aac', 'ldac', 'sbc', 'sbc_xq'])
+            self.assertTrue(all(call[-5:-1] == ['bluetooth', 'codec', '/org/bluez/hci7/dev_AB_CD_EF_01_02_03', '--codec'] for call in codec_calls))
+            nothing_calls = [json.loads(line) for line in (base / 'nothing-calls.jsonl').read_text().splitlines()]
+            self.assertFalse(any(call.get('setting') == 'quality' for call in nothing_calls))
             if env.get('DF_QOL_VISUAL_DIR'):
                 for name in ('loading', 'ready'):
                     self.assertTrue((Path(env['DF_QOL_VISUAL_DIR']) / f'nothing-{name}.png').is_file(), log)

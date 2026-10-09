@@ -263,6 +263,8 @@ mod tests {
             ]
         );
         assert_eq!(profiles(&card, Some("sbc")), ["a2dp-sink-sbc"]);
+        assert_eq!(profiles(&card, Some("aac")), ["a2dp-sink-aac"]);
+        assert_eq!(profiles(&card, Some("ldac")), ["a2dp-sink"]);
         assert!(profiles(&card, Some("missing")).is_empty());
     }
 

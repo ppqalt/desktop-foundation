@@ -366,16 +366,6 @@ PanelWindow {
                 root.controlDevice = null;
                 root.restoreFocus();
             }
-            onRestartRequested: {
-                root.pendingDevice = root.controlDevice;
-                root.controlDevice = null;
-                root.busy = true;
-                root.error = "Reconnecting after codec change…";
-                root.result = ({});
-                action.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "bluetooth", "reconnect", root.pendingDevice.dbusPath];
-                action.running = true;
-                root.restoreFocus();
-            }
             onDisconnect: {
                 const index = root.devices.indexOf(root.controlDevice);
                 root.controlDevice = null;

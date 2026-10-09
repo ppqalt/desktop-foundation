@@ -13,7 +13,6 @@ SurfaceCard {
     required property string audio
     signal back
     signal failed(string message)
-    signal restartRequested
     signal disconnect
     property var earState: ({})
     // Startup and command responses are staged until a complete readback is ready.
@@ -130,7 +129,7 @@ SurfaceCard {
             entry.settingState = s.spatial === 1;
         else if (["anc", "eq", "listening", "customEq", "gestures"].includes(key))
             entry.settingValue = key === "anc" ? ancLabels[s.anc] : key === "eq" ? eqLabels[s.eq] || "Device preset" : key === "listening" ? "Preset " + s.listening : key === "customEq" ? (s.customEq?.[extra] ?? 0) + " dB" : gestureLabels[s.gestures[extra].action] || "Device action " + s.gestures[extra].action;
-        else if ((key === "quality" && !["sbc", "sbc_xq"].includes(playbackCodec) && s.quality === extra) || (["sbc", "sbc_xq"].includes(key) && playbackCodec === key))
+        else if (["sbc", "sbc_xq", "aac", "ldac"].includes(key) && playbackCodec === key)
             entry.settingValue = "Selected";
         return entry;
     }
@@ -142,10 +141,11 @@ SurfaceCard {
         if (page === "info")
             return [row("Model", s.modelCode || "Unknown", "none"), row("Firmware", s.firmware || "Unavailable", "none"), row("Bluetooth address", device.address, "none"), row("Advanced equalizer", s.advanced === undefined ? "No reliable response" : "Band controls unavailable in the reference protocol", "none"), row("Back", "Earbud controls", "back")];
         if (page === "quality") {
-            result = [row("AAC", "Changing quality reboots earbuds", "quality", 0), row("LDAC", "Changing quality reboots earbuds", "quality", 2)];
-            for (const codec of ["sbc", "sbc_xq"]) {
-                if (playbackCodecs.includes(codec))
-                    result.push(row(codec === "sbc" ? "SBC" : "SBC XQ", "Playback on this computer · No earbud reboot", codec));
+            for (const codec of ["aac", "ldac", "sbc", "sbc_xq"]) {
+                const available = playbackCodecs.includes(codec);
+                const entry = row(codec.toUpperCase().replace(/_/g, " "), available ? "Playback on this computer" : "Unavailable on this connection", codec);
+                entry.enabled = available;
+                result.push(entry);
             }
             return result.concat([row("Current playback", playbackLabel || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")]);
         }
@@ -184,8 +184,8 @@ SurfaceCard {
             if (s[entry[0]] != null)
                 result.push(row(entry[1], entry[2], entry[0]));
         }
-        if (s.quality != null)
-            result.push(row("Audio quality", (s.quality === 2 ? "LDAC" : "AAC") + " · Playback: " + (playbackLabel || "unavailable"), "qualityPage"));
+        if (s.quality != null || playbackCodecs.length)
+            result.push(row("Audio quality", "Playback: " + (playbackLabel || "unavailable"), "qualityPage"));
         if (s.spatial != null)
             result.push(row("Spatial audio", "Fixed spatial audio", "spatial"));
         if (s.fitAvailable)
@@ -312,10 +312,6 @@ SurfaceCard {
         }
         if (message.event === "error")
             error = message.message;
-        if (message.event === "restart") {
-            leaving = true;
-            restartRequested();
-        }
         if (message.fatal)
             failed(message.message);
     }
@@ -338,17 +334,17 @@ SurfaceCard {
         playbackResult = null;
     }
     function pendingLabel(): string {
-        return pendingCommand?.action === "fit" ? "Testing…" : pendingCommand?.action === "ring" ? "Ringing…" : pendingCommand?.action === "refresh" ? "Refreshing…" : ["sbc:", "sbc_xq:"].includes(pendingRowId) ? "Switching…" : "Saving…";
+        return pendingCommand?.action === "fit" ? "Testing…" : pendingCommand?.action === "ring" ? "Ringing…" : pendingCommand?.action === "refresh" ? "Refreshing…" : ["sbc:", "sbc_xq:", "aac:", "ldac:"].includes(pendingRowId) ? "Switching…" : "Saving…";
     }
     function activate(index: int, delta: int): void {
         if (!ready || busy || leaving)
             return;
         selected = index;
         const entry = rows[index];
-        if (!entry)
+        if (!entry || entry.enabled === false)
             return;
         const key = entry.key;
-        // Adjustment keys never open a page, restart firmware, ring or disconnect.
+        // Adjustment keys never open a page, switch playback, ring or disconnect.
         if (delta && !["anc", "eq", "listening", "bass", "spatial", "inEar", "latency", "dual", "personal", "superMic", "autoTransparency", "customEq", "gestures"].includes(key))
             return;
         if (["info", "custom", "gesturesPage", "find", "qualityPage", "fit"].includes(key)) {
@@ -404,7 +400,7 @@ SurfaceCard {
             send({
                 action: "fit"
             });
-        else if (["sbc", "sbc_xq"].includes(key)) {
+        else if (["sbc", "sbc_xq", "aac", "ldac"].includes(key)) {
             busy = true;
             error = "";
             pendingRowId = key + ":";
@@ -414,12 +410,7 @@ SurfaceCard {
             confirmedRowId = "";
             confirmationDeadline.stop();
             playbackChange.running = true;
-        } else if (key === "quality")
-            send({
-                setting: "quality",
-                value: entry.extra
-            });
-        else if (key === "spatial")
+        } else if (key === "spatial")
             send({
                 setting: "spatial",
                 value: delta ? (delta > 0 ? 1 : 0) : earState.spatial === 1 ? 0 : 1
@@ -696,13 +687,13 @@ SurfaceCard {
             }
             iconSource: "../assets/bluetooth-headphones.svg"
             selected: root.selected === index
-            actionLabel: entry.key === "none" ? "" : ["anc", "eq", "listening", "bass", "customEq", "gestures"].includes(entry.key) ? "‹  ›" : "↵"
+            actionLabel: entry.key === "none" || entry.enabled === false ? "" : ["anc", "eq", "listening", "bass", "customEq", "gestures"].includes(entry.key) ? "‹  ›" : "↵"
             settingState: entry.settingState ?? null
             settingValue: entry.settingValue || ""
             pending: root.busy && root.pendingRowId === entry.key + ":" + String(entry.extra ?? "")
             pendingLabel: root.pendingLabel()
             confirmed: root.confirmedRowId === entry.key + ":" + String(entry.extra ?? "")
-            interactive: root.ready && !root.busy && entry.key !== "none"
+            interactive: root.ready && !root.busy && entry.key !== "none" && entry.enabled !== false
             onHovered: {
                 if (root.hoverNavigationEnabled && index < root.rows.length)
                     root.selected = index;
@@ -733,7 +724,7 @@ SurfaceCard {
         escapeEnabled: !root.leaving
         onEscapeRequested: root.goBack()
         actionText: !root.ready ? "Reading controls…" : root.busy ? root.pendingLabel() : root.rows[root.selected]?.key === "back" ? "Back" : root.rows[root.selected]?.settingState != null ? "Toggle setting" : "Activate"
-        actionEnabled: root.ready && !root.busy && !root.leaving && root.rows[root.selected]?.key !== "none"
+        actionEnabled: root.ready && !root.busy && !root.leaving && root.rows[root.selected]?.key !== "none" && root.rows[root.selected]?.enabled !== false
         onActivated: root.activate(root.selected, 0)
     }
 }

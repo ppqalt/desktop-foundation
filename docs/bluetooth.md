@@ -54,9 +54,10 @@ scripts/foundation bluetooth codecs /org/bluez/hci0/dev_XX_XX_XX_XX_XX_XX
 scripts/foundation bluetooth codec /org/bluez/hci0/dev_XX_XX_XX_XX_XX_XX --codec sbc_xq
 ```
 
-Use the device's actual BlueZ path. SBC and SBC XQ select host playback only when
-the card advertises those profiles. The supported Ear (3) Quality page exposes them
-alongside its separate firmware preferences. See [device controls](nothing-controls.md).
+Use the device's actual BlueZ path. SBC, SBC XQ, AAC and LDAC select host playback
+only when the card advertises those profiles. The device controls' Quality page
+uses the same PipeWire selection and confirms the active playback codec. See
+[device controls](nothing-controls.md).
 
 References: [Quickshell BluetoothDevice](https://quickshell.org/docs/v0.3.1/types/Quickshell.Bluetooth/BluetoothDevice/),
 [WirePlumber settings](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/settings.html),
