@@ -166,6 +166,34 @@ assert.equal(context.confirmClear, false); assert.equal(context.closing, false);
         self.assertIn('readOnly: root.confirmClear', source)
         self.assertIn('enabled: !root.confirmClear', source)
 
+    def test_clipboard_navigation_stops_at_header_and_last_item(self):
+        self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
+key('Up'); assert.equal(context.clearSelected, true);
+for (let i = 0; i < 3; i++) {
+    key('Up', 0, true); key('Backtab'); key('PageUp');
+    assert.equal(context.clearSelected, true);
+    assert.equal(context.selectedIndex, 0, 'Clear must not wrap to the last item');
+}
+key('Down'); assert.equal(context.clearSelected, false); assert.equal(context.selectedIndex, 0);
+key('Backtab'); assert.equal(context.clearSelected, true);
+key('Tab'); assert.equal(context.clearSelected, false); assert.equal(context.selectedIndex, 0);
+context.selectIndex(context.results.length - 1);
+for (let i = 0; i < 3; i++) {
+    key('Down', 0, true); key('N', Qt.ControlModifier); key('PageDown');
+    assert.equal(context.clearSelected, false);
+    assert.equal(context.selectedIndex, context.results.length - 1, 'Last item must not wrap through Clear');
+}
+key('Tab'); assert.equal(context.actionFocus, 1);
+for (let i = 0; i < 3; i++) key('Tab');
+assert.equal(context.selectedIndex, context.results.length - 1);
+assert.equal(context.actionFocus, 1); assert.equal(context.clearSelected, false);
+key('Backtab'); assert.equal(context.actionFocus, 0);
+key('Up'); assert.equal(context.selectedIndex, context.results.length - 2);
+context.clearSelected = true;
+key('PageDown'); assert.equal(context.selectedIndex, 2, 'Paging from Clear starts above the first item');
+assert.equal(context.clearSelected, false);
+''')
+
     def test_clipboard_empty_filtered_results_still_reach_cleanup(self):
         self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
 context.results = [];

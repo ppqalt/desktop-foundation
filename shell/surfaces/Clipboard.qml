@@ -188,11 +188,12 @@ PanelWindow {
         }
     }
     function navigate(delta: int): void {
-        if (confirmClear || !results.length)
+        if (confirmClear || !results.length || (clearSelected && delta < 0))
             return;
+        const from = clearSelected ? -1 : selectedIndex;
         clearSelected = false;
         actionFocus = 0;
-        selectIndex(selectedIndex + delta);
+        selectIndex(from + delta);
         list.positionViewAtIndex(selectedIndex, ListView.Contain);
         rememberSelection();
     }
@@ -200,12 +201,7 @@ PanelWindow {
         if (confirmClear)
             return;
         actionFocus = 0;
-        if (clearSelected && results.length) {
-            clearSelected = false;
-            selectIndex(delta > 0 ? 0 : results.length - 1);
-            list.positionViewAtIndex(selectedIndex, ListView.Contain);
-            rememberSelection();
-        } else if (history.entries.length && (!results.length || (delta < 0 && selectedIndex === 0) || (delta > 0 && selectedIndex === results.length - 1)))
+        if (history.entries.length && (!results.length || (!clearSelected && delta < 0 && selectedIndex === 0)))
             clearSelected = true;
         else
             navigate(delta);
@@ -219,18 +215,20 @@ PanelWindow {
             return;
         }
         if (clearSelected) {
-            clearSelected = !results.length;
-            if (results.length) {
-                selectIndex(delta > 0 ? 0 : results.length - 1);
-                actionFocus = delta > 0 ? 0 : (plainAvailable() ? 2 : 1);
-            }
+            if (delta < 0)
+                return;
+            clearSelected = false;
+            selectIndex(0);
+            actionFocus = 0;
         } else {
             const lastAction = plainAvailable() ? 2 : 1;
             if (actionFocus + delta >= 0 && actionFocus + delta <= lastAction)
                 actionFocus += delta;
-            else if ((delta < 0 && selectedIndex === 0) || (delta > 0 && selectedIndex === results.length - 1)) {
+            else if (delta < 0 && selectedIndex === 0) {
                 clearSelected = true;
                 actionFocus = 0;
+            } else if (delta > 0 && selectedIndex === results.length - 1) {
+                return;
             } else {
                 selectIndex(selectedIndex + delta);
                 actionFocus = delta > 0 ? 0 : (plainAvailable() ? 2 : 1);

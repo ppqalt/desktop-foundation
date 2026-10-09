@@ -21,6 +21,9 @@ Search matches copied text, filenames and format labels. Pinning keeps the item
 at the top and preserves selection when the list reorders. Pinning and copying are also available with the mouse. Delete an individual
 item with Ctrl+Delete; the rows keep their controls compact.
 
+Navigation stops at the ends instead of wrapping. Clear history is above the
+first item: Up or Shift+Tab reaches it, and Down or Tab returns to the first item.
+
 ## Pins and clearing
 
 Pinned items survive ordinary history eviction and **Clear history**. Use
