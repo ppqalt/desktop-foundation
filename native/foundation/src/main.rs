@@ -1,7 +1,7 @@
 use desktop_foundationctl::{
-    Result, actions, app_mods, apps, bluetooth, browser_policy, cache, clipboard,
-    clipboard_transport, diagnostics, geode, invalid, local_ai, monitor, monitor_shader, packages,
-    preferences, process, screenshot, session, shell, theme, volume,
+    Result, actions, app_mods, application_roles, apps, bluetooth, browser_policy, cache,
+    clipboard, clipboard_transport, diagnostics, geode, invalid, local_ai, monitor, monitor_shader,
+    packages, preferences, process, screenshot, session, shell, theme, volume,
 };
 use std::{
     io::{self, Read},
@@ -46,11 +46,24 @@ fn run() -> Result<()> {
     }
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  app-mods install|check|restore|plan [spicetify|geode] [--skip-unavailable]\n  geode install|status|restore [--game-dir PATH]\n  build-info\n  doctor --json\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  app-roles roles|apply|check [--personal]\n  app-roles validate ROLE|desktop NAME|conflicts|restore\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  app-mods install|check|restore|plan [spicetify|geode] [--skip-unavailable]\n  geode install|status|restore [--game-dir PATH]\n  build-info\n  doctor --json\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
         );
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("app-roles") => {
+            let result = application_roles::run(&root, &args[1..])?;
+            print_json(&result)?;
+            if args.get(1).is_some_and(|action| action == "check")
+                && result["failures"]
+                    .as_array()
+                    .is_some_and(|failures| !failures.is_empty())
+            {
+                Err(invalid("Application default verification failed"))
+            } else {
+                Ok(())
+            }
+        }
         Some("app-mods") => print_json(&app_mods::run(&root, &args[1..])?),
         Some("geode") => print_json(&geode::run(&root, &args[1..])?),
         Some("monitor") if args.len() == 2 => match args[1].as_str() {

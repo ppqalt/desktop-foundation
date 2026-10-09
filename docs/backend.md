@@ -12,6 +12,8 @@ clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIM
 clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID
 clipboard [--state DIRECTORY] clear|clear-all
 apps launch [terminal|browser|files|pdf|image|text] [--check]
+app-roles roles|apply|check [--personal]
+app-roles validate ROLE|desktop NAME|conflicts|restore
 volume up|down
 bluetooth power on|off
 bluetooth codecs DEVICE_PATH
@@ -49,7 +51,9 @@ stderr and exit nonzero. Native command arguments are passed as arrays.
   together; normal clearing retains pins. See [clipboard](clipboard.md).
 - **Applications:** role selection follows the installation journal and validates
   desktop entries against their configured executable. `--check` returns the
-  launch plan. [Application roles](application-roles.md) also covers MIME defaults.
+  launch plan. Default assignment, validation, ownership and rollback also run
+  in Rust. Per-key journals retain original defaults and recover interrupted
+  writes without replacing unrelated associations. See [application roles](application-roles.md).
 - **Volume:** 3% changes, capped at 100%, followed by sink readback. The shell shows
   the resulting percentage; Mako provides a fallback when shell IPC is unavailable.
   Audio changes are serialized independently of feedback. Repeated presses keep

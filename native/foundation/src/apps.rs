@@ -1,4 +1,4 @@
-//! Typed application roles. MIME ownership remains in its separate recovery tool.
+//! Typed application launching; default ownership is handled by application_roles.
 use crate::{Result, invalid, process, state};
 use serde::Deserialize;
 use std::{
@@ -40,13 +40,13 @@ pub fn executable(name: &str) -> bool {
     env::var_os("PATH").is_some_and(|p| env::split_paths(&p).any(|dir| test(dir.join(name))))
 }
 
-fn read(path: &Path) -> Result<String> {
+fn read(path: &Path, limit: u64) -> Result<String> {
     use std::io::Read;
     let mut bytes = Vec::new();
     fs::File::open(path)?
-        .take(256 * 1024 + 1)
+        .take(limit + 1)
         .read_to_end(&mut bytes)?;
-    if bytes.len() > 256 * 1024 {
+    if bytes.len() as u64 > limit {
         return Err(invalid(format!(
             "Configuration is too large: {}",
             path.display()
@@ -63,12 +63,14 @@ pub fn role(root: &Path, name: &str) -> Result<ApplicationRole> {
     ) {
         return Err(invalid(format!("Unknown application role: {name}")));
     }
-    let mut roles: Roles =
-        serde_json::from_str(&read(&root.join("config/application-roles.json"))?)?;
+    let mut roles: Roles = serde_json::from_str(&read(
+        &root.join("config/application-roles.json"),
+        256 * 1024,
+    )?)?;
     let journal = state::xdg("XDG_STATE_HOME", ".local/state")?
         .join("desktop-foundation/application-roles.json");
     if journal.exists() {
-        let profile: Profile = serde_json::from_str(&read(&journal)?)?;
+        let profile: Profile = serde_json::from_str(&read(&journal, 1024 * 1024)?)?;
         if profile.profile.as_deref() == Some("personal") {
             roles
                 .entries
@@ -162,7 +164,7 @@ pub fn command(root: &Path, name: &str) -> Result<Vec<String>> {
         )));
     }
     let desktop = desktop.ok_or_else(|| invalid("Desktop entry disappeared"))?;
-    validate_entry(&read(&desktop)?, &role.executable)?;
+    validate_entry(&read(&desktop, 256 * 1024)?, &role.executable)?;
     let mut command = vec![
         root.join("scripts/launch").to_string_lossy().into_owned(),
         role.executable,

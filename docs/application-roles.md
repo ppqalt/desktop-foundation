@@ -28,3 +28,8 @@ It updates the designated keys in `$XDG_CONFIG_HOME/mimeapps.list`, recording
 original values in `$XDG_STATE_HOME/desktop-foundation/application-roles.json`.
 Reruns retain those originals; restoration reverses the managed assignments.
 Externally changed managed keys are reported as conflicts.
+
+Application launching and MIME ownership run in `desktop-foundationctl`. The
+installer retains a small Python metadata reader for package planning before
+the backend has been built. Legacy MIME journals are migrated automatically;
+their original backups remain available.
