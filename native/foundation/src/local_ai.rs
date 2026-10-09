@@ -486,6 +486,26 @@ fn start_inner(root: &Path) -> Result<()> {
     ensure_service("docker.service")?;
     let rows = containers(&config)?;
     require_existing_services(&config, &rows)?;
+    // This stack is launched on demand, not resumed when Docker starts at boot.
+    let ids = process::checked(
+        &compose(&config, &["ps", "--all", "--quiet"])?,
+        None,
+        QUERY_TIMEOUT,
+        true,
+    )?;
+    let ids = std::str::from_utf8(&ids.stdout)
+        .map_err(|_| invalid("Invalid Odysseus container identifiers"))?;
+    let mut update = vec!["docker".into(), "update".into(), "--restart=no".into()];
+    for id in ids.lines().filter(|id| !id.is_empty()) {
+        if !(12..=64).contains(&id.len()) || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(invalid("Invalid Odysseus container identifier"));
+        }
+        update.push(id.into());
+    }
+    if update.len() == 3 {
+        return Err(invalid("No existing Odysseus containers to start"));
+    }
+    process::checked(&update, None, QUERY_TIMEOUT, true)?;
     if rows.iter().any(|row| {
         row["state"] != "running"
             || matches!(row["health"].as_str(), Some("starting" | "unhealthy"))

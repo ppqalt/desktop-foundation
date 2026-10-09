@@ -12,6 +12,11 @@ scripts/local-ai status
 
 ## Configuration
 
+For on-demand use, disable boot startup with `sudo systemctl disable ollama.service`
+and set each Odysseus Compose service to `restart: "no"`. The launcher starts
+Ollama when needed and applies `restart=no` to this project's existing containers
+before starting them. Docker can remain enabled for other applications.
+
 Defaults live in `config/local-ai.toml`. Override individual values in `~/.config/desktop-foundation/local-ai.toml`:
 
 ```toml
