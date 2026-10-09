@@ -525,14 +525,15 @@ fn rpc(paths: &Paths, pid: u32, command: &str, payload: Value) -> Result<()> {
     Ok(())
 }
 
-fn place(paths: &Paths, pid: u32, x: i32, focus: bool) -> Result<()> {
+fn place(paths: &Paths, pid: u32, x: i32, interactive: bool) -> Result<()> {
+    // Enable user-directed focus after mapping; never monopolize the keyboard.
     rpc(
         paths,
         pid,
         "resize-os-window",
         json!({
             "match":"all","action":"os-panel","incremental":true,
-            "os_panel":[format!("margin-left={x}"), format!("focus-policy={}", if focus { "exclusive" } else { "not-allowed" })],
+            "os_panel":[format!("margin-left={x}"), format!("focus-policy={}", if interactive { "on-demand" } else { "not-allowed" })],
         }),
     )
 }
@@ -713,6 +714,8 @@ pub fn serve(root: &Path) -> Result<()> {
                 "--edge=none",
                 "--layer=overlay",
                 "--exclusive-zone=-1",
+                // Niri can auto-focus a newly mapped on-demand layer. Enable
+                // interactivity later on the existing, fully opened surface.
                 "--focus-policy=not-allowed",
                 "--app-id=desktop-foundation:monitor",
             ])

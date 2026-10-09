@@ -9,7 +9,10 @@ and soft shadow. Inner padding keeps the terminal content away from the edges.
 
 btop retains its keyboard controls, including process filtering, menus, Escape
 and q. Quitting btop closes its terminal immediately. Use Super+X for an animated
-close. No Kitty keyboard grab is used, so desktop shortcuts remain available.
+close. The sidebar uses on-demand keyboard focus once open: click btop to use its
+keyboard controls, then click another window or use Niri's window-focus shortcuts
+to continue working while it stays visible. Opening does not steal focus; keyboard
+input is disabled during the slide. No Kitty keyboard grab or hide-on-focus-loss is used.
 
 `config/monitor.toml` sets the width, font size, opening and closing durations,
 corner radius, padding, background opacity and the initial btop update interval. The default is 720 logical pixels,
