@@ -15,19 +15,22 @@ scripts/theme-promote                          # save the active palette in Git
 
 The packaged Matugen executable extracts wallpaper colors once and exits. The
 Rust backend hashes the image, runs Matugen, derives semantic graphite roles,
-checks contrast and caches the result. Unchanged inputs reuse the cache.
+checks contrast and caches the result. Unchanged inputs reuse the cache. Rust
+also maps the accent to GNOME's supported enum and records owned preference
+changes for rollback; Python keeps installation and theme transaction orchestration.
 
-Background, elevated, icon, hover, selected and border roles blend the graphite
-base with primary at 6%, 10%, 12%, 12%, 17% and 18%. Surface saturation is capped
-at 20–24%. Foreground and muted text stay near-neutral; shadows stay black.
+Background, elevated, icon, hover, selected and border roles use the wallpaper
+primary's hue at fixed graphite lightness. Neutral bases remove the old blue cast;
+surface saturation is capped at 18–25%. Wallpaper brightness cannot brighten the
+panels. Foreground and muted text stay near-neutral; shadows stay black.
 Accents use primary and an 80/20 primary/secondary blend. Contrast targets are
 7:1 for foreground, 3:1 for muted text and 4.5:1 for accents on opaque panels.
 
 | Role | Blue source | Orange source |
 | --- | --- | --- |
-| Background | `#1f262f` | `#252429` |
-| Elevated | `#2e3845` | `#38363c` |
-| Selected | `#3e5065` | `#4d4c57` |
+| Background | `#161b20` | `#201916` |
+| Elevated | `#212b33` | `#332621` |
+| Selected | `#304150` | `#503930` |
 | Accent | `#98ccf9` | `#ffb599` |
 | Foreground | `#eef1f6` | `#eef1f6` |
 
@@ -61,6 +64,8 @@ tracked `theme/generated.json`; changing the shipped wallpaper is a separate edi
 Cache maintenance retains six theme revisions, 32 palettes and 16 overview images,
 protecting current and previous references. Use `scripts/foundation cache plan`
 to inspect candidates or `scripts/foundation cache prune` to remove eligible files.
+The hue-based palette uses the `graphite-v2` cache namespace; existing theme
+revisions and `graphite-v1` palettes remain available for rollback.
 
 ## Refresh
 
@@ -75,9 +80,32 @@ to inspect candidates or `scripts/foundation cache prune` to remove eligible fil
 | Mako | Native reload, or next launch |
 | GTK | Native dark preference and nearest supported accent |
 | Spotify | Refresh generated assets; native UI reload or next launch |
-| Brave | Load unpacked, or opt-in approved DevTools refresh |
+| Brave | Managed BrowserThemeColor policy and native live refresh; unpacked fallback |
+| btop sidebar | Owned panel reload and native btop theme refresh while open |
+
+## btop
+
+New theme revisions include `btop/desktop-foundation.theme`, derived from the same
+semantic colors as the shell and terminal. Background, text, borders, selection
+and graph colors use graphite roles; high temperature and resource usage use the
+error color. Reset renders from the static palette. The file is staged before the
+active pointer changes, so failed generation preserves the working revision.
+
+Super+X opens the [btop sidebar](../docs/monitor.md). Its isolated configuration
+uses this theme; normal `~/.config/btop` settings are preserved. Theme updates
+refresh only the owned sidebar process. The [sidebar comparison](../docs/sidebars.md)
+describes the host and animation choices.
 
 ## Brave
+
+The full installer uses a root-owned `BrowserThemeColor` policy and Brave Origin
+Nightly's native policy refresh. It updates a single validated color while
+preserving active browser preferences and the previously selected extension
+theme. See [managed browser colors](../docs/browser-policy.md) for setup, scope,
+verification and restoration.
+
+Without the policy writer, use the unpacked theme fallback below. Policy mode
+does not use the DevTools adapter.
 
 Open `brave://extensions`, enable Developer mode and use **Load unpacked** with:
 

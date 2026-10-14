@@ -1,0 +1,383 @@
+#!/usr/bin/env python3
+"""Install a narrow, reversible root-owned Brave theme policy writer."""
+import argparse
+from contextlib import contextmanager
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import stat
+import tempfile
+import time
+from xml.sax.saxutils import escape
+
+ROOT = Path(__file__).resolve().parent.parent
+STATE = Path('/var/lib/desktop-foundation/browser-policy')
+HELPER = Path('/usr/local/libexec/desktop-foundation-browser-policy')
+OWNER = Path('/etc/desktop-foundation/browser-policy.json')
+POLICY = Path('/etc/brave/policies/managed/70-desktop-foundation-theme.json')
+ACTION_ID = 'org.desktop-foundation.browser-theme'
+ACTION = Path('/usr/share/polkit-1/actions/' + ACTION_ID + '.policy')
+RULE = Path('/etc/polkit-1/rules.d/49-desktop-foundation-browser-theme.rules')
+TARGETS = [HELPER, ACTION, RULE, OWNER]
+LIMIT = 32 * 1024 * 1024
+
+
+def digest(content):
+    return hashlib.sha256(content).hexdigest()
+
+
+def parents(path):
+    for parent in path.parents:
+        try:
+            info = parent.lstat()
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise RuntimeError('Expected root-owned, non-writable directory: ' + str(parent))
+
+
+def read(path, private=False, limit=LIMIT):
+    parents(path)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(descriptor, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022
+                or private and info.st_mode & 0o077 or info.st_size > limit):
+            raise RuntimeError('Unsafe protected file: ' + str(path))
+        content = stream.read(limit + 1)
+        if len(content) > limit:
+            raise RuntimeError('Protected file exceeded its size limit: ' + str(path))
+        return content, stat.S_IMODE(info.st_mode)
+
+
+def optional(path, private=False, limit=LIMIT):
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return None, None
+    return read(path, private, limit)
+
+
+def atomic(path, content, mode):
+    parents(path)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    parents(path)
+    descriptor, temporary = tempfile.mkstemp(prefix='.' + path.name + '-', dir=path.parent)
+    try:
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(content)
+            os.fchown(stream.fileno(), 0, 0)
+            os.fchmod(stream.fileno(), mode)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        descriptor = os.open(path.parent, os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def save(path, data):
+    atomic(path, (json.dumps(data, indent=2) + '\n').encode(), 0o600)
+
+
+def remove_file(path):
+    parents(path)
+    path.unlink(missing_ok=True)
+    if path.parent.exists():
+        descriptor = os.open(path.parent, os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+@contextmanager
+def transaction():
+    parents(STATE / 'lock')
+    STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    info = STATE.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o700:
+        raise RuntimeError('Browser policy state must be a private root-owned directory')
+    descriptor = os.open(STATE / 'lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o600:
+            raise RuntimeError('Unsafe browser policy transaction lock')
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('Browser policy transaction busy; retry shortly')
+                time.sleep(0.02)
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def identity(name):
+    if name:
+        account = pwd.getpwnam(name)
+    elif os.environ.get('SUDO_UID', '').isdigit():
+        account = pwd.getpwuid(int(os.environ['SUDO_UID']))
+    else:
+        raise RuntimeError('Select the desktop owner with --user NAME when running directly as root')
+    if not account.pw_uid or not account.pw_name or len(account.pw_name) > 64:
+        raise RuntimeError('The browser theme owner must be an existing non-root user')
+    return {'version': 1, 'uid': account.pw_uid, 'user': account.pw_name}
+
+
+def policy_valid(content):
+    import re
+    if len(content) > 4096:
+        raise RuntimeError('The owned browser color policy exceeds 4 KiB')
+    value = json.loads(content)
+    if not isinstance(value, dict) or set(value) != {'BrowserThemeColor'} or not isinstance(value['BrowserThemeColor'], str) or not re.fullmatch('#[0-9a-fA-F]{6}', value['BrowserThemeColor']):
+        raise RuntimeError('The owned policy file may contain only a valid BrowserThemeColor')
+
+
+def sources(owner):
+    binary = ROOT / 'native/foundation/target/release/foundation-browser-policy'
+    descriptor = os.open(binary, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > LIMIT:
+            raise RuntimeError('Build the bounded native browser policy helper first')
+        native = stream.read(LIMIT + 1)
+    if len(native) > LIMIT or not native.startswith(b'\x7fELF'):
+        raise RuntimeError('The policy helper must be a built native executable')
+    action = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+              '<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">\n'
+              '<policyconfig><vendor>Desktop Foundation</vendor>\n'
+              '<action id="' + ACTION_ID + '"><description>Update the desktop browser theme</description>'
+              '<message>Authentication is required to update the browser theme.</message>'
+              '<defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>no</allow_active></defaults>'
+              '<annotate key="org.freedesktop.policykit.exec.path">' + escape(str(HELPER)) + '</annotate>'
+              '</action></policyconfig>\n').encode()
+    rule = ('// Only the installed color-only helper for the local active desktop owner.\n'
+            'polkit.addRule(function(action, subject) {\n'
+            '    if (action.id !== ' + json.dumps(ACTION_ID) + ') return null;\n'
+            '    if (action.lookup("program") === ' + json.dumps(str(HELPER))
+            + ' && subject.local && subject.active && subject.user === ' + json.dumps(owner['user']) + ')\n'
+            '        return polkit.Result.YES;\n'
+            '    return polkit.Result.NO;\n'
+            '});\n').encode()
+    return {str(HELPER): (native, 0o755), str(ACTION): (action, 0o644),
+            str(RULE): (rule, 0o644), str(OWNER): ((json.dumps(owner, indent=2) + '\n').encode(), 0o644)}
+
+
+def load_setup():
+    content, _ = optional(STATE / 'setup.json', True, 64 * 1024)
+    if content is None:
+        return {'version': 1, 'files': {}, 'created_directories': []}
+    value = json.loads(content)
+    if (set(value) != {'version', 'files', 'created_directories'} or value.get('version') != 1
+            or not isinstance(value.get('files'), dict) or set(value['files']) - {str(x) for x in TARGETS}
+            or not isinstance(value['created_directories'], list)
+            or len(value['created_directories']) > 2
+            or set(value['created_directories']) - {'/usr/local/libexec', '/etc/desktop-foundation'}):
+        raise RuntimeError('Invalid browser policy setup journal')
+    for name, entry in value['files'].items():
+        if (not isinstance(entry, dict) or set(entry) - {'backup', 'original', 'original_mode', 'managed', 'pending', 'restoring'}
+                or not {'backup', 'original', 'original_mode', 'managed'} <= set(entry)):
+            raise RuntimeError('Invalid browser setup file record')
+        if 'restoring' in entry and entry['restoring'] is not True:
+            raise RuntimeError('Invalid pending browser setup restoration')
+        if entry.get('backup'):
+            path = STATE / entry['backup']
+            if path.parent != STATE or path.name != entry['backup']:
+                raise RuntimeError('Invalid browser policy backup path')
+            content, mode = read(path, True)
+            original_mode = entry.get('original_mode')
+            if (digest(content) != entry['original'] or not isinstance(original_mode, int)
+                    or original_mode & ~0o777 or original_mode & 0o022):
+                raise RuntimeError('Browser policy backup changed: ' + name)
+    return value
+
+
+def preflight(entries, wanted=None):
+    for path in TARGETS:
+        parents(path)
+        content, mode = optional(path)
+        entry = entries.get(str(path))
+        if entry:
+            accepted = {entry.get('managed'), entry.get('pending'), entry.get('original')}
+            if wanted:
+                accepted.add(digest(wanted[str(path)][0]))
+            if content is None:
+                if entry.get('backup') or entry.get('managed') and not entry.get('pending') and not entry.get('restoring'):
+                    raise RuntimeError('Installed browser policy file disappeared: ' + str(path))
+            elif digest(content) not in accepted:
+                raise RuntimeError('Browser policy setup file was modified externally: ' + str(path))
+        if path == HELPER and content is not None and mode & 0o6000:
+            raise RuntimeError('Browser policy helper must not be setuid/setgid')
+
+
+def validate_policy_journal():
+    content, _ = optional(STATE / 'policy.json', True, 128 * 1024)
+    current, mode = optional(POLICY, limit=4096)
+    if current is not None:
+        policy_valid(current)
+    if content is None:
+        return None, current, mode
+    value = json.loads(content)
+    if (set(value) != {'version', 'original', 'original_mode', 'managed', 'pending', 'created_directories'}
+            or value['version'] != 1 or not isinstance(value['created_directories'], list)
+            or len(value['created_directories']) > 3
+            or set(value['created_directories']) - {'/etc/brave', '/etc/brave/policies', '/etc/brave/policies/managed'}):
+        raise RuntimeError('Invalid browser policy rollback journal')
+    if ((value['original'] is None) != (value['original_mode'] is None)
+            or value['original_mode'] is not None and (not isinstance(value['original_mode'], int)
+                or value['original_mode'] & ~0o777 or value['original_mode'] & 0o022)):
+        raise RuntimeError('Invalid browser policy original ownership')
+    allowed = [value['original'], value['managed']]
+    pending = value['pending']
+    if pending:
+        if pending.get('action') == 'apply':
+            allowed.append(pending['bytes'])
+        elif pending.get('action') == 'remove':
+            allowed.append(value['original'])
+        else:
+            raise RuntimeError('Invalid browser policy pending operation')
+    for data in allowed:
+        if data is not None:
+            if not isinstance(data, list) or len(data) > 4096:
+                raise RuntimeError('Invalid browser policy backup bytes')
+            policy_valid(bytes(data))
+    if (list(current) if current is not None else None) not in allowed:
+        raise RuntimeError('Browser theme policy changed outside Desktop Foundation')
+    return value, current, mode
+
+
+def ensure_dirs(journal, paths):
+    for path in paths:
+        parents(path / 'file')
+        if not path.exists():
+            if str(path) not in journal['created_directories']:
+                journal['created_directories'].append(str(path))
+            save(STATE / 'setup.json', journal)
+            path.mkdir(mode=0o755)
+
+
+def install(name):
+    owner = identity(name)
+    desired = sources(owner)
+    journal = load_setup()
+    entries = journal['files']
+    preflight(entries, desired)
+    old_owner, _ = optional(OWNER, limit=4096)
+    if old_owner is not None and json.loads(old_owner) != owner:
+        raise RuntimeError('A different desktop owner owns browser theming; restore before changing ownership')
+    policy, previous, previous_mode = validate_policy_journal()
+    if not Path('/usr/bin/pkexec').is_file():
+        raise RuntimeError('Install polkit before configuring browser theme policy')
+    ensure_dirs(journal, [Path('/usr/local/libexec'), Path('/etc/desktop-foundation')])
+    if policy is None:
+        created = []
+        for directory in [Path('/etc/brave'), Path('/etc/brave/policies'), Path('/etc/brave/policies/managed')]:
+            parents(directory / 'file')
+            if not directory.exists():
+                created.append(str(directory))
+        policy = {'version': 1, 'original': list(previous) if previous is not None else None,
+                  'original_mode': previous_mode, 'managed': list(previous) if previous is not None else None,
+                  'pending': None, 'created_directories': created}
+        save(STATE / 'policy.json', policy)
+    for directory in [Path('/etc/brave'), Path('/etc/brave/policies'), Path('/etc/brave/policies/managed')]:
+        parents(directory / 'file')
+        directory.mkdir(exist_ok=True, mode=0o755)
+    for path in TARGETS:
+        content, mode = optional(path)
+        name = str(path)
+        if name not in entries:
+            backup = 'backup-' + str(TARGETS.index(path))
+            if content is not None:
+                atomic(STATE / backup, content, 0o600)
+            entries[name] = {'backup': backup if content is not None else None,
+                             'original': digest(content) if content is not None else None,
+                             'original_mode': mode, 'managed': None}
+        body, mode = desired[name]
+        entries[name]['pending'] = digest(body)
+        save(STATE / 'setup.json', journal)
+        atomic(path, body, mode)
+        entries[name]['managed'] = entries[name].pop('pending')
+        entries[name].pop('restoring', None)
+        save(STATE / 'setup.json', journal)
+    print('Installed the root-owned Brave theme writer for ' + owner['user'] + '. No browser was started or restarted.')
+    print('Wallpaper updates can now change BrowserThemeColor through the narrow local-session policy action.')
+
+
+def restore():
+    journal = load_setup()
+    if not journal['files']:
+        print('Browser theme policy is not installed.')
+        return
+    preflight(journal['files'])
+    policy, _, _ = validate_policy_journal()
+    if policy is None:
+        raise RuntimeError('Missing browser theme policy rollback journal')
+    # All protected files/backups are checked before restoring any of them.
+    for entry in journal['files'].values():
+        entry['restoring'] = True
+    save(STATE / 'setup.json', journal)
+    original = bytes(policy['original']) if policy['original'] is not None else None
+    policy['pending'] = {'action': 'remove'}
+    save(STATE / 'policy.json', policy)
+    if original is not None:
+        atomic(POLICY, original, policy['original_mode'])
+    else:
+        remove_file(POLICY)
+    policy['managed'] = policy['original']
+    policy['pending'] = None
+    save(STATE / 'policy.json', policy)
+    for path in [RULE, ACTION, OWNER, HELPER]:
+        entry = journal['files'].get(str(path))
+        if entry is None:
+            continue  # Interrupted setup never owned this target.
+        if entry['backup']:
+            body, _ = read(STATE / entry['backup'], True)
+            atomic(path, body, entry['original_mode'])
+        else:
+            remove_file(path)
+    for directory in reversed(policy['created_directories'] + journal['created_directories']):
+        try:
+            Path(directory).rmdir()
+            descriptor = os.open(Path(directory).parent, os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        except OSError:
+            pass  # Never remove another program's files or a shared nonempty directory.
+    remove_file(STATE / 'setup.json')
+    remove_file(STATE / 'policy.json')
+    # Backups remain usable until removal of their requiring journals is durable.
+    # Interrupted cleanup after this point may leave harmless private backups.
+    for entry in journal['files'].values():
+        if entry['backup']:
+            remove_file(STATE / entry['backup'])
+    print('Previous policy/setup restored. The browser will see removal at its native policy refresh or next start.')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['install', 'restore'])
+    parser.add_argument('--user')
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error('Run with sudo; managed browser policy directories remain root-owned')
+    with transaction():
+        install(args.user) if args.action == 'install' else restore()
+
+
+if __name__ == '__main__':
+    main()

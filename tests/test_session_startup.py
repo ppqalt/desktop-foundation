@@ -24,12 +24,15 @@ class SessionStartup(unittest.TestCase):
             shell = (generated / 'desktop-foundation-shell.service').read_text()
             self.assertNotIn('After=', shell)
             self.assertNotIn('Requires=', shell)
-            watchers = (generated / 'desktop-foundation-clipboard@.service').read_text()
+            watchers = (generated / 'desktop-foundation-clipboard.service').read_text()
             self.assertIn('Requires=desktop-foundation-clipboard-init.service', watchers)
             self.assertIn('After=desktop-foundation-clipboard-init.service', watchers)
             target = (generated / 'desktop-foundation-session.target').read_text()
             self.assertNotIn('After=', target)
             self.assertIn('Wants=desktop-foundation-shell.service', target)
+            self.assertIn('desktop-foundation-clipboard.service', target)
+            self.assertNotIn('clipboard@text', target)
+            self.assertNotIn('clipboard@image', target)
             aliases = dict(paths)
             self.assertEqual(aliases[base / 'config/systemd/user/mako.service'],
                              base / 'config/systemd/user/desktop-foundation-notifications.service')
@@ -60,6 +63,28 @@ class SessionStartup(unittest.TestCase):
             self.assertNotIn('printf', text)
         self.assertNotIn('write_text', (ROOT / 'scripts/niri_notifications.py').read_text())
         self.assertNotIn('scripts/dark-mode', (ROOT / 'scripts/session-start').read_text())
+
+    def test_capture_start_handles_missing_legacy_units_without_skipping_new_worker(self):
+        import os
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            fake = base / 'systemctl'
+            fake.write_text('''#!/usr/bin/env python3
+import json, os, pathlib, sys
+with pathlib.Path(os.environ['DF_TEST_LOG']).open('a') as stream:
+    stream.write(json.dumps(sys.argv[1:]) + '\\n')
+if 'stop' in sys.argv:
+    sys.exit(5)  # Fresh install: old template units do not exist.
+''')
+            fake.chmod(0o755)
+            log = base / 'calls'
+            result = subprocess.run([str(ROOT / 'scripts/clipboard-start')],
+                                    env={**os.environ, 'PATH': str(base) + ':' + os.environ['PATH'],
+                                         'DF_TEST_LOG': str(log)}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            import json
+            calls = [json.loads(line) for line in log.read_text().splitlines()]
+            self.assertEqual(calls[-1], ['--user', 'start', 'desktop-foundation-clipboard.service'])
 
     def test_journal_binary_messages_and_missing_metrics(self):
         message = '\x1b[32mConfiguration Loaded\x1b[0m'

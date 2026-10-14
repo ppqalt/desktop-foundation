@@ -62,8 +62,9 @@ def restore(manifest):
                                and Path(e['path']).name.startswith('desktop-foundation-')
                                and '@' not in Path(e['path']).name})
     if persistent_units:
-        subprocess.run(['systemctl', '--user', 'stop', *persistent_units,
-                        'desktop-foundation-clipboard@text.service', 'desktop-foundation-clipboard@image.service'], check=True)
+        subprocess.run(['systemctl', '--user', 'stop', *persistent_units], check=True)
+        subprocess.run(['systemctl', '--user', 'stop', 'desktop-foundation-clipboard@text.service',
+                        'desktop-foundation-clipboard@image.service'], check=False)
     for entry in reversed(manifest['entries'][:]):
         path = Path(entry['path'])
         backup = Path(entry['backup']) if entry['backup'] else None
@@ -114,6 +115,8 @@ def main():
         paths.extend([(CONFIG / 'niri/config.kdl', STATE / 'niri.kdl'),
                       (CONFIG / 'quickshell/desktop-foundation', ROOT / 'shell')])
         paths.extend(common_targets())
+        from local_ai_launcher import targets as local_ai_targets
+        paths.extend(local_ai_targets(ROOT, CONFIG, STATE, DATA, write=False))
         for path, source in paths:
             print(f'Deploy with backup: {path} <- {source}')
         return
@@ -139,6 +142,7 @@ def main():
         from theme_runtime import ensure
         ensure(args.profile)
         if args.compositor == 'niri':
+            subprocess.run([str(ROOT / 'scripts/monitor'), 'prepare'], check=True)
             wrapper = 'include ' + json.dumps(str(STATE / 'theme/current/niri.kdl')) + '\n'
             with tempfile.NamedTemporaryFile(mode='w', suffix='.kdl') as candidate:
                 candidate.write(wrapper)
@@ -174,6 +178,8 @@ def main():
                 link.symlink_to(child)
         subprocess.run(['fish', '--no-config', '-n', str(ROOT / 'terminal/fish/config.fish')], check=True)
         targets.extend(common_targets())
+        from local_ai_launcher import targets as local_ai_targets
+        targets.extend(local_ai_targets(ROOT, CONFIG, STATE, DATA))
         for path, src in targets:
             entries = [e for e in manifest['entries'] if e['path'] == str(path)]
             if entries and not owned(entries[0]):
@@ -214,6 +220,16 @@ def main():
             restore(manifest)
             raise
         subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
+        # An active session may still have the old per-format workers. Replace
+        # just clipboard capture after all unit definitions have been published.
+        active = subprocess.run(['systemctl', '--user', 'is-active', '--quiet',
+                                 'desktop-foundation-session.target'], check=False)
+        if active.returncode == 0:
+            subprocess.run(['systemctl', '--user', 'stop',
+                            'desktop-foundation-clipboard@text.service',
+                            'desktop-foundation-clipboard@image.service'], check=False)
+            subprocess.run(['systemctl', '--user', 'restart',
+                            'desktop-foundation-clipboard.service'], check=True)
         subprocess.run(['python3', str(ROOT / 'scripts/preferences.py'), 'install', '--theme-only'], check=True)
         subprocess.run(['fc-cache', '-f'], check=True)
         print(f'Deployed {args.compositor} profile {args.profile}; backups and manifest: {STATE}')

@@ -11,14 +11,14 @@ Use a normal login user with sudo, Git and Python. Keep the checkout in a
 permanent location.
 
 ```sh
-git clone --branch v0.20 https://github.com/ppqalt/desktop-foundation.git
+git clone https://github.com/ppqalt/desktop-foundation.git
 cd desktop-foundation
 ./scripts/install-core --dry-run
 ./scripts/install-core
 ```
 
 Core includes the desktop, terminal, fonts, audio, Bluetooth, application defaults
-and login setup. For Spotify, Spicetify, Marketplace, ChatGPT and Steam, use
+and login setup. For Spotify, Spicetify, Marketplace, ChatGPT, Steam and Vesktop, use
 `./scripts/install-all`.
 
 Log into Niri after installation. Use `--no-greeter` to keep an existing login
@@ -27,14 +27,18 @@ manager, or `--no-packages` when dependencies are already installed.
 
 ## Desktop
 
-- Application launcher and searchable text/image clipboard history.
+- Application launcher and searchable, pinnable clipboard history for text,
+  images and copied files/folders.
 - Bluetooth switch, paired-device connections and native Nothing/CMF controls.
 - Session menu with suspend, logout, reboot and power off.
 - Wallpaper-derived accents across the shell, terminal, notifications and apps.
 - A toggleable corner clock and volume readout with instant bar updates.
+- A sliding btop sidebar with a Rust lifecycle and wallpaper-derived colors.
 - Scrolling columns, automatic single-column centering and manual centering.
 - Kitty, Fish and Fastfetch with Google Sans fonts and cached package counts.
 - Matrix login screen, AppArmor setup and boot configuration helpers.
+- oo7 keyring with password unlocking through greetd.
+- Odysseus launcher for an existing local Ollama/Compose installation.
 
 Menus share the same card styling, keyboard navigation and animations. Applications
 remain visible behind their dimmed, blurred backgrounds. Volume uses only a 100 ms
@@ -45,6 +49,7 @@ fade in/out; the bar and percentage update immediately.
 | Super+Space | Application launcher |
 | Super+V | Clipboard history |
 | Super+B | Bluetooth |
+| Super+X | btop sidebar |
 | Super+Shift+Q | Session menu |
 | Super+Tab | Overview |
 | Super+Shift+C | Corner clock |

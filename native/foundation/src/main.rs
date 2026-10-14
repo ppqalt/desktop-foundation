@@ -1,11 +1,11 @@
 use desktop_foundationctl::{
-    Result, actions, apps, bluetooth, cache, clipboard, invalid, packages, process, screenshot,
-    session, shell, theme, volume,
+    Result, actions, app_mods, application_roles, apps, bluetooth, browser_policy, cache,
+    clipboard, clipboard_transport, diagnostics, geode, invalid, local_ai, monitor, monitor_shader,
+    packages, preferences, process, screenshot, session, shell, theme, volume,
 };
 use std::{
     io::{self, Read},
     path::PathBuf,
-    time::Duration,
 };
 
 fn run() -> Result<()> {
@@ -38,13 +38,65 @@ fn run() -> Result<()> {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
         }
     };
+    // Compiler arguments, including --help, belong to Slang rather than our CLI.
+    if args.first().map(String::as_str) == Some("monitor")
+        && args.get(1).map(String::as_str) == Some("shader-compiler")
+    {
+        return monitor_shader::compiler(&args[2..]);
+    }
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|store text|store image|copy ID|delete ID|clear\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  app-roles roles|apply|check [--personal]\n  app-roles validate ROLE|desktop NAME|conflicts|restore\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  app-mods install|check|restore|plan [spicetify|geode] [--skip-unavailable]\n  geode install|status|restore [--game-dir PATH]\n  build-info\n  doctor --json\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
         );
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("app-roles") => {
+            let result = application_roles::run(&root, &args[1..])?;
+            print_json(&result)?;
+            if args.get(1).is_some_and(|action| action == "check")
+                && result["failures"]
+                    .as_array()
+                    .is_some_and(|failures| !failures.is_empty())
+            {
+                Err(invalid("Application default verification failed"))
+            } else {
+                Ok(())
+            }
+        }
+        Some("app-mods") => print_json(&app_mods::run(&root, &args[1..])?),
+        Some("geode") => print_json(&geode::run(&root, &args[1..])?),
+        Some("monitor") if args.len() == 2 => match args[1].as_str() {
+            "toggle" => monitor::toggle(&root),
+            "close" => monitor::close(&root),
+            "serve" => monitor::serve(&root),
+            "status" => print_json(&monitor::status(&root)?),
+            "refresh" => monitor::refresh(&root),
+            "prepare" => monitor::prepare(&root),
+            _ => Err(invalid(
+                "Expected monitor toggle, close, status, refresh or prepare",
+            )),
+        },
+        Some("browser-theme") => match args.as_slice() {
+            [_, action] if action == "status" => print_json(&browser_policy::status()?),
+            [_, action, color] if action == "apply" => {
+                print_json(&browser_policy::refresh(&root, color)?)
+            }
+            [_, action] if action == "remove" => print_json(&browser_policy::remove(&root)?),
+            _ => Err(invalid(
+                "Expected browser-theme status, apply COLOR or remove",
+            )),
+        },
+        Some("build-info") if args.len() == 1 => print_json(&diagnostics::build_info()),
+        Some("doctor") if args.as_slice() == ["doctor", "--json"] => {
+            print_json(&diagnostics::report(&root)?)
+        }
+        Some("local-ai") if args.len() == 2 => match args[1].as_str() {
+            "plan" => print_json(&local_ai::plan(&root)?),
+            "status" => print_json(&local_ai::status(&root)?),
+            "start" => local_ai::start(&root),
+            _ => Err(invalid("Expected local-ai start, status or plan")),
+        },
         Some("clipboard") => run_clipboard(args[1..].to_vec()),
         Some("apps") if args.get(1).map(String::as_str) == Some("launch") => {
             let check = args.iter().any(|s| s == "--check");
@@ -84,10 +136,20 @@ fn run() -> Result<()> {
                 let material = serde_json::from_slice(&input)?;
                 print_json(&theme::derive(&root, &material, source, digest)?)
             }
+            [_, action] if action == "gtk-accent" => {
+                let mut input = Vec::new();
+                io::stdin().take(64 * 1024 + 1).read_to_end(&mut input)?;
+                if input.len() > 64 * 1024 {
+                    return Err(invalid("Palette JSON is too large"));
+                }
+                let palette = serde_json::from_slice(&input)?;
+                print_json(&serde_json::json!({"accent": theme::gtk_accent(&palette)?}))
+            }
             _ => Err(invalid(
-                "Expected theme generate IMAGE or theme derive --source SOURCE --hash HASH",
+                "Expected theme generate IMAGE, theme derive --source SOURCE --hash HASH or theme gtk-accent",
             )),
         },
+        Some("preferences") => run_preferences(args[1..].to_vec()),
         Some("system") if args.get(1).map(String::as_str) == Some("packages") => {
             let config = match args.as_slice() {
                 [_, _] => root.join("terminal/fastfetch/packages.jsonc"),
@@ -154,7 +216,7 @@ fn run() -> Result<()> {
                     bluetooth::action(action, path, option.strip_prefix("--codec="))
                 }
                 _ => Err(invalid(
-                    "Expected bluetooth power on|off, codecs|connect|disconnect|reconnect DEVICE_PATH or codec DEVICE_PATH --codec sbc|sbc_xq",
+                    "Expected bluetooth power on|off, codecs|connect|disconnect|reconnect DEVICE_PATH or codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac",
                 )),
             };
             match result {
@@ -188,7 +250,7 @@ fn run() -> Result<()> {
             actions::invoke(&root, &args[2])
         }
         _ => Err(invalid(
-            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, theme, wallpaper start, notifications, actions list|plan|invoke or cache plan|prune",
+            "Expected clipboard, apps launch, volume, bluetooth, screenshot, power, theme, preferences, wallpaper start, notifications, actions list|plan|invoke or cache plan|prune",
         )),
     }
 }
@@ -196,6 +258,47 @@ fn run() -> Result<()> {
 fn print_json(value: &impl serde::Serialize) -> Result<()> {
     println!("{}", serde_json::to_string(value)?);
     Ok(())
+}
+
+fn run_preferences(mut args: Vec<String>) -> Result<()> {
+    let mut directory = preferences::directory()?;
+    let mut lock_fd = None;
+    for option in ["--state", "--lock-fd"] {
+        if let Some(index) = args.iter().position(|argument| argument == option) {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| invalid(format!("{option} requires a value")))?;
+            if option == "--state" {
+                directory = PathBuf::from(value)
+            } else {
+                let fd = value
+                    .parse::<i32>()
+                    .map_err(|_| invalid("Invalid inherited preference lock descriptor"))?;
+                if fd < 0 {
+                    return Err(invalid("Invalid inherited preference lock descriptor"));
+                }
+                lock_fd = Some(fd);
+            }
+            args.drain(index..=index + 1);
+        }
+    }
+    let result = match args.as_slice() {
+        [action, kind, key, value] if action == "set" => {
+            preferences::manage_setting(&directory, [kind.clone(), key.clone()], value, lock_fd)
+        }
+        [action] if action == "check" => preferences::check(&directory, lock_fd),
+        [action] if action == "prepare-restore" => {
+            preferences::prepare_restore(&directory, lock_fd)
+        }
+        [action] if action == "restore" => preferences::restore(&directory, lock_fd),
+        [action] if action == "gtk-refresh" && lock_fd.is_none() => {
+            preferences::gtk_refresh(&directory)
+        }
+        _ => Err(invalid(
+            "Expected preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh",
+        )),
+    }?;
+    print_json(&result)
 }
 
 fn run_clipboard(mut args: Vec<String>) -> Result<()> {
@@ -212,6 +315,25 @@ fn run_clipboard(mut args: Vec<String>) -> Result<()> {
         .map(String::as_str)
         .ok_or_else(|| invalid("Clipboard action required"))?;
     if action == "store" {
+        if args.len() == 3 && args[1] == "--mime" {
+            if !clipboard::supported_mime(&args[2]) {
+                return Err(invalid("Unsupported clipboard format"));
+            }
+            if std::env::var("CLIPBOARD_STATE").is_ok_and(|state| state != "data") {
+                return Ok(());
+            }
+            let mut data = Vec::new();
+            io::stdin()
+                .take((clipboard::MAX_BYTES + 1) as u64)
+                .read_to_end(&mut data)?;
+            if data.is_empty() || data.len() > clipboard::MAX_BYTES {
+                return Ok(());
+            }
+            return clipboard::History::open(&directory)?.store_bundle(&[clipboard::Format {
+                mime: args[2].clone(),
+                data,
+            }]);
+        }
         if args.len() != 2 {
             return Err(invalid("store requires text or image"));
         }
@@ -226,27 +348,42 @@ fn run_clipboard(mut args: Vec<String>) -> Result<()> {
     }
     if !matches!(
         (action, args.len()),
-        ("init" | "clear", 1) | ("copy" | "delete", 2)
+        ("init" | "watch" | "serve" | "clear" | "clear-all", 1)
+            | ("copy" | "copy-plain" | "pin" | "unpin" | "delete", 2)
     ) {
         return Err(invalid(
-            "Expected clipboard init, clear, copy ID, delete ID or store text|image",
+            "Expected clipboard init, watch, copy/copy-plain/pin/unpin/delete ID, clear/clear-all or store text|image|--mime MIME",
         ));
+    }
+    if action == "watch" {
+        return clipboard_transport::watch(&directory);
+    }
+    if action == "serve" {
+        return clipboard_transport::serve_stdin();
     }
     let mut history = clipboard::History::open(&directory)?;
     match action {
         "init" => history.export(),
         "clear" => history.clear(),
+        "clear-all" => history.clear_all(),
+        "pin" => history.pin(&args[1], true),
+        "unpin" => history.pin(&args[1], false),
         "delete" => history.delete(&args[1]),
         "copy" => {
-            let (mime, payload) = history.payload(&args[1])?;
+            let formats = history.bundle(&args[1])?;
             drop(history); // Release storage ownership before contacting Wayland.
-            process::checked(
-                &["wl-copy".into(), "--type".into(), mime],
-                Some(payload),
-                Duration::from_secs(5),
-                false,
-            )?;
-            Ok(())
+            clipboard_transport::publish(formats, &args[1])
+        }
+        "copy-plain" => {
+            let data = history.plain_payload(&args[1])?;
+            drop(history);
+            clipboard_transport::publish(
+                vec![clipboard::Format {
+                    mime: "text/plain;charset=utf-8".into(),
+                    data,
+                }],
+                &args[1],
+            )
         }
         _ => Err(invalid("Unknown clipboard action")),
     }

@@ -110,8 +110,7 @@ def main():
             env = {**os.environ, 'DF_CLIPBOARD_STATE': str(state), 'DF_CLIPBOARD_WORKER': str(ROOT / 'scripts/clipboard.py')}
             run('python3', str(ROOT / 'scripts/clipboard.py'), '--state', str(state), 'init')
             def entries(): return json.loads((state / 'index.json').read_text())
-            for kind in ['text', 'image']:
-                processes.append(subprocess.Popen([str(ROOT / 'scripts/clipboard-watch'), kind], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            processes.append(subprocess.Popen([str(ROOT / 'scripts/clipboard-watch')], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
             payload = 'Finnish: ä ö å €\nsecond line\n'.encode()
             run('wl-copy', '--type', 'text/plain;charset=utf-8', input=payload)
             wait(lambda: any(e['preview'] == payload.decode() for e in entries()))

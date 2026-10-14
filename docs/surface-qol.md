@@ -13,8 +13,8 @@ complete settings together, retain reported values while saving, and highlight
 confirmed changes. Switches and value badges stay visible.
 
 The session entrance starts on its own first frame. Shortcut closure goes through
-the same exit animation as Escape. Clipboard's clear dialog uses a compact size
-transition. Volume has a 100 ms fade in/out with instant bar and percentage updates.
+the same exit animation as Escape. Clipboard retains selection while pins reorder the list. Its clear dialog uses
+a compact size transition and distinguishes history clearing from clearing pins. Volume has a 100 ms fade in/out with instant bar and percentage updates.
 
 After replacing QML source, run `scripts/shell-reload` to load the completed
 update. It waits briefly for the shell and defers during a pending session action.

@@ -1,4 +1,7 @@
 """Deployment-owned session units: no unit generation during login."""
+import json
+from pathlib import Path
+
 from niri_wallpaper import quote
 
 
@@ -10,17 +13,23 @@ def definitions(root, state):
     common = ('[Unit]\nPartOf=desktop-foundation-session.target graphical-session.target\n'
               'ConditionEnvironment=WAYLAND_DISPLAY\nStartLimitIntervalSec=60\nStartLimitBurst=3\n')
     units = {
+        'desktop-foundation-monitor.service': (
+            '[Unit]\nDescription=Desktop Foundation btop sidebar\n'
+            'PartOf=niri.service graphical-session.target\nAfter=niri.service\n'
+            'ConditionEnvironment=NIRI_SOCKET\nStartLimitIntervalSec=0\n'
+            '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/monitor') + ' serve\n'
+            'Restart=no\nKillMode=mixed\nSendSIGHUP=no\nTimeoutStopSec=3\nUMask=0077\n'),
         'desktop-foundation-session.target': (
             '[Unit]\nDescription=Desktop foundation interactive session\n'
             'PartOf=graphical-session.target\n'
             'Wants=desktop-foundation-shell.service desktop-foundation-notifications.service '
-            'desktop-foundation-clipboard-init.service desktop-foundation-clipboard@text.service '
-            'desktop-foundation-clipboard@image.service hyprpolkitagent.service\n'),
+            'desktop-foundation-clipboard-init.service desktop-foundation-clipboard.service '
+            'hyprpolkitagent.service\n'),
         'desktop-foundation-shell.service': common + '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/run-shell') + '\nRestart=on-failure\nRestartSec=1\n',
         'desktop-foundation-clipboard-init.service': common + '[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=' + quote(root / 'native/foundation/target/release/desktop-foundationctl') + ' --root ' + quote(root) + ' clipboard init\nUMask=0077\n',
-        'desktop-foundation-clipboard@.service': common +
+        'desktop-foundation-clipboard.service': common +
             'Requires=desktop-foundation-clipboard-init.service\nAfter=desktop-foundation-clipboard-init.service\n'
-            '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/clipboard-watch') + ' %i\nRestart=on-failure\nRestartSec=1\nUMask=0077\n',
+            '[Service]\nType=exec\nExecStart=' + quote(root / 'scripts/clipboard-watch') + '\nRestart=on-failure\nRestartSec=1\nUMask=0077\n',
         'desktop-foundation-notifications.service': common + 'ConditionEnvironment=NIRI_SOCKET\n'
             '[Service]\nType=dbus\nBusName=org.freedesktop.Notifications\nExecCondition=' + quote(root / 'scripts/notification-owner-check') + '\n'
             'ExecStart=' + quote(executable) + ' --config ' + quote(state / 'theme/current/notifications.conf') + '\nRestart=on-failure\nRestartSec=1\n',
@@ -45,7 +54,7 @@ def targets(root, config, state, data, write=True, niri=True):
         generated.mkdir(parents=True, exist_ok=True)
     result = [(data / 'wallpapers/wallhaven-135w7w.png', root / 'wallpapers/wallhaven-135w7w.png')] if niri else []
     for unit, content in definitions(root, state).items():
-        if not niri and unit in {'desktop-foundation-wallpaper.service', 'desktop-foundation-clipboard-persist.service'}:
+        if not niri and unit in {'desktop-foundation-wallpaper.service', 'desktop-foundation-clipboard-persist.service', 'desktop-foundation-monitor.service'}:
             continue
         source = generated / unit
         if write and (not source.exists() or source.read_text() != content):
@@ -57,6 +66,21 @@ def targets(root, config, state, data, write=True, niri=True):
             result.append((config / 'systemd/user/niri.service.wants' / unit, source))
     for name in ['gnome-keyring-pkcs11.desktop', 'gnome-keyring-secrets.desktop']:
         result.append((config / 'autostart' / name, root / 'session/keyring' / name))
+    # Use oo7's packaged unit, including its PAM credential handling and
+    # sandboxing. A pre-existing mask belongs to the user, even on rollback.
+    manifest = state / 'manifest.json'
+    recorded = {entry['path'] for entry in json.loads(manifest.read_text()).get('entries', [])} if manifest.exists() else set()
+    keyring_links = [
+        (config / 'systemd/user/default.target.wants/oo7-daemon.service',
+         Path('/usr/lib/systemd/user/oo7-daemon.service')),
+        (config / 'systemd/user/gnome-keyring-daemon.service', Path('/dev/null')),
+        (config / 'systemd/user/gnome-keyring-daemon.socket', Path('/dev/null')),
+    ]
+    for path, source in keyring_links:
+        if (str(path) not in recorded and path.is_symlink()
+                and path.readlink() == source):
+            continue
+        result.append((path, source))
     if niri:
         # Mako's packaged D-Bus activation names mako.service. Both that unit and
         # our Type=dbus unit cannot independently register the same BusName.

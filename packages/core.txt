@@ -8,9 +8,12 @@ glib2
 gsettings-desktop-schemas
 adw-gtk-theme
 xdg-utils
+curl
 qt6-svg
 quickshell
 kitty
+shader-slang
+btop
 fish
 fastfetch
 fontconfig
@@ -31,7 +34,7 @@ xwayland-satellite
 xdg-desktop-portal
 xdg-desktop-portal-gnome
 xdg-desktop-portal-gtk
-gnome-keyring
+oo7
 nautilus
 brave-origin-nightly-bin
 hyprpolkitagent

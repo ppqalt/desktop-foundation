@@ -208,9 +208,14 @@ pub fn plan(root: &Path, paths: &CachePaths) -> Result<CachePlan> {
     plan.retained_revisions = retain(&mut plan, owned, &protected, REVISIONS, "theme-revision")?;
     // Cache files are reproducible; unrelated names, symlinks and manifests stay.
     if real_directory(&paths.cache)? {
-        for (folder, suffix, limit, kind) in [
-            ("themes", "-graphite-v1.json", PALETTES, "palette"),
-            ("overview", ".png", OVERVIEWS, "overview"),
+        for (folder, suffixes, limit, kind) in [
+            (
+                "themes",
+                &["-graphite-v1.json", "-graphite-v2.json"][..],
+                PALETTES,
+                "palette",
+            ),
+            ("overview", &[".png"][..], OVERVIEWS, "overview"),
         ] {
             let directory = paths.cache.join(folder);
             if !real_directory(&directory)? {
@@ -220,10 +225,11 @@ pub fn plan(root: &Path, paths: &CachePaths) -> Result<CachePlan> {
             for entry in fs::read_dir(&directory)? {
                 let entry = entry?;
                 if entry.file_type()?.is_file()
-                    && entry
-                        .file_name()
-                        .to_str()
-                        .is_some_and(|s| s.strip_suffix(suffix).is_some_and(hash))
+                    && entry.file_name().to_str().is_some_and(|s| {
+                        suffixes
+                            .iter()
+                            .any(|suffix| s.strip_suffix(suffix).is_some_and(hash))
+                    })
                 {
                     files.push(entry.path());
                 }
@@ -233,9 +239,11 @@ pub fn plan(root: &Path, paths: &CachePaths) -> Result<CachePlan> {
                 for path in &protected {
                     let semantic: PaletteReference = read_json(&path.join("semantic.json"))?;
                     if let Some(digest) = semantic.wallpaper_hash.as_deref().filter(|s| hash(s)) {
-                        let file = directory.join(format!("{digest}{suffix}"));
-                        if files.contains(&file) {
-                            protected_files.insert(file);
+                        for suffix in suffixes {
+                            let file = directory.join(format!("{digest}{suffix}"));
+                            if files.contains(&file) {
+                                protected_files.insert(file);
+                            }
                         }
                     }
                 }

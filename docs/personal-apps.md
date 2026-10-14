@@ -1,14 +1,15 @@
 # Optional applications
 
-`scripts/install-all` adds Spotify, Spicetify, Marketplace, ChatGPT and Steam to
-the core desktop. The application manifest is `apps/personal.json`.
+`scripts/install-all` adds Spotify, Spicetify, Marketplace, ChatGPT, Steam and Vesktop to
+the core desktop. The application manifest is `apps/personal.json`; add-ons are
+selected in `config/app-mods.json` through [the app-modification installer](app-modifications.md).
 
 ## Brave Origin Nightly
 
 The installer selects Brave Origin Nightly as the browser role. Packages come
-from the configured repository or its reviewed AUR recipe. Load the generated
-theme folder through the browser's **Load unpacked** control. See
-[theme controls](../theme/README.md).
+from the configured repository or its reviewed AUR recipe. The full installer
+adds the root-owned color policy and native live refresh. See
+[managed browser colors](browser-policy.md) and [theme controls](../theme/README.md).
 
 `scripts/post-install brave` applies the bundled browser settings through the
 browser configuration helper.
@@ -29,3 +30,14 @@ uses the `steam` package from multilib. Enable the required package source befor
 running the full installer.
 
 Use `scripts/install-all --check` to inspect the application layer.
+
+The configured [Geode add-on](../apps/geode/README.md) installs when Geometry Dash
+is ready in Steam. Use `scripts/install-app-mods install geode` afterward if pending.
+
+## Vesktop
+
+The installer uses `vesktop-bin` from the configured CachyOS repository, with the
+upstream-recommended AUR package as a fallback on Arch. Its `vesktop.desktop`
+entry is available in the application launcher. Existing installations are
+reused. [Vesktop installation](https://vesktop.dev/install/linux/) describes the
+native package options.

@@ -82,7 +82,7 @@ print(json.dumps(result))
                                [str(binary), '--root', str(checkout), 'theme', 'generate', str(image)]),
         }
         caches = [Path(env['XDG_CACHE_HOME']) / 'desktop-foundation/themes' /
-                  (digest + '-graphite-v1.json') for env in envs]
+                  (digest + '-graphite-v2.json') for env in envs]
         report = {'baseline': BASELINE, 'live_desktop': False, 'real_matugen': False,
                   'resident_process_created': False, 'runs_each': args.runs, 'warmups_each': 2,
                   'image_bytes': image.stat().st_size,

@@ -13,5 +13,13 @@
     "desktop": "steam.desktop",
     "source": "Configured Arch-family signed multilib repository",
     "referenceVersion": "1.0.0.87-3"
+  },
+  "vesktop": {
+    "package": "vesktop-bin",
+    "executable": "vesktop",
+    "desktop": "vesktop.desktop",
+    "source": "Configured CachyOS signed repository or upstream-recommended AUR package",
+    "upstream": "https://vesktop.dev/install/linux/",
+    "referenceVersion": "1.6.7-5"
   }
 }

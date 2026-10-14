@@ -14,7 +14,7 @@ use std::{
     time::Duration,
 };
 
-pub const VERSION: &str = "graphite-v1";
+pub const VERSION: &str = "graphite-v2";
 const METADATA_LIMIT: u64 = 64 * 1024;
 const ROLES: [&str; 15] = [
     "background",
@@ -85,8 +85,7 @@ fn hexcolor(values: [f64; 3]) -> String {
     format!("#{r:02x}{g:02x}{b:02x}")
 }
 
-// Keep the Python colorsys HLS evaluation order, including ties-to-even color
-// quantization, so existing graphite-v1 caches and renderers retain their colors.
+// Keep colorsys HLS evaluation order and ties-to-even color quantization.
 fn rgb_to_hls([r, g, b]: [f64; 3]) -> [f64; 3] {
     let maximum = r.max(g).max(b);
     let minimum = r.min(g).min(b);
@@ -111,6 +110,36 @@ fn rgb_to_hls([r, g, b]: [f64; 3]) -> [f64; 3] {
         4. + gc - rc
     };
     [(hue / 6.).rem_euclid(1.), lightness, saturation]
+}
+
+/// Match wallpaper accents to GNOME's supported discrete accent enum. Anchor
+/// order also preserves the original policy when two hues are equally close.
+pub fn gtk_accent(palette: &Value) -> Result<&'static str> {
+    const ANCHORS: [(&str, &str); 8] = [
+        ("blue", "#3584e4"),
+        ("teal", "#2190a4"),
+        ("green", "#3a944a"),
+        ("yellow", "#c88800"),
+        ("orange", "#ed5b00"),
+        ("red", "#e62d42"),
+        ("pink", "#d56199"),
+        ("purple", "#9141ac"),
+    ];
+    let [hue, _, saturation] = rgb_to_hls(rgb(color(palette, "accent")?)?);
+    if saturation < 0.12 {
+        return Ok("slate");
+    }
+    let mut selected = "blue";
+    let mut nearest = f64::INFINITY;
+    for (name, anchor) in ANCHORS {
+        let difference = (rgb_to_hls(rgb(anchor)?)[0] - hue).abs();
+        let distance = difference.min(1. - difference);
+        if distance < nearest {
+            selected = name;
+            nearest = distance;
+        }
+    }
+    Ok(selected)
 }
 
 fn hls_to_rgb([hue, lightness, saturation]: [f64; 3]) -> [f64; 3] {
@@ -265,12 +294,15 @@ fn validate_cached(palette: &Value, fallback: &Value, digest: &str) -> Result<()
             "Cached palette wallpaper hash mismatch; current theme left intact",
         ));
     }
-    for role in ["foreground", "muted", "subtle", "error", "scrim"] {
+    for role in ["foreground", "error", "scrim"] {
         if palette[role] != fallback[role] {
             return Err(invalid(format!(
                 "Cached neutral palette role differs: {role}"
             )));
         }
+    }
+    if palette["muted"] != "#9c9c9c" || palette["subtle"] != "#6c6c6c" {
+        return Err(invalid("Cached neutral text differs from graphite policy"));
     }
     validate_constraints(palette)
 }
@@ -286,19 +318,25 @@ pub fn derive(root: &Path, material: &Value, source: &str, digest: &str) -> Resu
     palette["source"] = json!(source);
     palette["wallpaperHash"] = json!(digest);
     palette["policy"] = json!(VERSION);
-    for (role, base, amount, cap) in [
-        ("background", "#171b22", 0.06, 0.20),
-        ("elevated", "#222832", 0.10, 0.20),
-        ("iconTile", "#172029", 0.12, 0.22),
-        ("hover", "#222b38", 0.12, 0.22),
-        ("selected", "#293649", 0.17, 0.24),
-        ("border", "#38414e", 0.18, 0.22),
-        ("selectionBorder", "#485a73", 0.30, 0.25),
-        ("windowActive", "#485669", 0.28, 0.25),
-        ("windowInactive", "#2b323d", 0.10, 0.20),
+    // Keep graphite darkness but let the wallpaper own the hue. Neutral bases
+    // avoid the fixed blue cast of the previous mixed surface palette.
+    let [hue, _, chroma] = rgb_to_hls(rgb(primary)?);
+    for (role, base, cap) in [
+        ("background", "#1b1b1b", 0.20),
+        ("elevated", "#2a2a2a", 0.22),
+        ("iconTile", "#232323", 0.25),
+        ("hover", "#303030", 0.25),
+        ("selected", "#404040", 0.25),
+        ("border", "#555555", 0.22),
+        ("selectionBorder", "#808080", 0.25),
+        ("windowActive", "#757575", 0.25),
+        ("windowInactive", "#363636", 0.18),
     ] {
-        palette[role] = json!(mix(base, primary, amount, Some(cap))?);
+        let [_, lightness, _] = rgb_to_hls(rgb(base)?);
+        palette[role] = json!(hexcolor(hls_to_rgb([hue, lightness, chroma.min(cap)])));
     }
+    palette["muted"] = json!("#9c9c9c");
+    palette["subtle"] = json!("#6c6c6c");
     palette["accent"] = json!(primary);
     palette["accentStrong"] = json!(mix(primary, secondary, 0.20, None)?);
     for role in ["accent", "accentStrong"] {
@@ -521,6 +559,31 @@ pub fn generate(root: &Path, image: &Path) -> Result<Generation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_gtk_accent_preserves_anchors_neutral_threshold_and_hue_wrap() {
+        for (accent, expected) in [
+            ("#98ccf9", "blue"),
+            ("#ffb599", "orange"),
+            ("#9141ac", "purple"),
+            ("#888888", "slate"),
+            ("#000000", "slate"),
+            ("#ffffff", "slate"),
+            ("#8f7171", "slate"),
+            ("#907070", "red"),
+            ("#ff0001", "red"),
+            ("#ff0100", "red"),
+        ] {
+            assert_eq!(gtk_accent(&json!({"accent": accent})).unwrap(), expected);
+        }
+        for bad in [
+            json!({}),
+            json!({"accent": "invalid"}),
+            json!({"accent": null}),
+        ] {
+            assert!(gtk_accent(&bad).is_err());
+        }
+    }
 
     #[test]
     fn color_quantization_matches_python_ties_and_hls_edges() {

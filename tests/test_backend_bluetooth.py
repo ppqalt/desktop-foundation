@@ -64,12 +64,6 @@ elif name == 'pactl':
         print(config['cards_output'])
     else:
         print(json.dumps(config.get('cards', [])))
-elif name == 'wl-copy':
-    sys.stdin.buffer.read()
-    owner = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'],
-                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, start_new_session=True)
-    (base / 'owner.pid').write_text(str(owner.pid))
 '''
 
 
@@ -81,13 +75,13 @@ class BluetoothBackend(unittest.TestCase):
         self.bin = self.base / 'bin'
         self.bin.mkdir()
         # PATH contains only our fakes; no failure can fall through to busctl,
-        # rfkill, pactl or wl-copy belonging to the actual desktop.
+        # rfkill or pactl belonging to the actual desktop.
         self.env = dict(os.environ, PATH=str(self.bin), HOME=str(self.base),
                         XDG_STATE_HOME=str(self.base / 'state'),
                         XDG_RUNTIME_DIR=str(self.base / 'runtime'),
                         DF_BT_FIXTURE=str(self.base))
         self.env.pop('DF_CLIPBOARD_STATE', None)
-        for name in ('busctl', 'rfkill', 'pactl', 'wl-copy'):
+        for name in ('busctl', 'rfkill', 'pactl'):
             path = self.bin / name
             path.write_text('#!' + sys.executable + '\n' + FAKE)
             path.chmod(0o755)
@@ -297,21 +291,6 @@ class BluetoothBackend(unittest.TestCase):
             if child:
                 self.stop_owned(child)
 
-    def test_clipboard_owner_survives_successful_native_copy_and_backend_exit(self):
-        history = self.base / 'clipboard'
-        stored = self.invoke('clipboard', '--state', str(history), 'store', 'text', input='fixture clipboard text')
-        self.assertEqual(stored.returncode, 0, stored.stderr)
-        item = json.loads((history / 'index.json').read_text())[0]
-        owner = None
-        try:
-            copied = self.invoke('clipboard', '--state', str(history), 'copy', item['id'])
-            self.assertEqual(copied.returncode, 0, copied.stderr)
-            owner = int((self.base / 'owner.pid').read_text())
-            time.sleep(.05)
-            self.assertFalse(self.stopped(owner), 'Detached clipboard owner stopped with backend')
-        finally:
-            if owner:
-                self.stop_owned(owner)
 
 
 if __name__ == '__main__':

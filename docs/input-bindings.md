@@ -34,7 +34,8 @@ page; Home/End reaches the ends in menus without a search field. Enter or a clic
 activates. Escape closes or returns to the parent page. Search fields keep their
 normal text editing keys.
 
-- Clipboard: Ctrl+Delete removes an item; Ctrl+Shift+Delete opens Clear all.
+- Clipboard: Ctrl+Shift+P pins an item, Ctrl+Shift+C copies plain text,
+  Ctrl+Delete removes an item and Ctrl+Shift+Delete opens the clear dialog.
 - Bluetooth: starts on the top paired device; Home selects the radio, End selects
   Manage. Space also activates. Explicit selection is retained as the list changes.
 - Earbud controls: Left/Right adjusts a value; switches use Off/On. Enter/Space

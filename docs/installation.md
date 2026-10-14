@@ -12,9 +12,10 @@ scripts/install-core
 Core installs the Niri desktop, Quickshell, terminal configuration and default
 applications. It builds both Rust backends, deploys configuration, applies app
 roles and enables Bluetooth and AppArmor. The default greeter is greetd with a
-Matrix-capable tuigreet. Choose Niri at login, then run `scripts/doctor`.
+Matrix-capable tuigreet. The keyring uses oo7 with PAM password unlocking through
+greetd. Choose Niri at login, then run `scripts/doctor`. See [keyring setup](keyring.md).
 
-For Spotify, ChatGPT and Steam, use the full installer:
+For Spotify, ChatGPT, Steam and Vesktop, use the full installer:
 
 ```sh
 scripts/install-all --dry-run
