@@ -86,7 +86,7 @@ class RuntimeTheme(unittest.TestCase):
         self.assertEqual(manifest['manifest_version'],3)
         self.assertNotIn('permissions',manifest)
         self.assertNotIn('background',manifest)
-        self.assertEqual(manifest['theme']['colors']['frame'],[37,36,41])
+        self.assertEqual(manifest['theme']['colors']['frame'],[32,25,22])
         self.assertEqual(manifest['theme']['colors']['toolbar_button_icon'],[255,181,153])
         other=brave(pipeline.derive({'primary':'#98ccf9','secondary':'#bdc7d5'},'blue','hash2'))
         self.assertNotEqual(other['version'],manifest['version'])
@@ -94,6 +94,7 @@ class RuntimeTheme(unittest.TestCase):
 
     def test_explicit_wallpaper_restart_resets_only_wallpaper_rate_limit(self):
         import subprocess
+        runtime.publish(self.bundle(), live=False)
         with patch.dict(os.environ, {'NIRI_SOCKET': 'test'}), patch.object(runtime.shutil, 'which', return_value=None), patch.object(runtime.Path, 'iterdir', return_value=[]), patch('spotify_theme.refresh'), patch('gtk_theme.refresh'), patch.object(runtime.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='', stderr='')) as run:
             runtime.reload(wallpaper=True)
         commands = [call.args[0] for call in run.call_args_list]

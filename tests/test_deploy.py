@@ -21,6 +21,8 @@ class DeploymentPrerequisites(unittest.TestCase):
         self.base = Path(self.temp.name)
         self.root = self.base / 'checkout'
         self.root.mkdir()
+        (self.root / "config").mkdir()
+        (self.root / "config/local-ai.toml").write_text('compose_directory = "~/absent-fixture-stack"\n')
         self.state = self.base / 'state'
         self.binaries = [
             self.root / 'native/foundation/target/release/desktop-foundationctl',

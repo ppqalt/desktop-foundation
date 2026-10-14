@@ -297,10 +297,13 @@ def main():
         except (RuntimeError, OSError) as error:
             report(False, str(error))
     from application_roles import check as check_roles, paths as role_paths
-    _, roles_journal = role_paths()
-    selected_personal = args.personal or (roles_journal.exists() and json.loads(roles_journal.read_text()).get('profile') == 'personal')
-    for error in check_roles(selected_personal):
-        report(False, 'Application defaults: ' + error)
+    try:
+        _, roles_journal = role_paths()
+        selected_personal = args.personal or (roles_journal.exists() and json.loads(roles_journal.read_text()).get('profile') == 'personal')
+        for error in check_roles(selected_personal):
+            report(False, 'Application defaults: ' + error)
+    except (RuntimeError, OSError, ValueError) as error:
+        report(False, 'Application defaults could not be inspected: ' + str(error))
     from install_engine import deployment_conflicts
     report(not deployment_conflicts(), 'Deployment ownership (no externally replaced links)')
     from theme_runtime import current as current_theme

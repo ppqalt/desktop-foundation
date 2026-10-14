@@ -137,7 +137,9 @@ ShellRoot {
                 if (!s.error) { keyboard.keyClick(Qt.Key_Return); return; }
                 fixture.check(!clip.closing && s.error.includes("Restore the original"), "Missing file copy closes surface or loses recovery message");
                 keyboard.keyClick(Qt.Key_Tab); keyboard.keyClick(Qt.Key_Tab);
-                fixture.check(clip.clearSelected, "Files expose a nonfunctional plain-copy control or cannot reach Clear history");
+                fixture.check(clip.actionFocus === 1 && !clip.clearSelected, "Files expose a plain-copy control or Tab wraps beyond the last action");
+                keyboard.keyClick(Qt.Key_Tab, Qt.ShiftModifier); keyboard.keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+                fixture.check(clip.clearSelected, "Shift+Tab cannot return from file actions to Clear history");
                 keyboard.keyClick(Qt.Key_Return);
                 keyboard.keyClick(Qt.Key_Right);
                 fixture.check(clip.clearChoice === 1, "Right cannot choose normal cleanup");
