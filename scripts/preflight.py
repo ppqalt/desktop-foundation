@@ -11,22 +11,30 @@ from render_niri import render
 ROOT = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--profile', default='default')
+parser.add_argument('--compositor', choices=['niri', 'hyprland'], default='niri')
 args = parser.parse_args()
 required = ['pactl', 'busctl', 'blueman-manager', 'niri', 'quickshell', 'kitty', 'slangc', 'fish', 'fastfetch', 'lua', 'wl-copy', 'wl-paste',
             'wl-clip-persist', 'swaybg', 'mako', 'grim', 'slurp', 'wpctl', 'playerctl', 'notify-send',
             'dbus-update-activation-environment', 'gsettings', 'xdg-mime', 'fc-cache', 'pacman-conf', 'xwayland-satellite']
+if args.compositor == 'hyprland':
+    required[required.index('niri')] = 'Hyprland'
 missing = [name for name in required if not shutil.which(name)]
 backend = ROOT / 'native/foundation/target/release/desktop-foundationctl'
 if not backend.is_file() or not os.access(backend, os.X_OK):
     raise SystemExit('Shared Rust backend is not built. Run scripts/build-backend; nothing deployed.')
 if missing:
     raise SystemExit('Missing runtime tools: ' + ', '.join(missing) + '. Run scripts/bootstrap.')
-with tempfile.NamedTemporaryFile(mode='w', suffix='.kdl') as candidate:
-    candidate.write(render(ROOT, args.profile))
+with tempfile.NamedTemporaryFile(mode='w', suffix='.kdl' if args.compositor == 'niri' else '.lua') as candidate:
+    if args.compositor == 'niri':
+        candidate.write(render(ROOT, args.profile))
+    else:
+        from deploy import lua_string
+        candidate.write(f'FOUNDATION_ROOT = {lua_string(ROOT)}\nFOUNDATION_PROFILE = {lua_string(args.profile)}\ndofile(FOUNDATION_ROOT .. "/compositor/hyprland/hyprland.lua")\n')
     candidate.flush()
-    result = subprocess.run(['niri', 'validate', '-c', candidate.name], capture_output=True, text=True)
+    command = ['niri', 'validate', '-c', candidate.name] if args.compositor == 'niri' else ['Hyprland', '--verify-config', '-c', candidate.name]
+    result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode:
-        raise SystemExit('Installed Niri cannot validate this configuration. Nothing deployed.\n'
-                         'This setup requires the blur/background-effect-capable Niri build used by CachyOS.\n'
-                         'See docs/installation.md; do not substitute an unverified compositor build.\n' + result.stderr)
-print('PASS runtime tools and native Niri configuration. Original user configuration can now be backed up and deployed.')
+        raise SystemExit(f'Installed {args.compositor} cannot validate this configuration. Nothing deployed.\n'
+                         + ('This setup requires the blur/background-effect-capable Niri build used by CachyOS.\n' if args.compositor == 'niri' else '')
+                         + 'See docs/installation.md.\n' + result.stderr)
+print(f'PASS runtime tools and native {args.compositor} configuration. Original user configuration can now be backed up and deployed.')

@@ -32,6 +32,7 @@ notifications start|check-owner
 system packages [--config FILE]
 shell call METHOD [ARGS...]
 local-ai start|status|plan
+update [--dry-run]
 build-info
 doctor --json
 monitor toggle|close|status|refresh
@@ -91,6 +92,9 @@ stderr and exit nonzero. Native command arguments are passed as arrays.
   opens its browser UI. See [local AI](local-ai.md).
 - **Diagnostics:** embedded source/build identity and read-only JSON deployment
   metadata. See [diagnostics](diagnostics.md).
+- **Update:** fetches `origin/main`, builds and validates in an isolated checkout,
+  fast-forwards the owning checkout, then invokes the existing deployment helper
+  in update mode. See [updating](updating.md).
 
 ## Cache maintenance
 

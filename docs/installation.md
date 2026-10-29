@@ -45,8 +45,13 @@ The `dual-display-example` profile shows an explicit output layout.
 
 ## Reinstall and update
 
+Use `df-update` for Desktop Foundation updates without package upgrades. It
+reuses the installed compositor and hardware profile and preserves the current
+wallpaper, palette and user preferences. `df-update --dry-run` checks the local
+prerequisites without fetching or deploying. See [updating](updating.md).
+
 Keep the checkout and `$XDG_STATE_HOME/desktop-foundation` state directory. Inspect
-the chosen revision and run the same installer's dry-run before applying it.
+the chosen revision and run the same installer's dry-run before reinstalling.
 Missing packages are installed with a full pacman upgrade. AUR recipes are built
 as the login user and presented for review.
 

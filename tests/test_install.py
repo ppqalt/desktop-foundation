@@ -2,6 +2,7 @@
 import contextlib
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import sys
@@ -23,7 +24,9 @@ class FreshDeployment(unittest.TestCase):
             base = Path(temporary)
             config, data, state = base / 'config', base / 'data', base / 'state/desktop-foundation'
             real_run = subprocess.run
+            commands = []
             def isolated_run(command, **kwargs):
+                commands.append(command)
                 # Portable ownership tests isolate the native parser; scripts/check
                 # validates the real Niri parser on the reference Arch session.
                 if command[:2] == ['niri', 'validate'] or command[0] in {'systemctl', 'fc-cache'} or (len(command) > 1 and command[1] == str(ROOT / 'scripts/preferences.py')):
@@ -34,6 +37,9 @@ class FreshDeployment(unittest.TestCase):
                     deploy.main()
                 self.assertEqual(list(base.iterdir()), [])
                 config.mkdir()
+                user_command = base / '.local/bin/df-update'
+                user_command.parent.mkdir(parents=True)
+                user_command.write_text('previous user command')
                 kitty = config / 'kitty'
                 kitty.mkdir()
                 (kitty / 'old.conf').write_text('keep me')
@@ -42,6 +48,34 @@ class FreshDeployment(unittest.TestCase):
                     first = (state / 'manifest.json').read_text()
                     deploy.main()
                     self.assertEqual(first, (state / 'manifest.json').read_text())
+                self.assertTrue(user_command.is_symlink())
+                self.assertEqual(user_command.resolve(), ROOT / 'scripts/df-update')
+                saved = json.loads((state / 'manifest.json').read_text())
+                self.assertEqual(saved['profile'], 'default'); self.assertEqual(saved['compositor'], 'niri')
+                fish_variables = state / 'terminal/fish/fish_variables'
+                fish_variables.write_text('user universal variables')
+                btop = config / 'desktop-foundation/monitor/btop.conf'
+                btop.parent.mkdir(parents=True, exist_ok=True); btop.write_text('user btop settings')
+                semantic = (state / 'theme/current/semantic.json').read_bytes()
+                metadata = json.loads((state / 'theme/current/metadata.json').read_text())
+                commands.clear()
+                with patch.object(sys, 'argv', ['deploy', 'install', '--update']):
+                    deploy.main()
+                self.assertFalse(any(len(c) > 1 and c[1] == str(ROOT / 'scripts/preferences.py') for c in commands))
+                self.assertEqual(json.loads((state / 'manifest.json').read_text()), saved)
+                self.assertEqual((state / 'theme/current/semantic.json').read_bytes(), semantic)
+                self.assertEqual(json.loads((state / 'theme/current/metadata.json').read_text())['wallpaperHash'], metadata['wallpaperHash'])
+                self.assertEqual(fish_variables.read_text(), 'user universal variables')
+                self.assertEqual(btop.read_text(), 'user btop settings')
+                blocked = config / 'blocked'
+                blocked.write_text('user file')
+                targets = deploy.common_targets() + [(blocked / 'new.conf', ROOT / 'scripts/df-update')]
+                with patch.object(deploy, 'common_targets', return_value=targets), patch.object(sys, 'argv', ['deploy', 'install', '--update']):
+                    with self.assertRaises(OSError): deploy.main()
+                self.assertEqual(blocked.read_text(), 'user file')
+                self.assertTrue(kitty.is_symlink())
+                self.assertTrue(user_command.is_symlink())
+                self.assertEqual(json.loads((state / 'manifest.json').read_text()), saved)
                 self.assertTrue((data / 'wallpapers/wallhaven-135w7w.png').is_file())
                 self.assertTrue((config / 'systemd/user/niri.service.wants/desktop-foundation-wallpaper.service').exists())
                 with patch.object(sys, 'argv', ['deploy', 'restore']):
@@ -49,7 +83,9 @@ class FreshDeployment(unittest.TestCase):
                 self.assertFalse(kitty.is_symlink())
                 self.assertEqual((kitty / 'old.conf').read_text(), 'keep me')
                 self.assertFalse((config / 'niri/config.kdl').exists())
-                self.assertEqual(prerequisites.call_count, 2)
+                self.assertEqual(prerequisites.call_count, 4)
+                self.assertFalse(user_command.is_symlink())
+                self.assertEqual(user_command.read_text(), 'previous user command')
 
     def test_manifest_has_no_duplicates(self):
         for file in (ROOT / 'packages').glob('*.txt'):

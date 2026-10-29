@@ -382,6 +382,38 @@ pub fn checked(
     ensure_success(args, output)
 }
 
+/// Build/deployment progress goes straight to the terminal, with a finite
+/// deadline and the same owned process-group cleanup as captured commands.
+pub fn checked_streaming(args: &[String], timeout: Duration) -> Result<()> {
+    let name = args.first().ok_or_else(|| invalid("Empty command"))?;
+    let mut command = Command::new(name);
+    command
+        .args(&args[1..])
+        .process_group(0)
+        .stdin(Stdio::null());
+    let mut owned = spawn_owned(command, name)?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = owned.child.try_wait()? {
+            if !status.success() {
+                return Err(Error::Process {
+                    command: name.clone(),
+                    detail: format!("exited with {status}"),
+                });
+            }
+            owned.completed = true;
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::Process {
+                command: name.clone(),
+                detail: format!("timed out after {} seconds", timeout.as_secs()),
+            });
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
 /// Larger finite snapshots can opt in without loosening other commands' limits.
 /// stderr keeps its 64 KiB cap and deadlines/child cleanup remain identical.
 pub fn checked_capture(args: &[String], timeout: Duration, stdout_limit: u64) -> Result<Output> {

@@ -80,11 +80,15 @@ include Brave and Spotify setup and reload commands.
 ## Tools
 
 ```sh
+df-update
 ./scripts/doctor
 ./scripts/install-core --check
 ./scripts/shell-reload
 ./scripts/uninstall
 ```
+
+`df-update` updates Desktop Foundation and rebuilds its Rust backends without
+updating system or AUR packages. See [updating](docs/updating.md).
 
 See [recovery](docs/recovery.md), [application defaults](docs/application-roles.md),
 [Bluetooth controls](docs/nothing-controls.md), [screenshots](docs/screenshots/README.md)

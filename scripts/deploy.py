@@ -81,7 +81,8 @@ def restore(manifest):
 
 
 def common_targets():
-    return [(CONFIG / 'gtk-3.0/settings.ini', ROOT / 'theme/gtk-3.0/settings.ini'),
+    return [(Path.home() / '.local/bin/df-update', ROOT / 'scripts/df-update'),
+            (CONFIG / 'gtk-3.0/settings.ini', ROOT / 'theme/gtk-3.0/settings.ini'),
             (CONFIG / 'gtk-4.0/settings.ini', ROOT / 'theme/gtk-4.0/settings.ini'),
             (CONFIG / 'wireplumber/wireplumber.conf.d/60-desktop-foundation-bluetooth.conf', ROOT / 'audio/wireplumber/60-desktop-foundation-bluetooth.conf'),
             (CONFIG / 'kitty', STATE / 'theme/current/terminal/kitty'),
@@ -108,6 +109,7 @@ def main():
     parser.add_argument('--profile', default='default')
     parser.add_argument('--compositor', choices=['niri', 'hyprland'], default='niri')
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--update', action='store_true', help='Refresh an existing deployment without changing global preferences')
     args = parser.parse_args()
     if args.dry_run:
         from session_units import targets as session_targets
@@ -126,6 +128,8 @@ def main():
     with (STATE / 'lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         manifest_path = STATE / 'manifest.json'
+        if args.update and not manifest_path.exists():
+            raise RuntimeError('No existing deployment to update; run the installer first.')
         manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {'root': str(ROOT), 'entries': []}
         if manifest['root'] != str(ROOT):
             raise RuntimeError('A different checkout owns this installation; restore it first.')
@@ -135,6 +139,9 @@ def main():
             else:
                 print('Nothing deployed.')
             return
+        for entry in manifest['entries']:
+            if not owned(entry):
+                raise RuntimeError(f"Deployed path changed outside this script: {entry['path']}")
         if not re.fullmatch(r'[A-Za-z0-9_-]+', args.profile):
             raise RuntimeError('Invalid profile name')
         if not (ROOT / 'profiles' / args.profile).is_dir():
@@ -217,7 +224,10 @@ def main():
                 path.symlink_to(src)
 
         except Exception:
-            restore(manifest)
+            # An update must not uninstall an existing desktop after a failed
+            # new link. Retain its write-ahead journal for explicit recovery.
+            if not args.update:
+                restore(manifest)
             raise
         subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
         # An active session may still have the old per-format workers. Replace
@@ -230,7 +240,10 @@ def main():
                             'desktop-foundation-clipboard@image.service'], check=False)
             subprocess.run(['systemctl', '--user', 'restart',
                             'desktop-foundation-clipboard.service'], check=True)
-        subprocess.run(['python3', str(ROOT / 'scripts/preferences.py'), 'install', '--theme-only'], check=True)
+        if not args.update:
+            subprocess.run(['python3', str(ROOT / 'scripts/preferences.py'), 'install', '--theme-only'], check=True)
+        manifest.update(profile=args.profile, compositor=args.compositor)
+        save(manifest)
         subprocess.run(['fc-cache', '-f'], check=True)
         print(f'Deployed {args.compositor} profile {args.profile}; backups and manifest: {STATE}')
         print('No session restart performed. Config changes may auto-reload in the selected compositor.')

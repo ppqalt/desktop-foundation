@@ -22,6 +22,7 @@ pub mod session;
 pub mod shell;
 pub mod state;
 pub mod theme;
+pub mod update;
 pub mod volume;
 
 use std::{fmt, io};
