@@ -385,12 +385,28 @@ pub fn checked(
 /// Build/deployment progress goes straight to the terminal, with a finite
 /// deadline and the same owned process-group cleanup as captured commands.
 pub fn checked_streaming(args: &[String], timeout: Duration) -> Result<()> {
+    checked_streaming_to(args, timeout, None)
+}
+
+/// Keep verbose finite build output on disk without buffering it in memory.
+pub fn checked_logged(args: &[String], timeout: Duration, log: &std::fs::File) -> Result<()> {
+    checked_streaming_to(args, timeout, Some(log))
+}
+
+fn checked_streaming_to(
+    args: &[String],
+    timeout: Duration,
+    log: Option<&std::fs::File>,
+) -> Result<()> {
     let name = args.first().ok_or_else(|| invalid("Empty command"))?;
     let mut command = Command::new(name);
     command
         .args(&args[1..])
         .process_group(0)
         .stdin(Stdio::null());
+    if let Some(log) = log {
+        command.stdout(log.try_clone()?).stderr(log.try_clone()?);
+    }
     let mut owned = spawn_owned(command, name)?;
     let deadline = Instant::now() + timeout;
     loop {

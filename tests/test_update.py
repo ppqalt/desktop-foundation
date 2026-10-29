@@ -83,7 +83,9 @@ root = Path(__file__).resolve().parents[1]
 name = Path(__file__).name
 with open(os.environ['DF_UPDATE_TEST_LOG'], 'a') as f:
     f.write(json.dumps({'name':name, 'root':str(root), 'args':sys.argv[1:], 'payload':(root/'payload.txt').read_text(), 'private':(root/'personal.txt').read_text() if (root/'personal.txt').exists() else None}) + '\\n')
+print('fixture build/deploy output: '+name)
 if os.environ.get('DF_FAIL_STAGE') == name:
+    print('fixture failure details',file=sys.stderr)
     sys.exit(7)
 if name in ['build-backend', 'build-nothing']:
     crate = 'foundation' if name == 'build-backend' else 'nothing'
@@ -138,6 +140,10 @@ if name in ['build-backend', 'build-nothing']:
         self.assertEqual(untracked.read_text(), 'private')
         self.assertIn('new backend', (self.root / 'native/foundation/target/release/desktop-foundationctl').read_text())
         self.assertFalse((self.state / 'update.json').exists())
+        self.assertEqual(len(result.stdout.splitlines()),4)
+        self.assertNotIn('fixture build/deploy output',result.stdout+result.stderr)
+        self.assertIn('fixture build/deploy output: build-backend',(self.state/'update.log').read_text())
+        self.assertEqual((self.state/'update.log').stat().st_mode & 0o777,0o600)
         self.assertEqual(len(self.git('worktree', 'list', '--porcelain').split('worktree ')), 2)
 
     def test_local_edits_are_preserved_and_applied_to_build(self):
@@ -151,7 +157,8 @@ if name in ['build-backend', 'build-nothing']:
         reference = self.git('for-each-ref', '--format=%(refname)', 'refs/desktop-foundation').strip()
         self.assertEqual(self.git('show', reference + ':payload.txt'), 'my edits')
         build = next(call for call in self.calls() if call['name'] == 'build-backend')
-        self.assertIn('Preserving local settings', result.stdout)
+        self.assertNotIn('Preserving local settings', result.stdout)
+        self.assertIn('Preserving local settings', (self.state/'update.log').read_text())
         self.assertEqual(build['payload'], 'my edits')
 
     def test_diverging_commits_merge_without_rebase_or_reset(self):
@@ -252,6 +259,8 @@ if name in ['build-backend', 'build-nothing']:
         self.remote_change()
         result = self.invoke(DF_FAIL_STAGE='build-nothing')
         self.assertNotEqual(result.returncode, 0); self.assertIn('build/validation', result.stderr)
+        self.assertIn(str(self.state/'update.log'),result.stderr)
+        self.assertIn('fixture failure details',(self.state/'update.log').read_text())
         self.unchanged()
         self.assertEqual(len(self.git('worktree', 'list', '--porcelain').split('worktree ')), 2)
 

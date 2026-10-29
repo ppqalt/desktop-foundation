@@ -5,10 +5,10 @@ use sha2::{Digest, Sha256};
 use std::{
     env,
     fs::{self, File},
-    io::Read,
+    io::{Read, Write},
     os::unix::{
         ffi::OsStrExt,
-        fs::{PermissionsExt, symlink},
+        fs::{OpenOptionsExt, PermissionsExt, symlink},
     },
     path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -312,9 +312,9 @@ impl Drop for Staging {
         }
     }
 }
-fn step(label: &str, command: &[String], timeout: Duration) -> Result<()> {
-    println!("{label}");
-    process::checked_streaming(command, timeout)
+fn step(log: &File, label: &str, command: &[String], timeout: Duration) -> Result<()> {
+    writeln!(&*log, "\n{label}")?;
+    process::checked_logged(command, timeout, log)
         .map_err(|error| invalid(format!("{label}: {error}")))
 }
 fn copy_binary(source: &Path, target: &Path) -> Result<()> {
@@ -380,15 +380,23 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let before = checkout_revision(&root)?;
     if dry {
         println!(
-            "Fetch origin/main; preserve local edits and files; merge and validate in an isolated checkout; rebuild both Rust backends and redeploy {} profile {}; reload active Foundation components. No packages or global preferences are changed.",
+            "Fetch, rebuild and redeploy {} profile {}; preserve settings. No package updates.",
             selected.compositor, selected.profile
         );
         return Ok(());
     }
     let _lock = state::lock(&home.join("update.lock"), Duration::from_secs(1))?;
+    let log_path = home.join("update.log");
+    state::atomic(&log_path, b"", 0o600)?;
+    let log = fs::OpenOptions::new()
+        .append(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(&log_path)?;
+    println!("Fetching Desktop Foundation…");
     let mut phase = "fetch";
     let result = (|| {
         step(
+            &log,
             "Fetching Desktop Foundation…",
             &git(
                 &root,
@@ -428,10 +436,11 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                 .as_nanos();
             let reference = format!("refs/desktop-foundation/local-update-{stamp}");
             text(&git(&root, &["update-ref", &reference, &local_commit]))?;
-            println!("Preserving local settings in {reference}");
+            writeln!(&log, "Preserving local settings in {reference}")?;
             Some(reference)
         };
         phase = "build/validation";
+        println!("Building and checking…");
         let cache = state::xdg("XDG_CACHE_HOME", ".cache")?.join("desktop-foundation/update");
         state::private_directory(&cache)?;
         let nonce = SystemTime::now()
@@ -440,6 +449,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             .as_nanos();
         let path = cache.join(format!("source-{}-{nonce}", std::process::id()));
         step(
+            &log,
             "Preparing isolated build checkout…",
             &git(
                 &root,
@@ -459,6 +469,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         };
         if diverged {
             step(
+                &log,
                 "Merging upstream in the isolated checkout…",
                 &git(&staging.path, &["merge", "--no-edit", "--no-ff", &upstream]),
                 SHORT,
@@ -467,6 +478,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         }
         if !local_commit.is_empty() {
             step(
+                &log,
                 "Checking local settings against the update…",
                 &git(&staging.path, &["stash", "apply", "--index", &local_commit]),
                 SHORT,
@@ -486,6 +498,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                 staging.path.join(format!("native/{crate_name}/target")),
             )?;
             step(
+                &log,
                 &format!("Building {crate_name} backend…"),
                 &[
                     "env".into(),
@@ -507,6 +520,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             }
         }
         step(
+            &log,
             "Validating updated configuration…",
             &[
                 "python3".into(),
@@ -554,6 +568,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         }
         installation(&root, &home)?;
         phase = "publication";
+        println!("Applying update…");
         let previous = if home.join("update.json").exists() {
             let saved = read(&home.join("update.json"))?;
             if saved["revision"].as_str() == Some(&candidate) {
@@ -574,6 +589,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             0o600,
         )?;
         let publication = step(
+            &log,
             "Publishing Desktop Foundation with local settings…",
             &git(
                 &root,
@@ -609,6 +625,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         }
         phase = "deployment";
         step(
+            &log,
             "Redeploying Desktop Foundation…",
             &[
                 root.join("scripts/deploy").to_string_lossy().into_owned(),
@@ -637,10 +654,11 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             } else {
                 vec!["hyprctl".into(), "reload".into()]
             };
-            step("Reloading compositor configuration…", &command, SHORT)?;
+            step(&log, "Reloading compositor configuration…", &command, SHORT)?;
         }
         if active("desktop-foundation-shell.service") {
             step(
+                &log,
                 "Reloading the shell…",
                 &[root
                     .join("scripts/shell-reload")
@@ -651,6 +669,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         }
         if active("desktop-foundation-monitor.service") {
             step(
+                &log,
                 "Refreshing the sidebar…",
                 &[
                     root.join("scripts/monitor").to_string_lossy().into_owned(),
@@ -660,11 +679,13 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             )?;
         }
         fs::remove_file(home.join("update.json"))?;
-        println!(
-            "Desktop Foundation updated to {}. System and AUR packages were not changed.",
-            &candidate[..12]
-        );
+        println!("Updated to {}.", &candidate[..12]);
         Ok(())
     })();
-    result.map_err(|error| invalid(format!("Update stopped during {phase}: {error}. Deployment backups are retained. Resolve the error and rerun df-update; no Git reset or package update was performed.")))
+    result.map_err(|error| {
+        invalid(format!(
+            "Update stopped during {phase}: {error}.\nDetails: {}",
+            log_path.display()
+        ))
+    })
 }

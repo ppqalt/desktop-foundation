@@ -59,8 +59,14 @@ The Rust controller runs only while the panel is present. It talks to Kitty's
 supported panel-position API through a private Unix socket. An eight-millisecond
 event wait keeps slides smooth; between slides the controller waits on socket
 and process events without a timer. Closing stops btop, Kitty and the controller.
-The controller sends btop SIGINT and keeps its terminal alive for up to two seconds
-to save before forced cleanup. The service sends shutdown signals to the controller
+After the closing slide, a 120 ms retirement window lets another Super+X reopen
+the same terminal without restarting btop. The controller then sends btop SIGINT
+and keeps its terminal alive for up to two seconds to save before forced cleanup.
+It continues accepting toggles during startup and this save/exit phase. If btop
+has already begun exiting, the latest open/closed request determines whether a
+fresh terminal is launched afterward. Closing does not add a second two-second
+wait, and no controller or hidden btop remains after final cleanup. Unchanged
+Kitty/shader launch files are reused rather than rewritten on every opening. The service sends shutdown signals to the controller
 first and reserves a final cgroup kill for unresponsive children. Removing the selected
 output or changing its logical geometry closes the panel. Reopen it on the new
 layout. Existing application focus is released naturally when the layer closes.

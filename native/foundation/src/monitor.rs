@@ -314,6 +314,19 @@ fn config_path(path: &Path) -> Result<String> {
     Ok(path.to_owned())
 }
 
+fn write_changed(path: &Path, contents: &[u8]) -> Result<()> {
+    if let Ok(metadata) = fs::symlink_metadata(path)
+        && metadata.is_file()
+        && metadata.uid() == uid()
+        && metadata.mode() & 0o077 == 0
+        && metadata.len() == contents.len() as u64
+        && fs::read(path)? == contents
+    {
+        return Ok(());
+    }
+    state::atomic(path, contents, 0o600)
+}
+
 fn shader(paths: &Paths, settings: &Settings, scale: f64) -> Result<String> {
     let pipeline = paths.directory.join("rounding.pipeline");
     Ok(if settings.corner_radius == 0 {
@@ -324,18 +337,16 @@ fn shader(paths: &Paths, settings: &Settings, scale: f64) -> Result<String> {
                 "Rounded monitor corners require shader-slang; install it through scripts/bootstrap",
             ));
         }
-        state::atomic(
+        write_changed(
             &paths.directory.join("monitor-rounding.slang"),
             include_bytes!("../../../terminal/monitor/monitor-rounding.slang"),
-            0o600,
         )?;
-        state::atomic(
+        write_changed(
             &pipeline,
             format!(
                 "startgroup\n    animation_step 0\n    var float RADIUS = {}\n    shaders monitor-rounding\nendgroup\n",
                 f64::from(settings.corner_radius) * scale,
             ).as_bytes(),
-            0o600,
         )?;
         // Unlike include, custom_shaders uses shell-style tokenization.
         format!(
@@ -434,7 +445,7 @@ fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, Pa
     }
     let shaders = shader(paths, settings, scale)?;
     let kitty = paths.directory.join("kitty.conf");
-    state::atomic(
+    write_changed(
         &kitty,
         format!(
             "include {}\nlinux_display_server wayland\nfont_family GoogleSansCode Nerd Font Mono\nfont_size {}\nbackground_opacity {}\nwindow_padding_width {}\nwindow_margin_width 0\nwindow_border_width 0px\nscrollback_lines 0\ncursor_blink_interval 0\nconfirm_os_window_close -1\nclose_on_child_death yes\nclear_all_shortcuts yes\nallow_remote_control password\nremote_control_password \"\" resize-os-window close-window load-config signal-child\n{}",
@@ -442,7 +453,6 @@ fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, Pa
             // Kitty padding uses points; Wayland uses 96 DPI at scale one.
             f64::from(settings.padding) * 0.75, shaders,
         ).as_bytes(),
-        0o600,
     )?;
     let btop = monitor_config::btop(settings.update_ms)?;
     Ok((kitty, btop, themes))
@@ -451,12 +461,13 @@ fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, Pa
 struct OwnedPanel<'a> {
     child: Child,
     paths: &'a Paths,
+    shutdown_started: bool,
 }
 impl Drop for OwnedPanel<'_> {
     fn drop(&mut self) {
         // btop saves on SIGINT/q, but not SIGTERM or terminal hangup. Keep its
         // PTY alive until it saves and close_on_child_death lets Kitty exit.
-        if matches!(self.child.try_wait(), Ok(None)) {
+        if !self.shutdown_started && matches!(self.child.try_wait(), Ok(None)) {
             let _ = rpc(
                 self.paths,
                 self.child.id(),
@@ -464,7 +475,12 @@ impl Drop for OwnedPanel<'_> {
                 json!({"match":"all","signals":["SIGINT"]}),
             );
         }
-        let deadline = Instant::now() + Duration::from_secs(2);
+        let deadline = Instant::now()
+            + if self.shutdown_started {
+                Duration::ZERO
+            } else {
+                Duration::from_secs(2)
+            };
         while matches!(self.child.try_wait(), Ok(None)) && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(10));
         }
@@ -643,7 +659,58 @@ impl Motion {
     }
 }
 
+// Keep listening through the finite save/exit phase. A toggle can reverse a
+// closing animation, cancel retirement, or request a fresh child after SIGINT.
+struct Lifecycle {
+    opening: bool,
+    retire_at: Option<Instant>,
+    shutdown_until: Option<Instant>,
+}
+
+impl Lifecycle {
+    fn new() -> Self {
+        Self {
+            opening: true,
+            retire_at: None,
+            shutdown_until: None,
+        }
+    }
+    fn target(&mut self, opening: bool) {
+        self.opening = opening;
+        if opening {
+            self.retire_at = None;
+        }
+    }
+    fn closed(&mut self, now: Instant) {
+        if self.retire_at.is_none() {
+            self.retire_at = Some(now + Duration::from_millis(120));
+        }
+    }
+    fn shutdown_due(&self, now: Instant) -> bool {
+        !self.opening && self.shutdown_until.is_none() && self.retire_at.is_some_and(|at| now >= at)
+    }
+    fn timed_out(&self, now: Instant) -> bool {
+        self.shutdown_until.is_some_and(|until| now >= until)
+    }
+    fn wait_ms(&self) -> Option<i32> {
+        self.shutdown_until.or(self.retire_at).map(|at| {
+            at.saturating_duration_since(Instant::now())
+                .as_millis()
+                .clamp(1, i32::MAX as u128) as i32
+        })
+    }
+}
+
 pub fn serve(root: &Path) -> Result<()> {
+    STOP.store(false, Ordering::Relaxed);
+    loop {
+        if !serve_once(root)? || STOP.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+    }
+}
+
+fn serve_once(root: &Path) -> Result<bool> {
     let initializing = Instant::now();
     let cgroup = fs::read_to_string("/proc/self/cgroup")?;
     if std::env::var_os("INVOCATION_ID").is_none()
@@ -707,7 +774,6 @@ pub fn serve(root: &Path) -> Result<()> {
     events.write_all(b"\"EventStream\"\n")?;
     events.set_nonblocking(true)?;
     let mut event_buffer = Vec::new();
-    STOP.store(false, Ordering::Relaxed);
     // SAFETY: the handlers perform only an atomic store and retain no pointers.
     unsafe {
         libc::signal(libc::SIGTERM, stop as *const () as libc::sighandler_t);
@@ -748,6 +814,7 @@ pub fn serve(root: &Path) -> Result<()> {
             .stderr(Stdio::inherit())
             .spawn()?,
         paths: &paths,
+        shutdown_started: false,
     };
     // SAFETY: pidfd_open receives the PID of our own newly spawned child.
     let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, panel.child.id(), 0) };
@@ -774,11 +841,14 @@ pub fn serve(root: &Path) -> Result<()> {
     let mut ready = false;
     let mut settled = false;
     let mut last_x = hidden;
+    let mut lifecycle = Lifecycle::new();
     loop {
         if STOP.load(Ordering::Relaxed) {
-            return Ok(());
+            return Ok(false);
         }
-        let timeout = if ready && settled {
+        let timeout = if let Some(wait) = lifecycle.wait_ms() {
+            wait
+        } else if ready && settled {
             -1
         } else {
             FRAME.as_millis() as i32
@@ -815,17 +885,15 @@ pub fn serve(root: &Path) -> Result<()> {
             }
             return Err(error.into());
         }
-        if descriptors[1].revents != 0 || panel.child.try_wait()?.is_some() {
-            return Ok(());
-        }
+        let child_exited = descriptors[1].revents != 0 || panel.child.try_wait()?.is_some();
         if descriptors[2].revents & (libc::POLLHUP | libc::POLLERR) != 0 {
-            return Ok(());
+            return Ok(false);
         }
         if descriptors[2].revents & libc::POLLIN != 0 {
             let mut buffer = [0_u8; 8192];
             loop {
                 match events.read(&mut buffer) {
-                    Ok(0) => return Ok(()),
+                    Ok(0) => return Ok(false),
                     Ok(count) => event_buffer.extend_from_slice(&buffer[..count]),
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
                     Err(error) => return Err(error.into()),
@@ -841,7 +909,7 @@ pub fn serve(root: &Path) -> Result<()> {
                     let outputs = niri("outputs")?;
                     if outputs.get(name).and_then(|output| output.get("logical")) != Some(geometry)
                     {
-                        return Ok(()); // Reopen on the new geometry/output.
+                        return Ok(false); // Reopen on the new geometry/output.
                     }
                 }
                 event_buffer.drain(..=end);
@@ -864,22 +932,24 @@ pub fn serve(root: &Path) -> Result<()> {
                     .and_then(|data| serde_json::from_slice::<String>(&data).ok());
                 let accepted = match action.as_deref() {
                     Some("toggle") | Some("close") => {
-                        let opening = action.as_deref() == Some("toggle") && !motion.opening;
-                        if ready {
+                        let opening = action.as_deref() == Some("toggle") && !lifecycle.opening;
+                        lifecycle.target(opening);
+                        if panel.shutdown_started {
+                            // SIGINT cannot be undone; remember the latest intent
+                            // while still acknowledging requests immediately.
+                        } else if ready {
                             motion.target(opening, shown, hidden);
                         } else {
                             motion.opening = opening;
                             motion.to = f64::from(if opening { shown } else { hidden });
                         }
-                        settled = false;
-                        if ready {
-                            place(&paths, panel.child.id(), motion.x.round() as i32, false)?;
-                            last_x = motion.x.round() as i32;
+                        if !panel.shutdown_started {
+                            settled = false;
                         }
                         true
                     }
                     Some("status") => true,
-                    Some("refresh") if ready => {
+                    Some("refresh") if ready && !panel.shutdown_started && !child_exited => {
                         rpc(
                             &paths,
                             panel.child.id(),
@@ -893,14 +963,16 @@ pub fn serve(root: &Path) -> Result<()> {
                     Some("refresh") => true,
                     _ => false,
                 };
-                let response = json!({"ok":accepted,"state":motion.state(settled),"output":name});
+                let response = json!({"ok":accepted,"state":if panel.shutdown_started { "stopping" } else { motion.state(settled) },"output":name});
                 let _ = writeln!(client, "{response}");
             }
         }
+        // A toggle and child exit can become readable in the same poll. Apply
+        // and acknowledge the pending intent before deciding whether to reopen.
+        if child_exited {
+            return Ok(panel.shutdown_started && lifecycle.opening);
+        }
         if !ready {
-            if !motion.opening {
-                return Ok(());
-            }
             if socket(&paths.kitty)? {
                 place(&paths, panel.child.id(), hidden, false)?;
                 ready = true;
@@ -909,6 +981,10 @@ pub fn serve(root: &Path) -> Result<()> {
                     initializing.elapsed().as_millis()
                 );
                 motion.started = Instant::now();
+                if !lifecycle.opening {
+                    settled = true;
+                    lifecycle.closed(Instant::now());
+                }
             } else if Instant::now() >= startup {
                 return Err(invalid(
                     "The monitor terminal did not initialize within five seconds",
@@ -924,9 +1000,106 @@ pub fn serve(root: &Path) -> Result<()> {
                 last_x = x;
             }
             if settled && !motion.opening {
-                // OwnedPanel keeps the terminal alive for btop's native save.
-                return Ok(());
+                lifecycle.closed(Instant::now());
             }
         }
+        if lifecycle.shutdown_due(Instant::now()) {
+            rpc(
+                &paths,
+                panel.child.id(),
+                "signal-child",
+                json!({"match":"all","signals":["SIGINT"]}),
+            )?;
+            panel.shutdown_started = true;
+            lifecycle.shutdown_until = Some(Instant::now() + Duration::from_secs(2));
+        }
+        if lifecycle.timed_out(Instant::now()) {
+            return Ok(lifecycle.opening);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unchanged_launch_files_keep_their_inode_and_changed_files_are_private() {
+        let path =
+            std::env::temp_dir().join(format!("foundation-monitor-config-{}", std::process::id()));
+        write_changed(&path, b"first").unwrap();
+        let inode = fs::metadata(&path).unwrap().ino();
+        write_changed(&path, b"first").unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().ino(), inode);
+        write_changed(&path, b"second").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"second");
+        assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o600);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn rapid_reopen_cancels_retirement_without_restarting_the_terminal() {
+        let now = Instant::now();
+        let mut lifecycle = Lifecycle::new();
+        lifecycle.target(false);
+        lifecycle.closed(now);
+        assert!(!lifecycle.shutdown_due(now + Duration::from_millis(119)));
+        lifecycle.target(true);
+        assert!(lifecycle.retire_at.is_none());
+        assert!(!lifecycle.shutdown_due(now + Duration::from_secs(1)));
+        lifecycle.target(false);
+        lifecycle.closed(now + Duration::from_secs(2));
+        assert!(lifecycle.shutdown_due(now + Duration::from_millis(2120)));
+    }
+
+    #[test]
+    fn toggles_during_native_save_keep_the_latest_intent() {
+        let now = Instant::now();
+        let mut lifecycle = Lifecycle::new();
+        lifecycle.target(false);
+        lifecycle.closed(now);
+        lifecycle.shutdown_until = Some(now + Duration::from_secs(2));
+        for _ in 0..101 {
+            lifecycle.target(!lifecycle.opening);
+        }
+        assert!(lifecycle.opening);
+        assert!(!lifecycle.timed_out(now + Duration::from_secs(1)));
+        assert!(lifecycle.timed_out(now + Duration::from_secs(2)));
+        // Explicit close wins over all preceding toggle requests.
+        lifecycle.target(false);
+        assert!(!lifecycle.opening);
+        assert!(lifecycle.shutdown_until.is_some());
+    }
+
+    #[test]
+    fn startup_can_be_cancelled_and_reopened_before_the_terminal_is_ready() {
+        let mut lifecycle = Lifecycle::new();
+        lifecycle.target(false);
+        assert!(lifecycle.shutdown_until.is_none());
+        lifecycle.target(true);
+        assert!(lifecycle.opening);
+        assert!(lifecycle.retire_at.is_none());
+    }
+
+    #[test]
+    fn already_graceful_shutdown_does_not_wait_another_two_seconds() {
+        let directory =
+            std::env::temp_dir().join(format!("foundation-monitor-drop-{}", std::process::id()));
+        let paths = Paths {
+            control: directory.join("control.sock"),
+            kitty: directory.join("kitty.sock"),
+            directory,
+        };
+        let child = Command::new("sleep").arg("10").spawn().unwrap();
+        let pid = child.id();
+        let started = Instant::now();
+        drop(OwnedPanel {
+            child,
+            paths: &paths,
+            shutdown_started: true,
+        });
+        assert!(started.elapsed() < Duration::from_secs(1));
+        // SAFETY: checking whether our already-reaped child PID still exists.
+        assert_eq!(unsafe { libc::kill(pid as i32, 0) }, -1);
     }
 }

@@ -46,7 +46,7 @@ Untracked project files are copied into the isolated build and remain in place.
 Conflicting edits, untracked files that would be overwritten, an in-progress Git
 operation, or externally replaced deployment links stop the update before deployment.
 Changing project files during the build also stops publication, so newer edits
-are not silently replaced. The updater reports the recovery ref when one is made;
+are not silently replaced. The update log records the recovery ref when one is made;
 these local backup refs are not included in an ordinary push of `main`.
 
 The updater also retains writable Fish variables, btop preferences, application
@@ -65,3 +65,12 @@ termination can leave one under
 `$XDG_CACHE_HOME/desktop-foundation/update/source-*`; inspect it with
 `git worktree list` before removing it. Build caches remain there for later runs.
 `--dry-run` does not fetch, build, deploy or reload anything.
+
+## Output
+
+Normal updates print four short lines: fetching, building/checking, applying, and
+the resulting revision. Git, compiler, validation and deployment details go to
+`$XDG_STATE_HOME/desktop-foundation/update.log` (default
+`~/.local/state/desktop-foundation/update.log`). The file is private to your user
+(mode 0600) and replaced at the start of the next real update. Failures identify
+the phase and link to this log. `--dry-run` prints one line and creates no log.

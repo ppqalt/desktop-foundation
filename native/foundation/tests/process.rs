@@ -1,12 +1,34 @@
 use desktop_foundationctl::process;
 use std::{
     fs,
+    os::unix::fs::OpenOptionsExt,
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
 };
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+#[test]
+fn logged_commands_keep_large_output_and_failure_details_on_disk() {
+    let fixture = Detached::new();
+    let path = fixture.directory.join("update.log");
+    let log = fs::OpenOptions::new()
+        .append(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)
+        .unwrap();
+    let result = process::checked_logged(
+        &["python3".into(), "-c".into(), "import sys; print('x'*100000); print('build failed here',file=sys.stderr); sys.exit(7)".into()],
+        Duration::from_secs(3), &log,
+    );
+    assert!(result.is_err());
+    let text = fs::read_to_string(path).unwrap();
+    assert!(text.len() > 100000);
+    assert!(text.contains("build failed here"));
+}
+
 struct Detached {
     directory: PathBuf,
 }
