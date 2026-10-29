@@ -2,7 +2,7 @@ use desktop_foundationctl::{
     Result, actions, app_mods, application_roles, apps, backdrop, bluetooth, browser_policy, cache,
     clipboard, clipboard_transport, control_center, diagnostics, geode, invalid, local_ai, monitor,
     monitor_shader, packages, preferences, preflight, process, screenshot, session, shell,
-    spotify_theme, theme, theme_render, theme_runtime, update, volume,
+    spotify_theme, theme, theme_render, theme_runtime, update, volume, wallpapers,
 };
 use std::{
     io::{self, Read},
@@ -52,6 +52,9 @@ fn run() -> Result<()> {
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("wallpapers") if args.as_slice() == ["wallpapers", "list"] => {
+            print_json(&wallpapers::list(&root)?)
+        }
         Some("preflight") => preflight::run(&root, &args[1..]),
         Some("theme-runtime") => theme_runtime::run(&root, &args[1..]),
         Some("spotify-theme") if args.len() == 2 => spotify_theme::run(&root, &args[1]),

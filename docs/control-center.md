@@ -96,3 +96,26 @@ Isolated checks use simulated device services and an offscreen Qt window. They
 cover arrows/WASD, Enter/Space, menu/back focus, immediate volume changes,
 independent request queues, animation reversal and unloading without exercising
 live device controls.
+
+## Wallpaper selector
+
+The overview's three-column grid reads `~/Pictures/Wallpapers`. Image names are
+shown on hover and exposed to accessibility tools; the active wallpaper has a
+checkmark. Arrows/WASD navigate, Enter/Space applies, and Tab joins the existing
+focus chain. A partial row retains the same tile width.
+
+Rust inventories PNG, JPEG, WebP, GIF, BMP and TIFF files and caches small, rounded
+PNG previews. QML displays those previews asynchronously without shader masks or
+per-tile offscreen effects. Changed/deleted images invalidate their cached
+previews. The directory is read when entering the overview, without a watcher or
+polling daemon.
+
+Selection uses the native wallpaper/theme transaction. The checkmark moves only
+after success; a failed change keeps the old theme and selection. Closing hides
+the panel immediately through its existing animation, while an explicit apply
+finishes before the panel instance is released. No worker remains afterward.
+
+`cargo test --locked --manifest-path native/foundation/Cargo.toml --test wallpapers`
+checks discovery, preview caching/visible pixels, three-column geometry, keyboard
+navigation, failure handling and closing during a fake application. It uses an
+offscreen QML host and never changes the running desktop's wallpaper.

@@ -27,7 +27,7 @@ PanelWindow {
     property bool initialFocus: true
     property int pendingOutput: -1
     property int pendingInput: -1
-    readonly property bool busy: deviceRequest.running || audioAction.running
+    readonly property bool busy: deviceRequest.running || audioAction.running || wallpapers.busy
     readonly property var audio: stateData.audio ?? ({})
     readonly property var network: stateData.network ?? ({})
     readonly property bool wifiAvailable: (network.devices ?? []).some(d => d.kind === "wifi")
@@ -507,6 +507,19 @@ PanelWindow {
                             onClicked: {
                                 root.enqueue(["cachy-update"]);
                                 root.dismiss();
+                            }
+                        }
+                        WallpaperGrid {
+                            id: wallpapers
+                            Layout.fillWidth: true
+                            visible: root.page === "overview"
+                            active: !root.closing && visible
+                            backend: root.backend
+                            onStarted: root.error = ""
+                            onFailed: message => root.error = message
+                            onSettled: {
+                                root.finishClose();
+                                root.refresh();
                             }
                         }
                         ControlGroup {

@@ -203,24 +203,26 @@ fn ensure_has_no_python_dependency_or_live_reloads() {
         )
         .unwrap();
     }
-    let output = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
-        .args(["--root"])
-        .arg(&owner)
-        .args(["theme-runtime", "ensure", "default"])
-        .env("HOME", &f.0)
-        .env("XDG_STATE_HOME", f.path("state"))
-        .env("XDG_CACHE_HOME", f.path("cache"))
-        .env("PATH", &bin)
-        .env_remove("NIRI_SOCKET")
-        .env_remove("WAYLAND_DISPLAY")
-        .env_remove("DBUS_SESSION_BUS_ADDRESS")
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    for _ in 0..2 {
+        let output = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
+            .args(["--root"])
+            .arg(&owner)
+            .args(["theme-runtime", "ensure", "default"])
+            .env("HOME", &f.0)
+            .env("XDG_STATE_HOME", f.path("state"))
+            .env("XDG_CACHE_HOME", f.path("cache"))
+            .env("PATH", &bin)
+            .env_remove("NIRI_SOCKET")
+            .env_remove("WAYLAND_DISPLAY")
+            .env_remove("DBUS_SESSION_BUS_ADDRESS")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     let home = f.path("state/desktop-foundation/theme");
     let revision = runtime::current(&home).unwrap().unwrap();
     assert!(revision.join("overview.png").is_file());
@@ -228,6 +230,10 @@ fn ensure_has_no_python_dependency_or_live_reloads() {
     assert_eq!(
         render::read(&revision.join("metadata.json")).unwrap()["renderer"],
         "rust-v1"
+    );
+    assert_eq!(
+        render::read(&revision.join("metadata.json")).unwrap()["input"],
+        owner.join("wallpapers/test.png").to_string_lossy().as_ref()
     );
 }
 

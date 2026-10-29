@@ -179,9 +179,36 @@ pub fn stage(
             &target.join("backdrop.json"),
             &json!({"image":state::file_uri(&target.join("overview.png"))?,"mode":mode}),
         )?;
+        let mut original_input = image.clone();
+        if image.starts_with(&revisions) {
+            let mut candidates = vec![];
+            if let Some(previous) = current(home)?
+                && let Some(input) =
+                    render::read(&previous.join("metadata.json"))?["input"].as_str()
+            {
+                candidates.push(PathBuf::from(input));
+            }
+            if let Some(source) = p["source"].as_str() {
+                let source = PathBuf::from(source);
+                candidates.push(if source.is_absolute() {
+                    source
+                } else {
+                    root.join(source)
+                });
+            }
+            for candidate in candidates {
+                if let Ok(candidate) = candidate.canonicalize()
+                    && !candidate.starts_with(&revisions)
+                    && backdrop::hash(&candidate).is_ok_and(|hash| hash == digest)
+                {
+                    original_input = candidate;
+                    break;
+                }
+            }
+        }
         render::write_json(
             &target.join("metadata.json"),
-            &json!({"root":root,"input":image,"wallpaperHash":digest,"profile":selected,"reset":reset,"renderer":"rust-v1"}),
+            &json!({"root":root,"input":original_input,"wallpaperHash":digest,"profile":selected,"reset":reset,"renderer":"rust-v1"}),
         )?;
         process::checked(
             &[

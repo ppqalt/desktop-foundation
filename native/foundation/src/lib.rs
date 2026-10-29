@@ -30,6 +30,7 @@ pub mod theme_render;
 pub mod theme_runtime;
 pub mod update;
 pub mod volume;
+pub mod wallpapers;
 
 use std::{fmt, io};
 
