@@ -14,8 +14,6 @@ PanelWindow {
     id: root
     required property var sidebarStyle
     property var targetScreen: null
-    property bool clockVisible: false
-    signal clockToggled()
     property bool closing: false
     property string nextSurface: ""
     property string page: "overview"
@@ -500,33 +498,15 @@ PanelWindow {
                                 }
                             }
                         }
-                        RowLayout {
-                            Layout.fillWidth: true
+                        ControlAction {
+                            objectName: "cachyUpdateShortcut"
                             visible: root.page === "overview"
-                            spacing: 12
-                            ControlAction {
-                                objectName: "bluetoothShortcut"
-                                text: "Bluetooth"
-                                compact: true
-                                Layout.fillWidth: true
-                                onClicked: root.dismiss("bluetooth")
-                            }
-                            ControlAction {
-                                objectName: "clockToggle"
-                                text: "Clock"
-                                compact: true
-                                toggle: true
-                                marked: root.clockVisible
-                                badge: marked ? "On" : "Off"
-                                Layout.fillWidth: true
-                                onClicked: root.clockToggled()
-                            }
-                            ControlAction {
-                                objectName: "sessionShortcut"
-                                text: "Session"
-                                compact: true
-                                Layout.fillWidth: true
-                                onClicked: root.dismiss("power")
+                            text: "Cachy Update"
+                            compact: true
+                            Layout.alignment: Qt.AlignLeft
+                            onClicked: {
+                                root.enqueue(["cachy-update"]);
+                                root.dismiss();
                             }
                         }
                         ControlGroup {

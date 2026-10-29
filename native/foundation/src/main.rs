@@ -52,6 +52,18 @@ fn run() -> Result<()> {
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("control-center") if args.as_slice() == ["control-center", "cachy-update"] => {
+            if !apps::executable("cachy-update") {
+                return Err(invalid("Cachy Update is not installed"));
+            }
+            process::replace(&[
+                root.join("scripts/launch").to_string_lossy().into_owned(),
+                "kitty".into(),
+                "--detach".into(),
+                "--title=Cachy Update".into(),
+                "cachy-update".into(),
+            ])
+        }
         Some("control-center") if args.as_slice() == ["control-center", "network-settings"] => {
             if !apps::executable("nmtui") {
                 return Err(invalid("Network settings require NetworkManager's nmtui"));

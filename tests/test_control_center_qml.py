@@ -38,7 +38,6 @@ ShellRoot {
         ControlCenterFixture {
             width: 720; height: 1000
             sidebarStyle: ({width:720,padding:12,radius:14,opacity:0.75,openingMs:240,closingMs:180})
-            onClockToggled: clockVisible = !clockVisible
             onClosed: fixture.enabled=false
             TestCase {id: keys; name:"ControlKeys"; optional:true; when:false}
             function key(key, modifiers) { keys.keyClick(key, modifiers || Qt.NoModifier); }
@@ -99,18 +98,9 @@ ShellRoot {
                 captureDelay.restart();
             } else if (fixture.stage===9) {
                 fixture.stage=5;
-                const clock=find(panel.contentItem,"clockToggle");
-                clock.forceActiveFocus();
-                fixture.check(clock.activeFocus,"clock toggle is not keyboard reachable");
-                panel.key(Qt.Key_Space);
-                fixture.check(panel.clockVisible && clock.marked,"clock toggle does not reflect enabled state");
-                panel.key(Qt.Key_Return);
-                fixture.check(!panel.clockVisible && !clock.marked,"clock toggle does not turn off");
-                for (const name of ["bluetoothShortcut", "sessionShortcut"]) {
-                    const shortcut=find(panel.contentItem,name);
-                    shortcut.forceActiveFocus();
-                    fixture.check(shortcut.activeFocus,"shortcut is not keyboard reachable: "+name);
-                }
+                const update=find(panel.contentItem,"cachyUpdateShortcut");
+                update.forceActiveFocus();
+                fixture.check(update.activeFocus,"Cachy Update is not keyboard reachable");
                 const details=find(panel.contentItem,"audioDetails");
                 details.forceActiveFocus();
                 panel.key(Qt.Key_D);

@@ -2,12 +2,12 @@
 
 `Super+Z` or `scripts/control-center` toggles the left sidebar. `Super+X` still
 opens btop. Bluetooth and Nothing controls remain in the existing `Super+B`
-widget, accessible through a Bluetooth shortcut in the Control Center.
+widget.
 
 The overview contains a network summary and two audio cards: output and
 microphone. Each audio card has a device-details action, mute button, short
 volume slider and percentage. Device selection opens an Audio view inside the
-same frame. A compact row also provides the clock toggle and session menu.
+same frame. A compact Cachy Update button opens the installed `cachy-update` in Kitty.
 Network details show device actions and saved connections, omitting
 active non-VPN profiles already represented by a device. Network settings opens
 NetworkManager's packaged `nmtui` in Kitty for adding networks or editing
