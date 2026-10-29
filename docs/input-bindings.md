@@ -45,3 +45,6 @@ normal text editing keys.
 The session menu starts its entrance on its first frame and finishes its exit
 before unloading. Volume has a 100 ms visibility fade and immediate bar updates.
 The corner clock is click-through and shows hours/minutes.
+
+`Super+Comma` toggles the left Control Center. It uses the reserved control UI
+chord; `Super+X` continues to toggle the right btop sidebar.

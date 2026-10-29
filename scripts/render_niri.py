@@ -72,6 +72,12 @@ layer-rule {{
     background-effect {{ blur true; xray false; }}
 }}
 layer-rule {{
+    match namespace="^desktop-foundation:control-center$"
+    geometry-corner-radius 0 {monitor_radius} {monitor_radius} 0
+    shadow {{ on; softness {v['shadow']['range']}; spread 0; offset x={-v['shadow']['offset']['x']} y={v['shadow']['offset']['y']}; color {q(color(v['shadow']['activeOpacity']))}; }}
+    background-effect {{ blur true; xray false; }}
+}}
+layer-rule {{
     match namespace="^desktop-foundation-overview-backdrop$"
     place-within-backdrop true
 }}

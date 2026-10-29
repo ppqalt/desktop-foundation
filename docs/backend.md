@@ -32,6 +32,7 @@ notifications start|check-owner
 system packages [--config FILE]
 shell call METHOD [ARGS...]
 local-ai start|status|plan
+control-center toggle|snapshot|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings
 update [--dry-run]
 build-info
 doctor --json
@@ -55,6 +56,9 @@ stderr and exit nonzero. Native command arguments are passed as arrays.
   launch plan. Default assignment, validation, ownership and rollback also run
   in Rust. Per-key journals retain original defaults and recover interrupted
   writes without replacing unrelated associations. See [application roles](application-roles.md).
+- **Control Center:** finite PipeWire/PulseAudio and NetworkManager requests,
+  existing native Bluetooth operations, and shared sidebar geometry. Audio and
+  network/Bluetooth requests have separate UI queues. See [Control Center](control-center.md).
 - **Volume:** 3% changes, capped at 100%, followed by sink readback. The shell shows
   the resulting percentage; Mako provides a fallback when shell IPC is unavailable.
   Audio changes are serialized independently of feedback. Repeated presses keep

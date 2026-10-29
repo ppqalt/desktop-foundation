@@ -5,7 +5,7 @@ binds {
     "Super+Space" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/launcher\""; }
     "Super+V" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/clipboard\""; }
     "Super+X" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/monitor\" toggle"; }
-    "Super+Comma" { spawn "true"; }
+    "Super+Comma" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/control-center\""; }
     "Super+Shift+7" { spawn "true"; }
     "Super+Shift+Q" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/power-menu\""; }
     "Super+T" { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/applications\" launch terminal"; }

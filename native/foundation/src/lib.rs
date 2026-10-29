@@ -7,6 +7,7 @@ pub mod browser_policy;
 pub mod cache;
 pub mod clipboard;
 pub mod clipboard_transport;
+pub mod control_center;
 pub mod diagnostics;
 pub mod geode;
 pub mod keyring;

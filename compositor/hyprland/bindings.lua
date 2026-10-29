@@ -31,6 +31,7 @@ return function(command)
 
     bind("SUPER + space", hl.dsp.exec_cmd(command("launcher")), "Toggle application launcher")
 
+    bind("SUPER + comma", hl.dsp.exec_cmd(command("control-center")), "Toggle control center")
     bind("SUPER + B", hl.dsp.exec_cmd(command("bluetooth-popup")), "Paired Bluetooth devices")
     bind("SUPER + V", hl.dsp.exec_cmd(command("clipboard")), "Toggle clipboard history")
 
@@ -43,7 +44,6 @@ return function(command)
     -- Hyprland does not supply a built-in Niri-style overview.
     local reserved = {
         { "SUPER + Tab", "overview" },
-        { "SUPER + comma", "settings/control UI" },
         -- Finnish slash = Shift+7. XKB code 16 is <AE07> (evdev code 8 + 8).
         -- Keycode binding avoids shifted-keysym/modifier ambiguity.
         { "SUPER + SHIFT + code:16", "cheatsheet (Finnish Super+/)" },

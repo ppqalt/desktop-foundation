@@ -26,6 +26,7 @@ wireplumber
 libpulse
 bluez
 bluez-utils
+networkmanager
 blueman
 niri
 swaybg

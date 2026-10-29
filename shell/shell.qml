@@ -27,6 +27,29 @@ ShellRoot {
             targetScreen: root.launcherScreen
         }
     }
+    readonly property ControlCenter controlCenter: controlCenterLoader.item as ControlCenter
+    property bool controlCenterEnabled: false
+    property var controlCenterStyle: ({
+            width: 720,
+            padding: 12,
+            radius: 14,
+            opacity: 0.75,
+            openingMs: 240,
+            closingMs: 180
+        })
+    LazyLoader {
+        id: controlCenterLoader
+        active: root.controlCenterEnabled
+        ControlCenter {
+            sidebarStyle: root.controlCenterStyle
+            targetScreen: root.launcherScreen
+            onClosed: nextSurface => {
+                root.controlCenterEnabled = false;
+                if (nextSurface === "bluetooth")
+                    root.bluetoothEnabled = true;
+            }
+        }
+    }
     property bool bluetoothEnabled: false
     LazyLoader {
         id: bluetoothLoader
@@ -103,7 +126,7 @@ ShellRoot {
     IpcHandler {
         target: "foundation"
         function reloadConfiguration(): string {
-            if (powerLoader.item?.busy)
+            if (powerLoader.item?.busy || root.controlCenter?.busy)
                 return "busy";
             // Reply before replacing this IPC handler and its windows.
             Qt.callLater(() => Quickshell.reload(true));
@@ -133,7 +156,30 @@ ShellRoot {
                 alive: clockLoader.item !== null
             });
         }
+        function toggleControlCenter(style: string): void {
+            if (!root.dismissPower())
+                return;
+            if (controlCenterLoader.item) {
+                if (root.controlCenter.closing)
+                    root.controlCenter.present();
+                else
+                    root.controlCenter.dismiss();
+                return;
+            }
+            root.controlCenterStyle = JSON.parse(style);
+            bluetoothLoader.item?.dismiss();
+            root.launcher?.dismiss();
+            root.clipboard?.dismiss();
+            root.controlCenterEnabled = true;
+        }
+        function controlCenterStatus(): string {
+            return JSON.stringify(root.controlCenter ? root.controlCenter.snapshot() : {
+                alive: false,
+                visible: false
+            });
+        }
         function toggleBluetooth(): void {
+            root.controlCenter?.dismiss();
             if (!root.dismissPower())
                 return;
             if (root.launcher)
@@ -152,6 +198,7 @@ ShellRoot {
             });
         }
         function togglePower(): void {
+            root.controlCenter?.dismiss();
             if (powerLoader.item?.busy)
                 return;
             if (root.powerEnabled) {
@@ -205,6 +252,7 @@ ShellRoot {
             root.compositorBackend.screenshotOutput();
         }
         function toggleClipboard(): void {
+            root.controlCenter?.dismiss();
             if (!root.dismissPower())
                 return;
             if (bluetoothLoader.item)
@@ -219,6 +267,7 @@ ShellRoot {
                 root.clipboardEnabled = true;
         }
         function showClipboard(): void {
+            root.controlCenter?.dismiss();
             if (!root.dismissPower())
                 return;
             if (bluetoothLoader.item)
@@ -244,6 +293,7 @@ ShellRoot {
             });
         }
         function toggleLauncher(): void {
+            root.controlCenter?.dismiss();
             if (!root.dismissPower())
                 return;
             if (bluetoothLoader.item)
@@ -258,6 +308,7 @@ ShellRoot {
                 root.launcherEnabled = true;
         }
         function showLauncher(): void {
+            root.controlCenter?.dismiss();
             if (!root.dismissPower())
                 return;
             if (bluetoothLoader.item)

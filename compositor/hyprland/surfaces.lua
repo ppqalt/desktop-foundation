@@ -16,3 +16,11 @@ hl.window_rule({
     match = { xwayland = true, float = true },
     no_blur = true,
 })
+
+hl.layer_rule({
+    name = "foundation-control-center",
+    match = { namespace = "^desktop-foundation:control-center$" },
+    blur = true,
+    ignore_alpha = 0.4,
+    no_anim = true,
+})

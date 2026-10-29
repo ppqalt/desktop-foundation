@@ -280,6 +280,16 @@ fn settings(root: &Path) -> Result<Settings> {
     Ok(settings)
 }
 
+/// Shared geometry for the mirrored QML sidebar; no monitor process is started.
+pub fn sidebar_style(root: &Path) -> Result<Value> {
+    let s = settings(root)?;
+    Ok(
+        json!({"width":s.width, "padding":s.padding, "radius":s.corner_radius,
+        "opacity":s.background_opacity, "openingMs":s.animation_ms,
+        "closingMs":s.closing_animation_ms}),
+    )
+}
+
 fn niri(action: &str) -> Result<Value> {
     let output = process::checked(
         &["niri".into(), "msg".into(), "-j".into(), action.into()],
