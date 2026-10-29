@@ -82,6 +82,7 @@ def restore(manifest):
 
 def common_targets():
     return [(Path.home() / '.local/bin/df-update', ROOT / 'scripts/df-update'),
+            (CONFIG / 'fontconfig/conf.d/60-desktop-foundation.conf', ROOT / 'theme/fontconfig/60-desktop-foundation.conf'),
             (CONFIG / 'gtk-3.0/settings.ini', ROOT / 'theme/gtk-3.0/settings.ini'),
             (CONFIG / 'gtk-4.0/settings.ini', ROOT / 'theme/gtk-4.0/settings.ini'),
             (CONFIG / 'wireplumber/wireplumber.conf.d/60-desktop-foundation-bluetooth.conf', ROOT / 'audio/wireplumber/60-desktop-foundation-bluetooth.conf'),

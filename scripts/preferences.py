@@ -64,7 +64,8 @@ def main():
     if args.action == 'restore':
         restore_preferences()
         return
-    changes = [(['gsettings', 'color-scheme'], "'prefer-dark'"),
+    changes = [(['gsettings', 'font-name'], "'Google Sans Flex 10'"),
+               (['gsettings', 'color-scheme'], "'prefer-dark'"),
                (['gsettings', 'gtk-theme'], "'adw-gtk3-dark'")]
     for key, value in changes:
         manage_setting(key, value)

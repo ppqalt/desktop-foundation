@@ -253,7 +253,7 @@ def main():
     report((root / 'native/nothing/target/release/foundation-nothing').exists(), 'Nothing backend built')
     report(os.access(root / 'native/foundation/target/release/desktop-foundationctl', os.X_OK), 'Shared Rust command backend built; build with scripts/build-backend')
     report((data / 'wallpapers/wallhaven-135w7w.png').is_file(), 'Stable wallpaper')
-    for family in ['Google Sans', 'Google Sans Code', 'GoogleSansCode Nerd Font Mono']:
+    for family in ['Google Sans Flex', 'Google Sans Code', 'GoogleSansCode Nerd Font Mono']:
         code, match = run('fc-match', '-f', '%{family}', family)
         report(code == 0 and family in match, 'Font ' + family)
     if not args.no_greeter:

@@ -32,7 +32,7 @@ QtObject {
             surface: 24
         })
     readonly property var typography: ({
-            family: "Google Sans",
+            family: "Google Sans Flex",
             mono: "Google Sans Code",
             small: 11,
             body: 14,

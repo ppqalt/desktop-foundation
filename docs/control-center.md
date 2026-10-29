@@ -36,7 +36,7 @@ one Qt logical pixel before output scaling:
 
 Controls read `shell/theme/Material.qml`. Google Material Symbols Rounded paths
 are bundled there under Apache-2.0 with their license. Fonts use the existing
-Google Sans family; no icon-font package is required.
+Google Sans Flex family; no icon-font package is required.
 
 Rust preserves Matugen's complete dark role pairs in `semantic.json.material`.
 The existing top-level graphite roles remain unchanged for other surfaces.

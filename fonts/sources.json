@@ -68,5 +68,20 @@
     "archive_url": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/GoogleSansCode.tar.xz",
     "archive_sha256": "b5a2a79b6ac0f021049c63b67bb42a1dcf81d5bc4e447fc6205c79d969605f42",
     "sha256": "2156bc2e78b29281ad7e23cbbb0ed9862c1b5dec7e6e680b945fe6dc11b04ba8"
+  },
+  {
+    "file": "googlesansflex/GoogleSansFlex[ROND,opsz,slnt,wdth,wght].ttf",
+    "url": "https://raw.githubusercontent.com/google/fonts/6157dfaa640ca5738b4d1a7070fe389c3036d7fc/ofl/googlesansflex/GoogleSansFlex%5BROND%2Copsz%2Cslnt%2Cwdth%2Cwght%5D.ttf",
+    "sha256": "a9ac770798857d5e8ac593ced42b22e40a7c08cec98319f92b0eccc2783a77ba"
+  },
+  {
+    "file": "googlesansflex/OFL.txt",
+    "url": "https://raw.githubusercontent.com/google/fonts/6157dfaa640ca5738b4d1a7070fe389c3036d7fc/ofl/googlesansflex/OFL.txt",
+    "sha256": "fc13d69f63e36d284b6e383d4d1463d8ad404f0aa065e57cf961252d51063137"
+  },
+  {
+    "file": "googlesansflex/TRADEMARKS.md",
+    "url": "https://raw.githubusercontent.com/google/fonts/6157dfaa640ca5738b4d1a7070fe389c3036d7fc/ofl/googlesansflex/TRADEMARKS.md",
+    "sha256": "5cad381c0828db656f32a787a1eff76db3303c74ec4f94668ae9fc2873ffe42f"
   }
 ]
