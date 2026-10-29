@@ -448,7 +448,7 @@ fn config(paths: &Paths, settings: &Settings, scale: f64) -> Result<(PathBuf, Pa
     write_changed(
         &kitty,
         format!(
-            "include {}\nlinux_display_server wayland\nfont_family GoogleSansCode Nerd Font Mono\nfont_size {}\nbackground_opacity {}\nwindow_padding_width {}\nwindow_margin_width 0\nwindow_border_width 0px\nscrollback_lines 0\ncursor_blink_interval 0\nconfirm_os_window_close -1\nclose_on_child_death yes\nclear_all_shortcuts yes\nallow_remote_control password\nremote_control_password \"\" resize-os-window close-window load-config signal-child\n{}",
+            "include {}\nlinux_display_server wayland\nfont_family GoogleSansCode Nerd Font Mono\nfont_size {}\nbackground_opacity {}\nwindow_padding_width {}\nwindow_margin_width 0\nwindow_border_width 0px\nscrollback_lines 0\ncursor_blink_interval 0\nconfirm_os_window_close 0\nclose_on_child_death yes\nclear_all_shortcuts yes\nallow_remote_control password\nremote_control_password \"\" resize-os-window close-window load-config signal-child\n{}",
             config_path(&colors)?, settings.font_size, settings.background_opacity,
             // Kitty padding uses points; Wayland uses 96 DPI at scale one.
             f64::from(settings.padding) * 0.75, shaders,

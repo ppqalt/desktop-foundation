@@ -503,7 +503,7 @@ PanelWindow {
                             visible: root.page === "overview"
                             text: "Cachy Update"
                             compact: true
-                            Layout.alignment: Qt.AlignLeft
+                            Layout.fillWidth: true
                             onClicked: {
                                 root.enqueue(["cachy-update"]);
                                 root.dismiss();
