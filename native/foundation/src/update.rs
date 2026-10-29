@@ -515,6 +515,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                     .join("scripts/preflight.py")
                     .to_string_lossy()
                     .into_owned(),
+                "--update".into(),
                 "--profile".into(),
                 selected.profile.clone(),
                 "--compositor".into(),

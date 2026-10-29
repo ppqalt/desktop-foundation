@@ -11,6 +11,7 @@ from render_niri import render
 ROOT = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--profile', default='default')
+parser.add_argument('--update', action='store_true', help='Validate deployment requirements; report missing optional runtime tools without installing them')
 parser.add_argument('--compositor', choices=['niri', 'hyprland'], default='niri')
 args = parser.parse_args()
 required = ['pactl', 'busctl', 'blueman-manager', 'niri', 'quickshell', 'kitty', 'slangc', 'fish', 'fastfetch', 'lua', 'wl-copy', 'wl-paste',
@@ -22,7 +23,20 @@ missing = [name for name in required if not shutil.which(name)]
 backend = ROOT / 'native/foundation/target/release/desktop-foundationctl'
 if not backend.is_file() or not os.access(backend, os.X_OK):
     raise SystemExit('Shared Rust backend is not built. Run scripts/build-backend; nothing deployed.')
-if missing:
+if args.update:
+    # These are executed by rendering/deployment itself. Missing optional tools
+    # must not prevent an existing desktop from receiving source/config updates.
+    mandatory = {'niri' if args.compositor == 'niri' else 'Hyprland', 'quickshell',
+                 'kitty', 'slangc', 'fish', 'lua', 'fc-cache'}
+    blocking = [name for name in missing if name in mandatory]
+    optional = [name for name in missing if name not in mandatory]
+    if blocking:
+        raise SystemExit('Missing deployment tools: ' + ', '.join(blocking)
+                         + '. Install these separately; df-update does not run package managers.')
+    if optional:
+        print('Optional runtime tools unavailable: ' + ', '.join(optional)
+              + '. Their dependent controls remain unavailable; no packages installed.')
+elif missing:
     raise SystemExit('Missing runtime tools: ' + ', '.join(missing) + '. Run scripts/bootstrap.')
 with tempfile.NamedTemporaryFile(mode='w', suffix='.kdl' if args.compositor == 'niri' else '.lua') as candidate:
     if args.compositor == 'niri':

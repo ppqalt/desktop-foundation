@@ -30,8 +30,9 @@ the compositor, login manager or applications.
 System/AUR packages, Spotify/Geode modifications and privileged
 boot/login integration are not installed or upgraded. Cargo may download the
 Rust dependencies recorded in the repository's lockfiles; builds use the pinned
-Rust toolchain from the build scripts. Missing native build
-or runtime dependencies stop the update; install those separately, then retry.
+Rust toolchain from the build scripts. Missing build or deployment dependencies
+stop the update; install those separately, then retry. Optional runtime tools
+such as `playerctl` are reported without blocking a configuration update.
 The full installer remains the route for changing system integration or packages.
 
 ## Local settings and errors
