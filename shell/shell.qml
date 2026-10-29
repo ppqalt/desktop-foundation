@@ -41,12 +41,16 @@ ShellRoot {
         id: controlCenterLoader
         active: root.controlCenterEnabled
         ControlCenter {
+            clockVisible: root.clockEnabled
+            onClockToggled: root.clockEnabled = !root.clockEnabled
             sidebarStyle: root.controlCenterStyle
             targetScreen: root.launcherScreen
             onClosed: nextSurface => {
                 root.controlCenterEnabled = false;
                 if (nextSurface === "bluetooth")
                     root.bluetoothEnabled = true;
+                else if (nextSurface === "power")
+                    root.powerEnabled = true;
             }
         }
     }

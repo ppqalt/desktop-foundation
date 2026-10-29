@@ -380,7 +380,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let before = checkout_revision(&root)?;
     if dry {
         println!(
-            "Fetch, rebuild and redeploy {} profile {}; preserve settings. No package updates.",
+            "Fetch, rebuild and redeploy {} profile {}; preserve settings.",
             selected.compositor, selected.profile
         );
         return Ok(());
