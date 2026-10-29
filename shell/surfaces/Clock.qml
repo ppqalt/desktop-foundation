@@ -35,10 +35,10 @@ PanelWindow {
     }
     Rectangle {
         anchors.fill: parent
-        radius: Theme.radii.small
-        color: Theme.colors.background
-        border.width: 1
-        border.color: Theme.colors.border
+        radius: height / 2
+        color: Material.colors.surface_container_low
+        border.width: 0
+        border.color: Material.colors.outline_variant
         opacity: root.entered ? 1 : 0
         Behavior on opacity {
             NumberAnimation {
@@ -49,9 +49,9 @@ PanelWindow {
         Text {
             anchors.centerIn: parent
             text: Qt.formatDateTime(clock.date, "hh:mm")
-            color: Theme.colors.foreground
-            font.family: Theme.typography.mono
-            font.pixelSize: 13
+            color: Material.colors.on_surface
+            font.family: Theme.typography.family
+            font.pixelSize: Material.type.labelLarge
         }
     }
 }

@@ -4,6 +4,7 @@ import QtQuick.Window
 import Quickshell
 import Quickshell.Wayland
 import "../theme"
+import "../components"
 
 // qmllint disable uncreatable-type
 PanelWindow {
@@ -61,10 +62,10 @@ PanelWindow {
         }
         anchors.fill: parent
         anchors.margins: 3
-        radius: Theme.radii.medium
-        color: Theme.colors.background
-        border.width: 1
-        border.color: Theme.colors.border
+        radius: Material.shape.extraLarge
+        color: Material.colors.surface_container_low
+        border.width: 0
+        border.color: Material.colors.outline_variant
         opacity: root.shown ? 1 : 0
         onOpacityChanged: {
             if (opacity === 0 && !root.shown)
@@ -76,15 +77,13 @@ PanelWindow {
                 easing.type: Theme.easing
             }
         }
-        Text {
+        ControlIcon {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.leftMargin: 14
-            anchors.topMargin: 10
-            text: root.muted ? "Muted" : "Volume"
-            color: Theme.colors.muted
-            font.family: Theme.typography.family
-            font.pixelSize: 13
+            anchors.topMargin: 8
+            name: root.muted ? "volume_off" : "volume_up"
+            color: Material.colors.on_surface
         }
         Text {
             anchors.right: parent.right
@@ -92,9 +91,12 @@ PanelWindow {
             anchors.rightMargin: 14
             anchors.topMargin: 10
             text: root.level + "%"
-            color: Theme.colors.foreground
-            font.family: Theme.typography.mono
-            font.pixelSize: 13
+            color: Material.colors.on_surface
+            font.family: Theme.typography.family
+            font.pixelSize: Material.type.labelLarge
+            font.features: ({
+                    "tnum": 1
+                })
         }
         Rectangle {
             id: track
@@ -104,15 +106,15 @@ PanelWindow {
             anchors.leftMargin: 14
             anchors.rightMargin: 14
             anchors.bottomMargin: 12
-            height: 2
-            radius: 1
-            color: Theme.colors.selected
+            height: 4
+            radius: 2
+            color: Material.colors.secondary_container
             Rectangle {
                 objectName: "volume-progress"
                 height: parent.height
                 width: Math.round(track.width * (root.muted ? 0 : root.level) / 100)
                 radius: 1
-                color: Theme.colors.accent
+                color: Material.colors.primary
             }
         }
     }

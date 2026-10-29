@@ -3,9 +3,9 @@ import QtQuick.Effects
 import "../theme"
 
 Rectangle {
-    radius: Theme.radii.surface
-    color: Theme.colors.background
-    border.color: Theme.colors.border
+    radius: Material.shape.extraLarge
+    color: Material.colors.surface_container_low
+    border.width: 0
     layer.enabled: true
     layer.effect: MultiEffect {
         shadowEnabled: true

@@ -8,13 +8,13 @@ Rectangle {
     implicitHeight: 22
     radius: 5
     color: "transparent"
-    border.color: Theme.colors.border
+    border.color: Material.colors.outline_variant
     Text {
         id: text
         anchors.centerIn: parent
         text: root.label
         font.family: Theme.typography.mono
         font.pixelSize: 10
-        color: Theme.colors.muted
+        color: Material.colors.on_surface_variant
     }
 }

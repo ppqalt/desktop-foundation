@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# Quickshell's compiled-in plugins require its own host. Keep the fixture inside
+# the config root so its module scanner can resolve production components.
+fixture_qml=$(mktemp "$root/.material-widget-test.XXXXXX.qml")
+fixture_state=$(mktemp -d)
+fixture_log=$(mktemp)
+fixture_surfaces=$(mktemp -d "$root/.material-surfaces.XXXXXX")
+cleanup() {
+	unlink "$fixture_qml"
+	unlink "$fixture_log"
+	for surface in Power Volume; do
+		if [[ -f $fixture_surfaces/${surface}Fixture.qml ]]; then unlink "$fixture_surfaces/${surface}Fixture.qml"; fi
+	done
+	rmdir "$fixture_surfaces"
+	rmdir "$fixture_state" 2>/dev/null || true
+}
+trap cleanup EXIT
+sed -e 's@../../shell/@shell/@g' -e "s@SURFACE_FIXTURES@$(basename "$fixture_surfaces")@" "$root/tests/qml/tst_material_widgets.qml" >"$fixture_qml"
+# Only Wayland transport changes; production rendering, motion and input remain.
+for surface in Power Volume; do
+	perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.|anchors\.top:|margins\.top:|mask: Region).*\n//mg; s/implicitWidth:/width:/; s/implicitHeight:/height:/; s#import "../theme"#import "../shell/theme"#; s#import "../components"#import "../shell/components"#' "$root/shell/surfaces/$surface.qml" >"$fixture_surfaces/${surface}Fixture.qml"
+done
+if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
+	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+	DF_FOUNDATION_ROOT="$root" XDG_STATE_HOME="$fixture_state" \
+	timeout 12s quickshell -p "$fixture_qml" >"$fixture_log" 2>&1; then
+	cat "$fixture_log" >&2
+	exit 1
+fi
+if ! rg -q 'Material widget checks finished' "$fixture_log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|TypeError|ReferenceError' "$fixture_log"; then
+	cat "$fixture_log" >&2
+	exit 1
+fi
+printf 'PASS Material roles, switches, search/session keyboard input, minimal footers and instant volume feedback\n'

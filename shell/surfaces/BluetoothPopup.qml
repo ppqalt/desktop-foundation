@@ -427,7 +427,7 @@ PanelWindow {
         visible: root.controlDevice === null
         anchors.centerIn: parent
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(226 + Math.max(1, Math.min(6, root.devices.length)) * 66 + (root.error ? 38 : 0), root.height - 64)
+        height: Math.min(226 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0), root.height - 64)
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
@@ -463,7 +463,7 @@ PanelWindow {
             else if (event.key === Qt.Key_End)
                 root.selectIndex(root.devices.length);
             else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown)
-                root.navigate((event.key === Qt.Key_PageUp ? -1 : 1) * Math.max(1, Math.floor(list.height / 66)));
+                root.navigate((event.key === Qt.Key_PageUp ? -1 : 1) * Math.max(1, Math.floor(list.height / 76)));
             else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                 if (!event.isAutoRepeat)
                     root.activate(root.selected);
@@ -474,20 +474,20 @@ PanelWindow {
         Text {
             x: 28
             y: 23
-            text: "BLUETOOTH"
-            color: Theme.colors.muted
-            font.family: Theme.typography.mono
-            font.pixelSize: 10
-            font.letterSpacing: 2
+            text: "Bluetooth"
+            color: Material.colors.on_surface_variant
+            font.family: Theme.typography.family
+            font.pixelSize: Material.type.titleMedium
+            font.letterSpacing: 0
         }
         Text {
             anchors.right: parent.right
             anchors.rightMargin: 28
             y: 23
             text: root.devices.length + " paired"
-            color: Theme.colors.subtle
-            font.family: Theme.typography.mono
-            font.pixelSize: 10
+            color: Material.colors.on_surface_variant
+            font.family: Theme.typography.family
+            font.pixelSize: Material.type.titleMedium
         }
         Image {
             x: 28
@@ -502,7 +502,7 @@ PanelWindow {
             width: card.width - 182
             elide: Text.ElideRight
             text: root.adapterAvailable ? "Paired devices" : "Bluetooth is turned off"
-            color: Theme.colors.foreground
+            color: Material.colors.on_surface
             font.family: Theme.typography.family
             font.pixelSize: Theme.typography.heading
         }
@@ -513,15 +513,15 @@ PanelWindow {
             width: 82
             height: 38
             radius: Theme.radii.medium
-            color: root.selected === -1 ? Theme.colors.selected : radioMouse.containsMouse ? Theme.colors.hover : "transparent"
+            color: root.selected === -1 ? Material.colors.secondary_container : radioMouse.containsMouse ? Material.colors.surface_container_high : "transparent"
             border.width: root.selected === -1 ? 1 : 0
-            border.color: Theme.colors.selectionBorder
+            border.color: Material.colors.outline
             opacity: root.busy || root.controlsOpening || !Bluetooth.adapters.values.length ? 0.5 : 1
             Text {
                 x: 4
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.radioBusy ? "…" : root.adapterAvailable ? "On" : "Off"
-                color: Theme.colors.muted
+                color: Material.colors.on_surface_variant
                 font.family: Theme.typography.family
                 font.pixelSize: Theme.typography.small
             }
@@ -531,16 +531,16 @@ PanelWindow {
                 width: 40
                 height: 22
                 radius: 11
-                color: root.adapterAvailable ? Theme.colors.selected : Theme.colors.border
+                color: root.adapterAvailable ? Material.colors.secondary_container : Material.colors.outline_variant
                 border.width: 1
-                border.color: root.adapterAvailable ? Theme.colors.accent : Theme.colors.subtle
+                border.color: root.adapterAvailable ? Material.colors.primary : Material.colors.on_surface_variant
                 Rectangle {
                     x: root.adapterAvailable ? 21 : 3
                     y: 3
                     width: 16
                     height: 16
                     radius: 8
-                    color: root.adapterAvailable ? Theme.colors.accent : Theme.colors.muted
+                    color: root.adapterAvailable ? Material.colors.primary : Material.colors.on_surface_variant
                     Behavior on x {
                         NumberAnimation {
                             duration: Theme.timing.normal
@@ -568,14 +568,14 @@ PanelWindow {
             y: 110
             width: card.width - 56
             height: 1
-            color: Theme.colors.border
+            color: Material.colors.outline_variant
         }
         ListView {
             id: list
             x: 16
             y: 126
             width: card.width - 32
-            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 66, Math.max(1, card.height - 226 - (root.error ? 38 : 0)))
+            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 76, Math.max(1, card.height - 226 - (root.error ? 38 : 0)))
             model: root.devices
             clip: true
             interactive: false
@@ -587,7 +587,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 visible: root.devices.length === 0
                 text: "No paired devices yet"
-                color: Theme.colors.muted
+                color: Material.colors.on_surface_variant
                 font.family: Theme.typography.family
                 font.pixelSize: Theme.typography.body
             }
@@ -620,7 +620,7 @@ PanelWindow {
             width: card.width - 56
             visible: root.error !== ""
             text: root.error
-            color: Theme.colors.error
+            color: Material.colors.error
             font.family: Theme.typography.family
             font.pixelSize: Theme.typography.small
             wrapMode: Text.Wrap
@@ -631,15 +631,15 @@ PanelWindow {
             width: card.width - 32
             height: 36
             radius: Theme.radii.medium
-            color: root.selected === root.devices.length ? Theme.colors.selected : manageMouse.containsMouse ? Theme.colors.hover : "transparent"
+            color: root.selected === root.devices.length ? Material.colors.secondary_container : manageMouse.containsMouse ? Material.colors.surface_container_high : "transparent"
             border.width: root.selected === root.devices.length ? 1 : 0
-            border.color: Theme.colors.selectionBorder
+            border.color: Material.colors.outline
             Text {
                 anchors.left: parent.left
                 anchors.leftMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.devices.length ? "Manage…" : "Open Bluetooth Manager"
-                color: Theme.colors.muted
+                color: Material.colors.on_surface_variant
                 font.family: Theme.typography.family
                 font.pixelSize: Theme.typography.body
             }
@@ -648,7 +648,7 @@ PanelWindow {
                 anchors.rightMargin: 20
                 anchors.verticalCenter: parent.verticalCenter
                 text: "↗"
-                color: Theme.colors.subtle
+                color: Material.colors.on_surface_variant
                 font.pixelSize: 18
             }
             MouseArea {
@@ -669,7 +669,7 @@ PanelWindow {
             x: 28
             y: card.height - 48
             width: card.width - 56
-            actionText: root.selected === -1 ? (root.adapterAvailable ? "Turn Bluetooth off" : "Turn Bluetooth on") : root.selected === root.devices.length ? "Open manager" : root.devices[root.selected]?.connected ? root.supportsControls(root.devices[root.selected]) ? "Device controls" : "Disconnect device" : "Connect device"
+            actionText: root.busy || root.radioBusy || root.controlsOpening ? "Connecting…" : ""
             escapeEnabled: !root.closing
             onEscapeRequested: root.dismiss()
             actionEnabled: !root.closing && !root.busy && !root.radioBusy && !root.controlsOpening

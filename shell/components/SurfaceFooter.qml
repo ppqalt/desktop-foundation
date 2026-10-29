@@ -9,17 +9,18 @@ Item {
     property string escapeLabel: "close"
     property bool escapeEnabled: false
     property bool adjustable: false
-    property bool hintsVisible: true
+    property bool hintsVisible: false
     property string actionText: ""
     property string actionKey: "↵"
     property bool actionEnabled: false
     signal activated
     signal escapeRequested
-    implicitHeight: 48
+    visible: hintsVisible || actionText !== ""
+    implicitHeight: visible ? 48 : 0
     Rectangle {
         width: parent.width
         height: 1
-        color: Theme.colors.border
+        color: "transparent"
     }
     Row {
         id: hints
@@ -32,7 +33,7 @@ Item {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: root.navigationLabel
-            color: Theme.colors.muted
+            color: Material.colors.on_surface_variant
             font.family: Theme.typography.family
             font.pixelSize: Theme.typography.small
         }
@@ -48,7 +49,7 @@ Item {
             visible: root.adjustable && root.width >= 480
             anchors.verticalCenter: parent.verticalCenter
             text: "adjust"
-            color: Theme.colors.muted
+            color: Material.colors.on_surface_variant
             font.family: Theme.typography.family
             font.pixelSize: Theme.typography.small
         }
@@ -65,7 +66,7 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.escapeLabel
-                    color: Theme.colors.muted
+                    color: Material.colors.on_surface_variant
                     font.family: Theme.typography.family
                     font.pixelSize: Theme.typography.small
                 }
@@ -94,7 +95,7 @@ Item {
                 width: Math.min(implicitWidth, Math.max(0, root.width - (root.hintsVisible ? hints.width : 0) - keycap.width - action.spacing - 16))
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.actionText
-                color: Theme.colors.accent
+                color: Material.colors.primary
                 font.family: Theme.typography.family
                 font.pixelSize: Theme.typography.small
                 elide: Text.ElideRight

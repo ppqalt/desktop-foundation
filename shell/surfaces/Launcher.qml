@@ -105,7 +105,7 @@ PanelWindow {
             onStepped: delta => root.navigate(delta)
         }
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(182 + Math.max(2, Math.min(6, root.results.length)) * 66, root.height - 64)
+        height: Math.min(182 + Math.max(2, Math.min(6, root.results.length)) * 76, root.height - 64)
         Behavior on height {
             enabled: root.entered && panel.opacity === 1 && !root.closing
             NumberAnimation {
@@ -134,20 +134,20 @@ PanelWindow {
         Text {
             x: 28
             y: 23
-            text: "APPLICATIONS"
-            font.family: Theme.typography.mono
-            font.pixelSize: 10
-            font.letterSpacing: 2
-            color: Theme.colors.muted
+            text: "Applications"
+            font.family: Theme.typography.family
+            font.pixelSize: Material.type.titleMedium
+            font.letterSpacing: 0
+            color: Material.colors.on_surface_variant
         }
         Text {
             anchors.right: parent.right
             anchors.rightMargin: 28
             y: 23
             text: root.results.length + (search.text ? (root.results.length === 1 ? " match" : " matches") : " available")
-            font.family: Theme.typography.mono
-            font.pixelSize: 10
-            color: Theme.colors.subtle
+            font.family: Theme.typography.family
+            font.pixelSize: Material.type.titleMedium
+            color: Material.colors.on_surface_variant
         }
         Image {
             x: 28
@@ -176,7 +176,7 @@ PanelWindow {
                 else if (event.key === Qt.Key_Up || (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)))
                     root.navigate(-1);
                 else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp)
-                    root.navigate((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(list.height / 66)));
+                    root.navigate((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(list.height / 76)));
                 else if (activate)
                     root.launchSelected();
                 else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)))
@@ -193,7 +193,7 @@ PanelWindow {
             y: 110
             width: panel.width - 56
             height: 1
-            color: Theme.colors.border
+            color: Material.colors.outline_variant
         }
         ListView {
             id: list
@@ -228,23 +228,16 @@ PanelWindow {
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "No matching applications"
-                color: Theme.colors.foreground
+                color: Material.colors.on_surface
                 font.family: Theme.typography.family
                 font.pixelSize: 16
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Try a shorter name or another keyword."
-                color: Theme.colors.muted
-                font.family: Theme.typography.family
-                font.pixelSize: 12
             }
         }
         SurfaceFooter {
             x: 28
             y: panel.height - 48
             width: panel.width - 56
-            actionText: "Open application"
+            actionText: ""
             actionEnabled: !root.closing && root.results.length > 0
             onActivated: root.launchSelected()
             escapeEnabled: !root.closing

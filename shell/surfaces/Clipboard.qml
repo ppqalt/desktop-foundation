@@ -318,7 +318,7 @@ PanelWindow {
         else if (event.key === Qt.Key_Up || (event.key === Qt.Key_P && control))
             root.keyboardNavigate(-1);
         else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp)
-            root.navigate((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(list.height / 66)));
+            root.navigate((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(list.height / 76)));
         else if (activate)
             root.launchSelected();
         else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && shift))
@@ -393,7 +393,7 @@ PanelWindow {
             onStepped: delta => root.navigate(delta)
         }
         width: Math.min(root.confirmClear ? 440 : Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(root.confirmClear ? 268 : 182 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 66 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height - 64)
+        height: Math.min(root.confirmClear ? 268 : 182 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 76 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height - 64)
         Behavior on width {
             // Initial output geometry uses the shared fade/scale entrance.
             // Keep the existing confirmation morph once opened (or requested).
@@ -431,11 +431,11 @@ PanelWindow {
         Text {
             x: 28
             y: 23
-            text: "CLIPBOARD"
-            font.family: Theme.typography.mono
-            font.pixelSize: 10
-            font.letterSpacing: 2
-            color: Theme.colors.muted
+            text: "Clipboard"
+            font.family: Theme.typography.family
+            font.pixelSize: Material.type.titleMedium
+            font.letterSpacing: 0
+            color: Material.colors.on_surface_variant
         }
         Text {
             anchors.right: parent.right
@@ -443,30 +443,30 @@ PanelWindow {
             visible: !root.confirmClear && panel.width >= 540
             y: 23
             text: root.results.length + (search.text ? (root.results.length === 1 ? " match" : " matches") : (root.results.length === 1 ? " item" : " items")) + (root.pinnedCount ? " · " + root.pinnedCount + " pinned" : "")
-            font.family: Theme.typography.mono
-            font.pixelSize: 10
-            color: Theme.colors.subtle
+            font.family: Theme.typography.family
+            font.pixelSize: Material.type.titleMedium
+            color: Material.colors.on_surface_variant
         }
         Rectangle {
             id: clearAction
             anchors.right: parent.right
             anchors.rightMargin: 22
-            y: 15
-            width: panel.width >= 540 ? 154 : 82
-            height: 28
+            y: 6
+            width: 120
+            height: 48
             visible: !root.confirmClear
             radius: Theme.radii.small
-            color: root.clearSelected ? Theme.colors.selected : (clearActionMouse.containsMouse ? Theme.colors.hover : "transparent")
+            color: root.clearSelected ? Material.colors.secondary_container : (clearActionMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
             border.width: root.clearSelected ? 1 : 0
-            border.color: Theme.colors.selectionBorder
+            border.color: Material.colors.outline
             opacity: history.entries.length && !history.busy ? 1 : 0.45
             Accessible.role: Accessible.Button
             Accessible.name: "Clear clipboard history"
             Accessible.onPressAction: root.beginClear()
             Text {
                 anchors.centerIn: parent
-                text: panel.width >= 540 ? "Clear history · Ctrl⇧Del" : "Clear history"
-                color: root.clearSelected ? Theme.colors.accent : Theme.colors.muted
+                text: "Clear history"
+                color: root.clearSelected ? Material.colors.primary : Material.colors.on_surface_variant
                 font.family: Theme.typography.family
                 font.pixelSize: 11
             }
@@ -506,7 +506,7 @@ PanelWindow {
             y: 110
             width: panel.width - 56
             height: 1
-            color: Theme.colors.border
+            color: Material.colors.outline_variant
         }
         ListView {
             id: list
@@ -568,17 +568,10 @@ PanelWindow {
             spacing: 10
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: history.loading ? "Loading clipboard…" : (history.entries.length ? "No matching items" : "Your clipboard starts here")
-                color: Theme.colors.foreground
+                text: history.loading ? "Loading clipboard…" : (history.entries.length ? "No matching items" : "Clipboard empty")
+                color: Material.colors.on_surface
                 font.family: Theme.typography.family
                 font.pixelSize: 16
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: history.entries.length ? "Search text, filenames or file types." : "Copy text, images, files or folders to save them here."
-                color: Theme.colors.muted
-                font.family: Theme.typography.family
-                font.pixelSize: 12
             }
         }
         FocusScope {
@@ -593,7 +586,7 @@ PanelWindow {
             Text {
                 width: parent.width
                 text: root.clearChoice === 2 ? "Clear everything?" : "Clear clipboard history?"
-                color: Theme.colors.foreground
+                color: Material.colors.on_surface
                 font.family: Theme.typography.family
                 font.pixelSize: 19
             }
@@ -601,7 +594,7 @@ PanelWindow {
                 y: 34
                 width: parent.width
                 text: root.clearChoice === 2 ? "All saved items, including pins, will be removed." : (root.pinnedCount ? "Unpinned items are removed. Pins stay saved." : "This removes the saved history.")
-                color: Theme.colors.muted
+                color: Material.colors.on_surface_variant
                 font.family: Theme.typography.family
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
@@ -612,9 +605,9 @@ PanelWindow {
                 width: (parent.width - (root.pinnedCount ? 16 : 12)) / root.clearChoiceCount
                 height: 44
                 radius: Theme.radii.medium
-                color: root.clearChoice === 0 ? Theme.colors.selected : (cancelMouse.containsMouse ? Theme.colors.hover : "transparent")
+                color: root.clearChoice === 0 ? Material.colors.secondary_container : (cancelMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
                 border.width: 1
-                border.color: root.clearChoice === 0 ? Theme.colors.selectionBorder : Theme.colors.border
+                border.color: root.clearChoice === 0 ? Material.colors.outline : Material.colors.outline_variant
                 enabled: !history.busy
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
@@ -625,7 +618,7 @@ PanelWindow {
                 Text {
                     anchors.centerIn: parent
                     text: "Cancel"
-                    color: Theme.colors.foreground
+                    color: Material.colors.on_surface
                     font.family: Theme.typography.family
                     font.pixelSize: 12
                 }
@@ -644,9 +637,9 @@ PanelWindow {
                 width: cancelButton.width
                 height: 44
                 radius: Theme.radii.medium
-                color: root.clearChoice === 1 ? Theme.colors.selected : (clearMouse.containsMouse ? Theme.colors.hover : "transparent")
+                color: root.clearChoice === 1 ? Material.colors.secondary_container : (clearMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
                 border.width: 1
-                border.color: root.clearChoice === 1 ? Theme.colors.selectionBorder : Theme.colors.border
+                border.color: root.clearChoice === 1 ? Material.colors.outline : Material.colors.outline_variant
                 enabled: !history.busy
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
@@ -660,7 +653,7 @@ PanelWindow {
                 Text {
                     anchors.centerIn: parent
                     text: "Clear history"
-                    color: Theme.colors.error
+                    color: Material.colors.error
                     font.family: Theme.typography.family
                     font.pixelSize: 12
                 }
@@ -683,9 +676,9 @@ PanelWindow {
                 height: 44
                 visible: root.pinnedCount > 0
                 radius: Theme.radii.medium
-                color: root.clearChoice === 2 ? Theme.colors.selected : (clearAllMouse.containsMouse ? Theme.colors.hover : "transparent")
+                color: root.clearChoice === 2 ? Material.colors.secondary_container : (clearAllMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
                 border.width: 1
-                border.color: root.clearChoice === 2 ? Theme.colors.selectionBorder : Theme.colors.border
+                border.color: root.clearChoice === 2 ? Material.colors.outline : Material.colors.outline_variant
                 enabled: !history.busy
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
@@ -699,7 +692,7 @@ PanelWindow {
                 Text {
                     anchors.centerIn: parent
                     text: "Clear everything"
-                    color: Theme.colors.error
+                    color: Material.colors.error
                     font.family: Theme.typography.family
                     font.pixelSize: 12
                 }
@@ -721,7 +714,7 @@ PanelWindow {
             width: panel.width - 220
             visible: !!history.error
             text: history.error
-            color: Theme.colors.error
+            color: Material.colors.error
             font.family: Theme.typography.family
             font.pixelSize: 11
             elide: Text.ElideRight
@@ -733,8 +726,8 @@ PanelWindow {
             navigationKeys: root.confirmClear ? "Tab" : "↑ ↓ / Tab"
             navigationLabel: root.confirmClear ? "choose" : "navigate"
             escapeLabel: root.confirmClear ? "cancel" : "close"
-            hintsVisible: !history.error
-            actionText: root.confirmClear ? (["Cancel", "Clear history", "Clear everything"][root.clearChoice]) : (history.busy ? "Working…" : (root.clearSelected ? "Clear history" : (root.actionFocus === 1 ? (root.results[root.selectedIndex]?.pinned ? "Unpin · Ctrl⇧P" : "Pin · Ctrl⇧P") : (root.actionFocus === 2 ? "Copy plain · Ctrl⇧C" : "Copy & close"))))
+            hintsVisible: false
+            actionText: history.busy ? "Working…" : ""
             actionEnabled: !root.closing && !history.busy && (root.confirmClear || root.clearSelected || root.results.length > 0)
             onActivated: {
                 if (root.confirmClear)

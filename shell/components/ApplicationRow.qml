@@ -8,6 +8,7 @@ Rectangle {
     required property bool selected
     property string iconSource: Quickshell.iconPath(root.entry.icon, true) || "../assets/application.svg"
     property string iconText: ""
+    property string iconName: ""
     property string actionLabel: "↵"
     // Setting indicators use reported state; the caller confirms successful readback.
     property var settingState: null
@@ -18,22 +19,27 @@ Rectangle {
     property bool interactive: true
     readonly property bool hasSettingState: typeof settingState === "boolean"
     readonly property bool hasSetting: hasSettingState || settingValue !== ""
+    Accessible.role: hasSettingState ? Accessible.CheckBox : Accessible.ListItem
+    Accessible.name: entry.name + (settingValue ? ", " + settingValue : "")
+    Accessible.checkable: hasSettingState
+    Accessible.checked: hasSettingState && settingState
+    Accessible.onPressAction: root.chosen()
     signal pointerMoved(real x, real y)
     signal hovered
     signal chosen
-    implicitHeight: Theme.dimensions.rowHeight
-    radius: Theme.radii.medium
-    color: selected ? Theme.colors.selected : (mouse.containsMouse ? Theme.colors.hover : "transparent")
+    implicitHeight: 72
+    radius: Material.shape.medium
+    color: selected ? Material.colors.secondary_container : (mouse.containsMouse ? Material.colors.surface_container_high : "transparent")
     border.width: selected || confirmed ? 1 : 0
-    border.color: confirmed ? Theme.colors.accent : Theme.colors.selectionBorder
+    border.color: confirmed ? Material.colors.primary : Material.colors.outline
     Behavior on color {
         ColorAnimation {
-            duration: Theme.timing.fast
+            duration: Material.motion.fastEffects
         }
     }
     Behavior on border.color {
         ColorAnimation {
-            duration: Theme.timing.normal
+            duration: Material.motion.fastEffects
         }
     }
     Rectangle {
@@ -42,11 +48,11 @@ Rectangle {
         x: 1
         anchors.verticalCenter: parent.verticalCenter
         radius: 2
-        color: Theme.colors.accent
+        color: Material.colors.primary
         opacity: root.confirmed ? 1 : 0
         Behavior on opacity {
             NumberAnimation {
-                duration: Theme.timing.normal
+                duration: Material.motion.fastEffects
             }
         }
     }
@@ -56,7 +62,7 @@ Rectangle {
         width: 38
         height: 38
         radius: 10
-        color: Theme.colors.iconTile
+        color: Material.colors.surface_container_highest
         Image {
             id: icon
             anchors.centerIn: parent
@@ -66,20 +72,26 @@ Rectangle {
             sourceSize.width: 32
             sourceSize.height: 32
             smooth: true
-            visible: root.iconText === "" && status !== Image.Error
+            visible: root.iconText === "" && root.iconName === "" && status !== Image.Error
         }
         Image {
             anchors.centerIn: parent
             width: 26
             height: 26
             source: "../assets/application.svg"
-            visible: root.iconText === "" && icon.status === Image.Error
+            visible: root.iconText === "" && root.iconName === "" && icon.status === Image.Error
+        }
+        ControlIcon {
+            anchors.centerIn: parent
+            name: root.iconName
+            color: Material.colors.primary
+            visible: root.iconName !== ""
         }
         Text {
             anchors.centerIn: parent
             visible: root.iconText !== ""
             text: root.iconText
-            color: Theme.colors.accent
+            color: Material.colors.primary
             font.family: Theme.typography.family
             font.pixelSize: 24
         }
@@ -92,18 +104,19 @@ Rectangle {
         Text {
             width: parent.width
             text: root.entry.name
-            color: Theme.colors.foreground
+            color: root.selected ? Material.colors.on_secondary_container : Material.colors.on_surface
             font.family: Theme.typography.family
-            font.pixelSize: 14
-            font.weight: Font.Medium
+            font.pixelSize: Material.type.bodyLarge
+            font.weight: Font.Normal
             elide: Text.ElideRight
         }
         Text {
             width: parent.width
-            text: root.entry.genericName || root.entry.comment || "Application"
-            color: Theme.colors.muted
+            text: root.entry.genericName || root.entry.comment || ""
+            visible: text !== ""
+            color: Material.colors.on_surface_variant
             font.family: Theme.typography.family
-            font.pixelSize: 11
+            font.pixelSize: Material.type.bodyMedium
             elide: Text.ElideRight
         }
     }
@@ -115,35 +128,36 @@ Rectangle {
         spacing: 9
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            visible: root.hasSetting
-            text: root.hasSettingState ? (root.settingState ? "On" : "Off") + (root.settingValue ? " · " + root.settingValue : "") : root.settingValue
-            color: root.hasSettingState && !root.settingState ? Theme.colors.muted : Theme.colors.accent
+            visible: root.settingValue !== ""
+            text: root.settingValue
+            color: root.hasSettingState && !root.settingState ? Material.colors.on_surface_variant : Material.colors.primary
             font.family: Theme.typography.family
             font.pixelSize: 12
-            font.weight: Font.Medium
+            font.weight: Font.Normal
             width: Math.min(implicitWidth, Math.max(40, root.width * 0.28))
             elide: Text.ElideRight
         }
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.hasSettingState
-            width: 34
-            height: 18
-            radius: 9
-            color: root.settingState ? Theme.colors.selected : Theme.colors.iconTile
-            border.width: 1
-            border.color: root.settingState ? Theme.colors.accent : Theme.colors.border
+            width: 52
+            height: 32
+            radius: 16
+            color: root.settingState ? Material.colors.primary : Material.colors.surface_container_highest
+            border.width: root.settingState ? 0 : 2
+            border.color: Material.colors.outline
             Rectangle {
-                x: root.settingState ? 19 : 3
-                y: 3
-                width: 12
-                height: 12
-                radius: 6
-                color: root.settingState ? Theme.colors.accent : Theme.colors.muted
+                x: root.settingState ? 24 : 8
+                y: root.settingState ? 4 : 8
+                width: root.settingState ? 24 : 16
+                height: width
+                radius: width / 2
+                color: root.settingState ? Material.colors.on_primary : Material.colors.outline
                 Behavior on x {
                     NumberAnimation {
-                        duration: Theme.timing.fast
-                        easing.type: Theme.easing
+                        duration: Material.motion.fastSpatial
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Material.spatialCurve
                     }
                 }
             }
@@ -151,7 +165,7 @@ Rectangle {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: root.pending ? root.pendingLabel : root.confirmed ? "✓" : root.actionLabel
-            color: Theme.colors.accent
+            color: Material.colors.primary
             font.family: Theme.typography.family
             font.pixelSize: text === "↵" ? 20 : 11
             visible: root.pending || root.confirmed || (!root.hasSetting && (root.selected || root.actionLabel !== "↵"))

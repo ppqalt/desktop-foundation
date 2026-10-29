@@ -16,17 +16,17 @@ Rectangle {
     signal chosen
     signal pinned
     signal plainCopied
-    implicitHeight: Theme.dimensions.rowHeight
+    implicitHeight: 72
     radius: Theme.radii.medium
-    color: selected ? Theme.colors.selected : (mouse.containsMouse ? Theme.colors.hover : "transparent")
+    color: selected ? Material.colors.secondary_container : (mouse.containsMouse ? Material.colors.surface_container_high : "transparent")
     border.width: selected ? 1 : 0
-    border.color: Theme.colors.selectionBorder
+    border.color: Material.colors.outline
     Accessible.role: Accessible.ListItem
     Accessible.name: title + ". " + detail + (entry.pinned ? ". Pinned" : "")
     Accessible.onPressAction: root.chosen()
     Behavior on color {
         ColorAnimation {
-            duration: Theme.timing.fast
+            duration: Material.motion.fastEffects
         }
     }
     Rectangle {
@@ -35,7 +35,7 @@ Rectangle {
         width: 38
         height: 38
         radius: 10
-        color: Theme.colors.iconTile
+        color: Material.colors.surface_container_highest
         Image {
             anchors.fill: parent
             anchors.margins: 3
@@ -49,7 +49,7 @@ Rectangle {
             anchors.centerIn: parent
             text: root.kind === "files" ? ((root.entry.detail || "").toLocaleLowerCase().includes("folder") ? "▱" : "▤") : (root.kind === "rich" ? "≡" : (root.kind === "image" ? "▣" : "Aa"))
             visible: root.kind !== "image" || !root.entry.image
-            color: root.entry.unavailable ? Theme.colors.error : Theme.colors.accent
+            color: root.entry.unavailable ? Material.colors.error : Material.colors.primary
             font.family: Theme.typography.family
             font.pixelSize: root.kind === "text" ? 15 : 22
             font.weight: Font.Medium
@@ -64,19 +64,19 @@ Rectangle {
             width: parent.width
             text: root.title
             textFormat: Text.PlainText
-            color: Theme.colors.foreground
+            color: root.selected ? Material.colors.on_secondary_container : Material.colors.on_surface
             font.family: Theme.typography.family
-            font.pixelSize: 14
+            font.pixelSize: Material.type.bodyLarge
             font.weight: Font.Medium
             elide: Text.ElideRight
         }
         Text {
             width: parent.width
-            text: (root.entry.pinned ? "Pinned · " : "") + root.detail
+            text: root.detail
             textFormat: Text.PlainText
-            color: root.entry.unavailable ? Theme.colors.error : (root.entry.pinned ? Theme.colors.accent : Theme.colors.muted)
+            color: root.entry.unavailable ? Material.colors.error : (root.entry.pinned ? Material.colors.primary : Material.colors.on_surface_variant)
             font.family: Theme.typography.family
-            font.pixelSize: 11
+            font.pixelSize: Material.type.bodyMedium
             elide: Text.ElideRight
         }
     }
@@ -95,16 +95,16 @@ Rectangle {
         delay: 500
         text: (root.entry.preview || root.title).slice(0, 512)
         background: Rectangle {
-            color: Theme.colors.elevated
+            color: Material.colors.surface_container_high
             radius: Theme.radii.small
-            border.color: Theme.colors.border
+            border.color: Material.colors.outline_variant
         }
         contentItem: Text {
             text: filesTip.text
             textFormat: Text.PlainText
-            color: Theme.colors.foreground
+            color: Material.colors.on_surface
             font.family: Theme.typography.family
-            font.pixelSize: 11
+            font.pixelSize: Material.type.bodyMedium
             wrapMode: Text.WrapAnywhere
         }
     }
@@ -113,21 +113,21 @@ Rectangle {
         anchors.rightMargin: 92 - root.actionInset
         anchors.verticalCenter: parent.verticalCenter
         text: "↵"
-        color: Theme.colors.accent
+        color: Material.colors.primary
         font.pixelSize: 20
         visible: root.selected && root.actionFocus === 0
     }
     Rectangle {
         id: pinButton
         anchors.right: parent.right
-        anchors.rightMargin: 50 - root.actionInset
+        anchors.rightMargin: 60 - root.actionInset
         anchors.verticalCenter: parent.verticalCenter
-        width: 30
-        height: 30
-        radius: Theme.radii.small
-        color: root.selected && root.actionFocus === 1 ? Theme.colors.iconTile : (pinMouse.containsMouse ? Theme.colors.hover : "transparent")
+        width: 48
+        height: 48
+        radius: 24
+        color: root.selected && root.actionFocus === 1 ? Material.colors.surface_container_highest : (pinMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
         border.width: root.selected && root.actionFocus === 1 ? 1 : 0
-        border.color: Theme.colors.accent
+        border.color: Material.colors.primary
         enabled: !root.busy
         Accessible.role: Accessible.Button
         Accessible.name: root.entry.pinned ? "Unpin item" : "Pin item"
@@ -137,7 +137,7 @@ Rectangle {
             anchors.centerIn: parent
             width: 16
             height: 18
-            property color ink: root.entry.pinned || pinMouse.containsMouse || (root.selected && root.actionFocus === 1) ? Theme.colors.accent : Theme.colors.subtle
+            property color ink: root.entry.pinned || pinMouse.containsMouse || (root.selected && root.actionFocus === 1) ? Material.colors.primary : Material.colors.on_surface_variant
             onInkChanged: requestPaint()
             onPaint: {
                 const painter = getContext("2d");
@@ -183,15 +183,15 @@ Rectangle {
             delay: 400
             text: (root.entry.pinned ? "Unpin" : "Pin") + " · Ctrl+Shift+P"
             background: Rectangle {
-                color: Theme.colors.elevated
+                color: Material.colors.surface_container_high
                 radius: Theme.radii.small
-                border.color: Theme.colors.border
+                border.color: Material.colors.outline_variant
             }
             contentItem: Text {
                 text: pinTip.text
-                color: Theme.colors.foreground
+                color: Material.colors.on_surface
                 font.family: Theme.typography.family
-                font.pixelSize: 11
+                font.pixelSize: Material.type.bodyMedium
             }
         }
     }
@@ -200,13 +200,13 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
-        width: 30
-        height: 30
-        radius: Theme.radii.small
+        width: 48
+        height: 48
+        radius: 24
         visible: root.plainAvailable
-        color: root.selected && root.actionFocus === 2 ? Theme.colors.iconTile : (plainMouse.containsMouse ? Theme.colors.hover : "transparent")
+        color: root.selected && root.actionFocus === 2 ? Material.colors.surface_container_highest : (plainMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
         border.width: root.selected && root.actionFocus === 2 ? 1 : 0
-        border.color: Theme.colors.accent
+        border.color: Material.colors.primary
         enabled: !root.busy
         Accessible.role: Accessible.Button
         Accessible.name: "Copy as plain text"
@@ -215,9 +215,9 @@ Rectangle {
             anchors.centerIn: parent
             text: "T"
             font.family: Theme.typography.family
-            font.pixelSize: 14
+            font.pixelSize: Material.type.bodyLarge
             font.underline: true
-            color: plainMouse.containsMouse || (root.selected && root.actionFocus === 2) ? Theme.colors.accent : Theme.colors.subtle
+            color: plainMouse.containsMouse || (root.selected && root.actionFocus === 2) ? Material.colors.primary : Material.colors.on_surface_variant
         }
         MouseArea {
             id: plainMouse
@@ -232,15 +232,15 @@ Rectangle {
             delay: 400
             text: "Copy plain text · Ctrl+Shift+C"
             background: Rectangle {
-                color: Theme.colors.elevated
+                color: Material.colors.surface_container_high
                 radius: Theme.radii.small
-                border.color: Theme.colors.border
+                border.color: Material.colors.outline_variant
             }
             contentItem: Text {
                 text: plainTip.text
-                color: Theme.colors.foreground
+                color: Material.colors.on_surface
                 font.family: Theme.typography.family
-                font.pixelSize: 11
+                font.pixelSize: Material.type.bodyMedium
             }
         }
     }

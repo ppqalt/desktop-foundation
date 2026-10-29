@@ -38,7 +38,7 @@ SurfaceCard {
             height: height,
             listY: list.y,
             listHeight: list.height,
-            rowHeight: 66
+            rowHeight: 76
         })
     readonly property var backendPid: backend.processId
     property var playbackCodecs: []
@@ -82,7 +82,7 @@ SurfaceCard {
     readonly property var rows: makeRows()
     width: Math.min(Theme.dimensions.launcherWidth, availableWidth - 48)
     // Keep the card and footer stable while controls are being discovered.
-    height: Math.min(270 + 6 * 66, availableHeight - 64)
+    height: Math.min(270 + 6 * 76, availableHeight - 64)
     opacity: entered ? 1 : 0
     scale: entered ? 1 : 0.97
     Behavior on opacity {
@@ -139,39 +139,39 @@ SurfaceCard {
         const s = earState;
         let result = [];
         if (page === "info")
-            return [row("Model", s.modelCode || "Unknown", "none"), row("Firmware", s.firmware || "Unavailable", "none"), row("Bluetooth address", device.address, "none"), row("Advanced equalizer", s.advanced === undefined ? "No reliable response" : "Band controls unavailable in the reference protocol", "none"), row("Back", "Earbud controls", "back")];
+            return [row("Model", s.modelCode || "Unknown", "none"), row("Firmware", s.firmware || "Unavailable", "none"), row("Bluetooth address", device.address, "none"), row("Advanced equalizer", s.advanced === undefined ? "No reliable response" : "Unavailable", "none"), row("Back", "", "back")];
         if (page === "quality") {
             for (const codec of ["aac", "ldac", "sbc", "sbc_xq"]) {
                 const available = playbackCodecs.includes(codec);
-                const entry = row(codec.toUpperCase().replace(/_/g, " "), available ? "Playback on this computer" : "Unavailable on this connection", codec);
+                const entry = row(codec.toUpperCase().replace(/_/g, " "), available ? "" : "Unavailable on this connection", codec);
                 entry.enabled = available;
                 result.push(entry);
             }
-            return result.concat([row("Current playback", playbackLabel || "Not reported by PipeWire", "none"), row("Back", "Earbud controls", "back")]);
+            return result.concat([row("Back", "", "back")]);
         }
         if (page === "fit")
-            return [row("Wear both earbuds", "The test plays sound for about 10 seconds", "none"), row("Start fit test", "Check the seal of each ear tip", "fitStart"), row("Left earbud", fitLabel(s.fit?.left), "none"), row("Right earbud", fitLabel(s.fit?.right), "none"), row("Back", "Earbud controls", "back")];
+            return [row("Wear both earbuds", "The test plays sound for about 10 seconds", "none"), row("Start fit test", "Check the seal of each ear tip", "fitStart"), row("Left earbud", fitLabel(s.fit?.left), "none"), row("Right earbud", fitLabel(s.fit?.right), "none"), row("Back", "", "back")];
         if (page === "find")
-            return [row("Remove earbuds from your ears", "Earbuds will emit sound for 3 seconds. Remove them first.", "none"), ...[2, 3].filter(side => s.battery?.[side === 2 ? "left" : "right"]).map(side => row(side === 2 ? "Ring left earbud" : "Ring right earbud", "Emit sound · remove from ears first", "ring", side)), row("Back", "Earbud controls", "back")];
+            return [row("Remove earbuds from your ears", "Earbuds will emit sound for 3 seconds. Remove them first.", "none"), ...[2, 3].filter(side => s.battery?.[side === 2 ? "left" : "right"]).map(side => row(side === 2 ? "Ring left earbud" : "Ring right earbud", "Emit sound · remove from ears first", "ring", side)), row("Back", "", "back")];
         if (page === "custom")
-            return s.customEq ? ["Bass", "Mid", "Treble"].map((name, i) => row(name, "← / → adjust", "customEq", i)).concat([row("Use custom equalizer", "Apply the saved bands", "useCustom"), row("Back", "Earbud controls", "back")]) : [row("Equalizer unavailable", "Reopen Controls to read the device again", "none"), row("Back", "Earbud controls", "back")];
+            return s.customEq ? ["Bass", "Mid", "Treble"].map((name, i) => row(name, "← / → adjust", "customEq", i)).concat([row("Use custom equalizer", "Apply the saved bands", "useCustom"), row("Back", "", "back")]) : [row("Equalizer unavailable", "Reopen Controls to read the device again", "none"), row("Back", "", "back")];
         if (page === "gestures")
             return (s.gestures || []).filter(g => [2, 3].includes(g.device) && [2, 3, 7, 9].includes(g.kind)).map(g => row((g.device === 2 ? "Left · " : "Right · ") + ({
                         2: "Double",
                         3: "Triple",
                         7: "Hold",
                         9: "Double and hold"
-                    })[g.kind], "← / → change action", "gestures", s.gestures.indexOf(g))).concat([row("Back", "Earbud controls", "back")]);
+                    })[g.kind], "", "gestures", s.gestures.indexOf(g))).concat([row("Back", "", "back")]);
         if (s.anc != null)
-            result.push(row("Noise control", "← / → change mode", "anc"));
+            result.push(row("Noise control", "", "anc"));
         if (s.bass)
-            result.push(row("Bass Enhance", "Enter toggle · ← / → level", "bass"));
+            result.push(row("Bass Enhance", "", "bass"));
         if (s.eq != null)
-            result.push(row("Equalizer", "← / → change preset", "eq"));
+            result.push(row("Equalizer", "", "eq"));
         if (s.customEq)
             result.push(row("Custom equalizer", "Bass · Mid · Treble", "custom"));
         if (s.listening != null)
-            result.push(row("Listening preset", "← / → change preset", "listening"));
+            result.push(row("Listening preset", "", "listening"));
         if (s.inEar != null)
             result.push(row("In-ear detection", "Pause when an earbud is removed", "inEar"));
         if (s.latency != null)
@@ -191,8 +191,8 @@ SurfaceCard {
         if (s.fitAvailable)
             result.push(row("Ear-tip fit test", "Check left and right seal", "fit"));
         result.push(row("Device information", "Model · Firmware", "info"));
-        result.push(row("Refresh battery", "Request current values", "refresh"));
-        result.push(row("Disconnect", "Return to paired devices", "disconnect"));
+        result.push(row("Refresh battery", "", "refresh"));
+        result.push(row("Disconnect", "", "disconnect"));
         return result;
     }
     onRowsChanged: {
@@ -456,9 +456,9 @@ SurfaceCard {
         else if (event.key === Qt.Key_End)
             navigateEdge(true);
         else if (event.key === Qt.Key_PageUp)
-            navigate(-Math.max(1, Math.floor(list.height / 66)));
+            navigate(-Math.max(1, Math.floor(list.height / 76)));
         else if (event.key === Qt.Key_PageDown)
-            navigate(Math.max(1, Math.floor(list.height / 66)));
+            navigate(Math.max(1, Math.floor(list.height / 76)));
         else if ([Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space].includes(event.key) && !event.isAutoRepeat)
             activate(selected, 0);
         else
@@ -570,26 +570,27 @@ SurfaceCard {
     Text {
         x: 28
         y: 23
-        text: root.page === "main" ? "EARBUD CONTROLS" : root.page.toUpperCase()
-        color: Theme.colors.muted
-        font.family: Theme.typography.mono
-        font.pixelSize: 10
-        font.letterSpacing: 2
+        text: root.page === "main" ? "Earbuds" : root.page.charAt(0).toUpperCase() + root.page.slice(1)
+        color: Material.colors.on_surface_variant
+        font.family: Theme.typography.family
+        font.pixelSize: Material.type.titleMedium
+        font.letterSpacing: 0
     }
     Text {
         x: 28
         y: 60
         width: root.width - 56
         text: root.earState.model || root.device.name
-        color: Theme.colors.foreground
+        color: Material.colors.on_surface
         font.family: Theme.typography.family
         font.pixelSize: Theme.typography.heading
     }
     Text {
         x: 28
         y: 93
-        text: "Connected" + (root.playbackLabel ? " · " + root.playbackLabel : "") + (root.ready ? "" : " · Reading controls…")
-        color: Theme.colors.muted
+        text: root.ready ? root.playbackLabel : "Reading controls…"
+        visible: text !== ""
+        color: Material.colors.on_surface_variant
         font.family: Theme.typography.family
         font.pixelSize: Theme.typography.small
     }
@@ -597,8 +598,8 @@ SurfaceCard {
         x: 28
         y: 118
         text: root.batteryText()
-        color: Theme.colors.accent
-        font.family: Theme.typography.mono
+        color: Material.colors.primary
+        font.family: Theme.typography.family
         font.pixelSize: Theme.typography.small
     }
     Rectangle {
@@ -606,7 +607,7 @@ SurfaceCard {
         y: 149
         width: root.width - 56
         height: 1
-        color: Theme.colors.border
+        color: Material.colors.outline_variant
     }
     Item {
         x: 16
@@ -624,9 +625,9 @@ SurfaceCard {
                     id: placeholder
                     required property int index
                     width: root.width - 32
-                    height: Theme.dimensions.rowHeight
+                    height: 72
                     radius: Theme.radii.medium
-                    color: Theme.colors.elevated
+                    color: Material.colors.surface_container_high
                     opacity: 0.3
                     Rectangle {
                         x: 14
@@ -634,7 +635,7 @@ SurfaceCard {
                         width: 38
                         height: 38
                         radius: 10
-                        color: Theme.colors.border
+                        color: Material.colors.outline_variant
                     }
                     Rectangle {
                         x: 66
@@ -642,7 +643,7 @@ SurfaceCard {
                         width: 115 + placeholder.index % 3 * 30
                         height: 7
                         radius: 3
-                        color: Theme.colors.muted
+                        color: Material.colors.on_surface_variant
                     }
                     Rectangle {
                         x: 66
@@ -650,7 +651,7 @@ SurfaceCard {
                         width: 155 + placeholder.index % 2 * 45
                         height: 5
                         radius: 2
-                        color: Theme.colors.border
+                        color: Material.colors.outline_variant
                     }
                 }
             }
@@ -710,7 +711,7 @@ SurfaceCard {
         y: root.height - 85
         width: root.width - 56
         text: root.error
-        color: Theme.colors.error
+        color: Material.colors.error
         font.family: Theme.typography.family
         font.pixelSize: Theme.typography.small
         wrapMode: Text.Wrap
@@ -723,7 +724,7 @@ SurfaceCard {
         escapeLabel: "back"
         escapeEnabled: !root.leaving
         onEscapeRequested: root.goBack()
-        actionText: !root.ready ? "Reading controls…" : root.busy ? root.pendingLabel() : root.rows[root.selected]?.key === "back" ? "Back" : root.rows[root.selected]?.settingState != null ? "Toggle setting" : "Activate"
+        actionText: !root.ready ? "Reading controls…" : root.busy ? root.pendingLabel() : ""
         actionEnabled: root.ready && !root.busy && !root.leaving && root.rows[root.selected]?.key !== "none" && root.rows[root.selected]?.enabled !== false
         onActivated: root.activate(root.selected, 0)
     }
