@@ -129,7 +129,7 @@ def core(args):
         script('bootstrap', *(['--greeter'] if args.greeter else []))
     script('build-nothing')
     script('build-backend')
-    command(sys.executable, ROOT / 'scripts/preflight.py', '--profile', args.profile)
+    script('preflight', '--profile', args.profile)
     # Stage/validate before replacing paths, retaining the original backup journal.
     script('deploy', '--compositor', 'niri', '--profile', args.profile)
     command(sys.executable, ROOT / 'scripts/preferences.py', 'install', '--theme-only')

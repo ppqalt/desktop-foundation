@@ -190,20 +190,7 @@ pub fn wallpaper(root: &Path) -> Result<()> {
     let image = image_path(root, &config, runtime)?;
     let executable = swaybg(&state)?;
     if !current.exists() {
-        // Legacy installations prepare a backdrop once. Normal deployed runtime
-        // bundles already contain it, so their startup does not invoke Python.
-        process::checked(
-            &[
-                "python3".into(),
-                text_path(&root.join("scripts/niri_wallpaper.py"))?,
-                "--prepare-backdrop".into(),
-                text_path(&image)?,
-                config.mode.clone(),
-            ],
-            None,
-            Duration::from_secs(30),
-            true,
-        )?;
+        crate::backdrop::prepare_legacy(&image, &config.mode)?;
     }
     process::replace(&[
         text_path(&executable)?,

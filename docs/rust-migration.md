@@ -1,71 +1,51 @@
-# Rust migration inventory
+# Native theme pipeline
 
-This inventory covers installed behavior and its setup/recovery tools. Tests,
-benchmarks, smoke probes and development tooling are excluded. A language's share
-of the repository does not describe its startup cost or resident memory use.
+Wallpaper/theme commands now run inside `desktop-foundationctl`:
 
-Application launch, MIME default ownership and restoration now use the shared
-Rust backend. `scripts/application_roles.py` retains installer metadata lookup
-and compatibility calls for Python callers; it does not own the MIME transaction.
+- `scripts/wallpaper-set IMAGE [--mode fill|fit|center|tile]`
+- `scripts/theme-generate [IMAGE]`
+- `scripts/theme-apply [IMAGE]`, `scripts/theme-reset`
+- `scripts/theme-rollback`, `scripts/theme-promote`
 
-## Remaining Python implementation
+The same backend owns image decoding, backdrop blur/cache, Niri/terminal/desktop
+renderers, immutable revisions, stable Brave theme files, reloads and rollback.
+Matugen remains the packaged one-shot palette generator. GTK, managed Brave policy
+and Spicetify use their existing native refresh mechanisms. No extra worker or
+polling daemon is introduced.
 
-| Area | Source files | Useful migration scope |
-| --- | --- | --- |
-| Wallpaper/theme transaction | `scripts/theme_runtime.py`, `scripts/theme_pipeline.py` | Bundle staging, validation, publication, component reloads and rollback. Semantic palette generation and caching already run in Rust. This is the strongest next target. |
-| Theme output rendering | `theme/adapters/__init__.py`, `theme/adapters/btop.py`, `scripts/render_niri.py`, `scripts/render_terminal.py` | Generate the existing compositor, terminal, shell and application outputs from the same semantic palette in Rust. Preserve the current output formats. |
-| Overview backdrop | `scripts/niri_wallpaper.py` | Pillow image validation, scaling and Gaussian blur. Ordinary wallpaper startup is native; this code runs during generation and the legacy no-bundle recovery path. Match the existing image processing before replacing it. |
-| Spotify/Spicetify | `scripts/spotify_setup.py`, `scripts/spotify_theme.py` | Pinned client/tool provisioning, patch ownership, upgrades, theme rendering and refresh. The Rust app-mod coordinator currently invokes the Python setup helper. |
-| Brave profile setup | `browser/brave/config.py` | Allowlisted export, seeding and restoration of a closed profile. Managed browser theme color updates already use Rust. Preserve the closed-profile checks and separate ownership journal. |
-| Deployment and installer | `scripts/deploy.py`, `scripts/install_engine.py`, `scripts/session_units.py`, `scripts/local_ai_launcher.py` | Link ownership, configuration generation, install sequencing and generated service/launcher files. Local AI launch/status behavior is already native. Bootstrap metadata inspection must remain usable before the backend is built. |
-| Preference coordination | `scripts/preferences.py` | Command parsing and coordination of native preference recovery with native MIME recovery. The preference journal and GSettings operations already run in Rust. |
-| Privileged system setup | `scripts/system-setup`, `scripts/greeter-console-setup`, `scripts/browser-policy-setup`, `scripts/apparmor-setup`, `scripts/boot-setup`, `scripts/boot-optimize`, `scripts/boot_policy.py` | Root-owned helper/PAM/policy deployment, greeter configuration, AppArmor and boot configuration. Consolidate shared file ownership/recovery primitives before moving these. Preserve narrow privileges and original backups. |
-| Installation/session diagnostics | `scripts/doctor`, `scripts/preflight.py`, `scripts/session-acceptance` | Read-only package, service, configuration and session checks. Useful for sharing parsers with the backend, but these are explicit commands rather than resident workers. |
+`foundation theme-runtime ensure PROFILE` refreshes an install's outputs without
+restarting the session or changing its wallpaper/palette. The existing deployment
+entry point delegates to it. `scripts/preflight` also validates configuration in
+Rust; the installer and updater use that entry point.
 
-The small compatibility entries `scripts/bluetooth-action.py`,
-`scripts/bluetooth-power.py`, `scripts/clipboard.py`, `scripts/screenshot.py`,
-`scripts/volume.py` and `scripts/niri_notifications.py` enter Rust. The
-`scripts/gtk_theme.py` and `scripts/brave_policy.py` bridges also delegate their
-behavior to Rust. `scripts/install` enters the installer rather than implementing
-a separate installation path. Removing these bridges can simplify interfaces,
-but migrating a bridge alone does not replace substantial behavior.
+Image decoding uses the pinned Rust `image` crate for PNG, JPEG, WebP, GIF, BMP and
+TIFF. Native Gaussian blur retains the 24 px radius and 1920 px downsampling for
+fill/fit. Its cache has a distinct version, since pixels need not match Pillow's
+blur implementation exactly. Original wallpaper content is copied intact.
 
-`terminal/kitty/select_all.py` is a supported Kitty kitten that accesses Kitty's
-selection state. Keep it in Python: an external Rust command does not provide the
-same internal API.
+Revisions retain the existing `current`/`previous`, metadata and ownership layout.
+All rendering and validation finishes before publication. Reload failure restores
+the old pointer and stable Brave manifest, then attempts to reload the old theme.
+The immutable revision path changes; Brave's installed theme directory does not.
 
-## Remaining shell behavior
+`foundation spotify-theme install|refresh|restore` replaces the color adapter.
+It preserves unrelated INI lines/schemes, refuses externally changed owned keys,
+and accepts the existing theme-binding journal. Spotify provisioning delegates
+to this adapter; installing/upgrading the clients is a separate remaining task.
 
-| Area | Source files | Recommendation |
-| --- | --- | --- |
-| Session/service orchestration | `scripts/session-start`, `scripts/session-exit`, `scripts/run-shell`, `scripts/shell-reload`, `scripts/shell-stop`, `scripts/clipboard-start` | Environment import, service control and bounded shell restart handling can join the native session module. `run-shell` ultimately executes Quickshell. |
-| Application launch/lifecycle | `scripts/launch`, `scripts/spotify` | Compositor-aware launching and Spotify's first-login/normal-quit patch step can move alongside native application handling. |
-| Package/bootstrap setup | `scripts/bootstrap`, `scripts/paru-bootstrap` | Retain a small shell bootstrap for installing the toolchain and reviewing an AUR recipe before the backend exists. Avoid a circular requirement on the binary being installed. |
-| Setup/recovery coordination | `scripts/post-install`, `scripts/uninstall`, `scripts/dark-mode` | Consolidate with the native installer/recovery interface when those operations move. |
+## Verification
 
-Most other shell commands are short `exec` launchers for the backend, installer,
-theme pipeline or a packaged executable. Examples include `scripts/foundation`,
-`scripts/applications`, `scripts/clipboard`, `scripts/volume`, `scripts/monitor`,
-`scripts/local-ai`, `scripts/install-app-mods` and `scripts/geode-setup`. They do
-not remain as additional resident shell processes after `exec`.
+`cargo test --locked --manifest-path native/foundation/Cargo.toml --test theme_runtime`
+uses isolated files, a fake Matugen and inert reload callbacks. It covers atomic
+publication, failure recovery, foreign ownership, format decoding, output roles,
+cache hits and generation failure. A private PATH containing no Python proves
+native deployment preparation and preflight do not require it.
 
-Fish configuration stays in Fish: `terminal/fish/config.fish`,
-`terminal/fish/theme.fish`, `terminal/fish/functions/fish_prompt.fish`,
-`terminal/fish/functions/__foundation_git.fish` and
-`terminal/fish/functions/fast.fish`. Git prompt queries are a possible focused
-optimization; replacing the prompt language itself would add complexity.
+## Remaining Python
 
-## JavaScript and Lua
-
-| Source files | Current use | Recommendation |
-| --- | --- | --- |
-| `scripts/brave_theme_cdp.mjs` | Optional, finite, approval-based DevTools extension/theme lifecycle helper. | Could move to Rust to remove its Node dependency. It is separate from the native managed-policy adapter and is not a startup service. |
-| `shell/utils/Search.js` | Small search normalization/ranking library inside QML/Quickshell. | Keep UI-local unless a native search model provides a measurable benefit; it does not start Node. |
-| `config/input.lua`, `config/window-appearance.lua`, `theme/window-colors.lua` | Shared settings, palette lookup and generated color data read by renderers/compositor configuration. | Shared data could become TOML/JSON to remove render-time Lua interpretation. |
-| `compositor/hyprland/animations.lua`, `compositor/hyprland/appearance.lua`, `compositor/hyprland/bindings.lua`, `compositor/hyprland/hyprland.lua`, `compositor/hyprland/input.lua`, `compositor/hyprland/surfaces.lua`, `profiles/default/monitors.lua` | Native Hyprland configuration and callbacks. | Retain the compositor's supported Lua API; a Rust renderer may produce configuration without replacing the native API. |
-| `profiles/default/hardware.lua`, `profiles/default/input.lua` | Profile override placeholders. | No substantive behavior to migrate. |
-
-QML remains responsible for visual surfaces. The Kitty corner shader remains
-Slang. The next migration order should be theme transactions/rendering, Spotify
-theme ownership, then deployment/recovery coordination; keep bootstrap and
-native application configuration small and idiomatic.
+This is a runtime migration, not a claim that the repository is Python-free.
+Legacy installer/doctor/system setup, Spotify client provisioning, diagnostics,
+older tests and their import-compatible helper modules remain. Those legacy
+modules are retained until their callers/tests migrate; normal theme commands,
+new deployment theme preparation, Spotify color binding and the wallpaper-startup
+recovery path now use Rust. No new Python implementation or tests were added.

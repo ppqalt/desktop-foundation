@@ -1,0 +1,13 @@
+{
+  "quickshell": {"mode":"LIVE","reload":"foundation.reloadTheme IPC"},
+  "niri": {"mode":"RELOADABLE","reload":"load-config-file"},
+  "kitty": {"mode":"RELOADABLE","reload":"SIGUSR1"},
+  "fish": {"mode":"NEXT-LAUNCH","reload":"or source theme.fish in existing shell"},
+  "fastfetch": {"mode":"NEXT-LAUNCH","reload":"next one-shot invocation"},
+  "mako": {"mode":"RELOADABLE","reload":"makoctl reload"},
+  "overview": {"mode":"LIVE","reload":"foundation.reloadTheme IPC"},
+  "gtk": {"mode":"RELOADABLE","reload":"supported native accent-color enum; dark neutral surfaces unchanged"},
+  "spotify": {"mode":"NEXT-LAUNCH","reload":"spicetify refresh --no-restart; native UI reload optional"},
+  "brave": {"mode":"RELOADABLE","reload":"root-owned BrowserThemeColor policy and native Origin Nightly refresh; unpacked theme fallback"},
+  "btop": {"mode":"NEXT-LAUNCH","reload":"prepared theme only; no automatic application or reload"}
+}

@@ -241,8 +241,7 @@ def install():
             portable.write(stream)
         configured.write_text('Portable defaults initialized; future user theme choices are preserved.\n')
     subprocess.run(['update-desktop-database', str(DATA / 'applications')], check=False)
-    from spotify_theme import install as install_theme
-    install_theme()
+    subprocess.run([str(ROOT / "scripts/foundation"), "spotify-theme", "install"], check=True)
     print('Installed Spotify, Spicetify and Marketplace. Open Spotify, log in, wait a minute, quit normally and reopen; the launcher completes patching.')
 
 
@@ -250,9 +249,8 @@ def apply():
     if not (CONFIG / 'spotify/prefs').exists():
         raise RuntimeError('Open Spotify and log in first; its prefs file is not available yet.')
     subprocess.run([str(ROOT / 'scripts/spicetify'), 'backup', 'apply', '--no-restart'], check=True)
-    from spotify_theme import install as install_theme, refresh as refresh_theme
-    install_theme()
-    refresh_theme()
+    subprocess.run([str(ROOT / "scripts/foundation"), "spotify-theme", "install"], check=True)
+    subprocess.run([str(ROOT / "scripts/foundation"), "spotify-theme", "refresh"], check=True)
 
 
 def check():
@@ -285,8 +283,7 @@ def check():
 
 
 def restore():
-    from spotify_theme import restore as restore_theme
-    restore_theme()
+    subprocess.run([str(ROOT / "scripts/foundation"), "spotify-theme", "restore"], check=True)
     journal = STATE / 'links.json'
     entries = json.loads(journal.read_text()) if journal.exists() else []
     for entry in entries:

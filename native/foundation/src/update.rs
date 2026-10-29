@@ -523,10 +523,9 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             &log,
             "Validating updated configuration…",
             &[
-                "python3".into(),
                 staging
                     .path
-                    .join("scripts/preflight.py")
+                    .join("scripts/preflight")
                     .to_string_lossy()
                     .into_owned(),
                 "--update".into(),

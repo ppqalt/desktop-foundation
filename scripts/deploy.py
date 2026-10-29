@@ -147,8 +147,7 @@ def main():
             raise RuntimeError('Invalid profile name')
         if not (ROOT / 'profiles' / args.profile).is_dir():
             print(f'Profile {args.profile} unavailable; using portable defaults.')
-        from theme_runtime import ensure
-        ensure(args.profile)
+        subprocess.run([str(ROOT / "scripts/foundation"), "theme-runtime", "ensure", args.profile], check=True)
         if args.compositor == 'niri':
             subprocess.run([str(ROOT / 'scripts/monitor'), 'prepare'], check=True)
             wrapper = 'include ' + json.dumps(str(STATE / 'theme/current/niri.kdl')) + '\n'

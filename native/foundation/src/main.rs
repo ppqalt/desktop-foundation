@@ -1,8 +1,8 @@
 use desktop_foundationctl::{
-    Result, actions, app_mods, application_roles, apps, bluetooth, browser_policy, cache,
+    Result, actions, app_mods, application_roles, apps, backdrop, bluetooth, browser_policy, cache,
     clipboard, clipboard_transport, control_center, diagnostics, geode, invalid, local_ai, monitor,
-    monitor_shader, packages, preferences, process, screenshot, session, shell, theme, update,
-    volume,
+    monitor_shader, packages, preferences, preflight, process, screenshot, session, shell,
+    spotify_theme, theme, theme_render, theme_runtime, update, volume,
 };
 use std::{
     io::{self, Read},
@@ -52,6 +52,19 @@ fn run() -> Result<()> {
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("preflight") => preflight::run(&root, &args[1..]),
+        Some("theme-runtime") => theme_runtime::run(&root, &args[1..]),
+        Some("spotify-theme") if args.len() == 2 => spotify_theme::run(&root, &args[1]),
+        Some("render") if args.len() == 3 && args[1] == "niri" => {
+            print!("{}", theme_render::niri(&root, &args[2], None)?);
+            Ok(())
+        }
+        Some("render") if args.len() == 3 && args[1] == "terminal" => {
+            theme_render::terminal(&PathBuf::from(&args[2]))
+        }
+        Some("backdrop") if args.len() == 3 => {
+            backdrop::prepare_legacy(&PathBuf::from(&args[1]), &args[2])
+        }
         Some("control-center") if args.as_slice() == ["control-center", "cachy-update"] => {
             if !apps::executable("cachy-update") {
                 return Err(invalid("Cachy Update is not installed"));

@@ -1,0 +1,59 @@
+// Generated from repository-managed shared visual/input intent.
+include @config@
+environment {
+    DF_COMPOSITOR "niri"
+    DF_FOUNDATION_ROOT @root@
+}
+spawn-at-startup @session_start@
+input { keyboard { xkb { layout @layout@; } repeat-delay @repeat_delay@; repeat-rate @repeat_rate@; } }
+screenshot-path null
+layout {
+    gaps @gaps@
+    struts { left @edge@; right @edge@; top @edge@; bottom @edge@; }
+    center-focused-column "never"
+    always-center-single-column
+    preset-column-widths { proportion 0.33333; proportion 0.5; proportion 0.66667; }
+    default-column-width { proportion 0.5; }
+    focus-ring { off; }
+    border { on; width @border_width@; active-color @active_border@; inactive-color @inactive_border@; }
+    shadow { on; softness @shadow_range@; spread 1; offset x=@shadow_x@ y=@shadow_y@; color @shadow_active@; inactive-color @shadow_inactive@; }
+}
+blur { passes @blur_passes@; offset @blur_offset@; noise @blur_noise@; saturation @blur_saturation@; }
+window-rule {
+    geometry-corner-radius @rounding@
+    clip-to-geometry true
+    draw-border-with-background false
+    opacity @opacity@
+    background-effect { blur true; xray true; }
+    popups { background-effect { blur false; }; }
+}
+// Niri applies opacity to toplevel content and makes fullscreen content opaque natively.
+// Client popups keep their own shape.
+// Keep terminal glyphs opaque; prefer native background alpha in Kitty.
+window-rule { match app-id="^kitty$"; opacity 1.0; }
+// Shortcut menus soften the applications behind them instead of bypassing them.
+layer-rule { match namespace="^desktop-foundation-(launcher|clipboard|power|bluetooth)$"; background-effect { blur true; xray false; } }
+layer-rule {
+    match namespace="^desktop-foundation:monitor$"
+    geometry-corner-radius @monitor_radius@ 0 0 @monitor_radius@
+    shadow { on; softness @shadow_range@; spread 0; offset x=@shadow_x@ y=@shadow_y@; color @shadow_active@; }
+    background-effect { blur true; xray false; }
+}
+layer-rule {
+    match namespace="^desktop-foundation:control-center$"
+    geometry-corner-radius 0 @monitor_radius@ @monitor_radius@ 0
+    shadow { on; softness @shadow_range@; spread 0; offset x=@shadow_left_x@ y=@shadow_y@; color @shadow_active@; }
+    background-effect { blur true; xray false; }
+}
+layer-rule {
+    match namespace="^desktop-foundation-overview-backdrop$"
+    place-within-backdrop true
+}
+animations {
+    workspace-switch { duration-ms 300; curve "ease-out-cubic"; }
+    horizontal-view-movement { duration-ms 300; curve "ease-out-cubic"; }
+    window-movement { duration-ms 300; curve "ease-out-cubic"; }
+    window-open { duration-ms 160; curve "ease-out-cubic"; }
+    window-close { duration-ms 120; curve "ease-out-cubic"; }
+    overview-open-close { duration-ms 300; curve "ease-out-cubic"; }
+}
