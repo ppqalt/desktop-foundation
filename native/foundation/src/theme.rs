@@ -14,7 +14,56 @@ use std::{
     time::Duration,
 };
 
-pub const VERSION: &str = "graphite-v2";
+pub const VERSION: &str = "graphite-v3-material";
+// Preserve Matugen's paired M3 roles for the Control Center. Existing graphite
+// consumers continue using the top-level semantics unchanged.
+const MATERIAL_ROLES: [&str; 22] = [
+    "primary",
+    "on_primary",
+    "primary_container",
+    "on_primary_container",
+    "secondary",
+    "on_secondary",
+    "secondary_container",
+    "on_secondary_container",
+    "surface",
+    "on_surface",
+    "on_surface_variant",
+    "surface_container_lowest",
+    "surface_container_low",
+    "surface_container",
+    "surface_container_high",
+    "surface_container_highest",
+    "outline",
+    "outline_variant",
+    "error",
+    "on_error",
+    "error_container",
+    "on_error_container",
+];
+
+fn validate_material(material: &Value) -> Result<()> {
+    for role in MATERIAL_ROLES {
+        rgb(color(material, role)?)?;
+    }
+    for (foreground, background) in [
+        ("on_primary", "primary"),
+        ("on_primary_container", "primary_container"),
+        ("on_secondary", "secondary"),
+        ("on_secondary_container", "secondary_container"),
+        ("on_surface", "surface"),
+        ("on_error", "error"),
+        ("on_error_container", "error_container"),
+        ("on_surface_variant", "surface_container_highest"),
+    ] {
+        if contrast(color(material, foreground)?, color(material, background)?)? < 4.5 {
+            return Err(invalid(format!(
+                "Material text contrast failed: {foreground}/{background}"
+            )));
+        }
+    }
+    Ok(())
+}
 const METADATA_LIMIT: u64 = 64 * 1024;
 const ROLES: [&str; 15] = [
     "background",
@@ -235,6 +284,9 @@ fn validate_roles(palette: &Value) -> Result<()> {
     for role in ROLES {
         rgb(color(palette, role)?)?;
     }
+    if let Some(material) = palette.get("material") {
+        validate_material(material)?;
+    }
     let source = palette["source"]
         .as_str()
         .ok_or_else(|| invalid("Palette source is missing"))?;
@@ -284,6 +336,7 @@ fn validate_constraints(palette: &Value) -> Result<()> {
 
 fn validate_cached(palette: &Value, fallback: &Value, digest: &str) -> Result<()> {
     validate_roles(palette)?;
+    validate_material(&palette["material"])?;
     if palette["policy"] != VERSION {
         return Err(invalid(
             "Cached palette policy mismatch; current theme left intact",
@@ -318,6 +371,27 @@ pub fn derive(root: &Path, material: &Value, source: &str, digest: &str) -> Resu
     palette["source"] = json!(source);
     palette["wallpaperHash"] = json!(digest);
     palette["policy"] = json!(VERSION);
+    let mut material_palette = read_json(&root.join("theme/fallback/material.json"))?;
+    for role in MATERIAL_ROLES {
+        if let Some(value) = material.get(role) {
+            rgb(value
+                .as_str()
+                .ok_or_else(|| invalid("Invalid Material color"))?)?;
+            material_palette[role] = value.clone();
+        }
+    }
+    // Legacy two-color callers retain their old graphite behavior; use the
+    // complete baseline M3 scheme rather than mixing incompatible on-colors.
+    if MATERIAL_ROLES
+        .iter()
+        .any(|role| !["primary", "secondary"].contains(role) && material.get(role).is_some())
+    {
+        validate_material(material)?;
+    } else {
+        material_palette = read_json(&root.join("theme/fallback/material.json"))?;
+    }
+    validate_material(&material_palette)?;
+    palette["material"] = material_palette;
     // Keep graphite darkness but let the wallpaper own the hue. Neutral bases
     // avoid the fixed blue cast of the previous mixed surface palette.
     let [hue, _, chroma] = rgb_to_hls(rgb(primary)?);
@@ -359,7 +433,7 @@ fn material_colors(output: &Value) -> Result<Value> {
         .as_object()
         .ok_or_else(|| invalid("Matugen output has no colors object"))?;
     let mut material = serde_json::Map::new();
-    for role in ["primary", "secondary"] {
+    for role in MATERIAL_ROLES {
         let value = if let Some(dark) = colors.get("dark").filter(|dark| !dark.is_null()) {
             dark.get(role).and_then(Value::as_str)
         } else {
@@ -368,8 +442,13 @@ fn material_colors(output: &Value) -> Result<Value> {
                 .and_then(|v| v.get("dark"))
                 .and_then(|v| v.get("color"))
                 .and_then(Value::as_str)
-        }
-        .ok_or_else(|| invalid(format!("Matugen dark color is missing: {role}")))?;
+        };
+        let Some(value) = value else {
+            if ["primary", "secondary"].contains(&role) {
+                return Err(invalid(format!("Matugen dark color is missing: {role}")));
+            }
+            continue;
+        };
         rgb(value)?;
         material.insert(role.to_owned(), json!(value));
     }
@@ -640,6 +719,9 @@ mod tests {
         )
         .unwrap();
         validate_cached(&palette, &fallback, "hash").unwrap();
+        let mut incomplete = palette.clone();
+        incomplete.as_object_mut().unwrap().remove("material");
+        assert!(validate_cached(&incomplete, &fallback, "hash").is_err());
         for (role, value) in [
             ("policy", json!("other")),
             ("wallpaperHash", json!("other")),
@@ -657,5 +739,20 @@ mod tests {
                 "accepted bad {role}"
             );
         }
+    }
+
+    #[test]
+    fn material_roles_are_preserved_and_partial_or_low_contrast_schemes_fail() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut material = read_json(&root.join("theme/fallback/material.json")).unwrap();
+        material["primary"] = json!("#98ccf9");
+        material["on_primary"] = json!("#003350");
+        let palette = derive(&root, &material, "fixture", "hash").unwrap();
+        assert_eq!(palette["material"], material);
+        let mut missing = material.clone();
+        missing.as_object_mut().unwrap().remove("on_surface");
+        assert!(derive(&root, &missing, "fixture", "hash").is_err());
+        material["on_primary"] = material["primary"].clone();
+        assert!(derive(&root, &material, "fixture", "hash").is_err());
     }
 }

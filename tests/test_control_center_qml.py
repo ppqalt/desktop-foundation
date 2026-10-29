@@ -55,6 +55,7 @@ ShellRoot {
             } else if (fixture.stage===1) {
                 if (panel.snapshot().moving || !panel.stateData.audio) return;
                 panel.requestActivate();
+                panel.navigate("audio");
                 find(panel.contentItem,"outputChoice").forceActiveFocus();
                 fixture.check(find(panel.contentItem,"outputChoice").activeFocus,"output choice not focusable");
                 const card=panel.contentItem.children.find(c=>c.topRightRadius===14);
@@ -66,6 +67,14 @@ ShellRoot {
                 fixture.check(slider.activeFocus,"Tab misses output volume");
                 panel.key(Qt.Key_Right);
                 fixture.check(slider.value===51,"volume does not update immediately");
+                panel.key(Qt.Key_A);
+                fixture.check(slider.value===50,"A does not decrease volume immediately");
+                panel.key(Qt.Key_D);
+                fixture.check(slider.value===51,"D does not increase volume immediately");
+                panel.key(Qt.Key_W);
+                fixture.check(find(panel.contentItem,"outputChoice").activeFocus,"W does not navigate upward from slider");
+                panel.key(Qt.Key_S);
+                fixture.check(slider.activeFocus,"S does not navigate down to slider");
                 fixture.stage=2;
             } else if (fixture.stage===2) {
                 if (panel.busy || panel.queue.length) return;
@@ -84,10 +93,22 @@ ShellRoot {
             } else if (fixture.stage===4) {
                 if (panel.snapshot().moving) return;
                 fixture.check(!panel.closing && panel.snapshot().progress===1,"reversal did not settle open");
+                panel.navigate("overview");
+                fixture.stage=8;
+                captureDelay.restart();
+            } else if (fixture.stage===9) {
                 fixture.stage=5;
-                const directory=Quickshell.env("DF_CONTROL_CAPTURE");
-                if (directory) panel.contentItem.grabToImage(result=>result.saveToFile(directory));
-                // Walk the entire actual focus chain, including the network rows.
+                const details=find(panel.contentItem,"audioDetails");
+                details.forceActiveFocus();
+                panel.key(Qt.Key_D);
+                fixture.check(find(panel.contentItem,"inputDetails").activeFocus,"D does not navigate across audio cards");
+                panel.key(Qt.Key_A);
+                fixture.check(details.activeFocus,"A does not navigate back across audio cards");
+                panel.key(Qt.Key_Return);
+                fixture.check(panel.page==="audio","Enter does not open audio details");
+                panel.key(Qt.Key_Escape);
+                fixture.check(panel.page==="overview" && details.activeFocus,"Back does not restore initiating focus");
+                // Walk the overview focus chain, including both connectivity modules.
                 let sawNetwork=false, sawMic=false;
                 for(let i=0;i<30;i++) {
                     panel.key(Qt.Key_Tab);
@@ -97,6 +118,7 @@ ShellRoot {
                     sawMic=sawMic || label.indexOf("Microphone")>=0;
                 }
                 fixture.check(sawNetwork && sawMic,"keyboard cannot reach microphone/network controls");
+                panel.navigate("audio");
                 const choice=find(panel.contentItem,"outputChoice");
                 choice.forceActiveFocus();
                 panel.key(Qt.Key_Space);
@@ -104,9 +126,11 @@ ShellRoot {
                 panel.key(Qt.Key_Escape);
                 fixture.check(!choice.popup.visible && !panel.closing,"Escape does not close dropdown first");
                 panel.key(Qt.Key_Space);
-                panel.key(Qt.Key_Down);
-                panel.key(Qt.Key_Return);
+                panel.key(Qt.Key_S);
+                panel.key(Qt.Key_Space);
                 fixture.check(!choice.popup.visible,"Enter does not accept the device choice");
+                panel.key(Qt.Key_Escape);
+                fixture.check(panel.page==="overview" && !panel.closing,"Escape does not return to overview");
                 panel.key(Qt.Key_Escape);
             } else if (fixture.stage===5) {
                 if (panel) return;
@@ -114,6 +138,15 @@ ShellRoot {
                 idle.restart();
                 test.stop();
             }
+        }
+    }
+    Timer {
+        id: captureDelay
+        interval:80
+        onTriggered: {
+            const directory=Quickshell.env("DF_CONTROL_CAPTURE");
+            if (directory) panel.contentItem.grabToImage(result=>{result.saveToFile(directory);fixture.stage=9;});
+            else fixture.stage=9;
         }
     }
     Timer {
@@ -135,15 +168,13 @@ class ControlCenterQml(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='foundation-control-') as directory:
             base=Path(directory);surfaces=base/'shell/surfaces';surfaces.mkdir(parents=True)
             source=(ROOT/'shell/surfaces/ControlCenter.qml').read_text()
-            source=source.replace('PanelWindow {','Window {',1).replace('import Quickshell.Bluetooth','import "../mock" as Mock').replace('Bluetooth.','Mock.Bluetooth.')
+            source=source.replace('PanelWindow {','Window {',1)
             source=re.sub(r'    anchors \{\n        top: true\n        bottom: true\n        left: true\n    \}\n','',source,count=1)
             source='\n'.join(line for line in source.splitlines() if not line.startswith(('    screen:','    implicitWidth:','    margins.left:','    exclusionMode:','    WlrLayershell.')))+'\n'
             (surfaces/'ControlCenterFixture.qml').write_text(source)
             for name in ['components','theme']:(base/'shell'/name).symlink_to(ROOT/'shell'/name,target_is_directory=True)
-            mock=base/'shell/mock';mock.mkdir()
-            (mock/'qmldir').write_text('singleton Bluetooth 1.0 Bluetooth.qml\n')
-            (mock/'Bluetooth.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject {readonly property var devices: ({values:[]}); readonly property var adapters: ({values:[]})}\n')
             (base/'shell.qml').write_text(QML)
+            (base/'theme').symlink_to(ROOT/'theme',target_is_directory=True)
             worker=base/'native/foundation/target/release/desktop-foundationctl';worker.parent.mkdir(parents=True)
             data={'audio':{'available':True,'output':'speakers','input':'mic','outputs':[{'name':'speakers','description':'Speakers','volume':50,'muted':False},{'name':'headphones','description':'Headphones','volume':40,'muted':False}], 'inputs':[{'name':'mic','description':'Microphone','volume':33,'muted':False}]},'network':{'available':True,'enabled':True,'wifi':True,'state':'connected','devices':[{'name':'enp4s0','kind':'ethernet','connection':'Office','state':'connected'}],'connections':[]}}
             (base/'snapshot.json').write_text(json.dumps(data))
@@ -153,6 +184,10 @@ class ControlCenterQml(unittest.TestCase):
             for name in ['WAYLAND_DISPLAY','DISPLAY','NIRI_SOCKET','HYPRLAND_INSTANCE_SIGNATURE','DBUS_SESSION_BUS_ADDRESS','DBUS_SYSTEM_BUS_ADDRESS','QS_CONFIG_PATH','QS_CONFIG_NAME']:env.pop(name,None)
             for name,leaf in [('HOME','home'),('XDG_RUNTIME_DIR','runtime'),('XDG_CONFIG_HOME','config'),('XDG_STATE_HOME','state'),('XDG_CACHE_HOME','cache'),('XDG_DATA_HOME','data')]:
                 path=base/leaf;path.mkdir(mode=0o700);env[name]=str(path)
+            if os.environ.get('DF_CONTROL_PALETTE'):
+                palette_path=base/'state/desktop-foundation/theme/current/semantic.json'
+                palette_path.parent.mkdir(parents=True)
+                palette_path.write_text(Path(os.environ['DF_CONTROL_PALETTE']).read_text())
             env.update(QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software',DF_FOUNDATION_ROOT=str(base),XDG_DATA_DIRS=str(base/'data'))
             r=subprocess.run(['quickshell','--path',str(base)],env=env,capture_output=True,text=True,timeout=9)
             log=r.stdout+r.stderr

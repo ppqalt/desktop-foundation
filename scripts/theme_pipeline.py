@@ -10,7 +10,7 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = 'graphite-v2'
+VERSION = 'graphite-v3-material'
 
 
 def file_hash(path):

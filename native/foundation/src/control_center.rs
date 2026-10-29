@@ -23,6 +23,23 @@ fn pulse(kind: &str) -> Result<Value> {
     )?)?)
 }
 fn endpoint(value: &Value) -> Value {
+    // Port labels are intended for people (e.g. "Line Out" or "Headphones").
+    // Keep the complete description and stable name for the device picker.
+    let description = value["description"]
+        .as_str()
+        .or(value["name"].as_str())
+        .unwrap_or("Audio device");
+    let label = value["active_port"]
+        .as_str()
+        .and_then(|active| {
+            value["ports"]
+                .as_array()?
+                .iter()
+                .find(|port| port["name"] == active)?["description"]
+                .as_str()
+        })
+        .filter(|name| !name.is_empty())
+        .unwrap_or(description);
     let channels = value["volume"].as_object();
     let percent = channels
         .map(|v| {
@@ -35,7 +52,7 @@ fn endpoint(value: &Value) -> Value {
         })
         .unwrap_or(0.0)
         .round();
-    json!({"name":value["name"], "description":value["description"].as_str().or(value["name"].as_str()).unwrap_or("Audio device"),
+    json!({"name":value["name"], "description":description, "label":label,
         "volume":percent.clamp(0.0, 100.0) as u32, "muted":value["mute"].as_bool().unwrap_or(false)})
 }
 fn audio() -> Result<Value> {
@@ -338,6 +355,17 @@ pub fn run(args: &[String]) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn friendly_port_label_preserves_device_identity() {
+        let mut value = json!({"name":"alsa_output.card", "description":"Hardware Digital Stereo",
+            "active_port":"digital", "ports":[{"name":"digital","description":"Digital Output (S/PDIF)"}]});
+        let device = endpoint(&value);
+        assert_eq!(device["name"], "alsa_output.card");
+        assert_eq!(device["description"], "Hardware Digital Stereo");
+        assert_eq!(device["label"], "Digital Output (S/PDIF)");
+        value["active_port"] = json!("missing");
+        assert_eq!(endpoint(&value)["label"], "Hardware Digital Stereo");
+    }
     #[test]
     fn escaped_network_fields() {
         assert_eq!(

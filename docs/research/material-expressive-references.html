@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; style-src 'unsafe-inline'; base-uri 'none'">
+<title>Desktop Foundation · design reference board</title>
+<style>
+  :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#17191d;color:#edf0f4}
+  *{box-sizing:border-box}body{max-width:1440px;margin:auto;padding:40px 28px 64px}
+  h1{font-size:clamp(28px,4vw,48px);letter-spacing:-.035em;margin:12px 0 20px;font-weight:650}
+  h2{font-size:22px;margin:44px 0 18px}h3{margin:0;font-size:19px}p{line-height:1.6;color:#bfc4ce;max-width:80ch}
+  a{color:#e6bdce;text-underline-offset:4px}a:focus-visible{outline:3px solid #efc2d6;outline-offset:5px}
+  .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#d4b6c6}
+  .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:12px}
+  .rule{padding:22px;background:#26252c;border-radius:20px}.rule p{font-size:14px;margin:10px 0 0}
+  .gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+  figure{margin:0;background:#24252b;border-radius:20px;overflow:hidden;display:flex;flex-direction:column}
+  figure>a{display:block;background:#111216;min-height:240px;height:320px}
+  img{display:block;width:100%;height:100%;object-fit:contain}
+  figcaption{padding:22px}figcaption p{font-size:14px;margin:10px 0}.tag{display:inline-block;font-size:11px;border-radius:20px;padding:5px 9px;background:#39313e;color:#edcddd;margin-bottom:12px}
+  footer{border-top:1px solid #44414a;margin-top:40px;padding-top:20px;font-size:13px}
+  @media(max-width:780px){body{padding:24px 16px}.gallery{grid-template-columns:1fr}figure>a{height:280px}}
+</style>
+<header>
+  <div class="eyebrow">Desktop Foundation / Research / 29 October 2026</div>
+  <h1>Cleaner controls.<br>Material 3 Expressive.</h1>
+  <p>A reference board, not a redesign preview. The full <a href="material-expressive.md">research report</a> separates Google’s published specifications from proposed Desktop Foundation choices.</p>
+  <p>The most useful combination: Google’s components, NAnDoroid’s shaped controls, DMS/Dux’s modules, Caelestia’s cohesion, and Apple/GNOME’s overview-to-detail organization.</p>
+</header>
+<h2>The design authority</h2>
+<div class="rules">
+  <article class="rule"><h3><a href="https://m3.material.io/blog/building-with-m3-expressive">Google’s design tactics</a></h3><p>Contain related controls, prioritize a few interactions, and vary shape, type and color with purpose.</p></article>
+  <article class="rule"><h3><a href="https://m3.material.io/components/sliders/specs">Expressive sliders</a></h3><p>Five track sizes: 16, 24, 40, 56 and 96 dp. Compare S and M in our future mockups; retain immediate volume values.</p></article>
+  <article class="rule"><h3><a href="https://m3.material.io/styles/color/the-color-system">Semantic color roles</a></h3><p>Graphite surfaces, wallpaper-tinted containers and paired text colors. Consistent roles across every shortcut surface.</p></article>
+  <article class="rule"><h3><a href="https://m3.material.io/styles/motion/overview/how-it-works">Spatial and effects motion</a></h3><p>Geometry can use springs; opacity must not overshoot. Keep the current sidebar timings during the first visual pass.</p></article>
+</div>
+<h2>Inspected visual references</h2>
+<div class="gallery">
+  <figure>
+    <a href="https://raw.githubusercontent.com/na-ive/nandoroid-docs/refs/heads/main/public/showcase2.png"><img src="https://raw.githubusercontent.com/na-ive/nandoroid-docs/refs/heads/main/public/showcase2.png" alt="NAnDoroid showcase: shaped sliders and quick controls on the right, with separate media and calendar surfaces" loading="lazy"></a>
+    <figcaption><span class="tag">Closest component direction</span><h3><a href="https://github.com/na-ive/nandoroid-shell">NAnDoroid</a></h3><p>Borrow substantial sliders, wallpaper-toned groups and a readable hierarchy of control shapes. Omit the notch, permanent widgets and unrelated dashboard features.</p><p>Original showcase by the NAnDoroid project. Quickshell / Hyprland.</p></figcaption>
+  </figure>
+  <figure>
+    <a href="https://github.com/user-attachments/assets/732c30de-5f4a-4a2b-a995-c8ab656cecd5"><img src="https://github.com/user-attachments/assets/732c30de-5f4a-4a2b-a995-c8ab656cecd5" alt="Published DMS/Dux Control Center in edit mode, with compact sliders and a two-column module grid" loading="lazy"></a>
+    <figcaption><span class="tag">Practical modular layout</span><h3><a href="https://github.com/duxlabs-dev/dux-shell">DMS / Dux Shell</a></h3><p>Borrow compact modules and strong icon areas. This image shows edit mode; its handles, remove controls and Add Widget popup are not the normal-use layout we want.</p><p>Original image linked from the current Dux Shell README. Quickshell / Go.</p></figcaption>
+  </figure>
+  <figure>
+    <a href="https://ipcdn-web.apple.com/assets/v2/web/0d4c1866-bf3d-4959-92b2-51bd4ba31869"><img src="https://ipcdn-web.apple.com/assets/v2/web/0d4c1866-bf3d-4959-92b2-51bd4ba31869" alt="Apple’s annotated macOS Control Center image showing grouped connectivity, media, display and sound controls" loading="lazy"></a>
+    <figcaption><span class="tag">Grouping and disclosure</span><h3><a href="https://support.apple.com/en-gb/guide/mac-help/mchlc9d0e1f2/27/mac/27">macOS Control Center</a></h3><p>Borrow proportion, grouping and an obvious route into details. Translate these ideas into Material components; avoid copying the refractive-glass treatment.</p><p>Original illustration from Apple Support.</p></figcaption>
+  </figure>
+  <figure>
+    <a href="https://raw.githubusercontent.com/wayle-rs/wayle/master/assets/wayle-preview.png"><img src="https://raw.githubusercontent.com/wayle-rs/wayle/master/assets/wayle-preview.png" alt="Wayle’s published desktop preview showing separate dashboard, media, notifications, weather and network panels" loading="lazy"></a>
+    <figcaption><span class="tag">Rust integration reference</span><h3><a href="https://github.com/wayle-rs/wayle">Wayle</a></h3><p>Borrow consistent device-row structure and separation of tasks. The broad preview is useful for overall coherence, not precise control measurements.</p><p>Original Wayle README image. Rust / GTK4 / Relm4; retain our QML frontend.</p></figcaption>
+  </figure>
+  <figure>
+    <a href="https://raw.githubusercontent.com/snowarch/iNiR/main/docs/images/iris-2.31-card.webp"><img src="https://raw.githubusercontent.com/snowarch/iNiR/main/docs/images/iris-2.31-card.webp" alt="iNiR iRiS card-style desktop showcase with separated media, weather and system widgets" loading="lazy"></a>
+    <figcaption><span class="tag">Niri-specific comparison</span><h3><a href="https://github.com/snowarch/iNiR">iNiR / iRiS</a></h3><p>Study related surfaces and Niri integration. This card screenshot is not a picture of an older Material ii quick-settings panel; keep those references distinct.</p><p>Original image linked in the iNiR README. Quickshell / Niri.</p></figcaption>
+  </figure>
+  <figure>
+    <a href="https://raw.githubusercontent.com/Jas-SinghFSU/HyprPanel/master/assets/hp1.png"><img src="https://raw.githubusercontent.com/Jas-SinghFSU/HyprPanel/master/assets/hp1.png" alt="HyprPanel’s published dashboard with visibly grouped actions and separate calendar and weather areas" loading="lazy"></a>
+    <figcaption><span class="tag">Historical grouping reference</span><h3><a href="https://github.com/Jas-SinghFSU/HyprPanel">HyprPanel</a></h3><p>Borrow organization and separation, not the amount of content. The project’s README now points to Wayle for ongoing development.</p><p>Original HyprPanel README screenshot.</p></figcaption>
+  </figure>
+  <figure>
+    <a href="https://raw.githubusercontent.com/adi1090x/widgets/main/previews/dashboard.png"><img src="https://raw.githubusercontent.com/adi1090x/widgets/main/previews/dashboard.png" alt="adi1090x Eww dashboard with a modular grid of user, weather, media, system and launcher cards" loading="lazy"></a>
+    <figcaption><span class="tag">Custom-WM composition</span><h3><a href="https://github.com/adi1090x/widgets">Eww widgets / adi1090x</a></h3><p>Borrow comfortable gaps and a clear grid. Avoid a giant decorative dashboard or mixing system monitoring into the left control center.</p><p>Original dashboard preview by adi1090x. Visual inspiration, not M3 guidance.</p></figcaption>
+  </figure>
+  <figure>
+    <a href="https://noctalia.dev/_app/immutable/assets/hooxoo.BDx1wjn0.webp"><img src="https://noctalia.dev/_app/immutable/assets/hooxoo.BDx1wjn0.webp" alt="Community desktop screenshot by hooxoo from Noctalia’s official gallery, with restrained monochrome surfaces" loading="lazy"></a>
+    <figcaption><span class="tag">Restraint, not control layout</span><h3><a href="https://noctalia.dev/">Noctalia community gallery</a></h3><p>A useful contrast in visual restraint. This desktop image does not establish the current Control Center’s appearance; the report uses its documentation for navigation patterns.</p><p>Image credited to hooxoo on Noctalia’s official site. Current native Noctalia differs from archived Quickshell v4.</p></figcaption>
+  </figure>
+</div>
+<h2>Motion and OS references to open</h2>
+<p><a href="https://github.com/user-attachments/assets/0840f496-575c-4ca6-83a8-87bb01a85c5f">Caelestia’s published motion demo</a> · <a href="https://blog.google/products-and-platforms/platforms/android/material-3-expressive-android-wearos-launch/">Google’s Android Expressive examples</a> · <a href="https://release.gnome.org/43/">GNOME Quick Settings introduction</a> · <a href="https://support.apple.com/en-gb/guide/iphone/iph59095ec58/27/ios/27">iPhone Control Center</a> · <a href="https://developer.samsung.com/one-ui/structure/basic.html">Samsung One UI</a> · <a href="https://kde.org/plasma-desktop/">KDE Plasma</a> · <a href="https://system76.com/cosmic">COSMIC</a></p>
+<footer><p>Reference artwork remains hosted by its original publishers; it has not been copied into Desktop Foundation. Internet access is needed to view the images. Click an image to inspect its original size. These examples are research material, not claims of implemented features, measured performance or current cross-compositor compatibility.</p></footer>
+</html>
