@@ -13,8 +13,10 @@ The command fetches `main` from the checkout's `origin`, which must be the
 Desktop Foundation GitHub repository. It builds both Rust backends using the
 existing pinned, locked build scripts in a temporary Git worktree, reuses cached
 build dependencies, and validates the compositor configuration before changing
-the live checkout or executables. Git updates are fast-forward only; local
-commits are retained when they already contain upstream's latest revision.
+the live checkout or executables. Local settings and extra project files are
+included in that isolated build. Diverging local commits are merged there first;
+the live checkout advances only after the combined result passes validation.
+Local commits are not reset or rebased.
 
 After building, it invokes the existing deployment helper with the installed
 compositor and hardware profile. This regenerates configuration and session
@@ -34,11 +36,17 @@ The full installer remains the route for changing system integration or packages
 
 ## Local settings and errors
 
-Tracked local edits are never stashed, reset or overwritten automatically. Save
-or stash them yourself before updating and reapply them afterward. Untracked
-files stay in place; Git refuses an update that would overwrite them. Diverging
-local commits, in-progress Git operations and externally replaced deployment
-links stop the update instead of being merged or repaired automatically.
+Tracked local edits are preserved automatically, including their staged/unstaged
+state. A local Git recovery ref under `refs/desktop-foundation/local-update-*`
+retains the original snapshot. Publication temporarily autostashes the changes
+and restores the already-validated result; your existing stash entries stay intact.
+Untracked project files are copied into the isolated build and remain in place.
+
+Conflicting edits, untracked files that would be overwritten, an in-progress Git
+operation, or externally replaced deployment links stop the update before deployment.
+Changing project files during the build also stops publication, so newer edits
+are not silently replaced. The updater reports the recovery ref when one is made;
+these local backup refs are not included in an ordinary push of `main`.
 
 The updater also retains writable Fish variables, btop preferences, application
 state and user overrides under `$XDG_CONFIG_HOME/desktop-foundation`. Changes to

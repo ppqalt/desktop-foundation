@@ -82,7 +82,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 name = Path(__file__).name
 with open(os.environ['DF_UPDATE_TEST_LOG'], 'a') as f:
-    f.write(json.dumps({'name':name, 'root':str(root), 'args':sys.argv[1:]}) + '\\n')
+    f.write(json.dumps({'name':name, 'root':str(root), 'args':sys.argv[1:], 'payload':(root/'payload.txt').read_text(), 'private':(root/'personal.txt').read_text() if (root/'personal.txt').exists() else None}) + '\\n')
 if os.environ.get('DF_FAIL_STAGE') == name:
     sys.exit(7)
 if name in ['build-backend', 'build-nothing']:
@@ -131,6 +131,7 @@ if name in ['build-backend', 'build-nothing']:
         calls = self.calls()
         self.assertEqual([c['name'] for c in calls], ['build-backend', 'build-nothing', 'preflight.py', 'deploy', 'niri', 'shell-reload', 'monitor'])
         self.assertTrue(all(c['root'] != str(self.root) for c in calls[:3]))
+        self.assertEqual(calls[0]['private'], 'private')
         self.assertEqual(calls[3]['root'], str(self.root))
         self.assertEqual(calls[3]['args'], ['--update', '--compositor', 'niri', '--profile', 'default'])
         for path in self.sentinels: self.assertEqual(path.read_text(), 'user settings\n')
@@ -139,20 +140,113 @@ if name in ['build-backend', 'build-nothing']:
         self.assertFalse((self.state / 'update.json').exists())
         self.assertEqual(len(self.git('worktree', 'list', '--porcelain').split('worktree ')), 2)
 
-    def test_dirty_tree_refused_before_fetch_build_or_deployment(self):
+    def test_local_edits_are_preserved_and_applied_to_build(self):
+        revision = self.remote_change('upstream.txt')
         (self.root / 'payload.txt').write_text('my edits')
         result = self.invoke()
-        self.assertNotEqual(result.returncode, 0); self.assertIn('Local tracked changes', result.stderr)
-        self.unchanged(); self.assertEqual(self.calls(), [])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('rev-parse', 'HEAD').strip(), revision)
         self.assertEqual((self.root / 'payload.txt').read_text(), 'my edits')
+        self.assertIn('payload.txt', self.git('diff', '--name-only'))
+        reference = self.git('for-each-ref', '--format=%(refname)', 'refs/desktop-foundation').strip()
+        self.assertEqual(self.git('show', reference + ':payload.txt'), 'my edits')
+        build = next(call for call in self.calls() if call['name'] == 'build-backend')
+        self.assertIn('Preserving local settings', result.stdout)
+        self.assertEqual(build['payload'], 'my edits')
 
-    def test_divergence_refused_without_rebase_or_reset(self):
-        self.remote_change()
+    def test_diverging_commits_merge_without_rebase_or_reset(self):
+        upstream = self.remote_change()
         (self.root / 'local.txt').write_text('mine'); self.commit('local commit')
+        local = self.git('rev-parse', 'HEAD').strip()
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        parents = self.git('show', '-s', '--format=%P', 'HEAD').split()
+        self.assertIn(local, parents); self.assertIn(upstream, parents)
+        self.assertEqual((self.root / 'local.txt').read_text(), 'mine')
+
+    def test_true_local_conflict_stops_before_live_changes(self):
+        self.remote_change()
+        (self.root / 'payload.txt').write_text('my conflicting edits')
+        result = self.invoke()
+        self.assertNotEqual(result.returncode, 0)
+        self.unchanged()
+        self.assertEqual((self.root / 'payload.txt').read_text(), 'my conflicting edits')
+        self.assertEqual(self.calls(), [])
+        self.assertTrue(self.git('for-each-ref', '--format=%(refname)', 'refs/desktop-foundation').strip())
+
+    def test_staged_and_unstaged_changes_keep_their_index_state(self):
+        self.remote_change('upstream.txt')
+        (self.root / 'payload.txt').write_text('staged content')
+        self.git('add', 'payload.txt')
+        (self.root / 'payload.txt').write_text('unstaged content after staging')
+        new = self.root / 'added.txt'; new.write_text('new staged file'); self.git('add', 'added.txt')
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('show', ':payload.txt'), 'staged content')
+        self.assertEqual((self.root / 'payload.txt').read_text(), 'unstaged content after staging')
+        self.assertIn('added.txt', self.git('diff', '--cached', '--name-only'))
+        self.assertEqual(self.git('show', ':added.txt'), 'new staged file')
+
+    def test_dry_run_accepts_local_edits_without_creating_backups(self):
+        (self.root / 'payload.txt').write_text('private edits')
+        result = self.invoke('--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('for-each-ref', '--format=%(refname)', 'refs/desktop-foundation'), '')
+        self.assertEqual(self.calls(), [])
+
+    def test_failed_build_leaves_local_edits_and_user_stashes_in_place(self):
+        (self.root / 'payload.txt').write_text('older stash'); self.git('stash', 'push', '-m', 'user stash')
+        stash = self.git('rev-parse', 'refs/stash')
+        (self.root / 'payload.txt').write_text('current local edits')
+        result = self.invoke(DF_FAIL_STAGE='build-backend')
+        self.assertNotEqual(result.returncode, 0); self.unchanged()
+        self.assertEqual((self.root / 'payload.txt').read_text(), 'current local edits')
+        self.assertEqual(self.git('rev-parse', 'refs/stash'), stash)
+        successful = self.invoke()
+        self.assertEqual(successful.returncode, 0, successful.stderr)
+        self.assertEqual(self.git('rev-parse', 'refs/stash'), stash)
+        self.assertEqual((self.root / 'payload.txt').read_text(), 'current local edits')
+
+    def test_nonoverlapping_changes_in_same_file_merge(self):
+        lines = ['line %02d\n' % n for n in range(30)]
+        (self.root / 'payload.txt').write_text(''.join(lines)); self.commit('long config')
+        self.git('push', 'origin', 'main')
+        self.before = self.git('rev-parse', 'HEAD').strip()
+        self.remote_change('other.txt')
+        upstream = self.base / 'upstream'
+        remote = lines.copy(); remote[-1] = 'upstream setting\n'
+        (upstream / 'payload.txt').write_text(''.join(remote))
+        self.git('add', '.', cwd=upstream); self.git('commit', '-m', 'upstream setting', cwd=upstream)
+        self.git('push', 'origin', 'main', cwd=upstream)
+        local = lines.copy(); local[0] = 'local setting\n'
+        (self.root / 'payload.txt').write_text(''.join(local)); self.git('add', 'payload.txt')
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected = remote.copy(); expected[0] = 'local setting\n'
+        self.assertEqual((self.root / 'payload.txt').read_text(), ''.join(expected))
+        self.assertEqual(self.git('show', ':payload.txt'), ''.join(expected))
+
+    def test_diverging_conflicting_commits_leave_live_checkout_unchanged(self):
+        self.remote_change()
+        (self.root / 'payload.txt').write_text('committed private setting'); self.commit('private setting')
         self.before = self.git('rev-parse', 'HEAD').strip()
         result = self.invoke()
-        self.assertNotEqual(result.returncode, 0); self.assertIn('diverged', result.stderr)
-        self.unchanged(); self.assertEqual(self.calls(), [])
+        self.assertNotEqual(result.returncode, 0); self.unchanged()
+        self.assertEqual(self.git('status', '--porcelain'), '')
+        self.assertEqual((self.root / 'payload.txt').read_text(), 'committed private setting')
+
+    def test_untracked_parent_cannot_escape_isolated_checkout(self):
+        self.remote_change('other.txt')
+        upstream = self.base / 'upstream'
+        outside = self.base / 'outside'; outside.mkdir()
+        (upstream / 'extras').symlink_to(outside, target_is_directory=True)
+        self.git('add', '.', cwd=upstream); self.git('commit', '-m', 'upstream symlink', cwd=upstream)
+        self.git('push', 'origin', 'main', cwd=upstream)
+        private = self.root / 'extras/private.txt'; private.parent.mkdir(); private.write_text('local setting')
+        result = self.invoke()
+        self.assertNotEqual(result.returncode, 0); self.unchanged()
+        self.assertEqual(private.read_text(), 'local setting')
+        self.assertFalse((outside / 'private.txt').exists())
 
     def test_build_failure_does_not_publish(self):
         self.remote_change()

@@ -1,11 +1,15 @@
 //! Update only Desktop Foundation, using the installation's build/deploy helpers.
 use crate::{Result, invalid, process, state};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     env,
     fs::{self, File},
     io::Read,
-    os::unix::fs::{PermissionsExt, symlink},
+    os::unix::{
+        ffi::OsStrExt,
+        fs::{PermissionsExt, symlink},
+    },
     path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -122,23 +126,13 @@ fn installation(root: &Path, home: &Path) -> Result<Installation> {
         compositor: compositor.into(),
     })
 }
-fn clean(root: &Path) -> Result<String> {
+fn checkout_revision(root: &Path) -> Result<String> {
     if text(&git(root, &["rev-parse", "--show-toplevel"]))? != root.to_string_lossy() {
         return Err(invalid("df-update requires the owning Git checkout"));
     }
     if text(&git(root, &["symbolic-ref", "--short", "HEAD"]))? != "main" {
         return Err(invalid(
             "Switch to main before running df-update; other branches are preserved",
-        ));
-    }
-    if !text(&git(
-        root,
-        &["status", "--porcelain=v1", "--untracked-files=no"],
-    ))?
-    .is_empty()
-    {
-        return Err(invalid(
-            "Local tracked changes found. Save or stash them before df-update, then reapply them afterward; nothing was overwritten",
         ));
     }
     for name in [
@@ -176,6 +170,108 @@ fn clean(root: &Path) -> Result<String> {
     }
     text(&git(root, &["rev-parse", "HEAD"]))
 }
+// Diffs include staged and unstaged edits separately; their bytes never go to
+// the terminal. Build helpers cannot silently race an edit in the live checkout.
+fn diff(root: &Path, cached: bool) -> Result<Vec<u8>> {
+    let mut args = vec![
+        "--no-pager",
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--binary",
+    ];
+    if cached {
+        args.push("--cached");
+    }
+    args.push("HEAD");
+    Ok(process::checked_capture(&git(root, &args), SHORT, 16 * 1024 * 1024)?.stdout)
+}
+fn fingerprint(path: &Path) -> Result<(Vec<u8>, u32)> {
+    let meta = fs::symlink_metadata(path)?;
+    if meta.file_type().is_symlink() {
+        return Ok((fs::read_link(path)?.as_os_str().as_bytes().to_vec(), 0));
+    }
+    if !meta.is_file() {
+        return Err(invalid(
+            "Unsupported untracked directory/device; keep nested repositories outside this checkout or ignore them",
+        ));
+    }
+    let mut hash = Sha256::new();
+    let mut file = File::open(path)?;
+    let mut buffer = [0_u8; 32768];
+    loop {
+        let n = file.read(&mut buffer)?;
+        if n == 0 {
+            break;
+        }
+        hash.update(&buffer[..n]);
+    }
+    Ok((hash.finalize().to_vec(), meta.permissions().mode() & 0o777))
+}
+type LocalFiles = Vec<(PathBuf, (Vec<u8>, u32))>;
+fn untracked(root: &Path) -> Result<LocalFiles> {
+    let output = process::checked_capture(
+        &git(root, &["ls-files", "--others", "--exclude-standard", "-z"]),
+        SHORT,
+        16 * 1024 * 1024,
+    )?;
+    output
+        .stdout
+        .split(|b| *b == 0)
+        .filter(|p| !p.is_empty())
+        .map(|bytes| {
+            let path = PathBuf::from(std::ffi::OsStr::from_bytes(bytes));
+            if !path
+                .components()
+                .all(|p| matches!(p, std::path::Component::Normal(_)))
+            {
+                return Err(invalid("Invalid untracked project path"));
+            }
+            let signature = fingerprint(&root.join(&path))?;
+            Ok((path, signature))
+        })
+        .collect()
+}
+fn overlay_files(root: &Path, target: &Path, files: &LocalFiles) -> Result<()> {
+    for (relative, signature) in files {
+        let source = root.join(relative);
+        let destination = target.join(relative);
+        if fs::symlink_metadata(&destination).is_ok() {
+            return Err(invalid(format!(
+                "Upstream conflicts with the untracked file {}; original unchanged",
+                relative.display()
+            )));
+        }
+        let mut parent = target.to_path_buf();
+        for part in relative.parent().unwrap().components() {
+            parent.push(part);
+            match fs::symlink_metadata(&parent) {
+                Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => (),
+                Ok(_) => {
+                    return Err(invalid(format!(
+                        "Upstream changed a parent directory of {}",
+                        relative.display()
+                    )));
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => fs::create_dir(&parent)?,
+                Err(e) => return Err(e.into()),
+            }
+        }
+        if signature.1 == 0 && fs::symlink_metadata(&source)?.file_type().is_symlink() {
+            symlink(fs::read_link(source)?, &destination)?;
+        } else {
+            fs::copy(source, &destination)?;
+            fs::set_permissions(&destination, fs::Permissions::from_mode(signature.1))?;
+        }
+        if fingerprint(&destination)? != *signature {
+            return Err(invalid(
+                "A local file changed while preparing the build; retry",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn ancestor(root: &Path, first: &str, second: &str) -> Result<bool> {
     let output = process::run(
         &git(root, &["merge-base", "--is-ancestor", first, second]),
@@ -281,10 +377,10 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let root = root.canonicalize()?;
     let home = state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation");
     let selected = installation(&root, &home)?;
-    let before = clean(&root)?;
+    let before = checkout_revision(&root)?;
     if dry {
         println!(
-            "Fetch origin/main; fast-forward only; build both Rust backends in an isolated checkout; validate and redeploy {} profile {}; reload active Foundation components. No packages or global preferences are changed.",
+            "Fetch origin/main; preserve local edits and files; merge and validate in an isolated checkout; rebuild both Rust backends and redeploy {} profile {}; reload active Foundation components. No packages or global preferences are changed.",
             selected.compositor, selected.profile
         );
         return Ok(());
@@ -306,14 +402,34 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             Duration::from_secs(180),
         )?;
         let upstream = text(&git(&root, &["rev-parse", "refs/remotes/origin/main"]))?;
-        let candidate = if ancestor(&root, &before, &upstream)? {
-            upstream
-        } else if ancestor(&root, &upstream, &before)? {
-            before.clone()
+        let diverged =
+            !ancestor(&root, &before, &upstream)? && !ancestor(&root, &upstream, &before)?;
+        let mut candidate = if ancestor(&root, &before, &upstream)? {
+            upstream.clone()
         } else {
-            return Err(invalid(
-                "Local main and origin/main have diverged. Resolve this explicitly; df-update never resets or rebases local commits",
-            ));
+            before.clone()
+        };
+        let original_diff = diff(&root, false)?;
+        let original_index = diff(&root, true)?;
+        let index_before = text(&git(&root, &["write-tree"]))?;
+        let local_files = untracked(&root)?;
+        // stash create records tracked edits without changing the live worktree
+        // or the user's stash stack. A private ref keeps this backup reachable.
+        let local_commit = text(&git(
+            &root,
+            &["stash", "create", "Desktop Foundation local update backup"],
+        ))?;
+        let backup = if local_commit.is_empty() {
+            None
+        } else {
+            let stamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| invalid("Invalid system clock"))?
+                .as_nanos();
+            let reference = format!("refs/desktop-foundation/local-update-{stamp}");
+            text(&git(&root, &["update-ref", &reference, &local_commit]))?;
+            println!("Preserving local settings in {reference}");
+            Some(reference)
         };
         phase = "build/validation";
         let cache = state::xdg("XDG_CACHE_HOME", ".cache")?.join("desktop-foundation/update");
@@ -341,6 +457,24 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             root: root.clone(),
             path,
         };
+        if diverged {
+            step(
+                "Merging upstream in the isolated checkout…",
+                &git(&staging.path, &["merge", "--no-edit", "--no-ff", &upstream]),
+                SHORT,
+            )?;
+            candidate = text(&git(&staging.path, &["rev-parse", "HEAD"]))?;
+        }
+        if !local_commit.is_empty() {
+            step(
+                "Checking local settings against the update…",
+                &git(&staging.path, &["stash", "apply", "--index", &local_commit]),
+                SHORT,
+            )?;
+        }
+        overlay_files(&root, &staging.path, &local_files)?;
+        let published_index = text(&git(&staging.path, &["write-tree"]))?;
+        let published_diff = diff(&staging.path, false)?;
         for (crate_name, script) in [
             ("foundation", "build-backend"),
             ("nothing", "build-nothing"),
@@ -398,7 +532,21 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                 "The update removed the selected hardware profile; nothing deployed",
             ));
         }
-        if clean(&root)? != before {
+        if diff(&staging.path, false)? != published_diff
+            || text(&git(&staging.path, &["write-tree"]))? != published_index
+            || local_files.iter().any(|(path, signature)| {
+                fingerprint(&staging.path.join(path)).as_ref().ok() != Some(signature)
+            })
+        {
+            return Err(invalid(
+                "The build changed project source or local settings; nothing deployed",
+            ));
+        }
+        if checkout_revision(&root)? != before
+            || diff(&root, false)? != original_diff
+            || diff(&root, true)? != original_index
+            || untracked(&root)? != local_files
+        {
             return Err(invalid(
                 "Checkout changed during the build; nothing deployed",
             ));
@@ -418,17 +566,43 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         } else {
             before.clone()
         };
-        let journal = json!({"previousRevision":previous, "revision":candidate, "compositor":selected.compositor, "profile":selected.profile});
+        let journal = json!({"previousRevision":previous, "revision":candidate, "compositor":selected.compositor, "profile":selected.profile,"localChangesRef":backup});
         state::atomic(
             &home.join("update.json"),
             &serde_json::to_vec_pretty(&journal)?,
             0o600,
         )?;
-        step(
-            "Fast-forwarding Desktop Foundation…",
-            &git(&root, &["merge", "--ff-only", "--no-edit", &candidate]),
+        let publication = step(
+            "Publishing Desktop Foundation with local settings…",
+            &git(
+                &root,
+                &["merge", "--ff-only", "--autostash", "--no-edit", &candidate],
+            ),
             SHORT,
-        )?;
+        );
+        if publication.is_err() {
+            // A rejected merge normally reapplies its autostash. Restore staging
+            // only when both the old HEAD and all worktree bytes are unchanged.
+            if checkout_revision(&root)? == before
+                && diff(&root, false)? == original_diff
+                && text(&git(&root, &["ls-files", "--unmerged"]))?.is_empty()
+            {
+                text(&git(&root, &["read-tree", &index_before]))?;
+            }
+            publication?;
+        }
+        if !text(&git(&root, &["ls-files", "--unmerged"]))?.is_empty() {
+            return Err(invalid(
+                "Local changes conflicted during publication; recover from localChangesRef in update.json",
+            ));
+        }
+        // Restore staged additions too, before comparing the complete worktree.
+        text(&git(&root, &["read-tree", &published_index]))?;
+        if diff(&root, false)? != published_diff {
+            return Err(invalid(
+                "Local changes could not be restored exactly; no binaries deployed. Recover from localChangesRef in update.json",
+            ));
+        }
         for binary in BINARIES {
             copy_binary(&staging.path.join(binary), &root.join(binary))?;
         }
