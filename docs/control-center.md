@@ -1,8 +1,8 @@
 # Control Center
 
-`Super+Comma` or `scripts/control-center` toggles the left sidebar. The reserved
-control UI shortcut is now active; existing shortcuts, including `Super+X` for
-btop and `Super+B` for Bluetooth, retain their functions.
+`Super+Z` or `scripts/control-center` toggles the left sidebar. `Super+Comma`
+remains reserved. Existing shortcuts, including `Super+X` for btop and `Super+B`
+for Bluetooth, retain their functions.
 
 The panel reads `config/monitor.toml` through the Rust backend when opened. The
 same settings supply both sidebars: 720 logical pixels wide, full output height,

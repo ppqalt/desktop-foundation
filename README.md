@@ -50,7 +50,7 @@ fade in/out; the bar and percentage update immediately.
 | Super+V | Clipboard history |
 | Super+B | Bluetooth |
 | Super+X | btop sidebar |
-| Super+Comma | Control Center |
+| Super+Z | Control Center |
 | Super+Shift+Q | Session menu |
 | Super+Tab | Overview |
 | Super+Shift+C | Corner clock |
