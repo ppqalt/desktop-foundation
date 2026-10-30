@@ -75,8 +75,11 @@ right btop panel remains an explicitly focused, non-modal external panel.
 The composition root owns loader lifetime and target output. A surface owns its
 current view, focus bookmark, pending presentation request and close state.
 `superseded` hides an outgoing window and releases input without killing its
-backend owner. `handoff` retains the destination scrim during immediate switching;
-only the incoming content animates. Hidden sidebar exits settle without relying
+backend owner. `ModalBackdrop` owns the centered-popup session blur and dim layer independently
+of card windows. It remains mapped across handoffs; popup windows use transparent
+local scrims and no independent compositor blur. It is input-transparent on the
+Top layer beneath Overlay cards, so it cannot blur an incoming card. Only the
+incoming content animates. Hidden sidebar exits settle without relying
 on a mapped frame clock.
 A shared control owns local hover/press/drag state only. Never write backend truth
 from a delegate or infer action success from a click.

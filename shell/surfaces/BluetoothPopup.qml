@@ -18,6 +18,7 @@ PanelWindow {
     property bool defaultSelectionPending: true
     property bool hoverNavigationEnabled: false
     property point lastPointer: Qt.point(-1, -1)
+    property bool sharedBackdrop: false
     property bool handoff: false
     property bool superseded: false
     visible: !superseded
@@ -421,7 +422,7 @@ PanelWindow {
     }
     Rectangle {
         anchors.fill: parent
-        color: Theme.colors.scrim
+        color: root.sharedBackdrop ? "transparent" : Theme.colors.scrim
         opacity: (root.entered || root.handoff) && !root.closing ? 1 : 0
         Behavior on opacity {
             SurfaceAnimation {

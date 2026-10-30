@@ -19,6 +19,11 @@ ShellRoot {
         id: volumeReadout
         targetScreen: root.launcherScreen
     }
+    ModalBackdrop {
+        targetScreen: root.launcherScreen
+        requested: root.popupBackdropRequested
+    }
+    readonly property bool popupBackdropRequested: (root.launcherEnabled && !root.launcher?.superseded && !root.launcher?.closing) || (root.clipboardEnabled && !root.clipboard?.superseded && !root.clipboard?.closing) || (root.bluetoothEnabled && !bluetoothLoader.item?.superseded && !bluetoothLoader.item?.closing) || (root.powerEnabled && !powerLoader.item?.superseded && !powerLoader.item?.closing) || ["launcher", "clipboard", "bluetooth", "power"].includes(surfaceRouter.pending)
     property bool clockEnabled: false
     LazyLoader {
         id: clockLoader
@@ -56,6 +61,7 @@ ShellRoot {
         id: bluetoothLoader
         active: root.bluetoothEnabled
         BluetoothPopup {
+            sharedBackdrop: true
             handoff: root.handoffSurface === "bluetooth"
             lifecycle: root
             targetScreen: root.launcherScreen
@@ -66,6 +72,7 @@ ShellRoot {
         id: powerLoader
         active: root.powerEnabled
         Power {
+            sharedBackdrop: true
             handoff: root.handoffSurface === "power"
             lifecycle: root
             targetScreen: root.launcherScreen
@@ -78,6 +85,7 @@ ShellRoot {
         id: clipboardLoader
         active: root.clipboardEnabled
         Clipboard {
+            sharedBackdrop: true
             handoff: root.handoffSurface === "clipboard"
             lifecycle: root
             targetScreen: root.launcherScreen
@@ -91,6 +99,7 @@ ShellRoot {
         id: launcherLoader
         active: root.launcherEnabled
         Launcher {
+            sharedBackdrop: true
             handoff: root.handoffSurface === "launcher"
             lifecycle: root
             targetScreen: root.launcherScreen

@@ -84,6 +84,19 @@ ShellRoot {
                     clipboardEnabled: true
                 })
         }
+        Fixtures.ModalBackdropFixture {
+            id: sharedBackdrop
+            width: 800
+            height: 800
+            property bool popupOne: false
+            property bool popupTwo: false
+            property int mappings: 0
+            requested: popupOne || popupTwo
+            onVisibleChanged: {
+                if (visible)
+                    mappings++;
+            }
+        }
         Fixtures.VolumeFixture {
             id: volume
         }
@@ -291,6 +304,26 @@ ShellRoot {
                 routeB.alive = false;
                 routeC.alive = false;
             }
+            function test_backdrop_survives_handoff() {
+                sharedBackdrop.popupOne = true;
+                wait(200);
+                verify(sharedBackdrop.visible);
+                const scrim = find(sharedBackdrop.contentItem, "modal-backdrop-scrim");
+                verify(scrim !== null);
+                compare(scrim.opacity, 1);
+                const mappings = sharedBackdrop.mappings;
+                sharedBackdrop.popupOne = false;
+                sharedBackdrop.popupTwo = true;
+                wait(20);
+                verify(sharedBackdrop.visible);
+                compare(sharedBackdrop.mappings, mappings);
+                compare(scrim.opacity, 1);
+                sharedBackdrop.popupTwo = false;
+                wait(150);
+                verify(!sharedBackdrop.visible);
+                card.Window.window.requestActivate();
+                wait(20);
+            }
             function test_wheel_ownership() {
                 mouseWheel(wheelList, 20, 20, 0, -120);
                 compare(wheelList.steps, 1);
@@ -448,6 +481,7 @@ ShellRoot {
             running: true
             onTriggered: {
                 checks.test_handoff_and_interruption();
+                checks.test_backdrop_survives_handoff();
                 checks.test_wheel_ownership();
                 checks.test_reduced_motion();
                 checks.test_shared_roles();

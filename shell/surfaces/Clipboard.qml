@@ -11,6 +11,7 @@ import "../theme"
 PanelWindow {
     id: root
     required property var lifecycle
+    property bool sharedBackdrop: false
     property bool handoff: false
     property bool superseded: false
     visible: !superseded
@@ -396,7 +397,7 @@ PanelWindow {
     }
     Rectangle {
         anchors.fill: parent
-        color: Theme.colors.scrim
+        color: root.sharedBackdrop ? "transparent" : Theme.colors.scrim
         opacity: (root.entered || root.handoff) && !root.closing ? 1 : 0
         Behavior on opacity {
             SurfaceAnimation {

@@ -10,7 +10,7 @@ fixture_surfaces=$(mktemp -d "$root/.material-surfaces.XXXXXX")
 cleanup() {
 	unlink "$fixture_qml"
 	unlink "$fixture_log"
-	for surface in Power Volume Launcher Clipboard; do
+	for surface in Power Volume Launcher Clipboard ModalBackdrop; do
 		if [[ -f $fixture_surfaces/${surface}Fixture.qml ]]; then unlink "$fixture_surfaces/${surface}Fixture.qml"; fi
 	done
 	rmdir "$fixture_surfaces"
@@ -22,8 +22,8 @@ sed -e 's@../../shell/@shell/@g' -e "s@SURFACE_FIXTURES@$(basename "$fixture_sur
 mkdir -p "$fixture_state/desktop-foundation/clipboard"
 printf '%s\n' '[{"id":"fixture-one","label":"Notes","preview":"note","mime":"text/plain","kind":"text","size":4,"pinned":false}]' >"$fixture_state/desktop-foundation/clipboard/index.json"
 # Only Wayland transport changes; production rendering, motion and input remain.
-for surface in Power Volume Launcher Clipboard; do
-	perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.|anchors\.top:|margins\.top:|mask: Region).*\n//mg; s/implicitWidth:/width:/; s/implicitHeight:/height:/; s#import "../theme"#import "../shell/theme"#; s#import "../components"#import "../shell/components"#; s#import "../services"#import "../shell/services"#' "$root/shell/surfaces/$surface.qml" >"$fixture_surfaces/${surface}Fixture.qml"
+for surface in Power Volume Launcher Clipboard ModalBackdrop; do
+	perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.|anchors\.top:|margins\.top:|mask: Region).*\n//mg; s/implicitWidth:/width:/; s/implicitHeight:/height:/; s#import "../theme"#import "../shell/theme"#; s#import "../components"#import "../shell/components"#; s#import "../services"#import "../shell/services"#; s#"../assets/#"../shell/assets/#g' "$root/shell/surfaces/$surface.qml" >"$fixture_surfaces/${surface}Fixture.qml"
 done
 if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
 	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
