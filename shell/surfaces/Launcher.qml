@@ -142,7 +142,7 @@ PanelWindow {
         id: panel
         Keys.onPressed: event => root.handleKey(event)
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(182 + Math.max(2, Math.min(6, root.results.length)) * 76, root.height - 64)
+        height: Math.min(144 + Math.max(2, Math.min(6, root.results.length)) * 76, root.height - 64)
         Behavior on height {
             enabled: root.entered && panel.opacity === 1 && !root.closing
             SurfaceAnimation {
@@ -168,27 +168,9 @@ PanelWindow {
         MouseArea {
             anchors.fill: parent
         }
-        Text {
-            x: 28
-            y: 23
-            text: "Applications"
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.titleMedium
-            font.letterSpacing: 0
-            color: Material.colors.on_surface_variant
-        }
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 28
-            y: 23
-            text: root.results.length + (search.text ? (root.results.length === 1 ? " match" : " matches") : " available")
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.titleMedium
-            color: Material.colors.on_surface_variant
-        }
         Image {
             x: 28
-            y: 62
+            y: 18
             width: 24
             height: 24
             source: "../assets/search.svg"
@@ -196,7 +178,7 @@ PanelWindow {
         SearchInput {
             id: search
             x: 68
-            y: 57
+            y: 11
             width: panel.width - 96
             height: 38
             placeholderText: "Search applications…"
@@ -204,7 +186,7 @@ PanelWindow {
         }
         Rectangle {
             x: 28
-            y: 110
+            y: 72
             width: panel.width - 56
             height: 1
             color: Material.colors.outline_variant
@@ -215,9 +197,9 @@ PanelWindow {
                 onStepped: delta => root.navigate(delta)
             }
             x: 16
-            y: 126
+            y: 88
             width: panel.width - 32
-            height: panel.height - 186
+            height: panel.height - 148
             clip: true
             spacing: 4
             model: root.results

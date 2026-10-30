@@ -127,6 +127,16 @@ width rather than filling all available space. Clip scroll content, not focus
 rings. Size against available output geometry; long labels elide with full
 accessible names, and long lists scroll instead of extending offscreen.
 
+### Minimal headers
+
+Centered menus omit generic application titles and item/availability counters.
+Search menus begin with the search field; the session menu begins with actions.
+Bluetooth keeps its radio control label, and device settings keep device identity,
+subpage context, battery and codec status. The Control Center overview omits its
+redundant title while detail pages retain orientation and back/close actions.
+Do not remove useful values, errors, safety notices or action labels to achieve
+visual minimalism; reclaim the empty header space when deleting text.
+
 ## Shared component contract
 
 Use these existing APIs before introducing another control. Extend one common

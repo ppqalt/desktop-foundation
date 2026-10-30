@@ -439,7 +439,7 @@ PanelWindow {
         visible: root.controlDevice === null
         anchors.centerIn: parent
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(226 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0), root.height - 64)
+        height: Math.min(188 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0), root.height - 64)
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
@@ -480,37 +480,19 @@ PanelWindow {
                 return;
             event.accepted = true;
         }
-        Text {
-            x: 28
-            y: 23
-            text: "Bluetooth"
-            color: Material.colors.on_surface_variant
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.titleMedium
-            font.letterSpacing: 0
-        }
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 28
-            y: 23
-            text: root.devices.length + " paired"
-            color: Material.colors.on_surface_variant
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.titleMedium
-        }
         Image {
             x: 28
-            y: 60
+            y: 22
             width: 24
             height: 28
             source: "../assets/bluetooth.svg"
         }
         Text {
             x: 68
-            y: 63
+            y: 25
             width: card.width - 182
             elide: Text.ElideRight
-            text: root.adapterAvailable ? "Paired devices" : "Bluetooth is turned off"
+            text: root.adapterAvailable ? "Bluetooth" : "Bluetooth is off"
             color: Material.colors.on_surface
             font.family: Theme.typography.family
             font.pixelSize: Theme.typography.heading
@@ -518,7 +500,7 @@ PanelWindow {
         Rectangle {
             anchors.right: parent.right
             anchors.rightMargin: 24
-            y: 55
+            y: 17
             width: 82
             height: 38
             radius: Theme.radii.medium
@@ -574,7 +556,7 @@ PanelWindow {
         }
         Rectangle {
             x: 28
-            y: 110
+            y: 72
             width: card.width - 56
             height: 1
             color: Material.colors.outline_variant
@@ -582,9 +564,9 @@ PanelWindow {
         ListView {
             id: list
             x: 16
-            y: 126
+            y: 88
             width: card.width - 32
-            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 76, Math.max(1, card.height - 226 - (root.error ? 38 : 0)))
+            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 76, Math.max(1, card.height - 188 - (root.error ? 38 : 0)))
             model: root.devices
             clip: true
             interactive: false

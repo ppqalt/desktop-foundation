@@ -83,7 +83,7 @@ SurfaceCard {
     readonly property var rows: makeRows()
     width: Math.min(Theme.dimensions.launcherWidth, availableWidth - 48)
     // Keep the card and footer stable while controls are being discovered.
-    height: Math.min(270 + 6 * 76, availableHeight - 64)
+    height: Math.min(233 + 6 * 76, availableHeight - 64)
     opacity: entered ? 1 : 0
     scale: entered ? 1 : 0.97
     Behavior on opacity {
@@ -570,24 +570,16 @@ SurfaceCard {
     Text {
         x: 28
         y: 23
-        text: root.page === "main" ? "Earbuds" : root.page.charAt(0).toUpperCase() + root.page.slice(1)
-        color: Material.colors.on_surface_variant
-        font.family: Theme.typography.family
-        font.pixelSize: Material.type.titleMedium
-        font.letterSpacing: 0
-    }
-    Text {
-        x: 28
-        y: 60
         width: root.width - 56
-        text: root.earState.model || root.device.name
+        text: (root.earState.model || root.device.name) + (root.page === "main" ? "" : " · " + root.page.charAt(0).toUpperCase() + root.page.slice(1))
+        elide: Text.ElideRight
         color: Material.colors.on_surface
         font.family: Theme.typography.family
         font.pixelSize: Theme.typography.heading
     }
     Text {
         x: 28
-        y: 93
+        y: 56
         text: root.ready ? root.playbackLabel : "Reading controls…"
         visible: text !== ""
         color: Material.colors.on_surface_variant
@@ -596,7 +588,7 @@ SurfaceCard {
     }
     Text {
         x: 28
-        y: 118
+        y: 81
         text: root.batteryText()
         color: Material.colors.primary
         font.family: Theme.typography.family
@@ -604,16 +596,16 @@ SurfaceCard {
     }
     Rectangle {
         x: 28
-        y: 149
+        y: 112
         width: root.width - 56
         height: 1
         color: Material.colors.outline_variant
     }
     Item {
         x: 16
-        y: 165
+        y: 128
         width: root.width - 32
-        height: root.height - 257
+        height: root.height - 220
         clip: true
         visible: !root.ready
         Column {
@@ -660,9 +652,9 @@ SurfaceCard {
     ListView {
         id: list
         x: 16
-        y: 165
+        y: 128
         width: root.width - 32
-        height: root.height - 257
+        height: root.height - 220
         clip: true
         interactive: false
         spacing: 4

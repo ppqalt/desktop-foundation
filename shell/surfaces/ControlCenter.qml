@@ -266,7 +266,7 @@ PanelWindow {
                 spacing: 16
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.minimumHeight: 56
+                    Layout.minimumHeight: 48
                     spacing: 8
                     ControlAction {
                         id: backAction
@@ -279,11 +279,16 @@ PanelWindow {
                         Layout.preferredWidth: 48
                         onClicked: root.navigate("overview")
                     }
+                    Item {
+                        visible: root.page === "overview"
+                        Layout.fillWidth: true
+                    }
                     Text {
+                        visible: root.page !== "overview"
                         Layout.fillWidth: true
                         Layout.leftMargin: 12
                         text: ({
-                                overview: "Control center",
+                                overview: "",
                                 audio: "Audio",
                                 network: "Network"
                             })[root.page]

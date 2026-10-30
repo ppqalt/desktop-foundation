@@ -142,7 +142,7 @@ PanelWindow {
         }
         anchors.centerIn: parent
         width: Math.min(560, root.width - 48)
-        height: Math.min(144 + root.actions.length * 76 + (root.error ? 38 : 0), root.height - 64)
+        height: Math.min(72 + root.actions.length * 76 + (root.error ? 38 : 0), root.height - 64)
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
@@ -187,27 +187,12 @@ PanelWindow {
             }
             event.accepted = true;
         }
-        Text {
-            x: 28
-            y: 28
-            text: "Session"
-            color: Material.colors.on_surface
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.headlineSmall
-        }
-        Rectangle {
-            x: 28
-            y: 76
-            width: card.width - 56
-            height: 1
-            color: Material.colors.outline_variant
-        }
         ListView {
             id: list
             x: 16
-            y: 88
+            y: 16
             width: card.width - 32
-            height: Math.max(1, card.height - 148 - (root.error ? 38 : 0))
+            height: Math.max(1, card.height - 76 - (root.error ? 38 : 0))
             clip: true
             spacing: 4
             model: root.actions
