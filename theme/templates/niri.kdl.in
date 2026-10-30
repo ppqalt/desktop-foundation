@@ -16,7 +16,7 @@ layout {
     default-column-width { proportion 0.5; }
     focus-ring { off; }
     border { on; width @border_width@; active-color @active_border@; inactive-color @inactive_border@; }
-    shadow { on; softness @shadow_range@; spread 1; offset x=@shadow_x@ y=@shadow_y@; color @shadow_active@; inactive-color @shadow_inactive@; }
+    shadow { off; }
 }
 blur { passes @blur_passes@; offset @blur_offset@; noise @blur_noise@; saturation @blur_saturation@; }
 window-rule {
@@ -36,13 +36,13 @@ layer-rule { match namespace="^desktop-foundation-(launcher|clipboard|power|blue
 layer-rule {
     match namespace="^desktop-foundation:monitor$"
     geometry-corner-radius @monitor_radius@ 0 0 @monitor_radius@
-    shadow { on; softness @shadow_range@; spread 0; offset x=@shadow_x@ y=@shadow_y@; color @shadow_active@; }
+    shadow { off; }
     background-effect { blur true; xray false; }
 }
 layer-rule {
     match namespace="^desktop-foundation:control-center$"
     geometry-corner-radius 0 @monitor_radius@ @monitor_radius@ 0
-    shadow { on; softness @shadow_range@; spread 0; offset x=@shadow_left_x@ y=@shadow_y@; color @shadow_active@; }
+    shadow { off; }
     background-effect { blur true; xray false; }
 }
 layer-rule {

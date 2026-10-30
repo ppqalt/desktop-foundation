@@ -25,7 +25,7 @@ return {
         popupEnabled = false,
     },
     shadow = {
-        enabled = true,
+        enabled = false,
         color = "#080b10",
         activeOpacity = 0.42,
         inactiveOpacity = 0.12,
