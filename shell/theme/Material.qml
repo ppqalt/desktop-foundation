@@ -37,8 +37,8 @@ QtObject {
             extraLarge: 28
         })
     readonly property var motion: ({
-            fastSpatial: 350,
-            fastEffects: 150
+            fastSpatial: Theme.reducedMotion ? 0 : 350,
+            fastEffects: Theme.reducedMotion ? 0 : 150
         })
     readonly property var spatialCurve: [0.42, 1.67, 0.21, 0.90, 1, 1]
     readonly property var effectsCurve: [0.31, 0.94, 0.34, 1, 1, 1]

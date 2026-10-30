@@ -14,7 +14,7 @@ PanelWindow {
     property bool muted: false
     property bool shown: false
     property bool awaitingFrame: false
-    readonly property int feedbackDuration: 100
+    readonly property int feedbackDuration: Theme.reducedMotion ? 0 : 100
     screen: targetScreen
     visible: false
     implicitWidth: 260
@@ -72,7 +72,7 @@ PanelWindow {
                 root.visible = false;
         }
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: root.feedbackDuration
                 easing.type: Theme.easing
             }

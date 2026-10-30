@@ -6,6 +6,15 @@ WheelHandler {
     target: null
     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
     property real accumulated: 0
+    enabled: parent.visible && parent.enabled
+    onActiveChanged: {
+        if (!active)
+            accumulated = 0;
+    }
+    onEnabledChanged: {
+        if (!enabled)
+            accumulated = 0;
+    }
     signal stepped(int delta)
     onWheel: event => {
         const angle = event.angleDelta.y;

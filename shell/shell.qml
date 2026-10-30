@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import "adapters/niri" as NiriBackend
 import "surfaces"
+import "components"
 import "theme"
 
 ShellRoot {
@@ -45,7 +46,7 @@ ShellRoot {
             onClosed: nextSurface => {
                 root.controlCenterEnabled = false;
                 if (nextSurface === "bluetooth")
-                    root.bluetoothEnabled = true;
+                    surfaceRouter.request("bluetooth", true);
             }
         }
     }
@@ -111,12 +112,56 @@ ShellRoot {
             lifecycle: root
         }
     }
-    function dismissPower(): bool {
-        if (powerLoader.item?.busy)
-            return false;
-        if (powerLoader.item)
-            powerLoader.item.dismiss();
-        return true;
+    SurfaceRouter {
+        id: surfaceRouter
+        surfaces: ({
+                launcher: {
+                    item: () => launcherLoader.item,
+                    alive: () => root.launcherEnabled,
+                    open: () => {
+                        root.launcherEnabled = true;
+                    },
+                    dismiss: () => launcherLoader.item?.dismiss(),
+                    present: () => launcherLoader.item?.present()
+                },
+                clipboard: {
+                    item: () => clipboardLoader.item,
+                    alive: () => root.clipboardEnabled,
+                    open: () => {
+                        root.clipboardEnabled = true;
+                    },
+                    dismiss: () => clipboardLoader.item?.dismiss(),
+                    present: () => clipboardLoader.item?.present()
+                },
+                bluetooth: {
+                    retiring: () => !!bluetoothLoader.item?.closeAfterControls,
+                    item: () => bluetoothLoader.item,
+                    alive: () => root.bluetoothEnabled,
+                    open: () => {
+                        root.bluetoothEnabled = true;
+                    },
+                    dismiss: () => bluetoothLoader.item?.dismiss(),
+                    present: () => bluetoothLoader.item?.present()
+                },
+                power: {
+                    item: () => powerLoader.item,
+                    alive: () => root.powerEnabled,
+                    open: () => {
+                        root.powerEnabled = true;
+                    },
+                    dismiss: () => powerLoader.item?.dismiss(),
+                    present: () => powerLoader.item?.present()
+                },
+                controlCenter: {
+                    item: () => controlCenterLoader.item,
+                    alive: () => root.controlCenterEnabled,
+                    open: () => {
+                        root.controlCenterEnabled = true;
+                    },
+                    dismiss: () => controlCenterLoader.item?.dismiss(),
+                    present: () => controlCenterLoader.item?.present()
+                }
+            })
     }
     IpcHandler {
         target: "foundation"
@@ -152,20 +197,9 @@ ShellRoot {
             });
         }
         function toggleControlCenter(style: string): void {
-            if (!root.dismissPower())
-                return;
-            if (controlCenterLoader.item) {
-                if (root.controlCenter.closing)
-                    root.controlCenter.present();
-                else
-                    root.controlCenter.dismiss();
-                return;
-            }
+            Theme.refreshMotionPreference();
             root.controlCenterStyle = JSON.parse(style);
-            bluetoothLoader.item?.dismiss();
-            root.launcher?.dismiss();
-            root.clipboard?.dismiss();
-            root.controlCenterEnabled = true;
+            surfaceRouter.request("controlCenter");
         }
         function controlCenterStatus(): string {
             return JSON.stringify(root.controlCenter ? root.controlCenter.snapshot() : {
@@ -174,17 +208,8 @@ ShellRoot {
             });
         }
         function toggleBluetooth(): void {
-            root.controlCenter?.dismiss();
-            if (!root.dismissPower())
-                return;
-            if (root.launcher)
-                root.launcher.dismiss();
-            if (root.clipboard)
-                root.clipboard.dismiss();
-            if (root.bluetoothEnabled)
-                bluetoothLoader.item.dismiss();
-            else
-                root.bluetoothEnabled = true;
+            Theme.refreshMotionPreference();
+            surfaceRouter.request("bluetooth", false);
         }
         function bluetoothStatus(): string {
             return JSON.stringify(bluetoothLoader.item ? bluetoothLoader.item.snapshot() : {
@@ -193,20 +218,8 @@ ShellRoot {
             });
         }
         function togglePower(): void {
-            root.controlCenter?.dismiss();
-            if (powerLoader.item?.busy)
-                return;
-            if (root.powerEnabled) {
-                powerLoader.item?.dismiss();
-                return;
-            }
-            if (bluetoothLoader.item)
-                bluetoothLoader.item.dismiss();
-            if (root.launcher)
-                root.launcher.dismiss();
-            if (root.clipboard)
-                root.clipboard.dismiss();
-            root.powerEnabled = true;
+            Theme.refreshMotionPreference();
+            surfaceRouter.request("power", false);
         }
         function powerStatus(): string {
             const menu = powerLoader.item;
@@ -247,32 +260,12 @@ ShellRoot {
             root.compositorBackend.screenshotOutput();
         }
         function toggleClipboard(): void {
-            root.controlCenter?.dismiss();
-            if (!root.dismissPower())
-                return;
-            if (bluetoothLoader.item)
-                bluetoothLoader.item.dismiss();
-            if (root.launcher)
-                root.launcher.dismiss();
-            if (root.clipboard && !root.clipboard.closing)
-                root.clipboard.dismiss();
-            else if (root.clipboard)
-                root.clipboard.present();
-            else
-                root.clipboardEnabled = true;
+            Theme.refreshMotionPreference();
+            surfaceRouter.request("clipboard", false);
         }
         function showClipboard(): void {
-            root.controlCenter?.dismiss();
-            if (!root.dismissPower())
-                return;
-            if (bluetoothLoader.item)
-                bluetoothLoader.item.dismiss();
-            if (root.launcher)
-                root.launcher.dismiss();
-            if (root.clipboard)
-                root.clipboard.present();
-            else
-                root.clipboardEnabled = true;
+            Theme.refreshMotionPreference();
+            surfaceRouter.request("clipboard", true);
         }
         function hideClipboard(): void {
             if (root.clipboard)
@@ -288,32 +281,12 @@ ShellRoot {
             });
         }
         function toggleLauncher(): void {
-            root.controlCenter?.dismiss();
-            if (!root.dismissPower())
-                return;
-            if (bluetoothLoader.item)
-                bluetoothLoader.item.dismiss();
-            if (root.clipboard)
-                root.clipboard.dismiss();
-            if (root.launcherEnabled && !root.launcher.closing)
-                root.launcher.dismiss();
-            else if (root.launcherEnabled)
-                root.launcher.present();
-            else
-                root.launcherEnabled = true;
+            Theme.refreshMotionPreference();
+            surfaceRouter.request("launcher", false);
         }
         function showLauncher(): void {
-            root.controlCenter?.dismiss();
-            if (!root.dismissPower())
-                return;
-            if (bluetoothLoader.item)
-                bluetoothLoader.item.dismiss();
-            if (root.clipboard)
-                root.clipboard.dismiss();
-            if (root.launcher)
-                root.launcher.present();
-            else
-                root.launcherEnabled = true;
+            Theme.refreshMotionPreference();
+            surfaceRouter.request("launcher", true);
         }
         function hideLauncher(): void {
             if (launcherLoader.item)

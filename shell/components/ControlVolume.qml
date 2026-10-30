@@ -71,13 +71,8 @@ Slider {
         radius: 2
         color: root.activeColor
         opacity: root.enabled ? 1 : 0.38
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -4
-            color: "transparent"
-            radius: 6
-            border.width: 3
-            border.color: Material.colors.primary
+        FocusIndicator {
+            cornerRadius: parent.radius
             visible: root.activeFocus
         }
     }

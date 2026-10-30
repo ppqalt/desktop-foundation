@@ -50,7 +50,7 @@ AbstractButton {
             color: !root.enabled ? Material.colors.on_surface : root.compact ? root.marked ? Material.colors.primary : root.toggle ? Material.colors.surface_container : Material.colors.secondary_container : root.marked ? Material.colors.secondary_container : "transparent"
             opacity: root.enabled ? 1 : 0.12
             Behavior on radius {
-                NumberAnimation {
+                SurfaceAnimation {
                     duration: Material.motion.fastSpatial
                     easing.type: Easing.BezierSpline
                     easing.bezierCurve: Material.spatialCurve
@@ -62,7 +62,7 @@ AbstractButton {
                 color: root.ink
                 opacity: !root.enabled ? 0 : root.down ? 0.10 : root.activeFocus ? 0.10 : root.hovered ? 0.08 : 0
                 Behavior on opacity {
-                    NumberAnimation {
+                    SurfaceAnimation {
                         duration: Material.motion.fastEffects
                         easing.type: Easing.BezierSpline
                         easing.bezierCurve: Material.effectsCurve
@@ -70,13 +70,9 @@ AbstractButton {
                 }
             }
         }
-        Rectangle {
+        FocusIndicator {
             anchors.fill: fill
-            anchors.margins: -3
-            color: "transparent"
-            radius: fill.radius + 3
-            border.width: 3
-            border.color: Material.colors.primary
+            cornerRadius: fill.radius
             visible: root.activeFocus
         }
     }

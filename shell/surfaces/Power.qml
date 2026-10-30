@@ -55,6 +55,14 @@ PanelWindow {
         if (!busy && !closing)
             selected = Math.max(0, Math.min(actions.length - 1, selected + delta));
     }
+    function present(): void {
+        if (busy)
+            return;
+        exitAnimation.stop();
+        closing = false;
+        entered = true;
+        card.forceActiveFocus();
+    }
     function dismiss(): void {
         if (busy || closing)
             return;
@@ -105,7 +113,7 @@ PanelWindow {
         color: Theme.colors.scrim
         opacity: root.entered && !root.closing ? 1 : 0
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: root.closing ? Theme.timing.exit : Theme.timing.normal
             }
         }
@@ -134,13 +142,13 @@ PanelWindow {
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: root.closing ? Theme.timing.exit : Theme.timing.normal
             }
         }
         Behavior on scale {
-            NumberAnimation {
-                duration: Theme.timing.normal
+            SurfaceAnimation {
+                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
                 easing.type: Theme.easing
             }
         }

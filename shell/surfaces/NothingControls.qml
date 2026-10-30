@@ -29,6 +29,7 @@ SurfaceCard {
     property string error: ""
     property string page: "main"
     property int mainSelection: 0
+    property string mainSelectionKey: ""
     property bool hoverNavigationEnabled: false
     property point lastPointer: Qt.point(-1, -1)
     readonly property var bounds: ({
@@ -86,12 +87,12 @@ SurfaceCard {
     opacity: entered ? 1 : 0
     scale: entered ? 1 : 0.97
     Behavior on opacity {
-        NumberAnimation {
+        SurfaceAnimation {
             duration: Theme.timing.normal
         }
     }
     Behavior on scale {
-        NumberAnimation {
+        SurfaceAnimation {
             duration: Theme.timing.normal
             easing.type: Theme.easing
         }
@@ -238,7 +239,8 @@ SurfaceCard {
         hoverNavigationEnabled = false;
         if (page !== "main" && ready && !busy) {
             page = "main";
-            selected = Math.min(mainSelection, rows.length - 1);
+            const restored = rows.findIndex(r => r.key + ":" + String(r.extra ?? "") === mainSelectionKey);
+            selected = restored >= 0 ? restored : Math.max(0, Math.min(mainSelection, rows.length - 1));
             Qt.callLater(() => list.positionViewAtIndex(root.selected, ListView.Contain));
         } else {
             leaving = true;
@@ -350,6 +352,7 @@ SurfaceCard {
         if (["info", "custom", "gesturesPage", "find", "qualityPage", "fit"].includes(key)) {
             hoverNavigationEnabled = false;
             mainSelection = selected;
+            mainSelectionKey = entry.key + ":" + String(entry.extra ?? "");
             page = key === "gesturesPage" ? "gestures" : key === "qualityPage" ? "quality" : key;
             navigateEdge(false);
             list.positionViewAtBeginning();
@@ -441,14 +444,14 @@ SurfaceCard {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
             if (!event.isAutoRepeat)
                 goBack();
-        } else if (event.key === Qt.Key_Up)
+        } else if ((event.key === Qt.Key_Up || event.key === Qt.Key_W))
             navigate(-1);
-        else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+        else if (event.key === Qt.Key_Down || event.key === Qt.Key_S || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
             navigate(event.key === Qt.Key_Backtab || event.modifiers & Qt.ShiftModifier ? -1 : 1);
-        else if (event.key === Qt.Key_Left) {
+        else if ((event.key === Qt.Key_Left || event.key === Qt.Key_A)) {
             if (!event.isAutoRepeat)
                 activate(selected, -1);
-        } else if (event.key === Qt.Key_Right) {
+        } else if ((event.key === Qt.Key_Right || event.key === Qt.Key_D)) {
             if (!event.isAutoRepeat)
                 activate(selected, 1);
         } else if (event.key === Qt.Key_Home)
@@ -481,9 +484,6 @@ SurfaceCard {
                 root.hoverNavigationEnabled = true;
             }
         }
-    }
-    SelectionWheel {
-        onStepped: delta => root.navigate(delta)
     }
     Timer {
         id: confirmationDeadline
@@ -671,7 +671,7 @@ SurfaceCard {
         visible: root.ready
         opacity: root.ready ? 1 : 0
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: Theme.timing.normal
             }
         }

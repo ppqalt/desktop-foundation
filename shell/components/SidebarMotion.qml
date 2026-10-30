@@ -1,4 +1,5 @@
 import QtQuick
+import "../theme"
 
 // Same cubic Hermite position/velocity and reversal braking as monitor.rs.
 QtObject {
@@ -16,6 +17,14 @@ QtObject {
     readonly property bool running: frames.running
     signal settled(bool open)
     function move(open: bool): void {
+        if (Theme.reducedMotion) {
+            frames.running = false;
+            position = open ? 1 : 0;
+            velocity = 0;
+            opening = open;
+            settled(open);
+            return;
+        }
         start = position;
         initialVelocity = velocity;
         destination = open ? 1 : 0;

@@ -51,7 +51,7 @@ Rectangle {
         color: Material.colors.primary
         opacity: root.confirmed ? 1 : 0
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: Material.motion.fastEffects
             }
         }
@@ -154,7 +154,7 @@ Rectangle {
                 radius: width / 2
                 color: root.settingState ? Material.colors.on_primary : Material.colors.outline
                 Behavior on x {
-                    NumberAnimation {
+                    SurfaceAnimation {
                         duration: Material.motion.fastSpatial
                         easing.type: Easing.BezierSpline
                         easing.bezierCurve: Material.spatialCurve

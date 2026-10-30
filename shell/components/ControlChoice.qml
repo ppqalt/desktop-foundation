@@ -104,6 +104,10 @@ ComboBox {
     }
     popup: Popup {
         onOpened: root.menuIndex = Math.max(0, root.currentIndex)
+        onClosed: {
+            if (root.visible && root.enabled)
+                root.forceActiveFocus(Qt.PopupFocusReason);
+        }
         y: root.height + 4
         width: root.width
         padding: 8

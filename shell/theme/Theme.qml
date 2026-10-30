@@ -5,6 +5,24 @@ import Quickshell.Io
 
 QtObject {
     id: root
+    property bool reducedMotion: Quickshell.env("DF_REDUCED_MOTION") === "1"
+    function refreshMotionPreference(): void {
+        if (!motionPreference.running)
+            motionPreference.running = true;
+    }
+    property Process motionPreference: Process {
+        command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/foundation", "ui-preferences"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const value = JSON.parse(text).reducedMotion;
+                    if (typeof value === "boolean")
+                        root.reducedMotion = value;
+                } catch (_) {}
+            }
+        }
+    }
+    Component.onCompleted: refreshMotionPreference()
     property var generated: ({})
     property var paletteFile: FileView {
         path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/desktop-foundation/theme/current/semantic.json"
@@ -39,10 +57,10 @@ QtObject {
             heading: 22
         })
     readonly property var timing: ({
-            fast: 100,
-            normal: 160,
-            exit: 120,
-            compositor: 300
+            fast: reducedMotion ? 0 : 100,
+            normal: reducedMotion ? 0 : 160,
+            exit: reducedMotion ? 0 : 120,
+            compositor: reducedMotion ? 0 : 300
         })
     readonly property int easing: Easing.OutCubic
     readonly property var opacity: ({

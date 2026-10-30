@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import "../components"
 import Quickshell
 import Quickshell.Wayland
 import "../theme"
@@ -41,7 +42,7 @@ PanelWindow {
         border.color: Material.colors.outline_variant
         opacity: root.entered ? 1 : 0
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: Theme.timing.fast
                 easing.type: Theme.easing
             }

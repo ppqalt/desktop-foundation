@@ -170,8 +170,16 @@ PanelWindow {
                 card.forceActiveFocus();
         });
     }
+    function present(): void {
+        if (closeAfterControls)
+            return;
+        closeTimer.stop();
+        closing = false;
+        entered = true;
+        restoreFocus();
+    }
     function dismiss(): void {
-        if (closing)
+        if (busy || radioBusy || closing)
             return;
         if (controlDevice && controlsLoader.item) {
             closeAfterControls = true;
@@ -413,7 +421,7 @@ PanelWindow {
         color: Theme.colors.scrim
         opacity: root.entered && !root.closing ? 1 : 0
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: root.closing ? Theme.timing.exit : Theme.timing.normal
             }
         }
@@ -431,22 +439,19 @@ PanelWindow {
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: root.closing ? Theme.timing.exit : Theme.timing.normal
             }
         }
         Behavior on scale {
-            NumberAnimation {
-                duration: Theme.timing.normal
+            SurfaceAnimation {
+                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
                 easing.type: Theme.easing
             }
         }
         focus: true
         Component.onCompleted: forceActiveFocus()
         Keys.priority: Keys.BeforeItem
-        SelectionWheel {
-            onStepped: delta => root.navigate(delta)
-        }
         MouseArea {
             anchors.fill: parent
         }
@@ -454,9 +459,9 @@ PanelWindow {
             if (event.key === Qt.Key_Escape) {
                 if (!event.isAutoRepeat)
                     root.dismiss();
-            } else if (event.key === Qt.Key_Up)
+            } else if ((event.key === Qt.Key_Up || event.key === Qt.Key_W))
                 root.navigate(-1);
-            else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+            else if (event.key === Qt.Key_Down || event.key === Qt.Key_S || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
                 root.navigate(event.key === Qt.Key_Backtab || event.modifiers & Qt.ShiftModifier ? -1 : 1);
             else if (event.key === Qt.Key_Home)
                 root.selectIndex(-1);
@@ -542,7 +547,7 @@ PanelWindow {
                     radius: 8
                     color: root.adapterAvailable ? Material.colors.primary : Material.colors.on_surface_variant
                     Behavior on x {
-                        NumberAnimation {
+                        SurfaceAnimation {
                             duration: Theme.timing.normal
                             easing.type: Theme.easing
                         }

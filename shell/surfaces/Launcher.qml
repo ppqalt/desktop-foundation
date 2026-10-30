@@ -54,6 +54,41 @@ PanelWindow {
         selectedIndex = Math.max(0, Math.min(results.length - 1, selectedIndex + delta));
         list.positionViewAtIndex(selectedIndex, ListView.Contain);
     }
+    function handleKey(event): void {
+        const editing = search.activeFocus;
+        const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter || (!editing && event.key === Qt.Key_Space);
+        if (closing || (activate && event.isAutoRepeat)) {
+            event.accepted = true;
+            return;
+        }
+        if (event.key === Qt.Key_Escape)
+            dismiss();
+        else if (event.key === Qt.Key_Down || (!editing && event.key === Qt.Key_S) || (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier))) {
+            if (!editing)
+                navigate(1);
+            panel.forceActiveFocus();
+        } else if (event.key === Qt.Key_Up || (!editing && event.key === Qt.Key_W) || (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier))) {
+            if (selectedIndex === 0)
+                search.forceActiveFocus();
+            else
+                navigate(-1);
+        } else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp)
+            navigate((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(list.height / 76)));
+        else if (activate)
+            launchSelected();
+        else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
+            if (selectedIndex === 0)
+                search.forceActiveFocus();
+            else
+                navigate(-1);
+        } else if (event.key === Qt.Key_Tab) {
+            if (!editing)
+                navigate(1);
+            panel.forceActiveFocus();
+        } else
+            return;
+        event.accepted = true;
+    }
     function setQuery(value: string): void {
         search.text = value;
     }
@@ -90,8 +125,8 @@ PanelWindow {
         color: Theme.colors.scrim
         opacity: root.entered && !root.closing ? 1 : 0
         Behavior on opacity {
-            NumberAnimation {
-                duration: Theme.timing.normal
+            SurfaceAnimation {
+                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
             }
         }
         MouseArea {
@@ -101,14 +136,12 @@ PanelWindow {
     }
     SurfaceCard {
         id: panel
-        SelectionWheel {
-            onStepped: delta => root.navigate(delta)
-        }
+        Keys.onPressed: event => root.handleKey(event)
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
         height: Math.min(182 + Math.max(2, Math.min(6, root.results.length)) * 76, root.height - 64)
         Behavior on height {
             enabled: root.entered && panel.opacity === 1 && !root.closing
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: Theme.timing.normal
                 easing.type: Theme.easing
             }
@@ -117,13 +150,13 @@ PanelWindow {
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: root.closing ? Theme.timing.exit : Theme.timing.normal
             }
         }
         Behavior on scale {
-            NumberAnimation {
-                duration: Theme.timing.normal
+            SurfaceAnimation {
+                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
                 easing.type: Theme.easing
             }
         }
@@ -163,30 +196,7 @@ PanelWindow {
             width: panel.width - 96
             height: 38
             placeholderText: "Search applications…"
-            Keys.onPressed: event => {
-                const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
-                if (root.closing || (activate && event.isAutoRepeat)) {
-                    event.accepted = true;
-                    return;
-                }
-                if (event.key === Qt.Key_Escape)
-                    root.dismiss();
-                else if (event.key === Qt.Key_Down || (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier)))
-                    root.navigate(1);
-                else if (event.key === Qt.Key_Up || (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)))
-                    root.navigate(-1);
-                else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp)
-                    root.navigate((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(list.height / 76)));
-                else if (activate)
-                    root.launchSelected();
-                else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)))
-                    root.navigate(-1);
-                else if (event.key === Qt.Key_Tab)
-                    root.navigate(1);
-                else
-                    return;
-                event.accepted = true;
-            }
+            Keys.onPressed: event => root.handleKey(event)
         }
         Rectangle {
             x: 28

@@ -163,7 +163,7 @@ PanelWindow {
         search.forceActiveFocus();
     }
     function dismiss(): void {
-        if (closing)
+        if (history.busy || closing)
             return;
         closing = true;
         search.focus = false;
@@ -200,6 +200,12 @@ PanelWindow {
     function keyboardNavigate(delta: int): void {
         if (confirmClear)
             return;
+        if (clearSelected && delta < 0) {
+            clearSelected = false;
+            search.forceActiveFocus();
+            return;
+        }
+        panel.forceActiveFocus();
         actionFocus = 0;
         if (history.entries.length && (!results.length || (!clearSelected && delta < 0 && selectedIndex === 0)))
             clearSelected = true;
@@ -207,8 +213,20 @@ PanelWindow {
             navigate(delta);
     }
     function tabNavigate(delta: int): void {
-        if (!history.entries.length)
+        if (search.activeFocus && delta > 0) {
+            panel.forceActiveFocus();
             return;
+        }
+        if (clearSelected && delta < 0) {
+            clearSelected = false;
+            search.forceActiveFocus();
+            return;
+        }
+        if (!history.entries.length) {
+            if (delta < 0)
+                search.forceActiveFocus();
+            return;
+        }
         if (!results.length) {
             clearSelected = true;
             actionFocus = 0;
@@ -277,7 +295,8 @@ PanelWindow {
     function handleKey(event: var): void {
         const control = !!(event.modifiers & Qt.ControlModifier);
         const shift = !!(event.modifiers & Qt.ShiftModifier);
-        const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
+        const editing = search.activeFocus;
+        const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter || (!editing && event.key === Qt.Key_Space);
         const remove = event.key === Qt.Key_Delete && control;
         const pin = event.key === Qt.Key_P && control && shift;
         const plain = event.key === Qt.Key_C && control && shift;
@@ -290,9 +309,9 @@ PanelWindow {
                 root.confirmClear = false;
             else if (activate || event.key === Qt.Key_Space)
                 root.acceptClear();
-            else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && shift) || event.key === Qt.Key_Left || event.key === Qt.Key_Up)
+            else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && shift) || event.key === Qt.Key_Left || event.key === Qt.Key_Up || [Qt.Key_A, Qt.Key_W].includes(event.key))
                 root.clearChoice = (root.clearChoice + root.clearChoiceCount - 1) % root.clearChoiceCount;
-            else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Right || event.key === Qt.Key_Down)
+            else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Right || event.key === Qt.Key_Down || [Qt.Key_D, Qt.Key_S].includes(event.key))
                 root.clearChoice = (root.clearChoice + 1) % root.clearChoiceCount;
             else if (event.key === Qt.Key_Home)
                 root.clearChoice = 0;
@@ -313,9 +332,9 @@ PanelWindow {
             root.beginClear();
         else if (remove)
             root.deleteSelected();
-        else if (event.key === Qt.Key_Down || (event.key === Qt.Key_N && control))
+        else if (event.key === Qt.Key_Down || (!editing && event.key === Qt.Key_S) || (event.key === Qt.Key_N && control))
             root.keyboardNavigate(1);
-        else if (event.key === Qt.Key_Up || (event.key === Qt.Key_P && control))
+        else if (event.key === Qt.Key_Up || (!editing && event.key === Qt.Key_W) || (event.key === Qt.Key_P && control))
             root.keyboardNavigate(-1);
         else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp)
             root.navigate((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(list.height / 76)));
@@ -325,8 +344,8 @@ PanelWindow {
             root.tabNavigate(-1);
         else if (event.key === Qt.Key_Tab)
             root.tabNavigate(1);
-        else if (root.actionFocus && (event.key === Qt.Key_Left || event.key === Qt.Key_Right))
-            root.tabNavigate(event.key === Qt.Key_Left ? -1 : 1);
+        else if (root.actionFocus && (event.key === Qt.Key_Left || event.key === Qt.Key_Right || (!editing && [Qt.Key_A, Qt.Key_D].includes(event.key))))
+            root.tabNavigate([Qt.Key_Left, Qt.Key_A].includes(event.key) ? -1 : 1);
         else
             return;
         event.accepted = true;
@@ -377,8 +396,8 @@ PanelWindow {
         color: Theme.colors.scrim
         opacity: root.entered && !root.closing ? 1 : 0
         Behavior on opacity {
-            NumberAnimation {
-                duration: Theme.timing.normal
+            SurfaceAnimation {
+                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
             }
         }
         MouseArea {
@@ -388,24 +407,21 @@ PanelWindow {
     }
     SurfaceCard {
         id: panel
-        SelectionWheel {
-            enabled: !root.confirmClear
-            onStepped: delta => root.navigate(delta)
-        }
+        Keys.onPressed: event => root.handleKey(event)
         width: Math.min(root.confirmClear ? 440 : Theme.dimensions.launcherWidth, root.width - 48)
         height: Math.min(root.confirmClear ? 268 : 182 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 76 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height - 64)
         Behavior on width {
             // Initial output geometry uses the shared fade/scale entrance.
             // Keep the existing confirmation morph once opened (or requested).
             enabled: root.confirmClear || (root.entered && panel.opacity === 1 && !root.closing)
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: Theme.timing.normal
                 easing.type: Theme.easing
             }
         }
         Behavior on height {
             enabled: root.confirmClear || (root.entered && panel.opacity === 1 && !root.closing)
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: Theme.timing.normal
                 easing.type: Theme.easing
             }
@@ -414,13 +430,13 @@ PanelWindow {
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
-            NumberAnimation {
+            SurfaceAnimation {
                 duration: root.closing ? Theme.timing.exit : Theme.timing.normal
             }
         }
         Behavior on scale {
-            NumberAnimation {
-                duration: Theme.timing.normal
+            SurfaceAnimation {
+                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
                 easing.type: Theme.easing
             }
         }
@@ -496,6 +512,12 @@ PanelWindow {
             height: 38
             placeholderText: "Search clipboard…"
             readOnly: root.confirmClear
+            onActiveFocusChanged: {
+                if (activeFocus && !root.confirmClear) {
+                    root.actionFocus = 0;
+                    root.clearSelected = false;
+                }
+            }
             onTextChanged: root.queryChanged()
             Keys.priority: Keys.BeforeItem
             Keys.onPressed: event => root.handleKey(event)
