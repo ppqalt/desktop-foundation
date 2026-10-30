@@ -74,6 +74,10 @@ right btop panel remains an explicitly focused, non-modal external panel.
 
 The composition root owns loader lifetime and target output. A surface owns its
 current view, focus bookmark, pending presentation request and close state.
+`superseded` hides an outgoing window and releases input without killing its
+backend owner. `handoff` retains the destination scrim during immediate switching;
+only the incoming content animates. Hidden sidebar exits settle without relying
+on a mapped frame clock.
 A shared control owns local hover/press/drag state only. Never write backend truth
 from a delegate or infer action success from a click.
 
@@ -123,7 +127,7 @@ primitive when multiple callers need the same change.
 | `FocusIndicator` | Shared primary outline decoration; `cornerRadius`, caller-owned visibility; never captures input |
 | `SurfaceAnimation` | Retargetable numeric Behavior animation, common default timing/easing; callers choose spatial/effects tokens where applicable |
 | `SidebarMotion` | Reversible position/velocity slide; `move(open)`, `position`, `settled(open)`; reduced motion settles immediately |
-| `SurfaceRouter` | `surfaces` adapters (`item/alive/open/dismiss/present`, optional `retiring`), `request(name, showOnly)`; last intent wins; serial modal handoff |
+| `SurfaceRouter` | `surfaces` adapters (`item/alive/open/dismiss/present`, optional `retiring`; `open(handoff)`), `request(name, showOnly)`; last intent wins; immediate visual handoff with retained backend ownership |
 | `ControlAction` | Button/list action: `text/detail/badge/symbol`, `marked/toggle/compact/iconOnly`, `clicked`; checked state is backend-owned |
 | `ControlChoice` | Keyboard dropdown: `model/textRole/currentIndex`, `activated`; private `menuIndex` until committed |
 | `ControlVolume` | Shared audio slider/mute presentation and directional input; backend callbacks own actual volume |
@@ -198,8 +202,11 @@ has one current view and one destination; new input replaces an obsolete intent.
 - Same shortcut during opening requests close. During closing it reopens from
   the current rendered value. Holding the shortcut must not synthesize toggles;
   Niri bindings use `repeat=false`.
-- Different modal requests serialize: old surface finishes closing before the
-  next maps. Coalesce rapid requests to the most recent requested destination.
+- Different modal requests replace the visible/input-owning surface immediately.
+  Hide the outgoing window before opening the next; do not chain its full exit
+  and the incoming entrance. Retain hidden owners only until their backend work
+  and cleanup finish. A requested target still shutting down reopens after its
+  own shutdown. Rapid requests select the most recent destination.
 - A busy session action cannot be replaced. Do not cancel system operations by
   destroying their process owner. Normal transitions must not lock input globally.
 - Use `Behavior`/`SurfaceAnimation` retargeting. Do not restart an animation with

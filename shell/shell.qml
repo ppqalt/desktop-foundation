@@ -41,6 +41,7 @@ ShellRoot {
         id: controlCenterLoader
         active: root.controlCenterEnabled
         ControlCenter {
+            handoff: root.handoffSurface === "controlCenter"
             sidebarStyle: root.controlCenterStyle
             targetScreen: root.launcherScreen
             onClosed: nextSurface => {
@@ -55,6 +56,7 @@ ShellRoot {
         id: bluetoothLoader
         active: root.bluetoothEnabled
         BluetoothPopup {
+            handoff: root.handoffSurface === "bluetooth"
             lifecycle: root
             targetScreen: root.launcherScreen
         }
@@ -64,6 +66,7 @@ ShellRoot {
         id: powerLoader
         active: root.powerEnabled
         Power {
+            handoff: root.handoffSurface === "power"
             lifecycle: root
             targetScreen: root.launcherScreen
         }
@@ -75,6 +78,7 @@ ShellRoot {
         id: clipboardLoader
         active: root.clipboardEnabled
         Clipboard {
+            handoff: root.handoffSurface === "clipboard"
             lifecycle: root
             targetScreen: root.launcherScreen
         }
@@ -87,6 +91,7 @@ ShellRoot {
         id: launcherLoader
         active: root.launcherEnabled
         Launcher {
+            handoff: root.handoffSurface === "launcher"
             lifecycle: root
             targetScreen: root.launcherScreen
         }
@@ -112,13 +117,15 @@ ShellRoot {
             lifecycle: root
         }
     }
+    property string handoffSurface: ""
     SurfaceRouter {
         id: surfaceRouter
         surfaces: ({
                 launcher: {
                     item: () => launcherLoader.item,
                     alive: () => root.launcherEnabled,
-                    open: () => {
+                    open: handoff => {
+                        root.handoffSurface = handoff ? "launcher" : "";
                         root.launcherEnabled = true;
                     },
                     dismiss: () => launcherLoader.item?.dismiss(),
@@ -127,7 +134,8 @@ ShellRoot {
                 clipboard: {
                     item: () => clipboardLoader.item,
                     alive: () => root.clipboardEnabled,
-                    open: () => {
+                    open: handoff => {
+                        root.handoffSurface = handoff ? "clipboard" : "";
                         root.clipboardEnabled = true;
                     },
                     dismiss: () => clipboardLoader.item?.dismiss(),
@@ -137,7 +145,8 @@ ShellRoot {
                     retiring: () => !!bluetoothLoader.item?.closeAfterControls,
                     item: () => bluetoothLoader.item,
                     alive: () => root.bluetoothEnabled,
-                    open: () => {
+                    open: handoff => {
+                        root.handoffSurface = handoff ? "bluetooth" : "";
                         root.bluetoothEnabled = true;
                     },
                     dismiss: () => bluetoothLoader.item?.dismiss(),
@@ -146,7 +155,8 @@ ShellRoot {
                 power: {
                     item: () => powerLoader.item,
                     alive: () => root.powerEnabled,
-                    open: () => {
+                    open: handoff => {
+                        root.handoffSurface = handoff ? "power" : "";
                         root.powerEnabled = true;
                     },
                     dismiss: () => powerLoader.item?.dismiss(),
@@ -155,7 +165,8 @@ ShellRoot {
                 controlCenter: {
                     item: () => controlCenterLoader.item,
                     alive: () => root.controlCenterEnabled,
-                    open: () => {
+                    open: handoff => {
+                        root.handoffSurface = handoff ? "controlCenter" : "";
                         root.controlCenterEnabled = true;
                     },
                     dismiss: () => controlCenterLoader.item?.dismiss(),

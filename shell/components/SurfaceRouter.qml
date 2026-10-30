@@ -1,6 +1,6 @@
 import QtQuick
 
-// Last intent wins. A new modal never maps over an outgoing modal.
+// One visible/input-owning modal. Retiring backend owners can finish offscreen.
 QtObject {
     id: root
     required property var surfaces
@@ -9,56 +9,62 @@ QtObject {
         const target = surfaces[name];
         if (!target)
             return;
+        for (const key of Object.keys(surfaces)) {
+            if (key === "power" && surfaces[key].item()?.busy)
+                return;
+        }
         if (pending === name && !showOnly) {
             pending = "";
             return;
         }
-        // An in-flight system action cannot be dismissed or replaced.
+        pending = "";
+        const item = target.item();
+        const same = item && !item.superseded;
+        let replacing = false;
+        // Remove the outgoing window from rendering/input immediately, without
+        // destroying a Process that still owns a clipboard/device operation.
         for (const key of Object.keys(surfaces)) {
-            if (surfaces[key].item()?.busy && key === "power")
-                return;
+            const outgoing = surfaces[key].item();
+            if (key !== name && outgoing) {
+                replacing = replacing || !outgoing.superseded;
+                outgoing.superseded = true;
+                if (!outgoing.closing)
+                    surfaces[key].dismiss();
+            }
         }
         if (target.retiring?.()) {
             pending = name;
             return;
         }
-        const item = target.item();
         if (item) {
-            pending = "";
-            if (item.closing || showOnly)
-                target.present();
-            else
+            if (same && !item.closing && !showOnly)
                 target.dismiss();
-            return;
-        }
-        pending = name;
-        for (const key of Object.keys(surfaces)) {
-            if (surfaces[key].item())
-                surfaces[key].dismiss();
-        }
-        drain();
+            else {
+                item.handoff = replacing;
+                item.superseded = false;
+                target.present();
+            }
+        } else
+            target.open(replacing);
     }
     function drain(): void {
-        if (!pending)
-            return;
         for (const key of Object.keys(surfaces)) {
-            if (surfaces[key].alive()) {
-                // A closing surface already owns its completion. Retargeting
-                // it every frame restarts sidebar motion indefinitely.
-                if (!surfaces[key].item()?.closing)
-                    surfaces[key].dismiss();
-                return;
-            }
+            const item = surfaces[key].item();
+            if (item?.superseded && !item.closing)
+                surfaces[key].dismiss();
         }
-        const next = pending;
-        pending = "";
-        surfaces[next].open();
+        // Only a requested target's own irreversible shutdown can delay reuse.
+        if (pending && !surfaces[pending].alive()) {
+            const next = pending;
+            pending = "";
+            surfaces[next].open(true);
+        }
     }
-    // Runs only while a different surface is finishing its exit/owned request.
-    property Timer handoff: Timer {
+    readonly property bool retiring: Object.keys(surfaces).some(key => !!surfaces[key].item()?.superseded)
+    property Timer retirement: Timer {
         interval: 16
         repeat: true
-        running: root.pending !== ""
+        running: root.pending !== "" || root.retiring
         onTriggered: root.drain()
     }
 }

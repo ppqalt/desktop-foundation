@@ -18,6 +18,9 @@ PanelWindow {
     property bool defaultSelectionPending: true
     property bool hoverNavigationEnabled: false
     property point lastPointer: Qt.point(-1, -1)
+    property bool handoff: false
+    property bool superseded: false
+    visible: !superseded
     property bool closing: false
     property bool entered: false
     Component.onCompleted: Qt.callLater(() => {
@@ -56,7 +59,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "desktop-foundation-bluetooth"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    WlrLayershell.keyboardFocus: root.closing || root.superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.Exclusive
     color: "transparent"
     PwObjectTracker {
         objects: Pipewire.nodes.values
@@ -419,7 +422,7 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         color: Theme.colors.scrim
-        opacity: root.entered && !root.closing ? 1 : 0
+        opacity: (root.entered || root.handoff) && !root.closing ? 1 : 0
         Behavior on opacity {
             SurfaceAnimation {
                 duration: root.closing ? Theme.timing.exit : Theme.timing.normal

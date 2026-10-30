@@ -91,12 +91,24 @@ ShellRoot {
             id: routeA
             property int dismissals: 0
             property bool alive: false
+            property bool superseded: false
+            property bool handoff: false
             property bool closing: false
             property bool busy: false
         }
         Item {
             id: routeB
             property bool alive: false
+            property bool superseded: false
+            property bool handoff: false
+            property bool closing: false
+            property bool busy: false
+        }
+        Item {
+            id: routeC
+            property bool alive: false
+            property bool superseded: false
+            property bool handoff: false
             property bool closing: false
             property bool busy: false
         }
@@ -107,6 +119,7 @@ ShellRoot {
                         item: () => routeA.alive ? routeA : null,
                         alive: () => routeA.alive,
                         open: () => {
+                            routeA.superseded = false;
                             routeA.alive = true;
                             routeA.closing = false;
                         },
@@ -118,10 +131,26 @@ ShellRoot {
                             routeA.closing = false;
                         }
                     },
+                    bluetooth: {
+                        item: () => routeC.alive ? routeC : null,
+                        alive: () => routeC.alive,
+                        open: () => {
+                            routeC.alive = true;
+                            routeC.superseded = false;
+                            routeC.closing = false;
+                        },
+                        dismiss: () => {
+                            routeC.closing = true;
+                        },
+                        present: () => {
+                            routeC.closing = false;
+                        }
+                    },
                     power: {
                         item: () => routeB.alive ? routeB : null,
                         alive: () => routeB.alive,
                         open: () => {
+                            routeB.superseded = false;
                             routeB.alive = true;
                             routeB.closing = false;
                         },
@@ -223,8 +252,10 @@ ShellRoot {
                 router.request("first");
                 verify(!routeA.closing);
                 router.request("power");
-                compare(router.pending, "power");
-                verify(!routeB.alive);
+                compare(router.pending, "");
+                verify(routeB.alive);
+                verify(routeA.superseded);
+                verify(!routeB.superseded);
                 const closeCount = routeA.dismissals;
                 for (let i = 0; i < 30; i++)
                     router.drain();
@@ -232,6 +263,8 @@ ShellRoot {
                 router.request("first");
                 compare(router.pending, "");
                 verify(!routeA.closing);
+                verify(!routeA.superseded);
+                verify(routeB.superseded);
                 router.request("power");
                 routeA.alive = false;
                 router.drain();
@@ -241,8 +274,22 @@ ShellRoot {
                 router.request("first");
                 verify(!routeA.alive);
                 verify(!routeB.closing);
+                verify(!routeB.superseded);
                 routeB.busy = false;
                 routeB.alive = false;
+                router.request("first");
+                router.request("bluetooth");
+                verify(routeA.superseded);
+                verify(routeC.alive && !routeC.superseded);
+                router.request("power");
+                verify(routeC.superseded);
+                verify(routeB.alive && !routeB.superseded);
+                router.request("first");
+                verify(!routeA.superseded && !routeA.closing);
+                verify(routeB.superseded && routeC.superseded);
+                routeA.alive = false;
+                routeB.alive = false;
+                routeC.alive = false;
             }
             function test_wheel_ownership() {
                 mouseWheel(wheelList, 20, 20, 0, -120);

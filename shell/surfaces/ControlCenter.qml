@@ -14,6 +14,9 @@ PanelWindow {
     id: root
     required property var sidebarStyle
     property var targetScreen: null
+    property bool handoff: false
+    property bool superseded: false
+    visible: !superseded
     property bool closing: false
     property string nextSurface: ""
     property string page: "overview"
@@ -38,7 +41,6 @@ PanelWindow {
     readonly property string backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl"
     signal closed(string nextSurface)
     screen: targetScreen
-    visible: true
     implicitWidth: Math.min(sidebarStyle.width, screen?.width ?? sidebarStyle.width)
     anchors {
         top: true
@@ -97,6 +99,8 @@ PanelWindow {
         closing = true;
         status.running = false;
         motion.move(false);
+        if (superseded)
+            motion.sample(1); // Hidden exits must not depend on a mapped frame clock.
     }
     function finishClose(): void {
         if (closing && !motion.running && !busy && queue.length === 0 && audioQueue.length === 0)

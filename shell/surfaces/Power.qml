@@ -15,6 +15,9 @@ PanelWindow {
     property int selected: 0
     property bool busy: false
     property bool entered: false
+    property bool handoff: false
+    property bool superseded: false
+    visible: !superseded
     property bool closing: false
     property string error: ""
     readonly property var actions: [
@@ -49,7 +52,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "desktop-foundation-power"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    WlrLayershell.keyboardFocus: root.closing || root.superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.Exclusive
     color: "transparent"
     function navigate(delta: int): void {
         if (!busy && !closing)
@@ -111,7 +114,7 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         color: Theme.colors.scrim
-        opacity: root.entered && !root.closing ? 1 : 0
+        opacity: (root.entered || root.handoff) && !root.closing ? 1 : 0
         Behavior on opacity {
             SurfaceAnimation {
                 duration: root.closing ? Theme.timing.exit : Theme.timing.normal
