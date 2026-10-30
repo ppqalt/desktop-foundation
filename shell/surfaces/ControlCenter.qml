@@ -68,7 +68,7 @@ PanelWindow {
         if (destination === "overview" && returnFocus && returnFocus.visible)
             returnFocus.forceActiveFocus(Qt.BacktabFocusReason);
         else
-            closeAction.forceActiveFocus();
+            (root.page === "overview" ? networkToggle : backAction).forceActiveFocus();
     }
     function snapshot(): var {
         return {
@@ -213,7 +213,7 @@ PanelWindow {
                 root.stateData = response;
                 if (root.initialFocus) {
                     root.initialFocus = false;
-                    Qt.callLater(() => outputMute.enabled ? outputMute.forceActiveFocus() : closeAction.forceActiveFocus());
+                    Qt.callLater(() => outputMute.enabled ? outputMute.forceActiveFocus() : (root.page === "overview" ? networkToggle : backAction).forceActiveFocus());
                 }
                 if (!outputVolume.pressed)
                     root.pendingOutput = -1;
@@ -265,6 +265,7 @@ PanelWindow {
                 anchors.fill: parent
                 spacing: 16
                 RowLayout {
+                    visible: root.page !== "overview"
                     Layout.fillWidth: true
                     Layout.minimumHeight: 48
                     spacing: 8
@@ -278,10 +279,6 @@ PanelWindow {
                         compact: true
                         Layout.preferredWidth: 48
                         onClicked: root.navigate("overview")
-                    }
-                    Item {
-                        visible: root.page === "overview"
-                        Layout.fillWidth: true
                     }
                     Text {
                         visible: root.page !== "overview"
@@ -297,15 +294,6 @@ PanelWindow {
                         font.pixelSize: Material.type.headlineSmall
                         lineHeightMode: Text.FixedHeight
                         lineHeight: Material.type.headlineLine
-                    }
-                    ControlAction {
-                        id: closeAction
-                        text: "Close"
-                        symbol: "close"
-                        iconOnly: true
-                        compact: true
-                        Layout.preferredWidth: 48
-                        onClicked: root.dismiss()
                     }
                 }
                 ControlGroup {
@@ -353,6 +341,7 @@ PanelWindow {
                                 Layout.fillWidth: true
                                 spacing: 16
                                 ControlAction {
+                                    id: networkToggle
                                     objectName: "networkToggle"
                                     Layout.preferredWidth: 208
                                     text: "Networking"

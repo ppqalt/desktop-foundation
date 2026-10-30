@@ -142,7 +142,7 @@ PanelWindow {
         }
         anchors.centerIn: parent
         width: Math.min(560, root.width - 48)
-        height: Math.min(72 + root.actions.length * 76 + (root.error ? 38 : 0), root.height - 64)
+        height: Math.min(28 + root.actions.length * 76 + (root.error ? 38 : 0) + (root.busy ? 48 : 0), root.height - 64)
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
@@ -192,7 +192,7 @@ PanelWindow {
             x: 16
             y: 16
             width: card.width - 32
-            height: Math.max(1, card.height - 76 - (root.error ? 38 : 0))
+            height: Math.max(1, card.height - 32 - (root.error ? 38 : 0) - (root.busy ? 48 : 0))
             clip: true
             spacing: 4
             model: root.actions
@@ -220,7 +220,7 @@ PanelWindow {
         }
         Text {
             x: 28
-            y: card.height - 85
+            y: list.y + list.height + 8
             width: card.width - 56
             visible: root.error !== ""
             text: root.error

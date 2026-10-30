@@ -133,7 +133,9 @@ Centered menus omit generic application titles and item/availability counters.
 Search menus begin with the search field; the session menu begins with actions.
 Bluetooth keeps its radio toggle without an icon/title heading; device settings keep device identity,
 subpage context, battery and codec status. The Control Center overview omits its
-redundant title while detail pages retain orientation and back/close actions.
+redundant title and close-button row; detail pages retain orientation and a back
+action. Escape or the panel shortcut closes it. Bluetooth places the radio toggle
+to the right of Manage below the device list, without an empty heading band.
 Do not remove useful values, errors, safety notices or action labels to achieve
 visual minimalism; reclaim the empty header space when deleting text.
 
