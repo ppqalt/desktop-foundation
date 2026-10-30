@@ -6,19 +6,21 @@ action=${1:-check}
 shift || true
 case $action in
 bootstrap | check | doctor | shell-start | shell-stop) exec "$root/scripts/$action" "$@" ;;
-deploy) exec python3 scripts/deploy.py install "$@" ;;
-restore) exec python3 scripts/deploy.py restore "$@" ;;
+deploy) exec "$root/scripts/deploy" install "$@" ;;
+restore) exec "$root/scripts/deploy" restore "$@" ;;
 reload)
 	"$root/scripts/check"
 	if [[ -S ${NIRI_SOCKET:-} ]]; then
 		exec niri msg action load-config-file
 	fi
-	exec hyprctl reload
+	printf '%s\n' 'Niri socket unavailable.' >&2
+	exit 1
 	;;
 bench) exec python3 scripts/bench.py "$@" ;;
 test)
-	cargo build --locked --manifest-path native/foundation/Cargo.toml
-	exec python3 -m unittest discover -s tests -v "$@"
+	cargo test --locked --manifest-path native/nothing/Cargo.toml
+	cargo test --locked --manifest-path native/foundation/Cargo.toml "$@"
+	exec "$root/tests/test-material-widgets"
 	;;
 format)
 	while IFS= read -r file; do

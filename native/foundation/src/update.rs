@@ -107,17 +107,12 @@ fn installation(root: &Path, home: &Path) -> Result<Installation> {
             .any(|entry| entry["path"].as_str() == path.to_str())
     };
     let niri = has(&config.join("niri/config.kdl"));
-    let hypr = has(&config.join("hypr/hyprland.lua"));
     let compositor = match manifest["compositor"].as_str() {
         Some("niri") => "niri",
-        Some("hyprland") => "hyprland",
-        None if niri && (!hypr || env::var_os("NIRI_SOCKET").is_some()) => "niri",
-        None if hypr && (!niri || env::var_os("HYPRLAND_INSTANCE_SIGNATURE").is_some()) => {
-            "hyprland"
-        }
+        None if niri => "niri",
         _ => {
             return Err(invalid(
-                "Cannot identify the installed compositor; redeploy with the selected compositor first",
+                "Desktop Foundation supports CachyOS with Niri only; this installation needs manual migration",
             ));
         }
     };
@@ -385,6 +380,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         );
         return Ok(());
     }
+    crate::platform::require_cachyos()?;
     let _lock = state::lock(&home.join("update.lock"), Duration::from_secs(1))?;
     let log_path = home.join("update.log");
     state::atomic(&log_path, b"", 0o600)?;
@@ -637,22 +633,13 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             Duration::from_secs(300),
         )?;
         phase = "component reload";
-        let variable = if selected.compositor == "niri" {
-            "NIRI_SOCKET"
-        } else {
-            "HYPRLAND_INSTANCE_SIGNATURE"
-        };
-        if env::var_os(variable).is_some_and(|value| !value.is_empty()) {
-            let command: Vec<String> = if selected.compositor == "niri" {
-                vec![
-                    "niri".into(),
-                    "msg".into(),
-                    "action".into(),
-                    "load-config-file".into(),
-                ]
-            } else {
-                vec!["hyprctl".into(), "reload".into()]
-            };
+        if env::var_os("NIRI_SOCKET").is_some_and(|value| !value.is_empty()) {
+            let command: Vec<String> = vec![
+                "niri".into(),
+                "msg".into(),
+                "action".into(),
+                "load-config-file".into(),
+            ];
             step(&log, "Reloading compositor configuration…", &command, SHORT)?;
         }
         if active("desktop-foundation-shell.service") {

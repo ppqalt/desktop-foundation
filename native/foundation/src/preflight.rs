@@ -33,14 +33,14 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             }
             _ => {
                 return Err(invalid(
-                    "Expected preflight [--profile NAME] [--compositor niri|hyprland] [--update]",
+                    "Expected preflight [--profile NAME] [--compositor niri] [--update]",
                 ));
             }
         }
         index += 1;
     }
-    if !["niri", "hyprland"].contains(&compositor) {
-        return Err(invalid("Unknown compositor"));
+    if compositor != "niri" {
+        return Err(invalid("Desktop Foundation supports Niri only"));
     }
     if profile.is_empty()
         || !profile
@@ -58,11 +58,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             "Shared Rust backend is not built. Run scripts/build-backend; nothing deployed.",
         ));
     }
-    let wm = if compositor == "niri" {
-        "niri"
-    } else {
-        "Hyprland"
-    };
+    let wm = "niri";
     let required = [
         "pactl",
         "busctl",
@@ -135,36 +131,15 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     ));
     fs::DirBuilder::new().mode(0o700).create(&directory)?;
     let scratch = Scratch(directory);
-    let file = scratch.0.join(if compositor == "niri" {
-        "candidate.kdl"
-    } else {
-        "candidate.lua"
-    });
-    let text = if compositor == "niri" {
-        theme_render::niri(root, profile, None)?
-    } else {
-        format!(
-            "FOUNDATION_ROOT = {}\nFOUNDATION_PROFILE = {}\ndofile(FOUNDATION_ROOT .. \"/compositor/hyprland/hyprland.lua\")\n",
-            serde_json::to_string(&root)?,
-            serde_json::to_string(profile)?
-        )
-    };
+    let file = scratch.0.join("candidate.kdl");
+    let text = theme_render::niri(root, profile, None)?;
     fs::write(&file, text)?;
-    let args = if compositor == "niri" {
-        vec![
-            wm.into(),
-            "validate".into(),
-            "-c".into(),
-            file.to_string_lossy().into_owned(),
-        ]
-    } else {
-        vec![
-            wm.into(),
-            "--verify-config".into(),
-            "-c".into(),
-            file.to_string_lossy().into_owned(),
-        ]
-    };
+    let args = vec![
+        wm.into(),
+        "validate".into(),
+        "-c".into(),
+        file.to_string_lossy().into_owned(),
+    ];
     process::checked(&args,None,Duration::from_secs(30),true).map_err(|e|invalid(format!("Installed {compositor} cannot validate this configuration; nothing deployed. See docs/installation.md.\n{e}")))?;
     println!("PASS runtime tools and native {compositor} configuration.");
     Ok(())

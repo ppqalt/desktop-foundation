@@ -10,29 +10,12 @@ mapfile -t qml < <(find shell -name '*.qml' -type f | sort)
 for file in "${qml[@]}"; do
 	cmp "$file" <(/usr/lib/qt6/bin/qmlformat "$file")
 done
-while IFS= read -r file; do luac -p "$file"; done < <(find compositor profiles -name '*.lua' -type f)
-python3 -c 'import ast,pathlib; [ast.parse(p.read_text(), filename=str(p)) for folder in ["scripts","tests"] for p in pathlib.Path(folder).glob("*.py")]'
+while IFS= read -r file; do luac -p "$file"; done < <(find config -name '*.lua' -type f)
 for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
 cargo clippy --version
-python3 - <<'PYTHON'
-import importlib.util, pathlib, subprocess, tempfile, sys
-sys.path.insert(0, "scripts")
-spec = importlib.util.spec_from_file_location("deploy", "scripts/deploy.py")
-m = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(m)
-from render_niri import render
-for profile in ["default", "dual-display-example", "missing-profile"]:
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".kdl") as niri_candidate:
-        niri_candidate.write(render(m.ROOT, profile))
-        niri_candidate.flush()
-        subprocess.run(["niri", "validate", "-c", niri_candidate.name], check=True)
-    if not __import__("shutil").which("Hyprland"):
-        continue
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".lua") as f:
-        f.write(f"FOUNDATION_ROOT={m.lua_string(m.ROOT)}\nFOUNDATION_PROFILE={m.lua_string(profile)}\ndofile(FOUNDATION_ROOT .. '/compositor/hyprland/hyprland.lua')\n")
-        f.flush()
-        subprocess.run(["Hyprland", "--verify-config", "-c", f.name], check=True)
-PYTHON
+for profile in default dual-display-example missing-profile; do
+	"$root/scripts/preflight" --update --profile "$profile"
+done
 if [[ -f Cargo.toml ]]; then
 	cargo fmt --check
 	cargo clippy -- -D warnings

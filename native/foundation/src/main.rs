@@ -1,7 +1,7 @@
 use desktop_foundationctl::{
     Result, actions, app_mods, application_roles, apps, backdrop, bluetooth, browser_policy, cache,
-    clipboard, clipboard_transport, control_center, diagnostics, geode, invalid, local_ai, monitor,
-    monitor_shader, packages, preferences, preflight, process, screenshot, session, shell,
+    clipboard, clipboard_transport, control_center, deploy, diagnostics, geode, invalid, local_ai,
+    monitor, monitor_shader, packages, preferences, preflight, process, screenshot, session, shell,
     spotify_theme, theme, theme_render, theme_runtime, update, volume, wallpapers,
 };
 use std::{
@@ -47,11 +47,13 @@ fn run() -> Result<()> {
     }
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  app-roles roles|apply|check [--personal]\n  app-roles validate ROLE|desktop NAME|conflicts|restore\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri|hyprland] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  control-center toggle|snapshot|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings\n  update [--dry-run]\n  app-mods install|check|restore|plan [spicetify|geode] [--skip-unavailable]\n  geode install|status|restore [--game-dir PATH]\n  build-info\n  doctor --json\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  app-roles roles|apply|check [--personal]\n  app-roles validate ROLE|desktop NAME|conflicts|restore\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]\n  preferences-setup install [--theme-only]|restore\n  preflight [--profile NAME] [--compositor niri] [--update]\n  theme-runtime generate|apply|reset|wallpaper|rollback|promote|ensure\n  wallpapers list\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  control-center toggle|snapshot|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings\n  update [--dry-run]\n  app-mods install|check|restore|plan [spicetify|geode] [--skip-unavailable]\n  geode install|status|restore [--game-dir PATH]\n  build-info\n  doctor --json\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
         );
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("deploy") => deploy::run_command(&root, &args[1..]),
+        Some("preferences-setup") => preferences::setup(&root, &args[1..]),
         Some("wallpapers") if args.as_slice() == ["wallpapers", "list"] => {
             print_json(&wallpapers::list(&root)?)
         }
@@ -231,7 +233,7 @@ fn run() -> Result<()> {
                         .clone();
                 } else if action.replace(option.as_str()).is_some() {
                     return Err(invalid(
-                        "Expected screenshot [--backend niri|hyprland] region|window|output",
+                        "Expected screenshot [--backend niri] region|window|output",
                     ));
                 }
             }
@@ -240,7 +242,7 @@ fn run() -> Result<()> {
                 || !matches!(action, "region" | "window" | "output")
             {
                 return Err(invalid(
-                    "Expected screenshot [--backend niri|hyprland] region|window|output",
+                    "Expected screenshot [--backend niri] region|window|output",
                 ));
             }
             screenshot::capture(&root, &backend, action)

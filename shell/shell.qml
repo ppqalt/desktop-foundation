@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "adapters/hyprland" as HyprlandBackend
 import "adapters/niri" as NiriBackend
 import "surfaces"
 import "theme"
@@ -98,15 +97,11 @@ ShellRoot {
     readonly property var compositorBackend: backendLoader.item
     Loader {
         id: backendLoader
-        sourceComponent: Quickshell.env("DF_COMPOSITOR") === "hyprland" ? hyprlandAdapter : niriAdapter
+        sourceComponent: niriAdapter
     }
     Component {
         id: niriAdapter
         NiriBackend.Adapter {}
-    }
-    Component {
-        id: hyprlandAdapter
-        HyprlandBackend.Adapter {}
     }
     // Only the composition root selects a backend. UI receives the interface.
     LazyLoader {

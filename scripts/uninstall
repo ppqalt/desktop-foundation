@@ -7,5 +7,5 @@ elif [[ $# != 0 ]]; then
 	printf 'Usage: %s [--greeter]\n' "$0" >&2
 	exit 2
 fi
-python3 "$root/scripts/preferences.py" restore
-exec python3 "$root/scripts/deploy.py" restore
+"$root/scripts/preferences" restore
+exec "$root/scripts/deploy" restore

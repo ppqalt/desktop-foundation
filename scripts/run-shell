@@ -1,30 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-case ${DF_COMPOSITOR:-niri} in
-niri)
-	[[ -S ${NIRI_SOCKET:-} ]] || {
-		echo "Niri socket unavailable" >&2
-		exit 1
-	}
-	;;
-hyprland)
-	[[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] || {
-		echo 'Hyprland environment unavailable' >&2
-		exit 1
-	}
-	hyprctl -j monitors >/dev/null || {
-		echo 'Hyprland IPC unavailable' >&2
-		exit 1
-	}
-	;;
-*)
-	echo 'Unsupported compositor.' >&2
+if [[ ${DF_COMPOSITOR:-niri} != niri || ! -S ${NIRI_SOCKET:-} ]]; then
+	printf '%s\n' 'Desktop Foundation requires a Niri session.' >&2
 	exit 1
-	;;
-esac
-# Use the installed GTK dark palette for Quickshell's native diagnostic windows.
-# Scope these overrides to this process; custom QML surfaces keep their own theme.
+fi
 export QT_QPA_PLATFORMTHEME=gtk3
 export GTK_THEME=adw-gtk3-dark
 exec quickshell --no-duplicate --path "$root/shell"

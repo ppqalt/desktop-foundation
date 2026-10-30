@@ -1,6 +1,6 @@
 # Desktop Foundation
 
-A Niri desktop for Arch and CachyOS with graphite menus, wallpaper-derived colors,
+A Niri desktop for CachyOS with graphite menus, wallpaper-derived colors,
 Rust backends and a shared terminal setup.
 
 ![Application launcher](docs/screenshots/launcher.png)

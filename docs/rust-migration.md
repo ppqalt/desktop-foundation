@@ -49,3 +49,23 @@ older tests and their import-compatible helper modules remain. Those legacy
 modules are retained until their callers/tests migrate; normal theme commands,
 new deployment theme preparation, Spotify color binding and the wallpaper-startup
 recovery path now use Rust. No new Python implementation or tests were added.
+
+## Native deployment and supported platform
+
+`deploy`, `uninstall` and preference setup now use the Rust ownership journal and
+native session-file generation. Existing `manifest.json` backups are retained,
+including their original inode fingerprints and recovery phases. Updates skip
+global preference writes. Fish's writable runtime state remains outside the
+checkout. Pre-existing oo7 enablement and GNOME Keyring masks are not adopted.
+
+`scripts/preferences install --theme-only` and `scripts/preferences restore`
+use the native preference/MIME coordination lock. `scripts/check` and
+`scripts/test` use native validation, Rust tests and the offscreen QML checks.
+Older Python test/helper modules remain available until their remaining callers
+are migrated; normal deployment no longer runs them.
+
+The supported platform is CachyOS with Niri. Bootstrap and deployment reject
+other platforms/compositors; the shell, session startup, launch routing and
+updater select only Niri. Existing archived compatibility sources are not an
+alternate supported installation path. Restoration still understands older
+journals so removing support does not strand their backups.

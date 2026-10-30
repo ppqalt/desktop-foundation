@@ -100,9 +100,9 @@ fn lock(directory: &Path, inherited: Option<RawFd>) -> Result<File> {
     let Some(fd) = inherited else {
         return state::lock(&path, TIMEOUT);
     };
-    // The Python recovery bridge holds the same open-file-description lock
+    // The recovery coordinator holds the same open-file-description lock
     // across MIME restoration. Duplicate its inherited descriptor so dropping
-    // this handle cannot close the bridge's descriptor or release its lock.
+    // this handle cannot close the coordinator's descriptor or release its lock.
     // SAFETY: fcntl validates the caller-supplied descriptor and returns our own.
     let duplicate = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 0) };
     if duplicate < 0 {
@@ -120,7 +120,7 @@ fn lock(directory: &Path, inherited: Option<RawFd>) -> Result<File> {
         return Err(invalid("Inherited preference lock is not the state lock"));
     }
     // Keep the inherited lock out of gsettings/xdg-mime child processes. FD
-    // flags are local to this process; the bridge retains its original handle.
+    // flags are local to this process; the coordinator retains its original handle.
     // SAFETY: fd was validated above and fcntl does not retain any pointer.
     if unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) } < 0 {
         return Err(std::io::Error::last_os_error().into());
@@ -307,4 +307,72 @@ pub fn gtk_refresh(directory: &Path) -> Result<Value> {
         &quoted,
     )?;
     Ok(json!({"status": "applied", "accent": accent, "changed": changed}))
+}
+
+pub fn setup(root: &Path, args: &[String]) -> Result<()> {
+    use crate::application_roles;
+    use std::os::fd::AsRawFd;
+    let action = args
+        .first()
+        .map(String::as_str)
+        .ok_or_else(|| invalid("Expected preferences-setup install|restore"))?;
+    let mut theme_only = false;
+    let mut browser = None;
+    let mut index = 1;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--theme-only" => theme_only = true,
+            "--browser" => {
+                index += 1;
+                browser = Some(
+                    args.get(index)
+                        .ok_or_else(|| invalid("Missing browser desktop entry"))?
+                        .as_str(),
+                );
+            }
+            _ => return Err(invalid("Unexpected preference option")),
+        }
+        index += 1;
+    }
+    if !["install", "restore"].contains(&action) {
+        return Err(invalid("Expected preferences-setup install|restore"));
+    }
+    let directory = directory()?;
+    let transaction = lock(&directory, None)?;
+    if action == "restore" {
+        prepare_restore(&directory, Some(transaction.as_raw_fd()))?;
+        let conflicts = application_roles::conflicts()?;
+        if !conflicts.is_empty() {
+            return Err(invalid(format!(
+                "Application defaults changed externally: {}",
+                conflicts.join(", ")
+            )));
+        }
+        application_roles::restore()?;
+        restore(&directory, Some(transaction.as_raw_fd()))?;
+        return Ok(());
+    }
+    // Validate the requested role before changing any preference.
+    let personal = application_roles::roles(root, true)?;
+    let core = application_roles::roles(root, false)?;
+    if let Some(browser) = browser
+        && Some(browser) != personal["browser"]["desktop"].as_str()
+        && Some(browser) != core["browser"]["desktop"].as_str()
+    {
+        return Err(invalid("Unknown browser role"));
+    }
+    for (key, value) in [
+        ("font-name", "'Google Sans Flex 10'"),
+        ("color-scheme", "'prefer-dark'"),
+        ("gtk-theme", "'adw-gtk3-dark'"),
+    ] {
+        manage(&directory, ["gsettings".into(), key.into()], value)?;
+    }
+    if !theme_only {
+        application_roles::apply(
+            root,
+            browser.is_some() && browser == personal["browser"]["desktop"].as_str(),
+        )?;
+    }
+    Ok(())
 }

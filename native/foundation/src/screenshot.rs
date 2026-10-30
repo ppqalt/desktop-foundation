@@ -36,6 +36,9 @@ struct Storage {
 }
 
 pub fn capture(root: &Path, backend: &str, action: &str) -> Result<()> {
+    if backend != "niri" {
+        return Err(invalid("Desktop Foundation supports Niri screenshots only"));
+    }
     if !matches!(action, "region" | "window" | "output") {
         return Err(invalid(
             "Screenshot action must be region, window or output",

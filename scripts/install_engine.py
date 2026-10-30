@@ -1,4 +1,4 @@
-"""Two-layer Arch-family provisioning; inspect first, reuse reversible helpers."""
+"""Two-layer CachyOS provisioning; inspect first, reuse reversible helpers."""
 import argparse
 import json
 import os
@@ -100,7 +100,7 @@ def plan(args):
     conflicts = deployment_conflicts()
     for conflict in conflicts:
         print('CONFLICT: ' + conflict)
-    subprocess.run([sys.executable, str(ROOT / 'scripts/deploy.py'), 'install', '--profile', args.profile, '--dry-run'], check=True)
+    subprocess.run([str(ROOT / 'scripts/deploy'), 'install', '--profile', args.profile, '--dry-run'], check=True)
     return bool(conflicts)
 
 
@@ -132,7 +132,7 @@ def core(args):
     script('preflight', '--profile', args.profile)
     # Stage/validate before replacing paths, retaining the original backup journal.
     script('deploy', '--compositor', 'niri', '--profile', args.profile)
-    command(sys.executable, ROOT / 'scripts/preferences.py', 'install', '--theme-only')
+    script('preferences', 'install', '--theme-only')
     if not args.personal:
         script('applications', 'apply')
     command('sudo', 'systemctl', 'enable', 'bluetooth.service', 'apparmor.service')
@@ -189,7 +189,7 @@ def main(argv=None):
     if os.geteuid() == 0:
         raise RuntimeError('Run as your normal login user; AUR/native builds must not run as root')
     if not shutil.which('pacman'):
-        raise RuntimeError('Arch-family pacman installation required')
+        raise RuntimeError('CachyOS pacman installation required')
     conflicts = deployment_conflicts()
     if conflicts:
         raise RuntimeError('Externally changed deployed paths: ' + ', '.join(conflicts))

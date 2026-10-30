@@ -19,13 +19,18 @@ bluetooth power on|off
 bluetooth codecs DEVICE_PATH
 bluetooth connect|disconnect|reconnect DEVICE_PATH
 bluetooth codec DEVICE_PATH --codec sbc|sbc_xq
-screenshot [--backend niri|hyprland] region|window|output
+screenshot [--backend niri] region|window|output
 power suspend|logout|reboot|poweroff [--check]
 actions list|plan ID|invoke ID
 cache plan|prune
 theme generate IMAGE
 theme derive --source SOURCE --hash HASH
 theme gtk-accent
+deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]
+preferences-setup install [--theme-only]|restore
+preflight [--profile NAME] [--compositor niri] [--update]
+theme-runtime generate|apply|reset|wallpaper|rollback|promote|ensure
+wallpapers list
 preferences [--state DIRECTORY] set TYPE KEY VALUE|check|restore|gtk-refresh
 wallpaper start
 notifications start|check-owner

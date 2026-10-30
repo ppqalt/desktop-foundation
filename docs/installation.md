@@ -1,6 +1,6 @@
 # Installation
 
-Desktop Foundation targets Arch-family systems with pacman. Start with a normal
+Desktop Foundation supports CachyOS with Niri. Start with a normal
 login user, sudo, network access, working graphics, Git and Python. Keep the
 checkout in a permanent directory and run the installer as that user.
 

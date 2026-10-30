@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+supported=false
+if [[ -r /etc/os-release ]]; then
+	while IFS="=" read -r key value; do
+		value=${value//\"/}
+		if [[ $key == ID && $value == cachyos ]]; then supported=true; fi
+	done </etc/os-release
+fi
+if ! $supported; then
+	printf '%s\n' 'Desktop Foundation supports CachyOS with Niri only.' >&2
+	exit 1
+fi
 mapfile -t packages < <(sed '/^#/d; /^$/d' "$root/packages/core.txt")
 add_manifest() {
 	local manifest
@@ -10,7 +21,6 @@ add_manifest() {
 dev=false
 for option in "$@"; do
 	case $option in
-	--hyprland) add_manifest hyprland ;;
 	--greeter) add_manifest greeter ;;
 	--personal) add_manifest personal ;;
 	--dev)
@@ -18,7 +28,7 @@ for option in "$@"; do
 		add_manifest dev
 		;;
 	*)
-		printf 'Usage: %s [--hyprland] [--greeter] [--dev]\n' "$0" >&2
+		printf 'Usage: %s [--greeter] [--personal] [--dev]\n' "$0" >&2
 		exit 2
 		;;
 	esac
@@ -28,10 +38,10 @@ for package in "${packages[@]}"; do
 	if ! pacman -T "$package" >/dev/null 2>&1; then missing+=("$package"); fi
 done
 if ((${#missing[@]})); then
-	# Full upgrade avoids unsupported partial upgrades on Arch/CachyOS.
+	# Full upgrade avoids unsupported partial upgrades on CachyOS.
 	sudo pacman -Syu --needed "${missing[@]}"
 fi
-# CachyOS supplies this firmware bundle in its repository; plain Arch uses AUR.
+# Prefer the CachyOS firmware package from its configured signed repository.
 mapfile -t firmware < <(sed '/^#/d; /^$/d' "$root/packages/firmware.txt")
 for package in "${firmware[@]}"; do
 	if pacman -T "$package" >/dev/null 2>&1; then continue; fi

@@ -9,14 +9,14 @@ scripts/bootstrap --dev
 The package manifests under `packages/` define the dependencies. Bootstrap installs
 the core packages, firmware package and pinned Rust toolchain; `--dev` adds build,
 lint and profiling tools plus Rust formatting, Clippy and rust-analyzer components.
-Additional package groups are selected with `--hyprland`, `--greeter` and
+Additional package groups are selected with `--greeter` and
 `--personal`.
 
 | Area | Tools |
 | --- | --- |
 | Bash | ShellCheck, shfmt |
 | QML | qmllint, qmlformat, qmlls, qmlprofiler, qsb |
-| Python and Lua | Python syntax checks, luac |
+| Shared configuration | luac |
 | Rust | Cargo, rustfmt, Clippy, rust-analyzer |
 | Native build | GCC, Clang/LLVM, CMake, Ninja, pkgconf |
 | Profiling | hyperfine, heaptrack, gdb, strace, perf |
