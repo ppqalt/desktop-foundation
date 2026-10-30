@@ -89,6 +89,7 @@ ShellRoot {
         }
         Item {
             id: routeA
+            property int dismissals: 0
             property bool alive: false
             property bool closing: false
             property bool busy: false
@@ -110,6 +111,7 @@ ShellRoot {
                             routeA.closing = false;
                         },
                         dismiss: () => {
+                            routeA.dismissals++;
                             routeA.closing = true;
                         },
                         present: () => {
@@ -223,6 +225,10 @@ ShellRoot {
                 router.request("power");
                 compare(router.pending, "power");
                 verify(!routeB.alive);
+                const closeCount = routeA.dismissals;
+                for (let i = 0; i < 30; i++)
+                    router.drain();
+                compare(routeA.dismissals, closeCount);
                 router.request("first");
                 compare(router.pending, "");
                 verify(!routeA.closing);

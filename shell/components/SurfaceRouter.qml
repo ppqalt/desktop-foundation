@@ -43,7 +43,10 @@ QtObject {
             return;
         for (const key of Object.keys(surfaces)) {
             if (surfaces[key].alive()) {
-                surfaces[key].dismiss();
+                // A closing surface already owns its completion. Retargeting
+                // it every frame restarts sidebar motion indefinitely.
+                if (!surfaces[key].item()?.closing)
+                    surfaces[key].dismiss();
                 return;
             }
         }

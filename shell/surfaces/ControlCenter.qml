@@ -88,6 +88,11 @@ PanelWindow {
         motion.move(true);
     }
     function dismiss(next = ""): void {
+        if (closing) {
+            if (next)
+                nextSurface = next;
+            return;
+        }
         nextSurface = next;
         closing = true;
         status.running = false;
