@@ -133,10 +133,8 @@ PanelWindow {
         }
     }
     function navigate(delta: int): void {
-        // Reading order: devices, Manage, then the radio toggle at its right.
-        const position = selected === -1 ? devices.length + 1 : selected;
-        const next = Math.max(0, Math.min(devices.length + 1, position + delta));
-        selectIndex(next === devices.length + 1 ? -1 : next);
+        // Reading order: radio toggle, devices, then Manage.
+        selectIndex(selected + delta);
     }
     function selectIndex(index: int): void {
         defaultSelectionPending = false;
@@ -442,7 +440,7 @@ PanelWindow {
         visible: root.controlDevice === null
         anchors.centerIn: parent
         width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(88 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0) + (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0), root.height - 64)
+        height: Math.min(134 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0) + (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0), root.height - 64)
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
@@ -471,13 +469,9 @@ PanelWindow {
             else if (event.key === Qt.Key_Down || event.key === Qt.Key_S || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
                 root.navigate(event.key === Qt.Key_Backtab || event.modifiers & Qt.ShiftModifier ? -1 : 1);
             else if (event.key === Qt.Key_Home)
-                root.selectIndex(0);
+                root.selectIndex(-1);
             else if (event.key === Qt.Key_End)
-                root.selectIndex(-1);
-            else if ([Qt.Key_Left, Qt.Key_A].includes(event.key) && root.selected === -1)
                 root.selectIndex(root.devices.length);
-            else if ([Qt.Key_Right, Qt.Key_D].includes(event.key) && root.selected === root.devices.length)
-                root.selectIndex(-1);
             else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown)
                 root.navigate((event.key === Qt.Key_PageUp ? -1 : 1) * Math.max(1, Math.floor(list.height / 76)));
             else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
@@ -488,9 +482,8 @@ PanelWindow {
             event.accepted = true;
         }
         Rectangle {
-            anchors.right: parent.right
-            anchors.rightMargin: 24
-            y: manageAction.y + 5
+            x: 16
+            y: 12
             width: 82
             height: 38
             radius: Theme.radii.medium
@@ -547,9 +540,9 @@ PanelWindow {
         ListView {
             id: list
             x: 16
-            y: 16
+            y: 62
             width: card.width - 32
-            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 76, Math.max(1, card.height - 88 - (root.error ? 38 : 0) - (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0)))
+            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 76, Math.max(1, card.height - 134 - (root.error ? 38 : 0) - (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0)))
             model: root.devices
             clip: true
             interactive: false
@@ -603,7 +596,7 @@ PanelWindow {
             id: manageAction
             x: 16
             y: list.y + list.height + (root.error ? 38 : 0) + 8
-            width: card.width - 132
+            width: card.width - 32
             height: 48
             radius: Theme.radii.medium
             color: root.selected === root.devices.length ? Material.colors.secondary_container : manageMouse.containsMouse ? Material.colors.surface_container_high : "transparent"
