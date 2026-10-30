@@ -131,7 +131,7 @@ accessible names, and long lists scroll instead of extending offscreen.
 
 Centered menus omit generic application titles and item/availability counters.
 Search menus begin with the search field; the session menu begins with actions.
-Bluetooth keeps its radio control label, and device settings keep device identity,
+Bluetooth keeps its radio toggle without an icon/title heading; device settings keep device identity,
 subpage context, battery and codec status. The Control Center overview omits its
 redundant title while detail pages retain orientation and back/close actions.
 Do not remove useful values, errors, safety notices or action labels to achieve

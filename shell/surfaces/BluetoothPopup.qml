@@ -480,23 +480,6 @@ PanelWindow {
                 return;
             event.accepted = true;
         }
-        Image {
-            x: 28
-            y: 22
-            width: 24
-            height: 28
-            source: "../assets/bluetooth.svg"
-        }
-        Text {
-            x: 68
-            y: 25
-            width: card.width - 182
-            elide: Text.ElideRight
-            text: root.adapterAvailable ? "Bluetooth" : "Bluetooth is off"
-            color: Material.colors.on_surface
-            font.family: Theme.typography.family
-            font.pixelSize: Theme.typography.heading
-        }
         Rectangle {
             anchors.right: parent.right
             anchors.rightMargin: 24
