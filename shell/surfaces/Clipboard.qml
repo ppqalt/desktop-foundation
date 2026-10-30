@@ -35,7 +35,7 @@ PanelWindow {
         onAboutToUpdate: root.captureViewport()
         onCompleted: action => {
             if (action === "copy" || action === "copy-plain")
-                root.dismiss();
+                Qt.callLater(() => root.dismiss());
         }
     }
     readonly property var results: history.entries.filter(entry => [entry.label, entry.preview, entry.detail, entry.mime, entry.kind, (entry.formats || []).join(" ")].join(" ").toLocaleLowerCase().includes(search.text.toLocaleLowerCase().trim()))
@@ -413,7 +413,7 @@ PanelWindow {
         id: panel
         Keys.onPressed: event => root.handleKey(event)
         width: Math.min(root.confirmClear ? 440 : Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(root.confirmClear ? 268 : 182 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 76 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height - 64)
+        height: Math.min(root.confirmClear ? 268 : 144 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 76 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height - 64)
         Behavior on width {
             // Initial output geometry uses the shared fade/scale entrance.
             // Keep the existing confirmation morph once opened (or requested).
@@ -447,25 +447,6 @@ PanelWindow {
         // Capture blank panel clicks without moving keyboard focus.
         MouseArea {
             anchors.fill: parent
-        }
-        Text {
-            x: 28
-            y: 23
-            text: "Clipboard"
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.titleMedium
-            font.letterSpacing: 0
-            color: Material.colors.on_surface_variant
-        }
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: clearAction.width + 48
-            visible: !root.confirmClear && panel.width >= 540
-            y: 23
-            text: root.results.length + (search.text ? (root.results.length === 1 ? " match" : " matches") : (root.results.length === 1 ? " item" : " items")) + (root.pinnedCount ? " · " + root.pinnedCount + " pinned" : "")
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.titleMedium
-            color: Material.colors.on_surface_variant
         }
         Rectangle {
             id: clearAction
@@ -502,7 +483,7 @@ PanelWindow {
         Image {
             visible: !root.confirmClear
             x: 28
-            y: 62
+            y: 18
             width: 24
             height: 24
             source: "../assets/search.svg"
@@ -511,8 +492,8 @@ PanelWindow {
             id: search
             visible: !root.confirmClear
             x: 68
-            y: 57
-            width: panel.width - 96
+            y: 11
+            width: panel.width - 244
             height: 38
             placeholderText: "Search clipboard…"
             readOnly: root.confirmClear
@@ -529,7 +510,7 @@ PanelWindow {
         Rectangle {
             visible: !root.confirmClear
             x: 28
-            y: 110
+            y: 72
             width: panel.width - 56
             height: 1
             color: Material.colors.outline_variant
@@ -543,9 +524,9 @@ PanelWindow {
                 onStepped: delta => root.navigate(delta)
             }
             x: 16
-            y: 126
+            y: 88
             width: panel.width - 32
-            height: panel.height - 186
+            height: panel.height - 148
             clip: true
             spacing: 4
             model: root.results

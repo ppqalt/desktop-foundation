@@ -414,6 +414,18 @@ ShellRoot {
                 compare(historyMenu.clearChoice, 0);
                 keyClick(Qt.Key_Escape);
                 verify(!historyMenu.confirmClear);
+                historyMenu.launchSelected();
+                wait(200);
+                verify(historyMenu.closing);
+                verify(!historyMenu.lifecycle.clipboardEnabled);
+                historyMenu.lifecycle.clipboardEnabled = true;
+                historyMenu.present();
+                historyMenu.navigate(1);
+                verify(historyMenu.plainAvailable());
+                historyMenu.copyPlainSelected();
+                wait(200);
+                verify(historyMenu.closing);
+                verify(!historyMenu.lifecycle.clipboardEnabled);
                 historyMenu.visible = false;
             }
             function test_session_navigation() {

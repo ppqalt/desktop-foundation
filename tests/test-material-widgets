@@ -20,7 +20,7 @@ cleanup() {
 trap cleanup EXIT
 sed -e 's@../../shell/@shell/@g' -e "s@SURFACE_FIXTURES@$(basename "$fixture_surfaces")@" "$root/tests/qml/tst_material_widgets.qml" >"$fixture_qml"
 mkdir -p "$fixture_state/desktop-foundation/clipboard"
-printf '%s\n' '[{"id":"fixture-one","label":"Notes","preview":"note","mime":"text/plain","kind":"text","size":4,"pinned":false}]' >"$fixture_state/desktop-foundation/clipboard/index.json"
+printf '%s\n' '[{"id":"fixture-one","label":"Notes","preview":"note","mime":"text/plain","kind":"text","size":4,"pinned":false},{"id":"fixture-rich","label":"Formatted","preview":"formatted","mime":"text/html","kind":"rich","size":9,"pinned":false}]' >"$fixture_state/desktop-foundation/clipboard/index.json"
 # Only Wayland transport changes; production rendering, motion and input remain.
 for surface in Power Volume Launcher Clipboard ModalBackdrop; do
 	perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.|anchors\.top:|margins\.top:|mask: Region).*\n//mg; s/implicitWidth:/width:/; s/implicitHeight:/height:/; s#import "../theme"#import "../shell/theme"#; s#import "../components"#import "../shell/components"#; s#import "../services"#import "../shell/services"#; s#"../assets/#"../shell/assets/#g' "$root/shell/surfaces/$surface.qml" >"$fixture_surfaces/${surface}Fixture.qml"
