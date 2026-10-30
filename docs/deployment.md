@@ -11,12 +11,11 @@ scripts/deploy --compositor niri --profile default
 ```
 
 The core installer performs these builds and deployment itself. A direct deploy
-requires both executable backends. Select `--compositor hyprland` for the secondary
-compositor. Profiles under `profiles/` supply hardware overrides; shared input
+requires both executable backends. The maintained deployment path targets Niri.
+Profiles under `profiles/` supply hardware overrides; shared input
 remains in `config/input.lua`.
 
-Niri's generated KDL and Hyprland's generated Lua are checked with the selected
-compositor before their entry files are published. Deployment also generates
+Niri's generated KDL is validated before its entry file is published. Deployment also generates
 session units, validates Fish configuration, applies theme preferences and refreshes
 the font cache. Configuration changes may reload in the running compositor.
 

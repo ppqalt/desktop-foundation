@@ -7,8 +7,16 @@ not make the component compliant. Keep this document synchronized with code.
 
 ## Scope and precedence
 
+See [the official Google reference index](MATERIAL_REFERENCES.md) for the full
+canonical foundation/style/component link catalogue, including specifications,
+guidelines and accessibility pages.
+
 All Foundation-owned windows, widgets, lists, menus, dialogs, popups, overlays,
 notifications and readouts form one UI. Supported platform: CachyOS + Niri.
+CachyOS + Niri is the officially supported reference configuration; unsupported
+environments are not prohibited. Prefer capability checks over distribution-name
+blocks, and do not promise another supported compositor integration. Existing
+legacy gates are documented in the root handbook as a migration gap.
 QML owns presentation and immediate interaction; Rust owns actual system actions,
 validation, persistence and backend data. No new Python code or tests.
 

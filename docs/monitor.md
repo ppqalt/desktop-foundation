@@ -5,7 +5,7 @@ Press it again to close. The full-height panel slides from the right without
 moving tiled windows. It accelerates and settles smoothly; toggling during a
 slide preserves its position and momentum while reversing direction. It uses
 the current wallpaper theme, with transparent rounded corners, a matching blur
-and soft shadow. Inner padding keeps the terminal content away from the edges.
+and no shadow. Inner padding keeps the terminal content away from the edges.
 
 btop retains its keyboard controls, including process filtering, menus, Escape
 and q. Quitting btop closes its terminal immediately. Use Super+X for an animated
