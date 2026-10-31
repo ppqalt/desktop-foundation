@@ -18,8 +18,8 @@ PanelWindow {
     readonly property int feedbackDuration: Theme.reducedMotion ? 0 : 100
     screen: targetScreen
     visible: false
-    implicitWidth: 260
-    implicitHeight: 64
+    implicitWidth: message.length ? Math.max(180, noticeContent.implicitWidth + 38) : 260
+    implicitHeight: message.length ? 54 : 64
     anchors.top: true
     margins.top: 16
     exclusionMode: ExclusionMode.Ignore
@@ -70,8 +70,11 @@ PanelWindow {
         anchors.margins: 3
         radius: Material.shape.extraLarge
         color: Material.colors.surface_container_low
-        border.width: 0
-        border.color: Material.colors.outline_variant
+        border.width: 1
+        border.color: Qt.alpha(Material.colors.primary, 0.65)
+        SurfaceOutline {
+            cornerRadius: parent.radius
+        }
         opacity: root.shown ? 1 : 0
         onOpacityChanged: {
             if (opacity === 0 && !root.shown)
@@ -84,25 +87,46 @@ PanelWindow {
             }
         }
         ControlIcon {
+            visible: !root.message.length
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.leftMargin: 14
             anchors.topMargin: 8
-            name: root.message.length ? "hearing" : root.muted ? "volume_off" : "volume_up"
+            name: root.muted ? "volume_off" : "volume_up"
             color: Material.colors.on_surface
         }
         Text {
+            visible: !root.message.length
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.rightMargin: 14
             anchors.topMargin: 10
-            text: root.message.length ? root.message : root.level + "%"
+            text: root.level + "%"
             color: Material.colors.on_surface
             font.family: Theme.typography.family
             font.pixelSize: Material.type.labelLarge
             font.features: ({
                     "tnum": 1
                 })
+        }
+        Row {
+            id: noticeContent
+            anchors.centerIn: parent
+            spacing: 12
+            visible: root.message.length > 0
+            ControlIcon {
+                objectName: "audio-notice-icon"
+                name: root.message === "Transparency Off" ? "hearing_disabled" : root.message === "Transparency On" ? "hearing" : "mic_off"
+                color: Material.colors.primary
+            }
+            Text {
+                objectName: "audio-notice-label"
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.message
+                color: Material.colors.on_surface
+                font.family: Theme.typography.family
+                font.pixelSize: Material.type.labelLarge
+            }
         }
         Rectangle {
             id: track

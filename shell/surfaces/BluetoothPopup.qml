@@ -439,8 +439,8 @@ PanelWindow {
         id: card
         visible: root.controlDevice === null
         anchors.centerIn: parent
-        width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(134 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0) + (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0), root.height - 64)
+        width: Math.min(Theme.dimensions.deviceMenuWidth, root.width - 48)
+        height: Math.min(128 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0) + (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0), root.height - 64)
         opacity: root.entered && !root.closing ? 1 : 0
         scale: root.entered && !root.closing ? 1 : 0.97
         Behavior on opacity {
@@ -481,68 +481,25 @@ PanelWindow {
                 return;
             event.accepted = true;
         }
-        Rectangle {
+        ControlSwitch {
+            id: radioControl
             x: 16
-            y: 12
-            width: 82
-            height: 38
-            radius: Theme.radii.medium
-            color: root.selected === -1 ? Material.colors.secondary_container : radioMouse.containsMouse ? Material.colors.surface_container_high : "transparent"
-            border.width: root.selected === -1 ? 1 : 0
-            border.color: Material.colors.outline
-            opacity: root.busy || root.controlsOpening || !Bluetooth.adapters.values.length ? 0.5 : 1
-            Text {
-                x: 4
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.radioBusy ? "…" : root.adapterAvailable ? "On" : "Off"
-                color: Material.colors.on_surface_variant
-                font.family: Theme.typography.family
-                font.pixelSize: Theme.typography.small
-            }
-            Rectangle {
-                x: 35
-                y: 8
-                width: 40
-                height: 22
-                radius: 11
-                color: root.adapterAvailable ? Material.colors.secondary_container : Material.colors.outline_variant
-                border.width: 1
-                border.color: root.adapterAvailable ? Material.colors.primary : Material.colors.on_surface_variant
-                Rectangle {
-                    x: root.adapterAvailable ? 21 : 3
-                    y: 3
-                    width: 16
-                    height: 16
-                    radius: 8
-                    color: root.adapterAvailable ? Material.colors.primary : Material.colors.on_surface_variant
-                    Behavior on x {
-                        SurfaceAnimation {
-                            duration: Theme.timing.normal
-                            easing.type: Theme.easing
-                        }
-                    }
-                }
-            }
-            MouseArea {
-                id: radioMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.activate(-1)
-            }
-            HoverHandler {
-                onPointChanged: {
-                    if (hovered)
-                        root.pointerSelection(-1, point.scenePosition.x, point.scenePosition.y);
-                }
-            }
+            y: 8
+            text: "Bluetooth"
+            marked: root.adapterAvailable
+            pending: root.radioBusy
+            selected: root.selected === -1
+            activeFocusOnTab: false
+            enabled: !root.busy && !root.radioBusy && !root.controlsOpening && Bluetooth.adapters.values.length > 0
+            onClicked: root.activate(-1)
+            onPointerMoved: (x, y) => root.pointerSelection(-1, x, y)
         }
         ListView {
             id: list
             x: 16
-            y: 62
+            y: 64
             width: card.width - 32
-            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 76, Math.max(1, card.height - 134 - (root.error ? 38 : 0) - (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0)))
+            height: Math.min(Math.max(1, Math.min(6, root.devices.length)) * 76, Math.max(1, card.height - 128 - (root.error ? 38 : 0) - (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0)))
             model: root.devices
             clip: true
             interactive: false
@@ -575,6 +532,7 @@ PanelWindow {
                         genericName: root.detail(modelData)
                     })
                 iconSource: root.deviceIcon(modelData)
+                iconName: /headset|headphone/.test(modelData.icon || "") ? "headphones" : ""
                 selected: root.selected === index
                 actionLabel: (root.busy && root.pendingDevice === modelData) || root.pendingControls === modelData || root.pendingActivation === modelData.dbusPath ? "…" : modelData.connected ? root.supportsControls(modelData) ? "Controls" : "Disconnect" : "Connect"
                 onPointerMoved: (x, y) => root.pointerSelection(index, x, y)
@@ -592,40 +550,17 @@ PanelWindow {
             font.pixelSize: Theme.typography.small
             wrapMode: Text.Wrap
         }
-        Rectangle {
+        ControlAction {
             id: manageAction
             x: 16
             y: list.y + list.height + (root.error ? 38 : 0) + 8
             width: card.width - 32
             height: 48
-            radius: Theme.radii.medium
-            color: root.selected === root.devices.length ? Material.colors.secondary_container : manageMouse.containsMouse ? Material.colors.surface_container_high : "transparent"
-            border.width: root.selected === root.devices.length ? 1 : 0
-            border.color: Material.colors.outline
-            Text {
-                anchors.left: parent.left
-                anchors.leftMargin: 14
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.devices.length ? "Manage…" : "Open Bluetooth Manager"
-                color: Material.colors.on_surface_variant
-                font.family: Theme.typography.family
-                font.pixelSize: Theme.typography.body
-            }
-            Text {
-                anchors.right: parent.right
-                anchors.rightMargin: 20
-                anchors.verticalCenter: parent.verticalCenter
-                text: "↗"
-                color: Material.colors.on_surface_variant
-                font.pixelSize: 18
-            }
-            MouseArea {
-                id: manageMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.activate(root.devices.length)
-            }
+            text: "Settings"
+            symbol: "settings"
+            marked: root.selected === root.devices.length
+            activeFocusOnTab: false
+            onClicked: root.activate(root.devices.length)
             HoverHandler {
                 onPointChanged: {
                     if (hovered)

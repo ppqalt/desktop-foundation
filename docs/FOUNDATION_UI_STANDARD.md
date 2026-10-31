@@ -55,6 +55,9 @@ verify measurements through Google's official implementation rather than guessin
 - Logical QML pixels are the desktop counterpart of dp; let Qt/Niri handle scaling.
 - No drop shadows or simulated elevation shadows. Tonal surfaces, spacing and
   outlines express hierarchy. Niri window and layer shadows remain off.
+- Outer QML cards/readouts and Control Center groups use a quiet 1px
+  `primary` border at 65% opacity, with a faint tonal halo. It follows the
+  wallpaper palette; selection and keyboard focus remain separate, stronger states.
 - Google Sans Flex is UI type; Google Sans Code is for code/tabular diagnostic text.
 - Keep the graphite base with wallpaper-derived Material roles; never substitute
   an arbitrary blue or pink for a generated semantic role.
@@ -152,6 +155,7 @@ primitive when multiple callers need the same change.
 | `SidebarMotion` | Reversible position/velocity slide; `move(open)`, `position`, `settled(open)`; reduced motion settles immediately |
 | `SurfaceRouter` | `surfaces` adapters (`item/alive/open/dismiss/present`, optional `retiring`; `open(handoff)`), `request(name, showOnly)`; last intent wins; immediate visual handoff with retained backend ownership |
 | `ControlAction` | Button/list action: `text/detail/badge/symbol`, `marked/toggle/compact/iconOnly`, `clicked`; checked state is backend-owned |
+| `ControlSwitch` | Backend-owned `marked`, `pending`, optional menu `selected`, `clicked` request and pointer movement; Material switch geometry, no optimistic checked-state mutation |
 | `ControlChoice` | Keyboard dropdown: `model/textRole/currentIndex`, `activated`; private `menuIndex` until committed |
 | `ControlVolume` | Shared audio slider/mute presentation and directional input; backend callbacks own actual volume |
 | `ControlGroup` | Common group surface and layout |

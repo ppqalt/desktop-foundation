@@ -71,6 +71,7 @@ QtObject {
             probeWidth: 440,
             probeHeight: 100,
             launcherWidth: 640,
+            deviceMenuWidth: 480,
             rowHeight: 62
         })
     readonly property var fallback: ({

@@ -54,6 +54,14 @@ ShellRoot {
                 y: 250
                 width: parent.width
             }
+            ControlSwitch {
+                id: radio
+                x: 24
+                y: 300
+                text: "Bluetooth"
+                property int requests: 0
+                onClicked: requests++
+            }
         }
         Fixtures.PowerFixture {
             id: session
@@ -455,6 +463,13 @@ ShellRoot {
                 volume.presentMessage("Transparency On");
                 compare(volume.message, "Transparency On");
                 compare(progress.parent.visible, false);
+                const noticeIcon = find(volume.contentItem, "audio-notice-icon");
+                verify(noticeIcon.source.toString().length > 0);
+                compare(noticeIcon.name, "hearing");
+                compare(volume.height, 54);
+                verify(volume.width < 260);
+                volume.presentMessage("Transparency Off");
+                compare(noticeIcon.name, "hearing_disabled");
                 volume.present(42, false);
                 compare(volume.message, "");
                 compare(progress.parent.visible, true);
@@ -463,6 +478,8 @@ ShellRoot {
             function test_shared_roles() {
                 compare(card.radius, Material.shape.extraLarge);
                 compare(card.color, Material.colors.surface_container_low);
+                compare(card.border.width, 1);
+                compare(card.border.color, Qt.alpha(Material.colors.primary, 0.65));
                 compare(setting.color, Material.colors.secondary_container);
                 compare(setting.height, 72);
                 compare(clipboard.height, 72);
@@ -477,6 +494,21 @@ ShellRoot {
                 footer.actionText = "";
             }
             function test_setting_feedback() {
+                const track = find(radio, "control-switch-track");
+                const thumb = find(radio, "control-switch-thumb");
+                compare(track.width, 52);
+                compare(track.height, 32);
+                compare(thumb.width, 16);
+                radio.forceActiveFocus();
+                keyClick(Qt.Key_Return);
+                compare(radio.requests, 1);
+                compare(radio.marked, false);
+                radio.marked = true;
+                wait(200);
+                compare(thumb.width, 24);
+                keyClick(Qt.Key_Space);
+                compare(radio.requests, 2);
+                compare(radio.marked, true);
                 compare(setting.settingState, true);
                 mouseClick(setting, setting.width / 2, setting.height / 2);
                 compare(setting.settingState, false);

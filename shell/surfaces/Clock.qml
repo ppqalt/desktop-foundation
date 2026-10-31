@@ -38,8 +38,11 @@ PanelWindow {
         anchors.fill: parent
         radius: height / 2
         color: Material.colors.surface_container_low
-        border.width: 0
-        border.color: Material.colors.outline_variant
+        border.width: 1
+        border.color: Qt.alpha(Material.colors.primary, 0.65)
+        SurfaceOutline {
+            cornerRadius: parent.radius
+        }
         opacity: root.entered ? 1 : 0
         Behavior on opacity {
             SurfaceAnimation {

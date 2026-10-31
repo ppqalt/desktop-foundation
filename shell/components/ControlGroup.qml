@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 
-// M3 filled card: medium corners, surfaceContainerLow, 16dp content inset.
+// Tonal card with a shared quiet outline and 16px content inset.
 Rectangle {
     id: root
     default property alias content: layout.data
@@ -10,6 +10,11 @@ Rectangle {
     implicitWidth: 240
     radius: Material.shape.medium
     color: Material.colors.surface_container_low ?? "#1d1b20"
+    border.width: 1
+    border.color: Qt.alpha(Material.colors.primary, 0.65)
+    SurfaceOutline {
+        cornerRadius: parent.radius
+    }
     ColumnLayout {
         id: layout
         anchors.fill: parent

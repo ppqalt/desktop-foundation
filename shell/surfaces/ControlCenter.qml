@@ -238,6 +238,19 @@ PanelWindow {
         bottomLeftRadius: 0
         topRightRadius: root.sidebarStyle.radius
         bottomRightRadius: root.sidebarStyle.radius
+        border.width: 1
+        border.color: Qt.alpha(Material.colors.primary, 0.65)
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -1
+            topLeftRadius: 0
+            bottomLeftRadius: 0
+            topRightRadius: root.sidebarStyle.radius + 1
+            bottomRightRadius: root.sidebarStyle.radius + 1
+            color: "transparent"
+            border.width: 3
+            border.color: Qt.alpha(Material.colors.primary, 0.10)
+        }
         // The non-modal desktop frame retains its shared btop geometry/alpha.
         // M3 content cards are opaque so wallpaper never changes text contrast.
         property color baseColor: Material.colors.surface ?? "#141218"
@@ -505,6 +518,7 @@ PanelWindow {
                             objectName: "cachyUpdateShortcut"
                             visible: root.page === "overview"
                             text: "Cachy Update"
+                            symbol: "system_update_alt"
                             compact: true
                             Layout.fillWidth: true
                             onClicked: {

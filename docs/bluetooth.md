@@ -62,3 +62,10 @@ uses the same PipeWire selection and confirms the active playback codec. See
 References: [Quickshell BluetoothDevice](https://quickshell.org/docs/v0.3.1/types/Quickshell.Bluetooth/BluetoothDevice/),
 [WirePlumber settings](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/settings.html),
 [Bluetooth configuration](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/bluetooth.html).
+
+The device popup uses a compact 480px maximum width (a Foundation desktop layout
+choice) with the shared accent outline and tonal halo. Its top-left switch uses Material
+Web's 52×32 track, 24/16px selected/unselected handles and a 48px input target;
+`marked` remains confirmed adapter state, including while a request is pending.
+The Settings row opens the existing Bluetooth manager. Arrow/WASD/Tab navigation
+and initial selection of the first available device are retained.
