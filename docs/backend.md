@@ -26,6 +26,7 @@ cache plan|prune
 theme generate IMAGE
 theme derive --source SOURCE --hash HASH
 theme gtk-accent
+install [--core|--personal] [--profile NAME] [--no-packages] [--no-greeter] [--clean-boot] [--dry-run|--check]
 deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]
 preferences-setup install [--theme-only]|restore
 preflight [--profile NAME] [--compositor niri] [--update]
@@ -52,6 +53,11 @@ string and shell calls return the invoked method's response. Failures report to
 stderr and exit nonzero. Native command arguments are passed as arrays.
 
 ## Behavior
+
+- **Installer:** native layer/option parsing, ownership preflight, package/application
+  adoption, build/deploy sequencing and final diagnostics. Interactive sudo and
+  recipe review inherit the terminal. Existing privileged/client helpers retain
+  their own journals; some are still Python. See [installation](installation.md).
 
 - **Clipboard:** SQLite MIME bundles, file lists, pinning, retention and atomic
   index/image projections. Native Wayland capture and replay preserve formats

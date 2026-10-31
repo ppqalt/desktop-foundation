@@ -44,7 +44,7 @@ native deployment preparation and preflight do not require it.
 ## Remaining Python
 
 This is a runtime migration, not a claim that the repository is Python-free.
-Legacy installer/doctor/system setup, Spotify client provisioning, diagnostics,
+Legacy doctor/system setup, Spotify client provisioning, diagnostics,
 older tests and their import-compatible helper modules remain. Those legacy
 modules are retained until their callers/tests migrate; normal theme commands,
 new deployment theme preparation, Spotify color binding and the wallpaper-startup
@@ -69,3 +69,27 @@ other platforms/compositors; the shell, session startup, launch routing and
 updater select only Niri. Existing archived compatibility sources are not an
 alternate supported installation path. Restoration still understands older
 journals so removing support does not strand their backups.
+
+## Native installer orchestration
+
+`scripts/install`, `install-core` and `install-all` now dispatch through native
+`install.rs`. Layer/profile parsing, read-only planning, ownership inspection,
+package/adoption decisions, application metadata validation, build/deploy order
+and error propagation no longer execute Python. Native application-role and
+app-mod configuration readers are reused.
+
+Inspection does not create installation state, authenticate sudo or build a
+missing backend. Normal installation is serialized by `install.lock`; the native
+deployment and preference journals retain their own locks and recovery behavior.
+A missing personal application in `--no-packages` mode stops before configuration
+deployment. No package, service or root-helper actions are run by migration tests.
+
+The installer still delegates to existing privileged boot/login/policy helpers,
+Spicetify provisioning and doctor; these remaining Python consumers have not
+been relabeled as native. `install_engine.py` remains for old imports/tests until
+those callers migrate. No new Python implementation or tests were added.
+
+`cargo test --locked --manifest-path native/foundation/Cargo.toml --test install`
+uses private paths and an inert effect adapter to test layer separation, terminal
+command routing, dry-run/check safety, overrides, ownership, failures and reviewed
+AUR fallback. Real installation or live desktop acceptance is outside that test.

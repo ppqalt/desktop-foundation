@@ -6,9 +6,12 @@ use std::{collections::BTreeMap, fs, io::Read, path::Path, time::Duration};
 const IDS: [&str; 2] = ["spicetify", "geode"];
 
 fn settings(root: &Path) -> Result<BTreeMap<String, bool>> {
+    settings_at(root, &state::xdg("XDG_CONFIG_HOME", ".config")?)
+}
+
+fn settings_at(root: &Path, config_home: &Path) -> Result<BTreeMap<String, bool>> {
     let mut selected = BTreeMap::new();
-    let override_file =
-        state::xdg("XDG_CONFIG_HOME", ".config")?.join("desktop-foundation/app-mods.json");
+    let override_file = config_home.join("desktop-foundation/app-mods.json");
     for file in [root.join("config/app-mods.json"), override_file] {
         let stream = match fs::File::open(&file) {
             Ok(stream) => stream,
@@ -44,6 +47,15 @@ fn settings(root: &Path) -> Result<BTreeMap<String, bool>> {
         }
     }
     Ok(selected)
+}
+
+pub fn configured_at(root: &Path, config_home: &Path) -> Result<Vec<String>> {
+    let config = settings_at(root, config_home)?;
+    Ok(IDS
+        .into_iter()
+        .filter(|id| config.get(*id).copied().unwrap_or(false))
+        .map(str::to_owned)
+        .collect())
 }
 
 fn dependencies(ids: &[&str]) -> Vec<&'static str> {

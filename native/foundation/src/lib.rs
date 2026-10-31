@@ -13,6 +13,7 @@ pub mod deploy;
 pub mod deploy_units;
 pub mod diagnostics;
 pub mod geode;
+pub mod install;
 pub mod keyring;
 pub mod local_ai;
 pub mod monitor;

@@ -177,7 +177,7 @@ PipeWire SBC/SBC-XQ/AAC/LDAC playback change.
 | `volume.rs`, `control_center.rs`, `bluetooth.rs`, `bluetooth/` | Audio/network/device operations and confirmed readback |
 | `theme.rs`, `theme_render.rs`, `theme_runtime.rs`, `backdrop.rs` | Matugen palette mapping, generated outputs, immutable revision transaction, overview image |
 | `wallpapers.rs`, `cache.rs` | Wallpaper catalogue/previews and bounded owned-cache maintenance |
-| `deploy.rs`, `deploy_units.rs`, `preferences.rs` | Ownership journal, native session files, preferences and restore coordination |
+| `deploy.rs`, `deploy_units.rs`, `preferences.rs`, `install.rs` | Installer sequencing, ownership journal, native session files, preferences and restore coordination |
 | `update.rs`, `preflight.rs`, `source_identity.rs` | Isolated update/build validation and source identity |
 | `monitor.rs`, `monitor_config.rs`, `monitor_shader.rs` | Kitty/btop panel lifecycle, persistent settings, appearance/motion |
 | `shell.rs`, `session.rs`, `screenshot.rs` | Shell IPC, native session routes, capture |
@@ -398,7 +398,9 @@ appears only on live Wayland remains a real issue even if an offscreen fixture p
 ### Entry points and boundaries
 
 `scripts/install-all` invokes the personal installer path; `scripts/install`
-still delegates to legacy `scripts/install_engine.py`. Package manifests live
+delegates to native `install.rs`. The wrapper builds a missing backend only for
+an actual install when Cargo is available; inspection commands report the build
+prerequisite without compiling or creating state. Package manifests live
 under `packages/`. `scripts/bootstrap` is the CachyOS package bootstrap, including
 optional manifest groups. Privileged session/boot/browser-policy setup is separate
 from a normal-user desktop update. Do not execute an installer just to validate prose.
@@ -449,9 +451,11 @@ Migrate connected behavior to Rust while preserving wrappers/contracts and journ
 Do not remove an import-compatible module until remaining callers and tests have
 a replacement. Do not execute Python to implement a supposedly Python-free change.
 
-**Current reality:** the repository is not Python-free. Legacy installer/doctor/
-privileged provisioning, older render/helper modules, some client provisioning,
-terminal `select_all.py`, benchmark tooling and older tests remain. CI still
+**Current reality:** the repository is not Python-free. Legacy doctor/privileged
+provisioning, older render/helper modules, some client provisioning,
+terminal `select_all.py`, benchmark tooling and older tests remain. The old
+`install_engine.py` remains import-compatible for legacy doctor/tests, but the
+public installer no longer executes its orchestration. CI still
 compiles/runs Python tests and installs Python tooling. `scripts/dev bench` is
 still a Python route. These are tracked migration targets, not authorized patterns
 for new work. Normal native deployment/theme/update and the native/offscreen test

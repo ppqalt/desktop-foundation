@@ -1,4 +1,19 @@
-#!/usr/bin/env python3
-"""Compatibility entry point: full personal install unless --core is selected."""
-from install_engine import cli
-raise SystemExit(cli())
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ ! -x $root/native/foundation/target/release/desktop-foundationctl ]]; then
+	for option in "$@"; do
+		case $option in
+		--dry-run | --plan | --check | --help | -h)
+			printf '%s\n' 'Build the native installer first: scripts/build-backend (scripts/bootstrap supplies missing build tools).' >&2
+			exit 1
+			;;
+		esac
+	done
+	if ! command -v cargo >/dev/null; then
+		printf '%s\n' 'Build tools are missing. Run scripts/bootstrap, then rerun the installer.' >&2
+		exit 1
+	fi
+	"$root/scripts/build-backend"
+fi
+exec "$root/scripts/foundation" install "$@"
