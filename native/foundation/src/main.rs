@@ -47,7 +47,7 @@ fn run() -> Result<()> {
     }
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  app-roles roles|apply|check [--personal]\n  app-roles validate ROLE|desktop NAME|conflicts|restore\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  install [--core|--personal] [--profile NAME] [--no-packages] [--no-greeter] [--clean-boot] [--dry-run|--check]\n  deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]\n  preferences-setup install [--theme-only]|restore\n  ui-preferences\n  system-setup install|restore\n  preflight [--profile NAME] [--compositor niri] [--update]\n  theme-runtime generate|apply|reset|wallpaper|rollback|promote|ensure\n  wallpapers list\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  control-center toggle|snapshot|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings\n  update [--dry-run]\n  app-mods install|check|restore|plan [spicetify|geode] [--skip-unavailable]\n  geode install|status|restore [--game-dir PATH]\n  build-info\n  doctor --json\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  app-roles roles|apply|check [--personal]\n  app-roles validate ROLE|desktop NAME|conflicts|restore\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  install [--core|--personal] [--profile NAME] [--no-packages] [--no-greeter] [--clean-boot] [--dry-run|--check]\n  deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]\n  preferences-setup install [--theme-only]|restore\n  ui-preferences\n  system-setup install|restore\n  preflight [--profile NAME] [--compositor niri] [--update]\n  theme-runtime generate|apply|reset|wallpaper|rollback|promote|ensure\n  wallpapers list\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  control-center toggle|snapshot|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings\n  update [--dry-run]\n  app-mods install|check|restore|plan [spicetify|geode] [--skip-unavailable]\n  geode install|status|restore [--game-dir PATH]\n  build-info\n  doctor [--installation] [--personal|--core] [--no-greeter]|--json\n  doctor --startup [--save LABEL] [--compare] [--benchmark]\n  session-acceptance\n  spotify-check\n  monitor toggle|close|status|refresh\n  browser-theme status|apply COLOR|remove"
         );
         return Ok(());
     }
@@ -142,8 +142,17 @@ fn run() -> Result<()> {
             )),
         },
         Some("build-info") if args.len() == 1 => print_json(&diagnostics::build_info()),
-        Some("doctor") if args.as_slice() == ["doctor", "--json"] => {
-            print_json(&diagnostics::report(&root)?)
+        Some("doctor") => desktop_foundationctl::doctor::run(&root, &args[1..]),
+        Some("session-acceptance") if args.len() == 1 => {
+            desktop_foundationctl::doctor::acceptance(&root)
+        }
+        Some("spotify-check") if args.len() == 1 => {
+            let initialized = spotify_theme::check(&root)?;
+            println!("PASS Spotify/Spicetify paths, source pins, Marketplace and graphite scheme");
+            if !initialized {
+                println!("WARN first login and normal quit/reopen remain user actions");
+            }
+            Ok(())
         }
         Some("local-ai") if args.len() == 2 => match args[1].as_str() {
             "plan" => print_json(&local_ai::plan(&root)?),

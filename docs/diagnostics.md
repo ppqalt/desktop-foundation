@@ -18,3 +18,23 @@ Both JSON formats have `formatVersion: 1`. Source digests use SHA-256 with an
 ordered, length-prefixed file list; the digest includes paths relative to the
 native package so moving the checkout does not change its identity. Builds from
 source archives retain the source digest and report an unknown Git revision.
+
+Installation/session checks and startup reporting run in Rust:
+
+```sh
+scripts/doctor --installation --personal
+scripts/doctor --startup
+scripts/doctor --startup --save before
+scripts/doctor --startup --compare
+```
+
+Run operational checks as your normal desktop user. They inspect configuration,
+service state and bounded journal output without starting missing services.
+Unavailable evidence is reported; missing timing pairs remain null.
+`--startup --benchmark` is the explicit exception: it opens/closes resident-shell
+popups to measure creation/focus IPC roundtrips. It does not invoke their actions.
+Use it only when those interactions are wanted.
+
+`scripts/session-acceptance` adds read-only login/session service evidence.
+`scripts/spotify-setup check` checks client/theme installation without reading
+Spotify account preference contents or launching Spotify.

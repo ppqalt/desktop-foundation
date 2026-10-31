@@ -42,7 +42,10 @@ local-ai start|status|plan
 control-center toggle|snapshot|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings
 update [--dry-run]
 build-info
-doctor --json
+doctor [--installation] [--personal|--core] [--no-greeter]|--json
+doctor --startup [--save LABEL] [--compare] [--benchmark]
+session-acceptance
+spotify-check
 monitor toggle|close|status|refresh
 browser-theme status|apply COLOR|remove
 ```

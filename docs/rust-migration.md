@@ -44,7 +44,7 @@ native deployment preparation and preflight do not require it.
 ## Remaining Python
 
 This is a runtime migration, not a claim that the repository is Python-free.
-Legacy doctor/other privileged setup, Spotify client provisioning, diagnostics,
+Other privileged setup, Spotify client provisioning, boot-report diagnostics,
 older tests and their import-compatible helper modules remain. Those legacy
 modules are retained until their callers/tests migrate; normal theme commands,
 new deployment theme preparation, Spotify color binding and the wallpaper-startup
@@ -84,10 +84,10 @@ deployment and preference journals retain their own locks and recovery behavior.
 A missing personal application in `--no-packages` mode stops before configuration
 deployment. No package, service or root-helper actions are run by migration tests.
 
-The installer still delegates to existing privileged boot/login/policy helpers,
-Spicetify provisioning and doctor; these remaining Python consumers have not
-been relabeled as native. `install_engine.py` remains for old imports/tests until
-those callers migrate. No new Python implementation or tests were added.
+The installer still delegates to existing privileged boot/policy helpers and
+Spicetify client provisioning. Login setup and doctor now use Rust. The obsolete
+`install_engine.py` and its old import tests have been removed; native installer
+fixtures cover their active contracts. No new Python implementation or tests were added.
 
 `cargo test --locked --manifest-path native/foundation/Cargo.toml --test install`
 uses private paths and an inert effect adapter to test layer separation, terminal
@@ -113,4 +113,24 @@ Tests use a private simulated filesystem and inert capability/service operations
 They cover old journal recovery, legacy exact-template adoption, backup/target
 conflicts, unsafe paths/modes, source validation and enable failure. No live PAM,
 greetd, keyring or root-owned installation files were changed for verification.
-Other privileged helpers, doctor and provisioning remain migration targets.
+Other privileged helpers and provisioning remain migration targets.
+
+## Native diagnostics and Spotify check
+
+`scripts/doctor` now dispatches installation/session checks, startup timeline,
+sample save/compare and the explicit popup benchmark to Rust. `--json` keeps its
+existing build/deployment metadata contract. `scripts/session-acceptance` also
+uses Rust. Operational diagnostics run as the normal desktop user, use bounded
+subprocesses and report unreadable inputs rather than stopping with a traceback.
+
+`scripts/spotify-setup check` uses the native read-only checker. It validates
+client source stamps, Spicetify version/paths, Marketplace assets and the selected
+scheme. Spotify preferences are checked only for existence; their contents are
+not read. Client installation/restore still use the existing provisioning helper.
+
+Native fixtures cover missing PAM/portal services, malformed shell responses,
+corrupt role journals, theme hash mismatches, current-login startup timing,
+missing timing evidence, sample deduplication, unsafe sample paths and private
+Spotify checks without Python in PATH. No live popup benchmark was performed.
+The legacy `startup_report.py` remains for `boot-report.py` and older import tests;
+it is no longer reached by doctor.

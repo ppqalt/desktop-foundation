@@ -292,7 +292,7 @@ fn accepted(entry: &Entry, bytes: &[u8]) -> bool {
         .flatten()
         .any(|v| v == &hash)
 }
-fn pam_ready(bytes: &[u8]) -> bool {
+pub fn pam_ready(bytes: &[u8]) -> bool {
     if bytes.contains(&0) {
         return false;
     }

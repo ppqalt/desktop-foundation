@@ -495,6 +495,10 @@ fn unchanged_image(path: &Path, stamp: &ImageStamp) -> Result<()> {
     Ok(())
 }
 
+pub fn wallpaper_hash(path: &Path) -> Result<String> {
+    file_hash(path).map(|(hash, _)| hash)
+}
+
 fn file_hash(path: &Path) -> Result<(String, ImageStamp)> {
     let metadata = fs::symlink_metadata(path)?;
     if !metadata.is_file() {

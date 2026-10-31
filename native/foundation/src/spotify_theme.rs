@@ -247,6 +247,60 @@ pub fn run(root: &Path, action: &str) -> Result<()> {
     }
     Ok(())
 }
+pub fn check(root: &Path) -> Result<bool> {
+    // SAFETY: geteuid takes no pointers. Never execute user-owned tools as root.
+    if unsafe { libc::geteuid() } == 0 {
+        return Err(invalid("Run the Spotify check as your normal desktop user"));
+    }
+    let config = state::xdg("XDG_CONFIG_HOME", ".config")?;
+    let apps = state::xdg("XDG_DATA_HOME", ".local/share")?.join("desktop-foundation/apps");
+    let pins = render::read(&root.join("apps/spotify/sources.json"))?;
+    for name in ["spotify", "spicetify"] {
+        let stamp = apps.join(name).join(".foundation-source.json");
+        if !stamp.is_file() {
+            return Err(invalid(format!("Missing repo-owned application: {name}")));
+        }
+        if name == "spotify" && render::read(&stamp)? != pins[name] {
+            return Err(invalid("Spotify source differs from pinned client"));
+        }
+    }
+    let binary = apps.join("spicetify/spicetify");
+    let result = process::checked(
+        &[binary.to_string_lossy().into_owned(), "--version".into()],
+        None,
+        Duration::from_secs(10),
+        true,
+    )?;
+    if Some(String::from_utf8_lossy(&result.stdout).trim()) != pins["spicetify"]["version"].as_str()
+    {
+        return Err(invalid("Spicetify version differs from pin"));
+    }
+    let text = fs::read_to_string(config.join("spicetify/config-xpui.ini"))?;
+    for (key, expected) in [
+        ("spotify_path", apps.join("spotify/usr/share/spotify")),
+        ("prefs_path", config.join("spotify/prefs")),
+    ] {
+        if value(&text, "Setting", key)?.as_deref() != Some(expected.to_string_lossy().as_ref()) {
+            return Err(invalid(format!("Spicetify path mismatch: {key}")));
+        }
+    }
+    for name in ["manifest.json", "index.js"] {
+        if !config
+            .join("spicetify/CustomApps/marketplace")
+            .join(name)
+            .is_file()
+        {
+            return Err(invalid(format!("Marketplace missing: {name}")));
+        }
+    }
+    if value(&text, "Setting", "current_theme")?.as_deref() != Some("marketplace")
+        || value(&text, "Setting", "color_scheme")?.as_deref() != Some(SCHEME)
+    {
+        return Err(invalid("Spotify graphite/Marketplace scheme not selected"));
+    }
+    Ok(config.join("spotify/prefs").exists())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
