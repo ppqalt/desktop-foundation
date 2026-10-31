@@ -4,7 +4,7 @@ Desktop Foundation supports CachyOS with Niri. Start with a normal
 login user, sudo, network access, working graphics, Git and Python. Keep the
 checkout in a permanent directory and run the installer as that user. Installer
 orchestration is native Rust; Python remains necessary for the not-yet-migrated
-privileged helpers and doctor.
+privileged helpers.
 
 The installer needs the release backend. On a fresh checkout, prepare the build
 tools/dependencies with `scripts/bootstrap`, then run `scripts/build-backend`.

@@ -70,7 +70,7 @@ impl Config {
             || !self.playback_factor.is_finite()
             || !(0.0..=1.0).contains(&self.playback_factor)
             || !self.monitoring_gain.is_finite()
-            || !(0.0..=1.0).contains(&self.monitoring_gain)
+            || !(0.0..=4.0).contains(&self.monitoring_gain)
             || self.fade_ms > 500
         {
             return Err(invalid("Invalid Transparency Mode configuration"));

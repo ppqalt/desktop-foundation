@@ -10,6 +10,10 @@ with a 350 ms repeat delay and 35 Hz repeat rate. Niri bindings are in
 | Super+Space | Launcher |
 | Super+V | Clipboard |
 | Super+B | Bluetooth |
+| Super+X | System monitor |
+| Super+Z | Control Center |
+| Super+Y | Local AI |
+| Insert | Transparency Mode |
 | Super+Shift+Q | Session menu |
 | Super+Tab | Niri overview |
 | Super+Shift+C | Corner clock |

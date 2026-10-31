@@ -1,5 +1,7 @@
 # Local AI
 
+Press **Super+Y** in Niri to run `scripts/local-ai start`.
+
 Odysseus appears in the application launcher when its existing Compose project is configured. Opening it starts stopped Ollama and Docker services, starts existing Odysseus containers, checks local health and the active Ollama model inventory, then opens a new browser window at `http://localhost:7000/`.
 
 ```bash
