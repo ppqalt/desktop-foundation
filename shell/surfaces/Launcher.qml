@@ -8,28 +8,10 @@ import "../theme"
 
 // qmllint disable uncreatable-type
 // PanelWindow becomes creatable in the Quickshell runtime.
-PanelWindow {
+PopupWindow {
     id: root
     required property var lifecycle
-    property bool sharedBackdrop: false
-    property bool handoff: false
-    property bool superseded: false
-    visible: !superseded
-    property bool closing: false
-    property bool entered: false
-    property var targetScreen: null
-    screen: targetScreen
-    anchors {
-        top: true
-        bottom: true
-        left: true
-        right: true
-    }
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "desktop-foundation-launcher"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.closing || root.superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.Exclusive
-    color: "transparent"
+    surfaceNamespace: "desktop-foundation-launcher"
     Applications {
         id: applications
     }
@@ -37,16 +19,12 @@ PanelWindow {
     property int selectedIndex: 0
     onResultsChanged: selectedIndex = 0
     function present(): void {
-        closing = false;
-        exitAnimation.stop();
-        search.forceActiveFocus();
+        beginPresentation();
     }
     function dismiss(): void {
         if (closing)
             return;
-        closing = true;
-        search.focus = false;
-        exitAnimation.start();
+        beginDismissal();
     }
     function launchSelected(): void {
         if (!closing && results.length > 0 && applications.launch(results[selectedIndex]))
@@ -55,13 +33,13 @@ PanelWindow {
     function navigate(delta: int): void {
         if (!results.length)
             return;
-        selectedIndex = Math.max(0, Math.min(results.length - 1, selectedIndex + delta));
+        selectedIndex = Material.listIndex(selectedIndex + delta, results.length);
         list.positionViewAtIndex(selectedIndex, ListView.Contain);
     }
     function handleKey(event): void {
         const editing = search.activeFocus;
-        const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter || (!editing && event.key === Qt.Key_Space);
-        if (closing || (activate && event.isAutoRepeat)) {
+        const activate = Material.isActivation(event, editing);
+        if (closing || Material.repeatSuppressed(event, editing)) {
             event.accepted = true;
             return;
         }
@@ -108,41 +86,17 @@ PanelWindow {
     }
     Component.onCompleted: {
         lifecycle.launcherAlive = true;
-        Qt.callLater(() => {
-            if (!root.closing)
-                root.entered = true;
-        });
-        search.forceActiveFocus();
     }
     Component.onDestruction: lifecycle.launcherAlive = false
-    SequentialAnimation {
-        id: exitAnimation
-        PauseAnimation {
-            duration: Theme.timing.exit
-        }
-        ScriptAction {
-            script: root.lifecycle.launcherEnabled = false
-        }
-    }
-    Rectangle {
-        anchors.fill: parent
-        color: root.sharedBackdrop ? "transparent" : Theme.colors.scrim
-        opacity: (root.entered || root.handoff) && !root.closing ? 1 : 0
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-            }
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.dismiss()
-        }
-    }
-    SurfaceCard {
+    motionItem: panel
+    initialFocusItem: search
+    onDisposalReady: root.lifecycle.launcherEnabled = false
+    onCloseRequested: root.dismiss()
+    PopupCard {
         id: panel
         Keys.onPressed: event => root.handleKey(event)
-        width: Math.min(Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(144 + Math.max(2, Math.min(6, root.results.length)) * 76, root.height - 64)
+        width: Material.popupWidth(Theme.dimensions.launcherWidth, root.width)
+        height: Material.popupHeight(144 + Math.max(2, Math.min(6, root.results.length)) * 76, root.height)
         Behavior on height {
             enabled: root.entered && panel.opacity === 1 && !root.closing
             SurfaceAnimation {
@@ -150,20 +104,8 @@ PanelWindow {
                 easing.type: Theme.easing
             }
         }
-        anchors.centerIn: parent
-        opacity: root.entered && !root.closing ? 1 : 0
-        scale: root.entered && !root.closing ? 1 : 0.97
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-            }
-        }
-        Behavior on scale {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-                easing.type: Theme.easing
-            }
-        }
+        presented: root.entered
+        dismissing: root.closing
         // Capture blank panel clicks without moving keyboard focus.
         MouseArea {
             anchors.fill: parent

@@ -58,6 +58,7 @@ ColumnLayout {
     }
     ControlRequest {
         id: apply
+        expectJson: false
         onFinished: code => {
             if (code === 0)
                 root.currentPath = root.requestedPath;

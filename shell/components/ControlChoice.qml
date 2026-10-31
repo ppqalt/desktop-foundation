@@ -27,7 +27,8 @@ ComboBox {
                 }
                 event.accepted = true;
             } else if (event.key === Qt.Key_Escape) {
-                popup.close();
+                if (!event.isAutoRepeat)
+                    popup.close();
                 event.accepted = true;
             }
         } else if (activate) {
@@ -106,7 +107,7 @@ ComboBox {
         onOpened: root.menuIndex = Math.max(0, root.currentIndex)
         onClosed: {
             if (root.visible && root.enabled)
-                root.forceActiveFocus(Qt.PopupFocusReason);
+                Material.restoreFocus(root, Qt.PopupFocusReason);
         }
         y: root.height + 4
         width: root.width

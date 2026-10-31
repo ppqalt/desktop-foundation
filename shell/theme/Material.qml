@@ -42,6 +42,26 @@ QtObject {
         })
     readonly property var spatialCurve: [0.42, 1.67, 0.21, 0.90, 1, 1]
     readonly property var effectsCurve: [0.31, 0.94, 0.34, 1, 1, 1]
+    // Foundation's existing centered-popup output insets (desktop adaptations).
+    function popupWidth(preferred: real, available: real): real {
+        return Math.max(1, Math.min(preferred, available - 48));
+    }
+    function popupHeight(content: real, available: real): real {
+        return Math.max(1, Math.min(content, available - 64));
+    }
+    function listIndex(value: int, count: int, first = 0): int {
+        return Math.max(first, Math.min(first + Math.max(0, count - 1), value));
+    }
+    function isActivation(event, editing = false): bool {
+        return [Qt.Key_Return, Qt.Key_Enter].includes(event.key) || (!editing && event.key === Qt.Key_Space);
+    }
+    function repeatSuppressed(event, editing = false): bool {
+        return event.isAutoRepeat && (event.key === Qt.Key_Escape || isActivation(event, editing));
+    }
+    function restoreFocus(item, reason = Qt.OtherFocusReason): void {
+        if (item && item.visible && item.enabled)
+            item.forceActiveFocus(reason);
+    }
     // Presentation-only spatial focus navigation. Do not wrap at panel edges.
     function moveFocus(origin, dx, dy): void {
         const point = origin.mapToItem(null, 0, 0);
@@ -67,7 +87,7 @@ QtObject {
             candidate = candidate.nextItemInFocusChain(true);
         }
         if (best)
-            best.forceActiveFocus(Qt.TabFocusReason);
+            restoreFocus(best, Qt.TabFocusReason);
     }
     function direction(key): var {
         switch (key) {

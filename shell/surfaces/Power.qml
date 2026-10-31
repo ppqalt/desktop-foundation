@@ -8,18 +8,11 @@ import "../theme"
 import "../components"
 
 // qmllint disable uncreatable-type
-PanelWindow {
+PopupWindow {
     id: root
     required property var lifecycle
-    property var targetScreen: null
     property int selected: 0
     property bool busy: false
-    property bool entered: false
-    property bool sharedBackdrop: false
-    property bool handoff: false
-    property bool superseded: false
-    visible: !superseded
-    property bool closing: false
     property string error: ""
     readonly property var actions: [
         {
@@ -43,35 +36,20 @@ PanelWindow {
             symbol: "power_settings_new"
         }
     ]
-    screen: targetScreen
-    anchors {
-        top: true
-        bottom: true
-        left: true
-        right: true
-    }
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "desktop-foundation-power"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.closing || root.superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.Exclusive
-    color: "transparent"
+    surfaceNamespace: "desktop-foundation-power"
     function navigate(delta: int): void {
         if (!busy && !closing)
-            selected = Math.max(0, Math.min(actions.length - 1, selected + delta));
+            selected = Material.listIndex(selected + delta, actions.length);
     }
     function present(): void {
         if (busy)
             return;
-        exitAnimation.stop();
-        closing = false;
-        entered = true;
-        card.forceActiveFocus();
+        beginPresentation();
     }
     function dismiss(): void {
         if (busy || closing)
             return;
-        closing = true;
-        exitAnimation.start();
+        beginDismissal();
     }
     function choose(index: int): void {
         if (busy || closing)
@@ -87,84 +65,40 @@ PanelWindow {
         actionProcess.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/power-action", actions[selected].id];
         actionProcess.running = true;
     }
-    Process {
+    ControlRequest {
         id: actionProcess
-        stderr: StdioCollector {
-            onStreamFinished: root.error = text.trim()
-        }
-        // qmllint disable signal-handler-parameters
-        // Installed qmltypes omit QProcess::ExitStatus; only exitCode is used.
-        onExited: exitCode => {
+        expectJson: false
+        onFinished: code => {
             root.busy = false;
-            if (exitCode === 0)
+            if (code === 0)
                 root.dismiss();
-            else if (!root.error)
-                root.error = "The session action could not be completed.";
-        }
-        // qmllint enable signal-handler-parameters
-    }
-    SequentialAnimation {
-        id: exitAnimation
-        PauseAnimation {
-            duration: Theme.timing.exit
-        }
-        ScriptAction {
-            script: root.lifecycle.powerEnabled = false
+            else
+                root.error = failure || "The session action could not be completed.";
         }
     }
-    Rectangle {
-        anchors.fill: parent
-        color: root.sharedBackdrop ? "transparent" : Theme.colors.scrim
-        opacity: (root.entered || root.handoff) && !root.closing ? 1 : 0
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-            }
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.dismiss()
-        }
-    }
-    SurfaceCard {
+    motionItem: card
+    initialFocusItem: card
+    closeBlocked: root.busy
+    canDispose: !root.busy
+    onDisposalReady: root.lifecycle.powerEnabled = false
+    onCloseRequested: root.dismiss()
+    PopupCard {
         id: card
-        // Begin when this window queues its first frame for presentation.
-        // Construction can precede layer-shell configure/map: callLater is early.
-        Connections {
-            target: card.Window.window
-            enabled: !root.entered && !root.closing
-            function onFrameSwapped(): void {
-                root.entered = true;
-            }
-        }
         SelectionWheel {
             onStepped: delta => root.navigate(delta)
         }
-        anchors.centerIn: parent
-        width: Math.min(560, root.width - 48)
-        height: Math.min(28 + root.actions.length * 76 + (root.error ? 38 : 0) + (root.busy ? 48 : 0), root.height - 64)
-        opacity: root.entered && !root.closing ? 1 : 0
-        scale: root.entered && !root.closing ? 1 : 0.97
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-            }
-        }
-        Behavior on scale {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-                easing.type: Theme.easing
-            }
-        }
+        width: Material.popupWidth(560, root.width)
+        height: Material.popupHeight(28 + root.actions.length * 76 + (root.error ? 38 : 0) + (root.busy ? 48 : 0), root.height)
+        presented: root.entered
+        dismissing: root.closing
         focus: true
-        Component.onCompleted: forceActiveFocus()
         MouseArea {
             anchors.fill: parent
         }
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: event => {
-            const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space || (event.key >= Qt.Key_1 && event.key <= Qt.Key_4);
-            if (root.busy || root.closing || (activate && event.isAutoRepeat)) {
+            const activate = Material.isActivation(event) || (event.key >= Qt.Key_1 && event.key <= Qt.Key_4);
+            if (root.busy || root.closing || ((activate || event.key === Qt.Key_Escape) && event.isAutoRepeat)) {
                 event.accepted = true;
                 return;
             }
@@ -173,9 +107,9 @@ PanelWindow {
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                 root.choose(root.selected);
             } else if (event.key === Qt.Key_Down || event.key === Qt.Key_S || event.key === Qt.Key_D || event.key === Qt.Key_Right || (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier))) {
-                root.selected = (root.selected + 1) % root.actions.length;
+                root.navigate(1);
             } else if (event.key === Qt.Key_Up || event.key === Qt.Key_W || event.key === Qt.Key_A || event.key === Qt.Key_Left || event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
-                root.selected = (root.selected + root.actions.length - 1) % root.actions.length;
+                root.navigate(-1);
             } else if (event.key === Qt.Key_Home || event.key === Qt.Key_PageUp) {
                 root.selected = 0;
             } else if (event.key === Qt.Key_End || event.key === Qt.Key_PageDown) {
@@ -218,16 +152,11 @@ PanelWindow {
                 list.positionViewAtIndex(root.selected, ListView.Contain);
             }
         }
-        Text {
+        WidgetStatus {
             x: 28
             y: list.y + list.height + 8
             width: card.width - 56
-            visible: root.error !== ""
-            text: root.error
-            color: Material.colors.error
-            font.family: Theme.typography.family
-            font.pixelSize: Theme.typography.small
-            wrapMode: Text.Wrap
+            message: root.error
         }
         SurfaceFooter {
             x: 28

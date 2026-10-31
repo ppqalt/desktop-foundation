@@ -70,7 +70,118 @@ verify measurements through Google's official implementation rather than guessin
   or extra explanatory footer is needed to advertise standard keyboard behavior.
 - WASD aliases supplement arrows only outside text editing.
 
-## Architecture and ownership
+## Widget Standard
+
+This is the mandatory architecture and behavior contract for **every** existing
+and future Foundation surface. The
+[implementation comparison](architecture/widget-audit.md) records the source
+audit and migration boundaries. Shared behavior is mandatory within a category;
+different functions do not require identical windows or timers.
+
+| Category | Members | Common behavior | Intentional differences |
+| --- | --- | --- | --- |
+| Centered interactive popup | Launcher, Clipboard, Bluetooth, Power | SurfaceRouter + PopupLifecycle; shared backdrop, bounds and enter/exit tokens; focus on open; Escape/outside dismissal | Search focus, confirmation/back stack, busy safety and device shutdown remain domain-specific |
+| Interactive sidebar | Control Center, Kitty/btop | Shared side geometry/timing; reversible motion; other applications usable when not explicitly focused | QML SidebarMotion versus native terminal motion; btop saves before retirement; do not force an outside-click scrim onto sidebars |
+| Embedded interactive view/control | Nothing pages, CC audio/network/wallpapers, switches/choices/sliders | Parent owns window; common control input/focus/state; back restores invoking control | A device session can require an explicit stop/readback handshake; sliders consume horizontal adjustment rather than navigation |
+| Transient passive feedback | Volume, Transparency notice, notifications | No keyboard focus theft; concise semantic feedback; bounded lifetime; existing provider/IPC | Volume has 100ms fades and instant values; Mako owns native notification interaction/timeout; notices never perform audio work |
+| Persistent passive component | Clock, modal/overview backdrop; explicit diagnostic probe | Input-transparent/no keyboard focus; event/minute updates; explicit owner/disposal | Shared blur survives popup handoffs; per-output wallpaper background remains mapped; clocks need no Rust backend |
+
+### Lifecycle and ownership contract
+
+- Composition owns creation, target output and final destruction. SurfaceRouter
+  remains the modal intent arbiter; `PopupWindow` owns centered window/input/scrim
+  setup, `PopupCard` owns card motion and `PopupLifecycle` owns presentation
+  state and teardown readiness. Neither owns hardware/system truth.
+- These are actual shared implementations, not templates to copy. Finite Rust
+  requests use `ControlRequest` for parsing, request phase and errors;
+  `WidgetStatus` presents loading/empty/error states. Domain schemas and
+  mutations remain with their Rust modules; persistent streaming sessions keep
+  their explicit protocol rather than pretending to be one-shot requests.
+- `initialize` creates presentation/projection once per actual owner lifetime.
+  It MUST NOT replay a database migration, discovery or a system mutation merely
+  because a window is being reopened. Use an existing cache/projection and
+  bounded explicit recovery when unavailable.
+- `present()` requests open/reopen and cancels obsolete close completion.
+  `dismiss()` requests close, subject to explicit safety guards. Same-shortcut
+  toggle belongs to the router, not a second widget-local toggle machine.
+- State proceeds opening → open → closing → disposed. A reopen retargets the
+  current values. First entrance begins at a queued window frame, not a guessed
+  delay. Keyboard input is usable before entrance animation finishes.
+- One disposal owner waits for both exit timing and safe resource release.
+  Hidden handoff exits must finish without a mapped frame clock. A retained
+  backend request may complete offscreen; an unrelated destination opens at once.
+- Double open/close, held keys and rapid repeated shortcuts must be deterministic.
+  Auto-repeat is ignored for toggles, activation, dismissal and destructive actions.
+- Close stops view refresh work and releases focus immediately when allowed.
+  Dispose releases watchers, handlers and owned processes. Never destroy a
+  mutating request to achieve an animation, or keep idle polling to simplify reopen.
+- Power/session actions can block dismissal. Nothing transport shutdown and
+  Transparency restoration are explicit domain exceptions, not generic timers.
+
+### Focus, keyboard and geometry contract
+
+Search gets text focus; other menus select the first useful enabled item.
+Embedded views bookmark the invoking control by stable identity. Escape closes
+the innermost dismissible menu/confirmation first, then the parent. Outside click
+uses the same guarded dismiss method. Plain lists clamp at the ends; do not wrap
+silently. Arrows/WASD navigate outside editors; Enter/Space activate once;
+sliders and editable fields retain their specialized keys and Tab escape route.
+
+The window manager restores external application focus after a popup relinquishes
+it; QML MUST NOT guess an application/window ID or force an unrelated window into
+focus. Offscreen tests can prove release and local bookmark restoration, not
+physical compositor focus. Passive surfaces never request exclusive focus.
+
+Use `Material.popupWidth/popupHeight` for centered output bounds. Prefer existing
+geometry tokens; preserve explicit inset, sidebar and readout adaptations.
+Animations use shared timing/effects primitives and reduced-motion behavior.
+Do not animate live audio values or restart an opening animation on every request.
+
+### State, requests and performance contract
+
+Rust owns system integration, device/process state, persistent configuration,
+operations/subscriptions, validation and recovery. QML owns layout, focus,
+presentation state and immediate interaction. A clock, hover or selection index
+does not need Rust. Existing Quickshell catalogue/BlueZ read-only adapters remain
+explicit integration boundaries until incrementally migrated; do not add system
+business logic to them.
+
+Each datum has one authority. Separate confirmed backend state, pending request
+intent and cached display data. A completed request clears pending state only for
+its request/revision. Older snapshots MUST NOT overwrite newer action readback,
+reopened state or a disposed view. Use existing JSON CLI/line events/shell IPC;
+do not introduce competing generic protocols or duplicate persistent truth.
+
+Loading reserves stable geometry; ready publishes coherent state; empty,
+unavailable and error are distinct and keep useful close/back/retry routes.
+Stderr or malformed output is not success. A request owner may finish safely
+after its view disappears, but must not re-open the view or steal focus afterward.
+
+Prefer subscriptions/file watches over polling. Existing visible-only Control
+Center snapshot polling is an audited gap, not a pattern for new widgets. Never
+poll closed views. UI handlers must not synchronously decode large images, read
+large files, invoke blocking subprocesses or redundantly initialize databases.
+Preserve async clipboard thumbnails and its missing-index-only initialization.
+Lazy data and caches must remain correct when external state changes.
+
+Use shared surfaces/controls, semantic colors, Google Sans Flex, accent outlines
+and the subtle tonal halo. No blurred shadow/effect layers or per-widget palette
+derivation. Record any intentional category exception in this standard and its
+implementation; test both the common behavior and the exception.
+
+### Migration and acceptance
+
+Audit first, document the common contract, then migrate repeated mechanisms in
+small connected batches. Do not independently rewrite every widget or claim the
+whole desktop standardized after moving a token. Cover each affected category
+with inert Rust/QML fixtures: reversal, rapid handoff, focus, editor keys, async
+staleness, external changes, unavailable/error, cleanup and reduced motion.
+Keep physical presentation latency distinct from offscreen handler/frame timing.
+Run relevant Rust tests, QML offscreen checks, repository checks and release build
+before active-session deployment. Hardware actions remain isolated fixtures;
+Insert and its restoration transaction must not regress.
+
+## Existing architecture and ownership
 
 ```
 Niri binding -> Foundation Rust command -> shell IPC
@@ -149,6 +260,11 @@ primitive when multiple callers need the same change.
 
 | Component | Contract |
 | --- | --- |
+| `PopupWindow` | Centered overlay window, input ownership, initial focus, scrim and lifecycle; `beginPresentation/beginDismissal`, `closeRequested/disposalReady` |
+| `PopupLifecycle` | First-frame entrance, reversible open/close, safety gates, one disposal after exit and resource readiness |
+| `PopupCard` | Centered card with the single shared popup opacity/scale implementation |
+| `ControlRequest` | Finite Rust CLI transport; object JSON by default, explicit exit-only mode, reset response/error, loading/ready/error phase and completion |
+| `WidgetStatus` | Shared loading/empty/error text presentation; domain messages remain caller-owned |
 | `SurfaceCard` | Tonal rounded surface, no shadow/offscreen effect layer |
 | `FocusIndicator` | Shared primary outline decoration; `cornerRadius`, caller-owned visibility; never captures input |
 | `SurfaceAnimation` | Retargetable numeric Behavior animation, common default timing/easing; callers choose spatial/effects tokens where applicable |

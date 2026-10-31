@@ -49,7 +49,7 @@ ShellRoot {
             handoff: root.handoffSurface === "controlCenter"
             sidebarStyle: root.controlCenterStyle
             targetScreen: root.launcherScreen
-            onClosed: nextSurface => {
+            onDismissed: nextSurface => {
                 root.controlCenterEnabled = false;
                 if (nextSurface === "bluetooth")
                     surfaceRouter.request("bluetooth", true);

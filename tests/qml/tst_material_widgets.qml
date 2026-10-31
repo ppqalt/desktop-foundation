@@ -255,6 +255,60 @@ ShellRoot {
             optional: true
             name: "MaterialWidgets"
             when: false
+            property int disposals: 0
+            property int requestResult: -1
+            ControlRequest {
+                id: transport
+                onFinished: code => checks.requestResult = code
+            }
+            function test_shared_transport() {
+                transport.command = ["sh", "-c", "printf invalid"];
+                transport.running = true;
+                tryCompare(checks, "requestResult", 65);
+                compare(transport.phase, "error");
+                verify(transport.failure.length > 0);
+                requestResult = -1;
+                transport.command = ["sh", "-c", "printf '{\"success\":true}'"];
+                transport.running = true;
+                tryCompare(checks, "requestResult", 0);
+                compare(transport.phase, "ready");
+                compare(transport.failure, "");
+                verify(transport.response.success);
+                requestResult = -1;
+                transport.expectJson = false;
+                transport.command = ["sh", "-c", "exit 0"];
+                transport.running = true;
+                tryCompare(checks, "requestResult", 0);
+            }
+            PopupLifecycle {
+                id: lifecycle
+                onFinished: checks.disposals++
+            }
+            function test_shared_lifecycle() {
+                lifecycle.present();
+                lifecycle.framePresented();
+                compare(lifecycle.phase, "open");
+                lifecycle.closeBlocked = true;
+                verify(!lifecycle.dismiss());
+                lifecycle.closeBlocked = false;
+                lifecycle.canDispose = false;
+                verify(lifecycle.dismiss());
+                verify(!lifecycle.dismiss());
+                wait(Theme.timing.exit + 40);
+                compare(disposals, 0);
+                lifecycle.present();
+                lifecycle.canDispose = true;
+                wait(Theme.timing.exit + 40);
+                compare(disposals, 0);
+                verify(lifecycle.dismiss());
+                wait(Theme.timing.exit + 40);
+                compare(disposals, 1);
+                lifecycle.finishIfReady();
+                compare(disposals, 1);
+                compare(lifecycle.phase, "disposed");
+                compare(Material.listIndex(-1, 4), 0);
+                compare(Material.listIndex(4, 4), 3);
+            }
             function find(item, name) {
                 if (item.objectName === name)
                     return item;
@@ -531,6 +585,8 @@ ShellRoot {
             running: true
             onTriggered: {
                 checks.test_handoff_and_interruption();
+                checks.test_shared_lifecycle();
+                checks.test_shared_transport();
                 checks.test_backdrop_survives_handoff();
                 checks.test_wheel_ownership();
                 checks.test_reduced_motion();

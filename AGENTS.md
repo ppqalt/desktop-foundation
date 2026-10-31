@@ -14,6 +14,28 @@ repository's architecture, mandatory constraints, workflows and known gaps.
 It is not a claim that every existing file already satisfies every requirement.
 Verify the current checkout and affected callers before relying on an older note.
 
+### Every widget belongs to one system
+
+All existing and future widgets MUST follow the category contracts in the
+[Widget Standard](docs/FOUNDATION_UI_STANDARD.md#widget-standard). This includes
+popups, Control Center modules, sidebars, readouts, notifications and persistent
+surfaces—not just newly created widgets. **Unify the rules, not the functionality.**
+The same interaction must have the same result within a category: shortcut
+toggles, interrupted transitions, focus, Escape, directional navigation, loading,
+confirmed state, errors and cleanup must not depend on which widget was copied.
+
+Before refactoring, compare actual implementations in the
+[architecture audit](docs/architecture/widget-audit.md). Reuse the existing
+router, lifecycle, focus, surface, motion and request primitives. Do not create
+copied controllers that merely behave alike: overlapping requirements MUST run
+through the same shared implementation. Centered popups use `PopupWindow`,
+`PopupCard` and `PopupLifecycle`; finite backend requests use `ControlRequest`.
+Keep domain operations outside these foundations. Do not create
+one giant conditional widget, parallel lifecycle protocols, or a Rust worker for
+pure presentation. Preserve explicit category exceptions and test representative
+consumers, including rapid handoffs and async results after close. Document gaps
+as gaps; updating the standard alone does not make old implementations compliant.
+
 ### Rule vocabulary and precedence
 
 - **MUST / MUST NOT:** mandatory project requirements.

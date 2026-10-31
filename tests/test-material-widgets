@@ -14,7 +14,7 @@ cleanup() {
 	unlink "$fixture_log"
 	unlink "$fixture_worker"
 	unlink "$fixture_calls"
-	for surface in Power Volume Launcher Clipboard ModalBackdrop; do
+	for surface in Power Volume Launcher Clipboard ModalBackdrop PopupWindow; do
 		if [[ -f $fixture_surfaces/${surface}Fixture.qml ]]; then unlink "$fixture_surfaces/${surface}Fixture.qml"; fi
 	done
 	rmdir "$fixture_surfaces"
@@ -32,8 +32,9 @@ WORKER
 chmod 700 "$fixture_worker"
 # Only Wayland transport changes; production rendering, motion and input remain.
 for surface in Power Volume Launcher Clipboard ModalBackdrop; do
-	perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.|anchors\.top:|margins\.top:|mask: Region).*\n//mg; s/implicitWidth:/width:/; s/implicitHeight:/height:/; s#import "../theme"#import "../shell/theme"#; s#import "../components"#import "../shell/components"#; s#import "../services"#import "../shell/services"#; s#"../assets/#"../shell/assets/#g' "$root/shell/surfaces/$surface.qml" >"$fixture_surfaces/${surface}Fixture.qml"
+	perl -0pe 's/PanelWindow \{/Window {/; s/PopupWindow \{/PopupWindowFixture {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.|anchors\.top:|margins\.top:|mask: Region).*\n//mg; s/implicitWidth:/width:/; s/implicitHeight:/height:/; s#import "../theme"#import "../shell/theme"#; s#import "../components"#import "../shell/components"#; s#import "../services"#import "../shell/services"#; s#"../assets/#"../shell/assets/#g' "$root/shell/surfaces/$surface.qml" >"$fixture_surfaces/${surface}Fixture.qml"
 done
+perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.).*\n//mg; s#import "../theme"#import "../shell/theme"\nimport "../shell/components"#' "$root/shell/components/PopupWindow.qml" >"$fixture_surfaces/PopupWindowFixture.qml"
 if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
 	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 	DF_CLIPBOARD_WORKER="$fixture_worker" DF_FIXTURE_CALLS="$fixture_calls" DF_FOUNDATION_ROOT="$root" XDG_STATE_HOME="$fixture_state" \
@@ -50,3 +51,4 @@ if ! rg -q 'Material widget checks finished' "$fixture_log" || rg -q 'FAIL!|ERRO
 	exit 1
 fi
 printf 'PASS Material controls, modal handoff/reopen, wheel ownership, search editing, keyboard focus, reduced motion and instant volume feedback\n'
+"$root/tests/test-control-center"

@@ -28,6 +28,7 @@ PanelWindow {
     property var queue: []
     property var audioQueue: []
     property bool initialFocus: true
+    property int requestRevision: 0
     property int pendingOutput: -1
     property int pendingInput: -1
     readonly property bool busy: deviceRequest.running || audioAction.running || wallpapers.busy
@@ -39,7 +40,7 @@ PanelWindow {
     readonly property var output: outputs.find(d => d.name === audio.output) ?? ({})
     readonly property var input: inputs.find(d => d.name === audio.input) ?? ({})
     readonly property string backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl"
-    signal closed(string nextSurface)
+    signal dismissed(string nextSurface)
     screen: targetScreen
     implicitWidth: Math.min(sidebarStyle.width, screen?.width ?? sidebarStyle.width)
     anchors {
@@ -53,7 +54,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "desktop-foundation:control-center"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: closing ? WlrKeyboardFocus.None : WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: closing || superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.OnDemand
     color: "transparent"
     Component.onCompleted: Qt.callLater(() => {
         root.present();
@@ -66,7 +67,7 @@ PanelWindow {
         page = destination;
         scroll.contentY = 0;
         if (destination === "overview" && returnFocus && returnFocus.visible)
-            returnFocus.forceActiveFocus(Qt.BacktabFocusReason);
+            Material.restoreFocus(returnFocus, Qt.BacktabFocusReason);
         else
             (root.page === "overview" ? networkToggle : backAction).forceActiveFocus();
     }
@@ -85,9 +86,11 @@ PanelWindow {
         };
     }
     function present(): void {
+        requestRevision++;
         closing = false;
         nextSurface = "";
         motion.move(true);
+        refresh();
     }
     function dismiss(next = ""): void {
         if (closing) {
@@ -96,6 +99,7 @@ PanelWindow {
             return;
         }
         nextSurface = next;
+        requestRevision++;
         closing = true;
         status.running = false;
         motion.move(false);
@@ -104,7 +108,7 @@ PanelWindow {
     }
     function finishClose(): void {
         if (closing && !motion.running && !busy && queue.length === 0 && audioQueue.length === 0)
-            closed(nextSurface);
+            dismissed(nextSurface);
     }
     function refresh(): void {
         if (!closing && !busy && queue.length === 0 && audioQueue.length === 0 && !status.running && !outputChoice.popup.visible && !inputChoice.popup.visible)
@@ -113,6 +117,8 @@ PanelWindow {
     function enqueue(args: list<string>): void {
         if (closing)
             return;
+        requestRevision++;
+        initialFocus = false;
         const audioRequest = ["volume", "mute", "select"].includes(args[0]);
         let pending = (audioRequest ? audioQueue : queue).slice();
         const existing = args[0] === "volume" ? pending.findIndex(p => p[0] === "volume" && p[1] === args[1]) : -1;
@@ -141,6 +147,7 @@ PanelWindow {
         queue = pumpWorker(deviceRequest, queue);
     }
     function completed(worker, code): void {
+        requestRevision++;
         if (code !== 0 || worker.response.success === false)
             error = worker.response.error || worker.failure || "The device request failed. Try again.";
         if (worker.response.audio) {
@@ -194,32 +201,42 @@ PanelWindow {
         running: !root.closing
         onTriggered: root.refresh()
     }
-    Process {
+    function acceptSnapshot(response, revision): bool {
+        if (revision !== requestRevision || closing || busy || queue.length || audioQueue.length)
+            return false;
+        if (!response.audio || !response.network)
+            return false;
+        stateData = response;
+        if (initialFocus) {
+            initialFocus = false;
+            Qt.callLater(() => {
+                if (!root.closing && !root.superseded && revision === root.requestRevision)
+                    Material.restoreFocus(outputMute.enabled ? outputMute : root.page === "overview" ? networkToggle : backAction);
+            });
+        }
+        if (!outputVolume.pressed)
+            pendingOutput = -1;
+        if (!inputVolume.pressed)
+            pendingInput = -1;
+        return true;
+    }
+    ControlRequest {
         id: status
         command: [root.backend, "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "control-center", "snapshot"]
-        property var response: ({})
-        onStarted: response = ({})
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    status.response = JSON.parse(text);
-                } catch (_) {}
-            }
+        property int revision: 0
+        onRunningChanged: {
+            if (running)
+                revision = root.requestRevision;
         }
-        onExited: code => {
-            if (root.closing || root.busy || root.queue.length > 0 || root.audioQueue.length > 0)
+        onFinished: code => {
+            if (revision !== root.requestRevision) {
+                if (!root.closing)
+                    Qt.callLater(root.refresh);
                 return;
-            if (code === 0 && response.audio && response.network) {
-                root.stateData = response;
-                if (root.initialFocus) {
-                    root.initialFocus = false;
-                    Qt.callLater(() => outputMute.enabled ? outputMute.forceActiveFocus() : (root.page === "overview" ? networkToggle : backAction).forceActiveFocus());
-                }
-                if (!outputVolume.pressed)
-                    root.pendingOutput = -1;
-                if (!inputVolume.pressed)
-                    root.pendingInput = -1;
-            } else
+            }
+            if (root.closing || root.busy || root.queue.length || root.audioQueue.length)
+                return;
+            if (code !== 0 || !root.acceptSnapshot(response, revision))
                 root.error = "Could not refresh device state. Press Ctrl+R to retry.";
         }
     }
@@ -261,6 +278,10 @@ PanelWindow {
             anchors.margins: root.sidebarStyle.padding
             focus: true
             Keys.onEscapePressed: event => {
+                if (event.isAutoRepeat) {
+                    event.accepted = true;
+                    return;
+                }
                 if (root.page !== "overview")
                     root.navigate("overview");
                 else
@@ -313,13 +334,10 @@ PanelWindow {
                     Layout.fillWidth: true
                     visible: root.error !== ""
                     color: Material.colors.error_container
-                    Text {
+                    WidgetStatus {
                         Layout.fillWidth: true
-                        text: root.error
-                        textFormat: Text.PlainText
+                        message: root.error
                         color: Material.colors.on_error_container
-                        wrapMode: Text.Wrap
-                        font.family: Theme.typography.family
                         font.pixelSize: Material.type.bodyMedium
                     }
                 }

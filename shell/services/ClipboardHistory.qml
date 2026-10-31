@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../components"
 
 QtObject {
     id: root
@@ -56,27 +57,18 @@ QtObject {
             root.indexFile.reload();
         }
     }
-    property var actionProcess: Process {
+    property var actionProcess: ControlRequest {
         id: actionProcess
         property string action: ""
-        stderr: StdioCollector {
-            id: actionErrors
-            onStreamFinished: {
-                if (text.trim())
-                    console.warn("Clipboard " + actionProcess.action + ": " + text.trim());
-            }
-        }
-        // qmllint disable signal-handler-parameters
-        // Installed qmltypes omit QProcess::ExitStatus; only exitCode is used.
-        onExited: exitCode => {
+        expectJson: false
+        onFinished: exitCode => {
             if (exitCode === 0) {
                 root.error = "";
                 root.completed(action);
             } else {
-                root.error = root.failureMessage(action, actionErrors.text);
+                root.error = root.failureMessage(action, failure);
             }
         }
-        // qmllint enable signal-handler-parameters
     }
     function failureMessage(action: string, message: string): string {
         const lines = message.split("\n").map(line => line.trim()).filter(line => line);

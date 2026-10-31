@@ -8,28 +8,10 @@ import "../theme"
 
 // qmllint disable uncreatable-type
 // PanelWindow becomes creatable in the Quickshell runtime.
-PanelWindow {
+PopupWindow {
     id: root
     required property var lifecycle
-    property bool sharedBackdrop: false
-    property bool handoff: false
-    property bool superseded: false
-    visible: !superseded
-    property bool closing: false
-    property bool entered: false
-    property var targetScreen: null
-    screen: targetScreen
-    anchors {
-        top: true
-        bottom: true
-        left: true
-        right: true
-    }
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "desktop-foundation-clipboard"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.closing || root.superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.Exclusive
-    color: "transparent"
+    surfaceNamespace: "desktop-foundation-clipboard"
     ClipboardHistory {
         id: history
         onAboutToUpdate: root.captureViewport()
@@ -104,7 +86,7 @@ PanelWindow {
         viewportOffset = row ? row.y + (row.groupGap || 0) - list.contentY : 0;
     }
     function selectIndex(index: int): void {
-        selectedIndex = Math.max(0, Math.min(results.length - 1, index));
+        selectedIndex = Material.listIndex(index, results.length);
         selectedIdentity = results[selectedIndex]?.id || "";
     }
     function reconcileSelection(): void {
@@ -159,19 +141,15 @@ PanelWindow {
         rememberSelection();
     }
     function present(): void {
-        closing = false;
-        exitAnimation.stop();
+        beginPresentation();
         confirmClear = false;
         clearSelected = false;
         actionFocus = 0;
-        search.forceActiveFocus();
     }
     function dismiss(): void {
         if (history.busy || closing)
             return;
-        closing = true;
-        search.focus = false;
-        exitAnimation.start();
+        beginDismissal();
     }
     function plainAvailable(): bool {
         const entry = results[selectedIndex];
@@ -300,11 +278,11 @@ PanelWindow {
         const control = !!(event.modifiers & Qt.ControlModifier);
         const shift = !!(event.modifiers & Qt.ShiftModifier);
         const editing = search.activeFocus;
-        const activate = event.key === Qt.Key_Return || event.key === Qt.Key_Enter || (!editing && event.key === Qt.Key_Space);
+        const activate = Material.isActivation(event, editing);
         const remove = event.key === Qt.Key_Delete && control;
         const pin = event.key === Qt.Key_P && control && shift;
         const plain = event.key === Qt.Key_C && control && shift;
-        if (root.closing || ((activate || remove || pin || plain || (root.confirmClear && event.key === Qt.Key_Space)) && event.isAutoRepeat)) {
+        if (root.closing || Material.repeatSuppressed(event, editing) || ((activate || remove || pin || plain || (root.confirmClear && event.key === Qt.Key_Space)) && event.isAutoRepeat)) {
             event.accepted = true;
             return;
         }
@@ -378,41 +356,19 @@ PanelWindow {
     }
     Component.onCompleted: {
         lifecycle.clipboardAlive = true;
-        Qt.callLater(() => {
-            if (!root.closing)
-                root.entered = true;
-        });
-        search.forceActiveFocus();
     }
     Component.onDestruction: lifecycle.clipboardAlive = false
-    SequentialAnimation {
-        id: exitAnimation
-        PauseAnimation {
-            duration: Theme.timing.exit
-        }
-        ScriptAction {
-            script: root.lifecycle.clipboardEnabled = false
-        }
-    }
-    Rectangle {
-        anchors.fill: parent
-        color: root.sharedBackdrop ? "transparent" : Theme.colors.scrim
-        opacity: (root.entered || root.handoff) && !root.closing ? 1 : 0
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-            }
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.dismiss()
-        }
-    }
-    SurfaceCard {
+    motionItem: panel
+    initialFocusItem: search
+    closeBlocked: history.busy
+    canDispose: !history.busy
+    onDisposalReady: root.lifecycle.clipboardEnabled = false
+    onCloseRequested: root.dismiss()
+    PopupCard {
         id: panel
         Keys.onPressed: event => root.handleKey(event)
-        width: Math.min(root.confirmClear ? 440 : Theme.dimensions.launcherWidth, root.width - 48)
-        height: Math.min(root.confirmClear ? 268 : 144 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 76 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height - 64)
+        width: Material.popupWidth(root.confirmClear ? 440 : Theme.dimensions.launcherWidth, root.width)
+        height: Material.popupHeight(root.confirmClear ? 268 : 144 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 76 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height)
         Behavior on width {
             // Initial output geometry uses the shared fade/scale entrance.
             // Keep the existing confirmation morph once opened (or requested).
@@ -429,20 +385,8 @@ PanelWindow {
                 easing.type: Theme.easing
             }
         }
-        anchors.centerIn: parent
-        opacity: root.entered && !root.closing ? 1 : 0
-        scale: root.entered && !root.closing ? 1 : 0.97
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-            }
-        }
-        Behavior on scale {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-                easing.type: Theme.easing
-            }
-        }
+        presented: root.entered
+        dismissing: root.closing
         // Capture blank panel clicks without moving keyboard focus.
         MouseArea {
             anchors.fill: parent
@@ -572,12 +516,11 @@ PanelWindow {
             visible: !root.confirmClear && root.results.length === 0
             anchors.centerIn: list
             spacing: 10
-            Text {
+            WidgetStatus {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: history.loading ? "Loading clipboard…" : (history.entries.length ? "No matching items" : "Clipboard empty")
-                color: Material.colors.on_surface
-                font.family: Theme.typography.family
-                font.pixelSize: 16
+                status: history.loading ? "loading" : "empty"
+                message: history.loading ? "Loading clipboard…" : (history.entries.length ? "No matching items" : "Clipboard empty")
+                font.pixelSize: Material.type.bodyLarge
             }
         }
         FocusScope {

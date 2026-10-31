@@ -9,25 +9,17 @@ import "../theme"
 import "../components"
 
 // qmllint disable uncreatable-type
-PanelWindow {
+PopupWindow {
     id: root
     required property var lifecycle
-    property var targetScreen: null
     property int selected: -1
     property string selectionKey: ""
     property bool defaultSelectionPending: true
     property bool hoverNavigationEnabled: false
     property point lastPointer: Qt.point(-1, -1)
-    property bool sharedBackdrop: false
-    property bool handoff: false
-    property bool superseded: false
-    visible: !superseded
-    property bool closing: false
-    property bool entered: false
     Component.onCompleted: Qt.callLater(() => {
         if (!root.closing) {
             root.updateDeviceSelection();
-            root.entered = true;
         }
     })
     property bool closeAfterControls: false
@@ -50,18 +42,7 @@ PanelWindow {
     property var result: ({})
     readonly property var devices: Bluetooth.devices.values.filter(d => d.paired || d.bonded).sort((a, b) => a.name.localeCompare(b.name) || a.address.localeCompare(b.address))
     readonly property bool adapterAvailable: Bluetooth.adapters.values.some(a => a.enabled)
-    screen: targetScreen
-    anchors {
-        top: true
-        bottom: true
-        left: true
-        right: true
-    }
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "desktop-foundation-bluetooth"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.closing || root.superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.Exclusive
-    color: "transparent"
+    surfaceNamespace: "desktop-foundation-bluetooth"
     PwObjectTracker {
         objects: Pipewire.nodes.values
     }
@@ -114,22 +95,11 @@ PanelWindow {
         radioAction.command = [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "bluetooth", "power", radioTarget ? "on" : "off"];
         radioAction.running = true;
     }
-    Process {
+    ControlRequest {
         id: radioAction
-        property var response: ({})
-        onStarted: response = ({})
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    radioAction.response = JSON.parse(text);
-                } catch (_) {
-                    radioAction.response = ({});
-                }
-            }
-        }
-        onExited: (exitCode, exitStatus) => {
+        onFinished: code => {
             root.radioBusy = false;
-            root.error = exitCode === 0 && response.success ? "" : response.error || "Bluetooth radio request failed. Try again.";
+            root.error = code === 0 && response.success ? "" : response.error || failure || "Bluetooth radio request failed. Try again.";
         }
     }
     function navigate(delta: int): void {
@@ -139,7 +109,7 @@ PanelWindow {
     function selectIndex(index: int): void {
         defaultSelectionPending = false;
         hoverNavigationEnabled = false;
-        selected = Math.max(-1, Math.min(devices.length, index));
+        selected = Material.listIndex(index, devices.length + 2, -1);
         if (selected >= 0 && selected < devices.length)
             list.positionViewAtIndex(selected, ListView.Contain);
     }
@@ -172,15 +142,13 @@ PanelWindow {
         lastPointer = Qt.point(-1, -1);
         Qt.callLater(() => {
             if (!root.controlDevice && !root.closing)
-                card.forceActiveFocus();
+                root.restoreInitialFocus();
         });
     }
     function present(): void {
         if (closeAfterControls)
             return;
-        closeTimer.stop();
-        closing = false;
-        entered = true;
+        beginPresentation();
         restoreFocus();
     }
     function dismiss(): void {
@@ -192,8 +160,7 @@ PanelWindow {
             controlsLoader.item.stop();
             return;
         }
-        closing = true;
-        closeTimer.start();
+        beginDismissal();
     }
     function supportsControls(device): bool {
         return controlPaths.includes(device.dbusPath) && !unsupportedPaths.includes(device.dbusPath);
@@ -277,20 +244,18 @@ PanelWindow {
     }
     onSelectedChanged: rememberSelection()
     onDevicesChanged: updateDeviceSelection()
-    Process {
+    ControlRequest {
         id: discovery
         command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/nothing-backend", "--discover"]
         running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    root.controlPaths = JSON.parse(text).devices || [];
-                    root.batteryQueue = root.devices.filter(d => d.connected && root.controlPaths.includes(d.dbusPath));
-                    root.nextBattery();
-                } catch (_) {}
+        onFinished: code => {
+            if (code === 0 && !root.closing) {
+                root.controlPaths = response.devices || [];
+                root.batteryQueue = root.devices.filter(d => d.connected && root.controlPaths.includes(d.dbusPath));
+                root.nextBattery();
             }
+            root.finishDiscovery();
         }
-        onExited: root.finishDiscovery()
     }
     function finishDiscovery(): void {
         discoveryDone = true;
@@ -388,26 +353,16 @@ PanelWindow {
             }
         }
     }
-    Timer {
-        id: closeTimer
-        interval: Theme.timing.exit
-        onTriggered: root.lifecycle.bluetoothEnabled = false
-    }
-    Process {
+    motionItem: card
+    initialFocusItem: card
+    closeBlocked: root.busy || root.radioBusy
+    canDispose: !root.busy && !root.radioBusy && !root.controlDevice
+    onDisposalReady: root.lifecycle.bluetoothEnabled = false
+    onCloseRequested: root.dismiss()
+    ControlRequest {
         id: action
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    root.result = JSON.parse(text);
-                } catch (_) {
-                    root.result = {
-                        success: false,
-                        error: "Bluetooth request could not be completed."
-                    };
-                }
-            }
-        }
-        onExited: (exitCode, exitStatus) => {
+        onFinished: exitCode => {
+            root.result = response;
             root.busy = false;
             if (root.result.success && exitCode === 0) {
                 root.error = "";
@@ -421,41 +376,15 @@ PanelWindow {
             }
         }
     }
-    Rectangle {
-        anchors.fill: parent
-        color: root.sharedBackdrop ? "transparent" : Theme.colors.scrim
-        opacity: (root.entered || root.handoff) && !root.closing ? 1 : 0
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-            }
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.dismiss()
-        }
-    }
-    SurfaceCard {
+    PopupCard {
         id: card
         visible: root.controlDevice === null
         anchors.centerIn: parent
-        width: Math.min(Theme.dimensions.deviceMenuWidth, root.width - 48)
-        height: Math.min(128 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0) + (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0), root.height - 64)
-        opacity: root.entered && !root.closing ? 1 : 0
-        scale: root.entered && !root.closing ? 1 : 0.97
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-            }
-        }
-        Behavior on scale {
-            SurfaceAnimation {
-                duration: root.closing ? Theme.timing.exit : Theme.timing.normal
-                easing.type: Theme.easing
-            }
-        }
+        width: Material.popupWidth(Theme.dimensions.deviceMenuWidth, root.width)
+        height: Material.popupHeight(128 + Math.max(1, Math.min(6, root.devices.length)) * 76 + (root.error ? 38 : 0) + (root.busy || root.radioBusy || root.controlsOpening ? 48 : 0), root.height)
+        presented: root.entered
+        dismissing: root.closing
         focus: true
-        Component.onCompleted: forceActiveFocus()
         Keys.priority: Keys.BeforeItem
         MouseArea {
             anchors.fill: parent
@@ -539,16 +468,11 @@ PanelWindow {
                 onChosen: root.activate(index)
             }
         }
-        Text {
+        WidgetStatus {
             x: 28
             y: list.y + list.height + 6
             width: card.width - 56
-            visible: root.error !== ""
-            text: root.error
-            color: Material.colors.error
-            font.family: Theme.typography.family
-            font.pixelSize: Theme.typography.small
-            wrapMode: Text.Wrap
+            message: root.error
         }
         ControlAction {
             id: manageAction

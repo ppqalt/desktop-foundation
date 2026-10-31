@@ -221,7 +221,7 @@ fn unavailable_ee_still_restores_applications_and_keeps_recovery_journal() {
 fn invalid_config_never_changes_audio() {
     let mut a = Fake::new(false);
     let c = Config {
-        monitoring_gain: 2.0,
+        monitoring_gain: 5.0,
         ..Config::default()
     };
     assert!(transparency::activate(&mut a, &c).is_err());

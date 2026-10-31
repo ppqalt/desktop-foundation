@@ -20,8 +20,13 @@ fn logged_commands_keep_large_output_and_failure_details_on_disk() {
         .open(&path)
         .unwrap();
     let result = process::checked_logged(
-        &["python3".into(), "-c".into(), "import sys; print('x'*100000); print('build failed here',file=sys.stderr); sys.exit(7)".into()],
-        Duration::from_secs(3), &log,
+        &[
+            "sh".into(),
+            "-c".into(),
+            "head -c 100000 /dev/zero; printf 'build failed here\\n' >&2; exit 7".into(),
+        ],
+        Duration::from_secs(3),
+        &log,
     );
     assert!(result.is_err());
     let text = fs::read_to_string(path).unwrap();

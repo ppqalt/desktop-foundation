@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Production sidebar, private state and inert finite command workers.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+base=$(mktemp -d /tmp/foundation-control.XXXXXX)
+cleanup() {
+	local result=$?
+	if ((result != 0)); then
+		[[ ! -f $base/log ]] || cat "$base/log" >&2
+		[[ ! -f $base/calls ]] || cat "$base/calls" >&2
+	fi
+	rm -r -- "$base"
+}
+trap cleanup EXIT
+mkdir -p "$base/shell/surfaces" "$base/native/foundation/target/release" "$base/scripts"
+for leaf in home runtime config state cache data; do mkdir -m 700 "$base/$leaf"; done
+ln -s "$root/shell/components" "$base/shell/components"
+ln -s "$root/shell/theme" "$base/shell/theme"
+ln -s "$root/theme" "$base/theme"
+perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n    \}\n//; s/^    (?:screen:|implicitWidth:|margins.left:|exclusionMode:|WlrLayershell\.).*\n//mg' "$root/shell/surfaces/ControlCenter.qml" >"$base/shell/surfaces/ControlCenterFixture.qml"
+cp "$root/tests/qml/control-center.qml" "$base/shell.qml"
+cat >"$base/snapshot.json" <<'JSON'
+{"audio":{"available":true,"output":"speakers","input":"mic","outputs":[{"name":"speakers","description":"Speakers","volume":50,"muted":false},{"name":"headphones","description":"Headphones","volume":40,"muted":false}],"inputs":[{"name":"mic","description":"Microphone","volume":33,"muted":false}]},"network":{"available":true,"enabled":true,"wifi":true,"state":"connected","devices":[{"name":"enp4s0","kind":"ethernet","connection":"Office","state":"connected"}],"connections":[]}}
+JSON
+cat >"$base/native/foundation/target/release/desktop-foundationctl" <<'WORKER'
+#!/bin/sh
+shift 3
+printf '%s\n' "$*" >> "$DF_CONTROL_CALLS"
+if [ "$*" = 'wifi on' ]; then
+    sleep .6
+    printf '%s\n' 'done wifi on' >> "$DF_CONTROL_CALLS"
+fi
+if [ "$*" = snapshot ]; then
+    cat "$DF_CONTROL_SNAPSHOT"
+elif [ "$*" = list ]; then
+    printf '%s\n' '{"images":[],"current":""}'
+else
+    printf '%s\n' '{"success":true}'
+fi
+WORKER
+chmod 700 "$base/native/foundation/target/release/desktop-foundationctl"
+printf '%s\n' '#!/bin/sh' 'printf '\''%s\n'\'' '\''{"reducedMotion":false}'\''' >"$base/scripts/foundation"
+chmod 700 "$base/scripts/foundation"
+if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNATURE \
+	-u DBUS_SESSION_BUS_ADDRESS -u DBUS_SYSTEM_BUS_ADDRESS -u QS_CONFIG_PATH -u QS_CONFIG_NAME \
+	HOME="$base/home" XDG_RUNTIME_DIR="$base/runtime" XDG_CONFIG_HOME="$base/config" \
+	XDG_STATE_HOME="$base/state" XDG_CACHE_HOME="$base/cache" XDG_DATA_HOME="$base/data" \
+	XDG_DATA_DIRS="$base/data" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+	DF_FOUNDATION_ROOT="$base" DF_CONTROL_CALLS="$base/calls" DF_CONTROL_SNAPSHOT="$base/snapshot.json" \
+	timeout 10s quickshell --path "$base" >"$base/log" 2>&1; then
+	cat "$base/log" >&2
+	exit 1
+fi
+if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|CONTROL_TIMEOUT|TypeError|ReferenceError|ERROR|QML (Warning|Error)' "$base/log"; then
+	cat "$base/log" >&2
+	exit 1
+fi
+for call in 'volume output 51' 'networking off' 'select output headphones'; do rg -Fx "$call" "$base/calls" >/dev/null; done
+awk '$0=="volume output 52"{v=NR} $0=="done wifi on"{d=NR} END{exit !(v && d && v<d)}' "$base/calls"
+printf '%s\n' 'PASS production Control Center navigation, concurrent requests, reversal and disposal'

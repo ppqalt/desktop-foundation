@@ -15,6 +15,15 @@ AbstractButton {
     implicitHeight: 48
     activeFocusOnTab: true
     checkable: false
+    Keys.onPressed: event => {
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+            return;
+        const direction = Material.direction(event.key);
+        if (direction) {
+            Material.moveFocus(root, direction[0], direction[1]);
+            event.accepted = true;
+        }
+    }
     Accessible.role: Accessible.CheckBox
     Accessible.name: text
     Accessible.checkable: true

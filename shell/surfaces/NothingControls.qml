@@ -81,9 +81,9 @@ SurfaceCard {
             22: "ANC / transparency"
         })
     readonly property var rows: makeRows()
-    width: Math.min(Theme.dimensions.launcherWidth, availableWidth - 48)
+    width: Material.popupWidth(Theme.dimensions.launcherWidth, availableWidth)
     // Keep the card and footer stable while controls are being discovered.
-    height: Math.min(233 + 6 * 76, availableHeight - 64)
+    height: Material.popupHeight(233 + 6 * 76, availableHeight)
     opacity: entered ? 1 : 0
     scale: entered ? 1 : 0.97
     Behavior on opacity {
@@ -212,7 +212,7 @@ SurfaceCard {
         if (!rows.length)
             return;
         // Informational rows can be focused and scrolled to, but never activated.
-        selected = Math.max(0, Math.min(rows.length - 1, selected + delta));
+        selected = Material.listIndex(selected + delta, rows.length);
         list.positionViewAtIndex(selected, ListView.Contain);
     }
     function navigateEdge(last: bool): void {
@@ -698,15 +698,11 @@ SurfaceCard {
             onChosen: root.activate(index, 0)
         }
     }
-    Text {
+    WidgetStatus {
         x: 28
         y: root.height - 85
         width: root.width - 56
-        text: root.error
-        color: Material.colors.error
-        font.family: Theme.typography.family
-        font.pixelSize: Theme.typography.small
-        wrapMode: Text.Wrap
+        message: root.error
     }
     SurfaceFooter {
         x: 28

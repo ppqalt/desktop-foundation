@@ -15,6 +15,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "desktop-foundation-probe"
     WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     color: Theme.testBackground
     DiagnosticText {
         anchors.fill: parent
