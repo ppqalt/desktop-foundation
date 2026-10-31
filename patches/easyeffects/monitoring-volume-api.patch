@@ -1,36 +1,16 @@
 --- a/src/local_server.cpp
 +++ b/src/local_server.cpp
-@@ -27,6 +27,8 @@
- #include <cstring>
- #include <filesystem>
- #include <format>
+@@ -29,0 +30,2 @@
 +#include <cmath>
 +#include <format>
- #include <memory>
- #include <optional>
- #include <regex>
-@@ -103,7 +105,8 @@
-     } else if (std::strcmp(buf, tags::local_server::hide_window) == 0) {
-       Q_EMIT onHideWindow();
-     } else if (std::strncmp(buf, tags::local_server::microphone_monitoring,
+@@ -106 +108,2 @@
 -                            strlen(tags::local_server::microphone_monitoring)) == 0) {
 +                            strlen(tags::local_server::microphone_monitoring)) == 0 &&
 +               buf[strlen(tags::local_server::microphone_monitoring)] == ':') {
-       std::string msg = buf;
- 
-       std::smatch matches;
-@@ -118,6 +121,7 @@
-         util::str_to_num(std::string(matches[1]), state);
- 
-         DbStreamInputs::setListenToMic(state != 0);
+@@ -120,0 +124 @@
 +        socket->write("ok\n");
-       }
-     } else if (std::strncmp(buf, tags::local_server::audio_sharing, strlen(tags::local_server::audio_sharing)) == 0) {
-       std::string msg = buf;
-@@ -231,6 +235,18 @@
- 
-         socket->write(preset_name.toUtf8());
-       }
+@@ -232,0 +237,12 @@
++      }
 +    } else if (std::strcmp(buf, "get_microphone_monitoring_volume\n") == 0) {
 +      socket->write(std::format("{:.17g}\n", DbStreamInputs::listenToMicVolume()).c_str());
 +    } else if (std::strncmp(buf, "microphone_monitoring_volume:", 29) == 0) {
@@ -42,7 +22,3 @@
 +        socket->write("ok\n");
 +      } else {
 +        socket->write("error_invalid_monitoring_volume\n");
-+      }
-     } else if (std::strcmp(buf, tags::local_server::get_microphone_monitoring) == 0) {
-       socket->write(DbStreamInputs::listenToMic() ? "1" : "2");
-     } else if (std::strcmp(buf, tags::local_server::toggle_microphone_monitoring) == 0) {

@@ -14,10 +14,10 @@ makedepends=(cmake extra-cmake-modules git ninja ladspa)
 optdepends=('lsp-plugins-lv2: additional effects')
 source=('git+https://github.com/wwmm/easyeffects.git#commit=b4390ab3fec06fcfbd6dcf2c2fa1d12bca23bc68'
         monitoring-volume-api.patch)
-sha256sums=('SKIP' 'b66ffbe77e87833bc15777e157b4e3b8144d805c2c69ddbc79a9a82dc19130ab')
+sha256sums=('SKIP' 'a372189ba99eebc1a265069d6a00feead450015dde725f4d6cc65e3ba8bdabea')
 prepare() {
     cd "$srcdir/easyeffects"
-    git apply "$srcdir/monitoring-volume-api.patch"
+    git apply --unidiff-zero "$srcdir/monitoring-volume-api.patch"
 }
 build() {
     cmake -S "$srcdir/easyeffects" -B "$srcdir/build" -G Ninja \
