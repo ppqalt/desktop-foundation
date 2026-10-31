@@ -24,6 +24,8 @@ QtObject {
         // Remove the outgoing window from rendering/input immediately, without
         // destroying a Process that still owns a clipboard/device operation.
         for (const key of Object.keys(surfaces)) {
+            if (key !== name && surfaces[key].external)
+                surfaces[key].dismiss();
             const outgoing = surfaces[key].item();
             if (key !== name && outgoing) {
                 replacing = replacing || !outgoing.superseded;
@@ -31,6 +33,10 @@ QtObject {
                 if (!outgoing.closing)
                     surfaces[key].dismiss();
             }
+        }
+        if (target.external) {
+            target.open(false);
+            return;
         }
         if (target.retiring?.()) {
             pending = name;

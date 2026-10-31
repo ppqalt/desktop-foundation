@@ -270,6 +270,7 @@ primitive when multiple callers need the same change.
 | `SurfaceAnimation` | Retargetable numeric Behavior animation, common default timing/easing; callers choose spatial/effects tokens where applicable |
 | `SidebarMotion` | Reversible position/velocity slide; `move(open)`, `position`, `settled(open)`; reduced motion settles immediately |
 | `SurfaceRouter` | `surfaces` adapters (`item/alive/open/dismiss/present`, optional `retiring`; `open(handoff)`), `request(name, showOnly)`; last intent wins; immediate visual handoff with retained backend ownership |
+| `ExternalSurface` | External-renderer lifecycle adapter using `ControlRequest`; serializes native requests, coalesces queued toggle pairs and prioritizes close; no mirrored native state or polling |
 | `ControlAction` | Button/list action: `text/detail/badge/symbol`, `marked/toggle/compact/iconOnly`, `clicked`; checked state is backend-owned |
 | `ControlSwitch` | Backend-owned `marked`, `pending`, optional menu `selected`, `clicked` request and pointer movement; Material switch geometry, no optimistic checked-state mutation |
 | `ControlChoice` | Keyboard dropdown: `model/textRole/currentIndex`, `activated`; private `menuIndex` until committed |

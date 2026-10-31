@@ -127,9 +127,22 @@ ShellRoot {
         }
     }
     property string handoffSurface: ""
+    ExternalSurface {
+        id: monitorSurface
+        toggleAction: "toggle-native"
+        commandPrefix: [Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl", "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "monitor"]
+        onFailed: message => console.warn("Monitor: " + message)
+    }
     SurfaceRouter {
         id: surfaceRouter
         surfaces: ({
+                monitor: {
+                    external: true,
+                    item: () => null,
+                    alive: () => false,
+                    open: () => monitorSurface.send("toggle"),
+                    dismiss: () => monitorSurface.send("close")
+                },
                 launcher: {
                     item: () => launcherLoader.item,
                     alive: () => root.launcherEnabled,
@@ -223,6 +236,9 @@ ShellRoot {
             Theme.refreshMotionPreference();
             root.controlCenterStyle = JSON.parse(style);
             surfaceRouter.request("controlCenter");
+        }
+        function toggleMonitor(): void {
+            surfaceRouter.request("monitor");
         }
         function controlCenterStatus(): string {
             return JSON.stringify(root.controlCenter ? root.controlCenter.snapshot() : {

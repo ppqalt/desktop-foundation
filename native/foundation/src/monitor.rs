@@ -580,7 +580,7 @@ struct Motion {
 }
 impl Motion {
     fn sample(&mut self) -> bool {
-        let seconds = self.duration.as_secs_f64();
+        let seconds = self.duration.as_secs_f64().max(f64::EPSILON);
         let t = (self.started.elapsed().as_secs_f64() / seconds).min(1.0);
         if t >= 1.0 {
             self.x = self.to;
@@ -731,7 +731,11 @@ fn serve_once(root: &Path) -> Result<bool> {
     stale(&paths.control)?;
     stale(&paths.kitty)?;
     let _cleanup = Cleanup(&paths);
-    let settings = settings(root)?;
+    let mut settings = settings(root)?;
+    if crate::ui_preferences::read()["reducedMotion"].as_bool() == Some(true) {
+        settings.animation_ms = 0;
+        settings.closing_animation_ms = 0;
+    }
     let output = niri("focused-output")?;
     let name = output
         .get("name")
@@ -1022,6 +1026,31 @@ fn serve_once(root: &Path) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reduced_motion_settles_at_each_endpoint_without_invalid_velocity() {
+        let mut motion = Motion {
+            x: 1200.0,
+            velocity: 0.0,
+            from: 1200.0,
+            initial_velocity: 0.0,
+            to: 1920.0,
+            shown: 1200.0,
+            hidden: 1920.0,
+            started: Instant::now(),
+            duration: Duration::ZERO,
+            opening_duration: Duration::ZERO,
+            closing_duration: Duration::ZERO,
+            opening: false,
+        };
+        assert!(motion.sample());
+        assert_eq!(motion.x, 1920.0);
+        assert_eq!(motion.velocity, 0.0);
+        motion.target(true, 1200, 1920);
+        assert!(motion.sample());
+        assert_eq!(motion.x, 1200.0);
+        assert_eq!(motion.velocity, 0.0);
+    }
 
     #[test]
     fn unchanged_launch_files_keep_their_inode_and_changed_files_are_private() {

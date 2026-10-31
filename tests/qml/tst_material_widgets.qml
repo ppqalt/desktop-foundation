@@ -135,7 +135,16 @@ ShellRoot {
         }
         SurfaceRouter {
             id: router
+            property int externalOpens: 0
+            property int externalCloses: 0
             surfaces: ({
+                    monitor: {
+                        external: true,
+                        item: () => null,
+                        alive: () => false,
+                        open: () => router.externalOpens++,
+                        dismiss: () => router.externalCloses++
+                    },
                     first: {
                         item: () => routeA.alive ? routeA : null,
                         alive: () => routeA.alive,
@@ -257,6 +266,39 @@ ShellRoot {
             when: false
             property int disposals: 0
             property int requestResult: -1
+            ExternalSurface {
+                id: externalWorker
+                commandPrefix: ["sh", "-c", "sleep .05; exit 0"]
+            }
+            function test_external_routing() {
+                router.request("first");
+                const opens = router.externalOpens;
+                router.request("monitor");
+                verify(routeA.superseded && routeA.closing);
+                compare(router.externalOpens, opens + 1);
+                const closes = router.externalCloses;
+                router.request("bluetooth");
+                compare(router.externalCloses, closes + 1);
+                verify(routeC.alive && !routeC.superseded);
+                router.request("power");
+                routeB.busy = true;
+                router.request("monitor");
+                compare(router.externalOpens, opens + 1);
+                routeB.busy = false;
+                routeA.alive = false;
+                routeB.alive = false;
+                routeC.alive = false;
+                // Close supersedes queued toggles during a slow native startup.
+                externalWorker.send("toggle");
+                externalWorker.send("toggle");
+                externalWorker.send("close");
+                compare(externalWorker.queue.join(","), "close");
+                externalWorker.send("toggle");
+                externalWorker.send("toggle");
+                compare(externalWorker.queue.join(","), "close");
+                tryCompare(externalWorker, "busy", false);
+                compare(externalWorker.worker.command.slice(-1)[0], "close");
+            }
             ControlRequest {
                 id: transport
                 onFinished: code => checks.requestResult = code
@@ -585,6 +627,7 @@ ShellRoot {
             running: true
             onTriggered: {
                 checks.test_handoff_and_interruption();
+                checks.test_external_routing();
                 checks.test_shared_lifecycle();
                 checks.test_shared_transport();
                 checks.test_backdrop_survives_handoff();

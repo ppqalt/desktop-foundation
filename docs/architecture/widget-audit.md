@@ -106,3 +106,20 @@ graceful save path throughout that migration.
 
 This comparison was source-only: no sidebar was opened, no audio/network setting
 changed and no live btop configuration was rewritten.
+
+### Follow-up: shared switching
+
+Public `monitor toggle` now enters the same `SurfaceRouter` as Control Center,
+Clipboard, Bluetooth, Power and Launcher. The router accepts an external-renderer
+adapter instead of treating btop as an unrelated overlay. `ExternalSurface` uses
+`ControlRequest` to serialize native toggle/close requests, coalesces queued toggle
+pairs, and lets a later close supersede queued startup intent. Rust remains the
+authority for actual monitor state, motion and btop retirement; QML does not poll
+or mirror that state. Centered widgets open immediately while the right sidebar
+performs its native close/save. The existing busy Power guard applies to monitor
+requests too. `toggle-native` is the adapter transport entry, not a shortcut path.
+
+The monitor also reads the existing shared reduced-motion preference on service
+startup and settles zero-duration motion safely. The copied interpolation,
+narrow-output geometry, focus timing and outer border differences above remain
+explicit gaps; this change does not claim to eliminate them.

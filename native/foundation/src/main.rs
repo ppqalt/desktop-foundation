@@ -123,7 +123,9 @@ fn run() -> Result<()> {
         Some("app-mods") => print_json(&app_mods::run(&root, &args[1..])?),
         Some("geode") => print_json(&geode::run(&root, &args[1..])?),
         Some("monitor") if args.len() == 2 => match args[1].as_str() {
-            "toggle" => monitor::toggle(&root),
+            "toggle" => shell::call(&root, &["toggleMonitor".into()]),
+            // ExternalSurface adapter only; public toggles must use the router.
+            "toggle-native" => monitor::toggle(&root),
             "close" => monitor::close(&root),
             "serve" => monitor::serve(&root),
             "status" => print_json(&monitor::status(&root)?),

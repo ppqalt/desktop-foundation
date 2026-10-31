@@ -39,6 +39,9 @@ The left Control Center and right Kitty/btop monitor belong to the same sidebar
 category. Their renderer/save adapters differ; do not exempt btop from shared
 geometry, motion, focus and accessibility infrastructure. See the
 [mirrored sidebar comparison](docs/architecture/widget-audit.md#mirrored-sidebar-comparison-2026-10-31).
+All interactive widget activation, including Super+X, enters `SurfaceRouter`.
+External renderers use its `external` adapter and `ExternalSurface` transport;
+do not bypass mutual dismissal by starting the monitor directly from a shortcut.
 
 ### Rule vocabulary and precedence
 
