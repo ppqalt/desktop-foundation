@@ -31,7 +31,13 @@ failure skips that one handoff, leaving the keyring locked for manual unlocking
 while preserving the normal login result. The close-session path follows whichever
 modules opened successfully. Doctor checks this ordering and control policy.
 
-`scripts/system-setup install` installs the greetd configuration and PAM template.
+`scripts/system-setup install` uses the Rust `system_setup.rs` implementation to
+install the greetd configuration and PAM template. It retains the existing
+`/var/lib/desktop-foundation/system/manifest.json` backup journal and flock
+transaction lock. All sources, backup hashes and target ownership are validated
+before publication; the helper is installed before PAM refers to it. Restore
+places PAM back before removing the helper. The production command has no
+alternate filesystem-root override.
 It does not restart greetd or the current desktop. Use a normal password login
 for automatic unlocking. Fingerprint or passwordless login does not supply a
 password to unlock an encrypted keyring.

@@ -29,6 +29,7 @@ theme gtk-accent
 install [--core|--personal] [--profile NAME] [--no-packages] [--no-greeter] [--clean-boot] [--dry-run|--check]
 deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]
 preferences-setup install [--theme-only]|restore
+system-setup install|restore
 preflight [--profile NAME] [--compositor niri] [--update]
 theme-runtime generate|apply|reset|wallpaper|rollback|promote|ensure
 wallpapers list
@@ -89,6 +90,9 @@ stderr and exit nonzero. Native command arguments are passed as arrays.
   contrast checks and palette caching. `generate` returns `{palette, cached}`.
   The theme transaction stages and publishes the active revision separately.
   See [theme controls](../theme/README.md).
+- **Login setup:** root-only native greetd/PAM publication with legacy journal
+  compatibility, bounded source reads, protected parents, pending writes and
+  rollback. It enables greetd without starting or restarting it. See [keyring](keyring.md).
 - **Preferences:** native setting reads/writes and the existing per-setting
   ownership journal. Pending writes preserve recovery across interruptions;
   restoration checks ownership before changing settings. GTK refresh selects

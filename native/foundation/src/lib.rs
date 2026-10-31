@@ -29,6 +29,7 @@ pub mod session;
 pub mod shell;
 pub mod spotify_theme;
 pub mod state;
+pub mod system_setup;
 pub mod theme;
 pub mod theme_render;
 pub mod theme_runtime;

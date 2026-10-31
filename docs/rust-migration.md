@@ -44,7 +44,7 @@ native deployment preparation and preflight do not require it.
 ## Remaining Python
 
 This is a runtime migration, not a claim that the repository is Python-free.
-Legacy doctor/system setup, Spotify client provisioning, diagnostics,
+Legacy doctor/other privileged setup, Spotify client provisioning, diagnostics,
 older tests and their import-compatible helper modules remain. Those legacy
 modules are retained until their callers/tests migrate; normal theme commands,
 new deployment theme preparation, Spotify color binding and the wallpaper-startup
@@ -93,3 +93,24 @@ those callers migrate. No new Python implementation or tests were added.
 uses private paths and an inert effect adapter to test layer separation, terminal
 command routing, dry-run/check safety, overrides, ownership, failures and reviewed
 AUR fallback. Real installation or live desktop acceptance is outside that test.
+
+## Native login setup
+
+`scripts/system-setup install|restore` now dispatches to Rust. Its existing
+root-owned greetd/PAM/readiness-helper journal remains compatible, including
+managed/pending/original digests and original backup paths. Reads reject symlinks,
+unsafe parent ownership/modes, oversized or non-regular files and escaped journal
+paths. Backup and target checks finish before any login target is replaced.
+
+The native setup validates its PAM readiness order and greetd TOML, stages the
+ELF helper before PAM, and restores PAM before removing the helper. Original
+bytes/modes survive reruns and interrupted publication/restoration. The existing
+flock is shared with older setup implementations; no production test-root or
+non-root override is exposed. Only `systemctl enable greetd.service` is issued;
+the running login manager is never started/restarted by this command.
+
+Tests use a private simulated filesystem and inert capability/service operations.
+They cover old journal recovery, legacy exact-template adoption, backup/target
+conflicts, unsafe paths/modes, source validation and enable failure. No live PAM,
+greetd, keyring or root-owned installation files were changed for verification.
+Other privileged helpers, doctor and provisioning remain migration targets.

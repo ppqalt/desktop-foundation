@@ -181,7 +181,7 @@ PipeWire SBC/SBC-XQ/AAC/LDAC playback change.
 | `update.rs`, `preflight.rs`, `source_identity.rs` | Isolated update/build validation and source identity |
 | `monitor.rs`, `monitor_config.rs`, `monitor_shader.rs` | Kitty/btop panel lifecycle, persistent settings, appearance/motion |
 | `shell.rs`, `session.rs`, `screenshot.rs` | Shell IPC, native session routes, capture |
-| `browser_policy.rs`, `keyring.rs` | Narrow privileged integration contracts |
+| `browser_policy.rs`, `keyring.rs`, `system_setup.rs` | Narrow privileged integration contracts and reversible greetd/PAM installation |
 | `local_ai.rs`, `app_mods.rs`, `geode.rs`, `spotify_theme.rs` | On-demand AI and scoped application adapters/modifications |
 | `state.rs`, `process.rs`, `ui_preferences.rs`, `diagnostics.rs`, `packages.rs` | Filesystem/lock primitives, finite subprocesses, accessibility preference read, diagnostics/cache |
 
@@ -411,7 +411,10 @@ coordinates preferences and records managed links. `--update` skips global
 preference writes. `scripts/preferences` is native preference setup.
 `scripts/uninstall` restores recorded preferences/roles and deployment-owned paths;
 packages remain installed. Its optional `--greeter` route invokes the reviewed
-privileged system-setup restore.
+privileged system-setup restore. The `system-setup` entry point is now native Rust,
+requires UID 0, and accepts only `install` or `restore`; it has no alternate-root
+or owner override for protected system paths in the production CLI. The common
+`--root` option selects source checkout assets only. Its existing root journal is preserved.
 
 ### Ownership and recovery
 
