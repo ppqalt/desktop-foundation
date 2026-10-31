@@ -12,6 +12,7 @@ QtObject {
     property var entries: []
     property bool loading: true
     property int startupRetries: 0
+    property bool initializationRequested: false
     property string error: ""
     readonly property bool busy: actionProcess.running
     signal aboutToUpdate
@@ -36,6 +37,10 @@ QtObject {
             }
         }
         onLoadFailed: {
+            if (!root.initializationRequested) {
+                root.initializationRequested = true;
+                root.request("init", "");
+            }
             root.error = root.startupRetries < 20 ? "Clipboard history is starting…" : "Clipboard history is unavailable.";
             root.loading = root.startupRetries < 20;
         }

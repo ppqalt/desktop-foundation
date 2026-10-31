@@ -43,6 +43,7 @@ Rectangle {
             fillMode: Image.PreserveAspectFit
             sourceSize.width: 72
             sourceSize.height: 72
+            asynchronous: true
             visible: !!source
         }
         Text {

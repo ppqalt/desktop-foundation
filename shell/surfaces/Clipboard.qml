@@ -383,7 +383,6 @@ PanelWindow {
                 root.entered = true;
         });
         search.forceActiveFocus();
-        history.request("init", "");
     }
     Component.onDestruction: lifecycle.clipboardAlive = false
     SequentialAnimation {

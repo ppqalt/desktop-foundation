@@ -6,10 +6,14 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 fixture_qml=$(mktemp "$root/.material-widget-test.XXXXXX.qml")
 fixture_state=$(mktemp -d)
 fixture_log=$(mktemp)
+fixture_worker=$(mktemp)
+fixture_calls=$(mktemp)
 fixture_surfaces=$(mktemp -d "$root/.material-surfaces.XXXXXX")
 cleanup() {
 	unlink "$fixture_qml"
 	unlink "$fixture_log"
+	unlink "$fixture_worker"
+	unlink "$fixture_calls"
 	for surface in Power Volume Launcher Clipboard ModalBackdrop; do
 		if [[ -f $fixture_surfaces/${surface}Fixture.qml ]]; then unlink "$fixture_surfaces/${surface}Fixture.qml"; fi
 	done
@@ -21,15 +25,24 @@ trap cleanup EXIT
 sed -e 's@../../shell/@shell/@g' -e "s@SURFACE_FIXTURES@$(basename "$fixture_surfaces")@" "$root/tests/qml/tst_material_widgets.qml" >"$fixture_qml"
 mkdir -p "$fixture_state/desktop-foundation/clipboard"
 printf '%s\n' '[{"id":"fixture-one","label":"Notes","preview":"note","mime":"text/plain","kind":"text","size":4,"pinned":false},{"id":"fixture-rich","label":"Formatted","preview":"formatted","mime":"text/html","kind":"rich","size":9,"pinned":false}]' >"$fixture_state/desktop-foundation/clipboard/index.json"
+cat >"$fixture_worker" <<'WORKER'
+#!/bin/sh
+printf '%s\n' "$*" >> "$DF_FIXTURE_CALLS"
+WORKER
+chmod 700 "$fixture_worker"
 # Only Wayland transport changes; production rendering, motion and input remain.
 for surface in Power Volume Launcher Clipboard ModalBackdrop; do
 	perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.|anchors\.top:|margins\.top:|mask: Region).*\n//mg; s/implicitWidth:/width:/; s/implicitHeight:/height:/; s#import "../theme"#import "../shell/theme"#; s#import "../components"#import "../shell/components"#; s#import "../services"#import "../shell/services"#; s#"../assets/#"../shell/assets/#g' "$root/shell/surfaces/$surface.qml" >"$fixture_surfaces/${surface}Fixture.qml"
 done
 if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
 	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
-	DF_CLIPBOARD_WORKER=/usr/bin/true DF_FOUNDATION_ROOT="$root" XDG_STATE_HOME="$fixture_state" \
+	DF_CLIPBOARD_WORKER="$fixture_worker" DF_FIXTURE_CALLS="$fixture_calls" DF_FOUNDATION_ROOT="$root" XDG_STATE_HOME="$fixture_state" \
 	timeout 12s quickshell -p "$fixture_qml" >"$fixture_log" 2>&1; then
 	cat "$fixture_log" >&2
+	exit 1
+fi
+if rg -q '(^| )init$' "$fixture_calls"; then
+	printf '%s\n' 'Opening an existing clipboard index must not launch database initialization.' >&2
 	exit 1
 fi
 if ! rg -q 'Material widget checks finished' "$fixture_log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|TypeError|ReferenceError' "$fixture_log"; then

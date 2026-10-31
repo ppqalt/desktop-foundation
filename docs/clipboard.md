@@ -79,3 +79,8 @@ optional private projection cache. Unchanged previews skip a second file read;
 stored bundles remain authoritative and are validated on publication and replay.
 Changed previews are repaired from those bundles. This does not cache file
 availability or copy the contents of referenced files.
+
+Opening reads the existing projection directly. Database initialization is a
+missing-index recovery path, not an operation repeated for every popup. Image
+thumbnails decode asynchronously so large copied images do not block the QML
+opening frame; keyboard focus and copy actions do not wait for image decoding.
