@@ -137,6 +137,7 @@ ShellRoot {
         id: surfaceRouter
         surfaces: ({
                 monitor: {
+                    independent: true,
                     external: true,
                     item: () => null,
                     alive: () => false,
@@ -185,6 +186,7 @@ ShellRoot {
                     present: () => powerLoader.item?.present()
                 },
                 controlCenter: {
+                    independent: true,
                     item: () => controlCenterLoader.item,
                     alive: () => root.controlCenterEnabled,
                     open: handoff => {

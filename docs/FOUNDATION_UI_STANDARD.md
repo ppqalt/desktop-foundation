@@ -88,6 +88,10 @@ different functions do not require identical windows or timers.
 
 ### Lifecycle and ownership contract
 
+Interactive sidebars are independent persistent views while open. Opening a
+popup or the other sidebar MUST NOT dismiss them. Their own shortcut or explicit
+close action controls their lifetime; centered popups retain mutual replacement.
+
 - Composition owns creation, target output and final destruction. SurfaceRouter
   remains the modal intent arbiter; `PopupWindow` owns centered window/input/scrim
   setup, `PopupCard` owns card motion and `PopupLifecycle` owns presentation

@@ -135,15 +135,32 @@ ShellRoot {
         }
         SurfaceRouter {
             id: router
+            property QtObject sidebar: QtObject {
+                property bool alive: false
+                property bool closing: false
+                property bool superseded: false
+            }
             property int externalOpens: 0
             property int externalCloses: 0
             surfaces: ({
                     monitor: {
+                        independent: true,
                         external: true,
                         item: () => null,
                         alive: () => false,
                         open: () => router.externalOpens++,
                         dismiss: () => router.externalCloses++
+                    },
+                    controlCenter: {
+                        independent: true,
+                        item: () => router.sidebar.alive ? router.sidebar : null,
+                        alive: () => router.sidebar.alive,
+                        open: () => {
+                            router.sidebar.alive = true;
+                            router.sidebar.closing = false;
+                        },
+                        dismiss: () => router.sidebar.closing = true,
+                        present: () => router.sidebar.closing = false
                     },
                     first: {
                         item: () => routeA.alive ? routeA : null,
@@ -272,22 +289,35 @@ ShellRoot {
             }
             function test_external_routing() {
                 router.request("first");
+                router.request("controlCenter");
+                verify(!routeA.superseded && !routeA.closing);
                 const opens = router.externalOpens;
                 router.request("monitor");
-                verify(routeA.superseded && routeA.closing);
+                verify(!routeA.superseded && !routeA.closing);
+                verify(router.sidebar.alive && !router.sidebar.closing);
                 compare(router.externalOpens, opens + 1);
                 const closes = router.externalCloses;
                 router.request("bluetooth");
-                compare(router.externalCloses, closes + 1);
+                compare(router.externalCloses, closes);
                 verify(routeC.alive && !routeC.superseded);
+                verify(!router.sidebar.superseded && !router.sidebar.closing);
+                router.request("controlCenter");
+                verify(router.sidebar.closing);
+                verify(!routeC.closing);
+                router.request("controlCenter");
+                verify(!router.sidebar.closing);
+                router.request("monitor");
+                compare(router.externalOpens, opens + 2);
+                verify(!router.sidebar.closing && !routeC.closing);
                 router.request("power");
                 routeB.busy = true;
                 router.request("monitor");
-                compare(router.externalOpens, opens + 1);
+                compare(router.externalOpens, opens + 2);
                 routeB.busy = false;
                 routeA.alive = false;
                 routeB.alive = false;
                 routeC.alive = false;
+                router.sidebar.alive = false;
                 // Close supersedes queued toggles during a slow native startup.
                 externalWorker.send("toggle");
                 externalWorker.send("toggle");

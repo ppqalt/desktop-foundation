@@ -13,6 +13,20 @@ QtObject {
             if (key === "power" && surfaces[key].item()?.busy)
                 return;
         }
+        // Non-modal sidebars coexist with popups and with each other. Only an
+        // explicit request for that sidebar changes its lifecycle.
+        if (target.independent) {
+            const sidebar = target.item();
+            if (target.external)
+                target.open(false);
+            else if (sidebar && !sidebar.closing && !showOnly)
+                target.dismiss();
+            else if (sidebar)
+                target.present();
+            else
+                target.open(false);
+            return;
+        }
         if (pending === name && !showOnly) {
             pending = "";
             return;
@@ -24,6 +38,8 @@ QtObject {
         // Remove the outgoing window from rendering/input immediately, without
         // destroying a Process that still owns a clipboard/device operation.
         for (const key of Object.keys(surfaces)) {
+            if (surfaces[key].independent)
+                continue;
             if (key !== name && surfaces[key].external)
                 surfaces[key].dismiss();
             const outgoing = surfaces[key].item();

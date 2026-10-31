@@ -41,7 +41,10 @@ geometry, motion, focus and accessibility infrastructure. See the
 [mirrored sidebar comparison](docs/architecture/widget-audit.md#mirrored-sidebar-comparison-2026-10-31).
 All interactive widget activation, including Super+X, enters `SurfaceRouter`.
 External renderers use its `external` adapter and `ExternalSurface` transport;
-do not bypass mutual dismissal by starting the monitor directly from a shortcut.
+do not bypass the router by starting the monitor directly from a shortcut.
+Both sidebars use its `independent` category: opening another widget or sidebar
+MUST NOT close them. Only their own toggle or explicit close action dismisses
+them. Centered popups still replace other centered popups.
 
 ### Rule vocabulary and precedence
 

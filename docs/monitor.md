@@ -8,8 +8,8 @@ the current wallpaper theme, with transparent rounded corners, a matching blur
 and no shadow. Inner padding keeps the terminal content away from the edges.
 
 Both sidebars and the centered widgets use the same shell surface router.
-Opening another widget requests the monitor's normal animated close; opening
-the monitor dismisses the other interactive widget. Requests are serialized while
+Sidebars stay open while other widgets open, and can coexist with each other.
+Their own toggle or explicit close action dismisses them. Requests are serialized while
 the terminal starts, and btop's native save sequence remains intact. The monitor
 reads the shared reduced-motion preference when its service starts.
 
