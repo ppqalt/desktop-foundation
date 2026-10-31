@@ -183,7 +183,7 @@ PipeWire SBC/SBC-XQ/AAC/LDAC playback change.
 | `shell.rs`, `session.rs`, `screenshot.rs` | Shell IPC, native session routes, capture |
 | `browser_policy.rs`, `keyring.rs`, `system_setup.rs` | Narrow privileged integration contracts and reversible greetd/PAM installation |
 | `local_ai.rs`, `app_mods.rs`, `geode.rs`, `spotify_theme.rs` | On-demand AI and scoped application adapters/modifications |
-| `state.rs`, `process.rs`, `ui_preferences.rs`, `diagnostics.rs`, `doctor.rs`, `startup_report.rs`, `packages.rs` | Filesystem/lock primitives, finite subprocesses, accessibility preference read, diagnostics/cache |
+| `state.rs`, `process.rs`, `ui_preferences.rs`, `diagnostics.rs`, `doctor.rs`, `startup_report.rs`, `boot_report.rs`, `packages.rs` | Filesystem/lock primitives, finite subprocesses, accessibility preference read, diagnostics/cache |
 
 ### Communication and mutable state
 
@@ -457,7 +457,7 @@ a replacement. Do not execute Python to implement a supposedly Python-free chang
 **Current reality:** the repository is not Python-free. Legacy privileged
 provisioning, older render/helper modules, some client provisioning,
 terminal `select_all.py`, benchmark tooling and older tests remain. The public installer, login setup, doctor,
-startup timeline and session-acceptance snapshot now run in Rust. The obsolete
+startup timeline, boot reports and session-acceptance snapshot now run in Rust. The obsolete
 `install_engine.py` and its import tests have been removed. CI still
 compiles/runs Python tests and installs Python tooling. `scripts/dev bench` is
 still a Python route. These are tracked migration targets, not authorized patterns

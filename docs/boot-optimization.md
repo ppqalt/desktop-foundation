@@ -78,11 +78,12 @@ regenerate GRUB if installed kernels changed since the saved menu.
 Collect boot stages and session timestamps with:
 
 ```sh
-python3 scripts/boot-report.py --boots 4
-python3 scripts/boot-report.py --boots 4 --save before
+scripts/boot-report --boots 4
+scripts/boot-report --boots 4 --save before
 ```
 
-Saved reports are placed under `~/.cache/desktop-foundation/boot-audit/optimization`.
+Saved reports use `$XDG_CACHE_HOME/desktop-foundation/boot-audit/optimization`
+(default `~/.cache/desktop-foundation/boot-audit/optimization`).
 Kernel source timestamps and journal receipt timestamps are separate timelines.
 GRUB menu interaction affects loader duration; greetd's service-start timestamp
 measures service launch. See [performance](performance.md) for measurement tools.

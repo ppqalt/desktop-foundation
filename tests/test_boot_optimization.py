@@ -11,11 +11,6 @@ loader = importlib.machinery.SourceFileLoader('boot_optimize', str(ROOT / 'scrip
 spec = importlib.util.spec_from_loader(loader.name, loader)
 module = importlib.util.module_from_spec(spec)
 loader.exec_module(module)
-sys.path.insert(0, str(ROOT / 'scripts'))
-report_loader = importlib.machinery.SourceFileLoader('boot_report', str(ROOT / 'scripts/boot-report.py'))
-report_spec = importlib.util.spec_from_loader(report_loader.name, report_loader)
-report = importlib.util.module_from_spec(report_spec)
-report_loader.exec_module(report)
 
 
 class BootOptimizationTests(unittest.TestCase):
@@ -26,10 +21,6 @@ class BootOptimizationTests(unittest.TestCase):
         self.assertIn(before.split('[Timer]', 1)[1], after)
         with self.assertRaises(ValueError):
             module.mirror_timer(before.replace('Wants=network-online.target', 'Wants=another.target'))
-    def test_stage_times_parse_minutes_and_subseconds(self):
-        self.assertAlmostEqual(report.seconds('1min 2.345s'), 62.345)
-        self.assertAlmostEqual(report.seconds('384ms'), .384)
-
     def test_timeout_preserves_unrelated_policy(self):
         before = 'GRUB_TIMEOUT=\'5\'\nGRUB_DEFAULT=0\nGRUB_CMDLINE_LINUX="apparmor=1 console=tty8"\n'
         after = module.replace_timeout(before)

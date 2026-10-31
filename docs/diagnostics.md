@@ -38,3 +38,8 @@ Use it only when those interactions are wanted.
 `scripts/session-acceptance` adds read-only login/session service evidence.
 `scripts/spotify-setup check` checks client/theme installation without reading
 Spotify account preference contents or launching Spotify.
+
+`scripts/boot-report --boots 4` combines historical boot stages with the native
+current-session timeline. Add `--save LABEL` to save a private snapshot in
+`$XDG_CACHE_HOME/desktop-foundation/boot-audit/optimization` (default `~/.cache`).
+This command replaces the former Python boot-report entry point.

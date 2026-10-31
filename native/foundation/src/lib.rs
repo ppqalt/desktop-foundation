@@ -4,6 +4,7 @@ pub mod application_roles;
 pub mod apps;
 pub mod backdrop;
 pub mod bluetooth;
+pub mod boot_report;
 pub mod browser_policy;
 pub mod cache;
 pub mod clipboard;

@@ -44,7 +44,7 @@ native deployment preparation and preflight do not require it.
 ## Remaining Python
 
 This is a runtime migration, not a claim that the repository is Python-free.
-Other privileged setup, Spotify client provisioning, boot-report diagnostics,
+Other privileged setup, Spotify client provisioning, older diagnostic tools,
 older tests and their import-compatible helper modules remain. Those legacy
 modules are retained until their callers/tests migrate; normal theme commands,
 new deployment theme preparation, Spotify color binding and the wallpaper-startup
@@ -132,5 +132,20 @@ Native fixtures cover missing PAM/portal services, malformed shell responses,
 corrupt role journals, theme hash mismatches, current-login startup timing,
 missing timing evidence, sample deduplication, unsafe sample paths and private
 Spotify checks without Python in PATH. No live popup benchmark was performed.
-The legacy `startup_report.py` remains for `boot-report.py` and older import tests;
-it is no longer reached by doctor.
+The boot reporter also uses the native startup collector; both legacy Python
+report modules and their old import tests have been removed.
+
+## Native boot reports
+
+`scripts/boot-report [--boots 1..20] [--save LABEL]` replaces the former
+`python3 scripts/boot-report.py` invocation. It keeps the existing report fields,
+first-seen events, kernel-source versus journal-receipt timelines and stage
+medians. Historical queries read only matching boot messages through the existing
+bounded diagnostic transport. Missing boot journals stop with a useful error;
+missing event pairs do not produce invented intervals.
+
+Snapshot files are atomically written with mode 0600 in a private directory under
+`XDG_CACHE_HOME` (default `~/.cache`), using the same label/boot-ID filenames.
+Labels and boot IDs cannot escape that directory. Existing valid JSON snapshots
+remain readable. Rust fixtures cover parsing, medians, missing journals, timestamp
+provenance and publication without reading the machine's live journal.

@@ -9,7 +9,6 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import session_units
-import startup_report
 
 
 class SessionStartup(unittest.TestCase):
@@ -85,12 +84,6 @@ if 'stop' in sys.argv:
             import json
             calls = [json.loads(line) for line in log.read_text().splitlines()]
             self.assertEqual(calls[-1], ['--user', 'start', 'desktop-foundation-clipboard.service'])
-
-    def test_journal_binary_messages_and_missing_metrics(self):
-        message = '\x1b[32mConfiguration Loaded\x1b[0m'
-        self.assertEqual(startup_report.decode_message(list(message.encode())), 'Configuration Loaded')
-        self.assertIsNone(startup_report.delta({}, 'launch', 'frame'))
-        self.assertEqual(startup_report.delta({'a': 1, 'b': 1.125}, 'a', 'b'), 125)
 
     def test_tray_override_keeps_other_desktops(self):
         text = (ROOT / 'session/autostart/arch-update-tray.desktop').read_text()

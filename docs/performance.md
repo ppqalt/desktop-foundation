@@ -36,7 +36,7 @@ scripts/doctor --startup --save before
 scripts/doctor --startup --save after
 scripts/doctor --startup --compare
 scripts/doctor --startup --benchmark
-python3 scripts/boot-report.py --boots 4 --save before
+scripts/boot-report --boots 4 --save before
 ```
 
 Startup samples are saved under
