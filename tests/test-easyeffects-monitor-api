@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Exercise the real patched API on a private PipeWire server, never host audio.
+set -euo pipefail
+ulimit -c 0
+binary=${1:?Pass the absolute patched EasyEffects executable}
+[[ $binary == /* && -x $binary ]]
+fixture=$(mktemp -d)
+chmod 700 "$fixture"
+cleanup() {
+	[[ -z ${ee_pid:-} ]] || kill "$ee_pid" 2>/dev/null || true
+	[[ -z ${pw_pid:-} ]] || kill "$pw_pid" 2>/dev/null || true
+	[[ -z ${bus_pid:-} ]] || kill "$bus_pid" 2>/dev/null || true
+	wait 2>/dev/null || true
+	rm -rf "$fixture"
+}
+trap cleanup EXIT
+export HOME="$fixture/home" XDG_CONFIG_HOME="$fixture/config" XDG_DATA_HOME="$fixture/data" XDG_CACHE_HOME="$fixture/cache"
+export XDG_RUNTIME_DIR="$fixture" PIPEWIRE_RUNTIME_DIR="$fixture" PIPEWIRE_REMOTE=pipewire-0
+export QT_QPA_PLATFORM=offscreen
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$fixture/bus" GTK_USE_PORTAL=0 QT_USE_PORTAL=0 NO_AT_BRIDGE=1
+unset WAYLAND_DISPLAY DISPLAY PULSE_SERVER
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
+cat >"$fixture/bus.conf" <<BUS
+<busconfig>
+<type>session</type><listen>unix:path=$fixture/bus</listen><auth>EXTERNAL</auth>
+<policy context="default"><allow own="*"/><allow send_destination="*"/><allow receive_sender="*"/></policy>
+</busconfig>
+BUS
+# No service search directories: this bus cannot autostart desktop portals/GVfs.
+dbus-daemon --config-file="$fixture/bus.conf" --nofork >"$fixture/bus.log" 2>&1 &
+bus_pid=$!
+for ((i = 0; i < 100; i++)); do
+	[[ ! -S $fixture/bus ]] || break
+	sleep 0.02
+done
+[[ -S $fixture/bus ]]
+pipewire --config=/usr/share/pipewire/pipewire.conf >"$fixture/pipewire.log" 2>&1 &
+pw_pid=$!
+for ((i = 0; i < 100; i++)); do
+	[[ ! -S $fixture/pipewire-0 ]] || break
+	sleep 0.02
+done
+[[ -S $fixture/pipewire-0 ]]
+"$binary" --service-mode >"$fixture/easyeffects.log" 2>&1 &
+ee_pid=$!
+for ((i = 0; i < 250; i++)); do
+	[[ ! -S $fixture/EasyEffectsServer ]] || break
+	sleep 0.02
+done
+if [[ ! -S $fixture/EasyEffectsServer ]]; then
+	cat "$fixture/easyeffects.log" >&2
+	exit 1
+fi
+request() { printf '%s\n' "$1" | timeout 2 socat - "UNIX-CONNECT:$fixture/EasyEffectsServer"; }
+[[ $(request get_microphone_monitoring_volume) == 1 ]]
+[[ $(request microphone_monitoring_volume:0.375) == ok ]]
+[[ $(request get_microphone_monitoring_volume) == 0.375 ]]
+[[ $(request microphone_monitoring_volume:nan) == error_invalid_monitoring_volume ]]
+[[ $(request microphone_monitoring_volume:5) == error_invalid_monitoring_volume ]]
+[[ $(request get_microphone_monitoring_volume) == 0.375 ]]
+[[ $(request microphone_monitoring:1) == ok ]]
+[[ $(request get_microphone_monitoring) == 1 ]]
+[[ $(request microphone_monitoring:0) == ok ]]
+[[ $(request get_microphone_monitoring) == 2 ]]
+# An isolated graph has no physical host devices or user application streams.
+pw-dump | jq -e '[.[] | select(.type == "PipeWire:Interface:Node") | .info.props["node.name"] // "" | select(startswith("alsa_") or startswith("bluez_"))] | length == 0' >/dev/null
+printf '%s\n' 'PASS patched EasyEffects volume API on isolated PipeWire; no host audio used'

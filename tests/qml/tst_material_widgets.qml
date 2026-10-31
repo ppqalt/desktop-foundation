@@ -452,6 +452,12 @@ ShellRoot {
                 compare(progress.width, Math.round(progress.parent.width * 0.9));
                 volume.present(90, true);
                 compare(progress.width, 0);
+                volume.presentMessage("Transparency On");
+                compare(volume.message, "Transparency On");
+                compare(progress.parent.visible, false);
+                volume.present(42, false);
+                compare(volume.message, "");
+                compare(progress.parent.visible, true);
                 volume.visible = false;
             }
             function test_shared_roles() {

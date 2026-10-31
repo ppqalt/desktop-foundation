@@ -12,6 +12,7 @@ PanelWindow {
     property var targetScreen: null
     property int level: 0
     property bool muted: false
+    property string message: ""
     property bool shown: false
     property bool awaitingFrame: false
     readonly property int feedbackDuration: Theme.reducedMotion ? 0 : 100
@@ -28,6 +29,7 @@ PanelWindow {
     color: "transparent"
     mask: Region {}
     function present(percent: int, isMuted: bool): void {
+        message = "";
         if (!visible) {
             shown = false;
             awaitingFrame = true;
@@ -38,6 +40,10 @@ PanelWindow {
         if (!awaitingFrame)
             shown = true;
         expiry.restart();
+    }
+    function presentMessage(value: string): void {
+        present(0, false);
+        message = value;
     }
     Timer {
         id: expiry
@@ -82,7 +88,7 @@ PanelWindow {
             anchors.top: parent.top
             anchors.leftMargin: 14
             anchors.topMargin: 8
-            name: root.muted ? "volume_off" : "volume_up"
+            name: root.message.length ? "hearing" : root.muted ? "volume_off" : "volume_up"
             color: Material.colors.on_surface
         }
         Text {
@@ -90,7 +96,7 @@ PanelWindow {
             anchors.top: parent.top
             anchors.rightMargin: 14
             anchors.topMargin: 10
-            text: root.level + "%"
+            text: root.message.length ? root.message : root.level + "%"
             color: Material.colors.on_surface
             font.family: Theme.typography.family
             font.pixelSize: Material.type.labelLarge
@@ -100,6 +106,7 @@ PanelWindow {
         }
         Rectangle {
             id: track
+            visible: !root.message.length
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom

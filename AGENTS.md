@@ -175,6 +175,7 @@ PipeWire SBC/SBC-XQ/AAC/LDAC playback change.
 | `clipboard.rs`, `clipboard/`, `clipboard_transport.rs` | SQLite MIME bundles, pins/retention, projections, Wayland capture/replay |
 | `apps.rs`, `application_roles.rs`, `actions.rs` | Validated launch plans, MIME role ownership, action metadata/routing |
 | `volume.rs`, `control_center.rs`, `bluetooth.rs`, `bluetooth/` | Audio/network/device operations and confirmed readback |
+| `transparency/` | Socket-activated TC30 room monitoring, stream ducking, ownership and crash recovery |
 | `theme.rs`, `theme_render.rs`, `theme_runtime.rs`, `backdrop.rs` | Matugen palette mapping, generated outputs, immutable revision transaction, overview image |
 | `wallpapers.rs`, `cache.rs` | Wallpaper catalogue/previews and bounded owned-cache maintenance |
 | `deploy.rs`, `deploy_units.rs`, `preferences.rs`, `install.rs` | Installer sequencing, ownership journal, native session files, preferences and restore coordination |

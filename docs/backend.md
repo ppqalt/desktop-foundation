@@ -46,6 +46,7 @@ doctor [--installation] [--personal|--core] [--no-greeter]|--json
 doctor --startup [--save LABEL] [--compare] [--benchmark]
 session-acceptance
 spotify-check
+transparency toggle|check|recover
 boot-report [--boots COUNT] [--save LABEL]
 monitor toggle|close|status|refresh
 browser-theme status|apply COLOR|remove

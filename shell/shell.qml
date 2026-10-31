@@ -200,6 +200,9 @@ ShellRoot {
         function showVolume(percent: string, muted: bool): void {
             volumeReadout.present(Number(percent), muted);
         }
+        function showAudioNotice(message: string): void {
+            volumeReadout.presentMessage(message);
+        }
         function volumeStatus(): string {
             return JSON.stringify({
                 visible: volumeReadout.visible,

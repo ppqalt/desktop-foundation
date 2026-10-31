@@ -1,0 +1,29 @@
+# Optional local package: pinned upstream 8.3.1 plus the reviewed monitor-volume API.
+pkgname=easyeffects
+pkgver=8.3.1
+pkgrel=1.2
+pkgdesc='Audio Effects for PipeWire, with Desktop Foundation monitoring API'
+arch=(x86_64)
+url=https://github.com/wwmm/easyeffects
+license=(GPL-3.0-only)
+depends=(kirigami kirigami-addons kiconthemes kconfigwidgets qqc2-desktop-style
+         breeze-icons qt6-base qt6-graphs pipewire-pulse lilv libsamplerate libsndfile
+         zita-convolver libebur128 rnnoise soundtouch libbs2b nlohmann-json tbb
+         speexdsp gsl webrtc-audio-processing libmysofa)
+makedepends=(cmake extra-cmake-modules git ninja ladspa)
+optdepends=('lsp-plugins-lv2: additional effects')
+source=('git+https://github.com/wwmm/easyeffects.git#commit=b4390ab3fec06fcfbd6dcf2c2fa1d12bca23bc68'
+        monitoring-volume-api.patch)
+sha256sums=('SKIP' 'b66ffbe77e87833bc15777e157b4e3b8144d805c2c69ddbc79a9a82dc19130ab')
+prepare() {
+    cd "$srcdir/easyeffects"
+    git apply "$srcdir/monitoring-volume-api.patch"
+}
+build() {
+    cmake -S "$srcdir/easyeffects" -B "$srcdir/build" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF
+    cmake --build "$srcdir/build" --parallel 2
+}
+package() {
+    DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+}

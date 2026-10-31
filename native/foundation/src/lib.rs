@@ -36,6 +36,7 @@ pub mod system_setup;
 pub mod theme;
 pub mod theme_render;
 pub mod theme_runtime;
+pub mod transparency;
 pub mod ui_preferences;
 pub mod update;
 pub mod volume;
