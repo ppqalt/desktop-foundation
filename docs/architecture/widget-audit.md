@@ -73,3 +73,36 @@ this audit; its contents are not claimed as inspected. Google's
 and linked official implementations corroborate shared theme subsystems and
 component ownership. No measurements were invented from unavailable pages;
 existing desktop motion/edge/halo adaptations remain explicitly documented.
+
+## Mirrored sidebar comparison (2026-10-31)
+
+The right monitor and left Control Center are the **same interactive-sidebar
+category**. The monitor is not exempt from shared infrastructure requirements.
+Its renderer and btop save handshake are the exceptions, not its geometry,
+accessibility, theme or motion policy.
+
+| Concern | Left Control Center | Right Kitty/btop | Actual sharing / gap |
+| --- | --- | --- | --- |
+| Dimensions and timing | Rust-supplied `sidebarStyle` | Rust `Settings` from `config/monitor.toml` | Same settings loader: width 720, padding 12, radius 14, alpha .75, open 240ms / close 180ms |
+| Output bounds | Width capped to output width | Width capped to output width minus 26 | Narrow-output behavior differs; not a single geometry calculation |
+| Surface | QML semantic surface, primary outline/tonal halo, inner corners | Kitty terminal palette and rounding shader | Same theme transaction, different surface roles; monitor has no matching outer accent outline |
+| Motion | `SidebarMotion.qml`, frame-driven normalized Hermite interpolation | `monitor.rs::Motion`, 8ms native timer and Kitty placement | Equivalent equations copied across languages, **not one shared implementation** |
+| Reduced motion | `Theme.reducedMotion` settles immediately | Native monitor has no reduced-motion branch | Accessibility gap |
+| Keyboard focus | OnDemand while opening/open; None when closing/superseded | Not allowed during movement, OnDemand after fully open | Both non-exclusive; activation timing differs |
+| Toggle ownership | Shell `SurfaceRouter` | Rust monitor socket and retirement lifecycle | Separate intent owners; no shared cross-sidebar arbitration |
+| Close/reopen | Reverse QML slide, drain finite operations before unloading | Reverse native slide, short retirement grace, SIGINT btop save, remember intent during save | Renderer-independent intent/motion can converge; terminal save/child ownership must remain native |
+| Closed cost | LazyLoader destroys view and refresh workers | Owned terminal/monitor exits after save | Both on-demand; no permanent hidden btop sampler required |
+| Keyboard content | Shared Material controls and navigation | btop's native terminal keyboard/menu handling | Intentionally different content, not a reason for different outer lifecycle policy |
+
+Recommended next boundary: give mirrored sidebars a shared Rust-owned settings,
+geometry and transition/intent model, with thin QML and Kitty placement adapters.
+Do not add a second permanent process, send per-frame command invocations, embed
+btop into a popup, or force terminal content through Material control navigation.
+A shared in-process motion implementation needs an explicit bridge/build design;
+the present copied QML/Rust equations must not be described as architectural
+unification. Until that bridge is selected, retain the working adapters and test
+reversal trajectories against the same fixtures. Preserve the btop settings and
+graceful save path throughout that migration.
+
+This comparison was source-only: no sidebar was opened, no audio/network setting
+changed and no live btop configuration was rewritten.

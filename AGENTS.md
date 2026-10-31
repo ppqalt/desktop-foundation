@@ -35,6 +35,10 @@ one giant conditional widget, parallel lifecycle protocols, or a Rust worker for
 pure presentation. Preserve explicit category exceptions and test representative
 consumers, including rapid handoffs and async results after close. Document gaps
 as gaps; updating the standard alone does not make old implementations compliant.
+The left Control Center and right Kitty/btop monitor belong to the same sidebar
+category. Their renderer/save adapters differ; do not exempt btop from shared
+geometry, motion, focus and accessibility infrastructure. See the
+[mirrored sidebar comparison](docs/architecture/widget-audit.md#mirrored-sidebar-comparison-2026-10-31).
 
 ### Rule vocabulary and precedence
 
