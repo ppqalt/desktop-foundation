@@ -1,6 +1,6 @@
 # First-party Python inventory
 
-Snapshot: after the native startup benchmark and search-test migration. Paths below are repository files; build artifacts and third-party code are excluded. Update this inventory after each migration. Python imports and legacy test coverage must be checked before deleting compatibility modules.
+Snapshot: after the native startup and failure diagnostics and test-runner migrations. Paths below are repository files; build artifacts and third-party code are excluded. Update this inventory after each migration. Python imports and legacy test coverage must be checked before deleting compatibility modules.
 
 ## Runtime entry points without a `.py` suffix
 
@@ -28,7 +28,6 @@ scripts/bluetooth-power.py
 scripts/clipboard-smoke.py
 scripts/clipboard.py
 scripts/deploy.py
-scripts/failure.py
 scripts/launcher-smoke.py
 scripts/niri_notifications.py
 scripts/niri_wallpaper.py
@@ -74,7 +73,6 @@ tests/test_backend_bluetooth.py
 tests/test_boot_optimization.py
 tests/test_boot_policy.py
 tests/test_brave_config.py
-tests/test_brave_theme_cdp.py
 tests/test_clipboard.py
 tests/test_clipboard_qml.py
 tests/test_clipboard_qml_focus.py

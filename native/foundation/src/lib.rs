@@ -14,6 +14,7 @@ pub mod deploy;
 pub mod deploy_units;
 pub mod diagnostics;
 pub mod doctor;
+pub mod failure;
 pub mod geode;
 pub mod install;
 pub mod keyring;

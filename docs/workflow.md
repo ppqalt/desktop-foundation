@@ -37,7 +37,7 @@ hardware profiles.
 ## Interactive checks
 
 `python3 scripts/smoke.py` exercises the native compositor backend with temporary
-Kitty windows and restores focus. `python3 scripts/failure.py` deliberately crashes
+Kitty windows and restores focus. `scripts/failure` deliberately crashes
 the supervised shell once, checks recovery and runs isolated bad-configuration
 checks. Run these explicitly in a desktop session when those behaviors need review.
 
