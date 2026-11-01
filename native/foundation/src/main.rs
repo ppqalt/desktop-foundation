@@ -39,6 +39,12 @@ fn run() -> Result<()> {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
         }
     };
+    if args.first().map(String::as_str) == Some("bench")
+        && args.iter().any(|s| s == "--help" || s == "-h")
+    {
+        println!("usage: bench [--runs RUNS] [--seconds SECONDS] [--output OUTPUT] [--trace]");
+        return Ok(());
+    }
     if args.first().map(String::as_str) == Some("trace")
         && args.iter().any(|s| s == "--help" || s == "-h")
     {
@@ -68,6 +74,8 @@ fn run() -> Result<()> {
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("bench") => desktop_foundationctl::benchmark::run(&root, &args[1..]),
+        Some("launcher-bench") => desktop_foundationctl::benchmark::launcher(&args[1..]),
         Some("trace") => desktop_foundationctl::trace::run(&root, &args[1..]),
         Some("baseline") => desktop_foundationctl::baseline::run(&args[1..]),
         Some("ui-preferences") if args.len() == 1 => {

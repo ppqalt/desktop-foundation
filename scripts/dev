@@ -16,7 +16,7 @@ reload)
 	printf '%s\n' 'Niri socket unavailable.' >&2
 	exit 1
 	;;
-bench) exec python3 scripts/bench.py "$@" ;;
+bench) exec "$root/scripts/foundation" bench "$@" ;;
 test)
 	cargo test --locked --manifest-path native/nothing/Cargo.toml
 	cargo test --locked --manifest-path native/foundation/Cargo.toml "$@"

@@ -10,10 +10,10 @@ use std::{
 };
 
 #[derive(Debug)]
-struct Sample {
-    ticks: u64,
+pub(crate) struct Sample {
+    pub(crate) ticks: u64,
     switches: BTreeMap<String, u64>,
-    memory: BTreeMap<String, u64>,
+    pub(crate) memory: BTreeMap<String, u64>,
 }
 
 fn fields(text: &str, names: &[&str], suffix: &str) -> Result<BTreeMap<String, u64>> {
@@ -34,7 +34,7 @@ fn fields(text: &str, names: &[&str], suffix: &str) -> Result<BTreeMap<String, u
     Ok(values)
 }
 
-fn sample(proc: &Path) -> Result<Sample> {
+pub(crate) fn sample(proc: &Path) -> Result<Sample> {
     let stat = fs::read_to_string(proc.join("stat"))?;
     let rest = stat
         .rsplit_once(')')

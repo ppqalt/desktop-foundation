@@ -12,6 +12,7 @@ scripts/baseline PID --seconds 10
 python3 scripts/startup.py
 scripts/bench --runs 3 --seconds 5 --output work/bench.json
 scripts/bench --runs 3 --seconds 5 --trace
+scripts/launcher-bench
 ```
 
 `baseline` reports RSS, PSS, CPU time as a percentage of one core and main-thread

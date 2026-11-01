@@ -492,8 +492,7 @@ provisioning, older render/helper modules, some client provisioning,
 terminal `select_all.py`, benchmark tooling and older tests remain. The public installer, login setup, doctor,
 startup timeline, boot reports and session-acceptance snapshot now run in Rust. The obsolete
 `install_engine.py` and its import tests have been removed. CI still
-compiles/runs Python tests and installs Python tooling. `scripts/dev bench` is
-still a Python route. These are tracked migration targets, not authorized patterns
+compiles/runs Python tests and installs Python tooling. These are tracked migration targets, not authorized patterns
 for new work. Normal native deployment/theme/update and the native/offscreen test
 workflow have already moved away from those paths.
 
