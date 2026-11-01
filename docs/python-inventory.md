@@ -81,7 +81,6 @@ tests/test_gtk_theme.py
 tests/test_install.py
 tests/test_menu_lifecycle.py
 tests/test_native_bluetooth_actions.py
-tests/test_native_packages.py
 tests/test_native_preferences.py
 tests/test_native_screenshot.py
 tests/test_native_session.py
