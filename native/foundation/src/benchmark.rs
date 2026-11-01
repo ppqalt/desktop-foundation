@@ -174,6 +174,42 @@ impl Drop for OwnedShell {
     }
 }
 
+/// Measure readiness of a newly spawned, owned shell process.
+pub fn startup(root: &Path, args: &[String]) -> Result<()> {
+    if !args.is_empty() {
+        return Err(invalid("startup takes no arguments"));
+    }
+    let started = Instant::now();
+    let child = Command::new("quickshell")
+        .arg("--path")
+        .arg(root.join("shell"))
+        .arg("--no-color")
+        .process_group(0)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let mut shell = OwnedShell(child);
+    let deadline = started + Duration::from_secs(10);
+    while Instant::now() < deadline {
+        if let Some(status) = shell.0.try_wait()? {
+            return Err(invalid(format!("Quickshell exited: {status}")));
+        }
+        if ipc(shell.0.id(), "status")
+            .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+            .and_then(|s| s.get("ready").and_then(Value::as_bool))
+            == Some(true)
+        {
+            println!(
+                "{}",
+                json!({"backend_ready_ms": started.elapsed().as_secs_f64() * 1000.0})
+            );
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    Err(invalid("Timed out waiting for backend readiness"))
+}
+
 struct Options {
     runs: usize,
     seconds: f64,

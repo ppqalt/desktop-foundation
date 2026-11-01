@@ -82,6 +82,7 @@ fn run() -> Result<()> {
     match args.first().map(String::as_str) {
         Some("shell-profile") => desktop_foundationctl::profiler::run(&root, &args[1..]),
         Some("bench") => desktop_foundationctl::benchmark::run(&root, &args[1..]),
+        Some("startup") => desktop_foundationctl::benchmark::startup(&root, &args[1..]),
         Some("launcher-bench") => desktop_foundationctl::benchmark::launcher(&args[1..]),
         Some("trace") => desktop_foundationctl::trace::run(&root, &args[1..]),
         Some("baseline") => desktop_foundationctl::baseline::run(&args[1..]),

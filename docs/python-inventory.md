@@ -1,6 +1,6 @@
 # First-party Python inventory
 
-Snapshot: after the native QML profiler migration. Paths below are repository files; build artifacts and third-party code are excluded. Update this inventory after each migration. Python imports and legacy test coverage must be checked before deleting compatibility modules.
+Snapshot: after the native startup benchmark and search-test migration. Paths below are repository files; build artifacts and third-party code are excluded. Update this inventory after each migration. Python imports and legacy test coverage must be checked before deleting compatibility modules.
 
 ## Runtime entry points without a `.py` suffix
 
@@ -41,7 +41,6 @@ scripts/screenshot.py
 scripts/smoke.py
 scripts/spotify_setup.py
 scripts/spotify_theme.py
-scripts/startup.py
 scripts/theme-generation-bench.py
 scripts/theme_pipeline.py
 ```
@@ -96,7 +95,6 @@ tests/test_nothing_qml_qol.py
 tests/test_power_qml_focus.py
 tests/test_preferences.py
 tests/test_preflight_update.py
-tests/test_search.py
 tests/test_session_startup.py
 tests/test_spotify_theme.py
 tests/test_spotify_upgrade.py

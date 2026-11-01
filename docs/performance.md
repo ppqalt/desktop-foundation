@@ -9,14 +9,14 @@ samples under the same conditions.
 
 ```sh
 scripts/baseline PID --seconds 10
-python3 scripts/startup.py
+scripts/startup
 scripts/bench --runs 3 --seconds 5 --output work/bench.json
 scripts/bench --runs 3 --seconds 5 --trace
 scripts/launcher-bench
 ```
 
 `baseline` reports RSS, PSS, CPU time as a percentage of one core and main-thread
-context switches. `startup.py` measures launch through backend readiness, including
+context switches. `startup` measures launch through backend readiness, including
 readiness-probe overhead, and cleans up its process.
 
 `bench` starts owned shell processes and records fresh and warmed samples, memory,
