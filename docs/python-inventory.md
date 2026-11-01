@@ -74,7 +74,6 @@ tests/test_boot_optimization.py
 tests/test_boot_policy.py
 tests/test_brave_config.py
 tests/test_clipboard.py
-tests/test_clipboard_qml.py
 tests/test_clipboard_qml_focus.py
 tests/test_clipboard_qml_mouse.py
 tests/test_control_center.py
