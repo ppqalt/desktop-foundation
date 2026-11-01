@@ -8,13 +8,13 @@ samples under the same conditions.
 ## Shell processes
 
 ```sh
-python3 scripts/baseline.py PID --seconds 10
+scripts/baseline PID --seconds 10
 python3 scripts/startup.py
 scripts/bench --runs 3 --seconds 5 --output work/bench.json
 scripts/bench --runs 3 --seconds 5 --trace
 ```
 
-`baseline.py` reports RSS, PSS, CPU time as a percentage of one core and main-thread
+`baseline` reports RSS, PSS, CPU time as a percentage of one core and main-thread
 context switches. `startup.py` measures launch through backend readiness, including
 readiness-probe overhead, and cleans up its process.
 

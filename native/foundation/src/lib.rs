@@ -92,6 +92,7 @@ impl From<serde_json::Error> for Error {
     }
 }
 
+pub mod baseline;
 pub type Result<T> = std::result::Result<T, Error>;
 pub fn invalid(message: impl Into<String>) -> Error {
     Error::Invalid(message.into())
