@@ -45,7 +45,7 @@ fn wait_status(pid: u32, key: &str, desired: bool) -> Result<()> {
     Err(invalid("Timed out waiting for shell state"))
 }
 
-fn thread_switches(proc: &Path) -> Result<BTreeMap<String, u64>> {
+pub(crate) fn thread_switches(proc: &Path) -> Result<BTreeMap<String, u64>> {
     let mut threads = BTreeMap::new();
     for entry in fs::read_dir(proc.join("task"))? {
         let entry = entry?;

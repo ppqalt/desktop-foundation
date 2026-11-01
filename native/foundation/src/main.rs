@@ -39,6 +39,12 @@ fn run() -> Result<()> {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
         }
     };
+    if args.first().map(String::as_str) == Some("shell-profile")
+        && args.iter().any(|s| s == "--help" || s == "-h")
+    {
+        println!("usage: shell-profile [--seconds SECONDS] [--popups]");
+        return Ok(());
+    }
     if args.first().map(String::as_str) == Some("bench")
         && args.iter().any(|s| s == "--help" || s == "-h")
     {
@@ -74,6 +80,7 @@ fn run() -> Result<()> {
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("shell-profile") => desktop_foundationctl::profiler::run(&root, &args[1..]),
         Some("bench") => desktop_foundationctl::benchmark::run(&root, &args[1..]),
         Some("launcher-bench") => desktop_foundationctl::benchmark::launcher(&args[1..]),
         Some("trace") => desktop_foundationctl::trace::run(&root, &args[1..]),

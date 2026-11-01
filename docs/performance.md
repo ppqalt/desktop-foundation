@@ -56,8 +56,8 @@ timestamps separate when calculating intervals.
 ## Profiling
 
 ```sh
-python3 scripts/shell-profile.py --seconds 15
-python3 scripts/shell-profile.py --seconds 15 --popups
+scripts/shell-profile --seconds 15
+scripts/shell-profile --seconds 15 --popups
 ```
 
 The profiler samples the resident shell and captures a QML trace from an isolated

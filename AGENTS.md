@@ -484,6 +484,9 @@ result before claiming deployment succeeded; queued IPC alone is not acceptance.
 
 MUST NOT introduce new Python in production, tests, installation tools or automation.
 Migrate connected behavior to Rust while preserving wrappers/contracts and journals.
+After each migration, update [the Python inventory](docs/python-inventory.md),
+including remaining runtime invocations, executable tools, compatibility modules
+and tests. Preserve third-party code and functional callers.
 Do not remove an import-compatible module until remaining callers and tests have
 a replacement. Do not execute Python to implement a supposedly Python-free change.
 
