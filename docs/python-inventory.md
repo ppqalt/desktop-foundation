@@ -32,7 +32,6 @@ scripts/launcher-smoke.py
 scripts/niri_notifications.py
 scripts/niri_wallpaper.py
 scripts/preferences.py
-scripts/preflight.py
 scripts/quality_bench.py
 scripts/render_terminal.py
 scripts/screenshot-bench.py
@@ -88,7 +87,6 @@ tests/test_native_theme.py
 tests/test_niri_adapter.py
 tests/test_nothing_qml_qol.py
 tests/test_preferences.py
-tests/test_preflight_update.py
 tests/test_session_startup.py
 tests/test_spotify_theme.py
 tests/test_spotify_upgrade.py
