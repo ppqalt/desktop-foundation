@@ -120,7 +120,7 @@ def main():
         args.output.write_text(output)
     print(output)
     if args.trace:
-        subprocess.run(['python3', str(ROOT / 'scripts/trace.py')], check=True)
+        subprocess.run([str(ROOT / 'scripts/trace')], check=True)
 
 
 if __name__ == '__main__':

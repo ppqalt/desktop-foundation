@@ -39,6 +39,14 @@ fn run() -> Result<()> {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
         }
     };
+    if args.first().map(String::as_str) == Some("trace")
+        && args.iter().any(|s| s == "--help" || s == "-h")
+    {
+        println!(
+            "usage: trace [--seconds SECONDS]\n\nFinite owned-process exec tracing; leaves the resident shell untouched."
+        );
+        return Ok(());
+    }
     if args.first().map(String::as_str) == Some("baseline")
         && args.iter().any(|s| s == "--help" || s == "-h")
     {
@@ -60,6 +68,7 @@ fn run() -> Result<()> {
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("trace") => desktop_foundationctl::trace::run(&root, &args[1..]),
         Some("baseline") => desktop_foundationctl::baseline::run(&args[1..]),
         Some("ui-preferences") if args.len() == 1 => {
             print_json(&desktop_foundationctl::ui_preferences::read())
