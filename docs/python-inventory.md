@@ -76,7 +76,6 @@ tests/test_brave_config.py
 tests/test_clipboard.py
 tests/test_clipboard_qml_focus.py
 tests/test_clipboard_qml_mouse.py
-tests/test_control_center.py
 tests/test_deploy.py
 tests/test_gtk_theme.py
 tests/test_install.py
