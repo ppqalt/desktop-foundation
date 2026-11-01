@@ -1,17 +1,3 @@
-"""Actual instant bar updates and visibility fades in private offscreen Qt.
-
-Calls only the QML presenter. No audio command, real shell or device is used.
-"""
-import os
-from pathlib import Path
-import shutil
-import subprocess
-import tempfile
-import unittest
-
-ROOT=Path(__file__).resolve().parents[1]
-
-QML=r'''
 import QtQuick
 import QtQuick.Window
 import Quickshell
@@ -82,33 +68,3 @@ ShellRoot {
     }
     Timer {interval:6000;running:true;onTriggered:{console.error("VOLUME_FAIL timeout");Qt.quit();}}
 }
-'''
-
-
-@unittest.skipUnless(shutil.which('quickshell'),'volume fixture requires Quickshell')
-class VolumeFeedback(unittest.TestCase):
-    def test_first_value_rapid_update_mute_and_expiry(self):
-        with tempfile.TemporaryDirectory(prefix='foundation-volume-feedback-') as directory:
-            base=Path(directory);surfaces=base/'shell/surfaces';surfaces.mkdir(parents=True)
-            source=(ROOT/'shell/surfaces/Volume.qml').read_text().replace('PanelWindow {','Window {',1)
-            source='\n'.join(line for line in source.splitlines() if not line.startswith(('    screen:','    anchors.top:','    margins.top:','    exclusionMode:','    WlrLayershell.','    mask:')))+'\n'
-            source=source.replace('    implicitWidth:','    width:').replace('    implicitHeight:','    height:')
-            (surfaces/'VolumeFixture.qml').write_text(source)
-            (base/'shell/theme').symlink_to(ROOT/'shell/theme',target_is_directory=True)
-            (base/'shell.qml').write_text(QML)
-            env=dict(os.environ)
-            for name in ('WAYLAND_DISPLAY','DISPLAY','NIRI_SOCKET','HYPRLAND_INSTANCE_SIGNATURE','QS_CONFIG_PATH','QS_CONFIG_NAME'):
-                env.pop(name,None)
-            for name,leaf in [('HOME','home'),('XDG_RUNTIME_DIR','runtime'),('XDG_STATE_HOME','state'),('XDG_CACHE_HOME','cache'),('XDG_DATA_HOME','data'),('XDG_CONFIG_HOME','config')]:
-                path=base/leaf;path.mkdir(mode=0o700);env[name]=str(path)
-            env.update(QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software',
-                       DBUS_SESSION_BUS_ADDRESS='unix:path='+str(base/'absent-user-bus'),
-                       DBUS_SYSTEM_BUS_ADDRESS='unix:path='+str(base/'absent-system-bus'))
-            result=subprocess.run(['quickshell','--path',str(base)],env=env,capture_output=True,text=True,timeout=9)
-            log=result.stdout+result.stderr
-            self.assertEqual(result.returncode,0,log)
-            self.assertNotIn('VOLUME_FAIL',log)
-            self.assertIn('VOLUME_RESULT {"failures":0',log)
-            self.assertNotIn('TypeError',log)
-            self.assertNotIn('ReferenceError',log)
-            self.assertNotIn('Failed to load configuration',log)

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+base=$(mktemp -d /tmp/foundation-power-focus.XXXXXX)
+cleanup() {
+	local result=$?
+	if ((result != 0)) && [[ -f $base/log ]]; then cat "$base/log" >&2; fi
+	rm -r -- "$base"
+}
+trap cleanup EXIT
+mkdir -p "$base/shell/surfaces" "$base/scripts"
+for leaf in home runtime state cache data config; do mkdir -m 700 "$base/$leaf"; done
+for name in components services theme assets; do ln -s "$root/shell/$name" "$base/shell/$name"; done
+ln -s "$root/theme" "$base/theme"
+perl -0pe 's/PopupWindow \{/PopupWindowFixture {/' "$root/shell/surfaces/Power.qml" >"$base/shell/surfaces/PowerFixture.qml"
+perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.).*\n//mg; s#import "../theme"#import "../theme"\nimport "../components"#' "$root/shell/components/PopupWindow.qml" >"$base/shell/surfaces/PopupWindowFixture.qml"
+cp "$root/tests/qml/power-focus.qml" "$base/shell.qml"
+cat >"$base/scripts/power-action" <<'WORKER'
+#!/bin/sh
+printf '%s\n' "$1" > "$DF_ACTION_LOG"
+printf '%s\n' 'Isolated action error' >&2
+exit 1
+WORKER
+printf '#!/bin/sh\nprintf "{}\\n"\n' >"$base/scripts/foundation"
+chmod 700 "$base/scripts/power-action" "$base/scripts/foundation"
+env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNATURE -u QS_CONFIG_PATH -u QS_CONFIG_NAME \
+	HOME="$base/home" XDG_RUNTIME_DIR="$base/runtime" XDG_STATE_HOME="$base/state" XDG_CACHE_HOME="$base/cache" \
+	XDG_DATA_HOME="$base/data" XDG_CONFIG_HOME="$base/config" XDG_DATA_DIRS="$base/data" DF_FOUNDATION_ROOT="$base" \
+	DF_ACTION_LOG="$base/actions.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$base/absent-user-bus" \
+	DBUS_SYSTEM_BUS_ADDRESS="unix:path=$base/absent-system-bus" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+	timeout 8s quickshell --path "$base" >"$base/log" 2>&1
+rg -q 'POWER_RESULT \{"failures":0\}' "$base/log"
+if rg -q 'POWER_FAIL|TypeError|ReferenceError|Failed to load configuration' "$base/log"; then exit 1; fi
+[[ $(cat "$base/actions.log") == logout ]]
+printf '%s\n' 'PASS power first-frame, focus, action error and animated exit'

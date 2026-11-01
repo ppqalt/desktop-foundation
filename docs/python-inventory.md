@@ -1,6 +1,6 @@
 # First-party Python inventory
 
-Snapshot: after the native startup and failure diagnostics and test-runner migrations. Paths below are repository files; build artifacts and third-party code are excluded. Update this inventory after each migration. Python imports and legacy test coverage must be checked before deleting compatibility modules.
+Snapshot: after the native startup and failure diagnostics and QML test-runner migrations. Paths below are repository files; build artifacts and third-party code are excluded. Update this inventory after each migration. Python imports and legacy test coverage must be checked before deleting compatibility modules.
 
 ## Runtime entry points without a `.py` suffix
 
@@ -90,7 +90,6 @@ tests/test_native_session.py
 tests/test_native_theme.py
 tests/test_niri_adapter.py
 tests/test_nothing_qml_qol.py
-tests/test_power_qml_focus.py
 tests/test_preferences.py
 tests/test_preflight_update.py
 tests/test_session_startup.py
@@ -100,7 +99,6 @@ tests/test_surface_keyboard.py
 tests/test_theme_pipeline.py
 tests/test_theme_runtime.py
 tests/test_update.py
-tests/test_volume_qml_feedback.py
 ```
 
 ## Runtime and tooling invocations

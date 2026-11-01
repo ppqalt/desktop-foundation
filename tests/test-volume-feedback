@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+base=$(mktemp -d /tmp/foundation-volume-feedback.XXXXXX)
+cleanup() {
+	local result=$?
+	if ((result != 0)) && [[ -f $base/log ]]; then cat "$base/log" >&2; fi
+	rm -r -- "$base"
+}
+trap cleanup EXIT
+mkdir -p "$base/shell/surfaces" "$base/scripts"
+for leaf in home runtime state cache data config; do mkdir -m 700 "$base/$leaf"; done
+ln -s "$root/shell/theme" "$base/shell/theme"
+ln -s "$root/shell/components" "$base/shell/components"
+ln -s "$root/theme" "$base/theme"
+perl -0pe 's/PanelWindow \{/Window {/; s/^    (?:screen:|anchors\.top:|margins\.top:|exclusionMode:|WlrLayershell\.|mask:).*\n//mg; s/^    implicitWidth:/    width:/m; s/^    implicitHeight:/    height:/m' "$root/shell/surfaces/Volume.qml" >"$base/shell/surfaces/VolumeFixture.qml"
+cp "$root/tests/qml/volume-feedback.qml" "$base/shell.qml"
+printf '#!/bin/sh\nprintf "{}\\n"\n' >"$base/scripts/foundation"
+chmod 700 "$base/scripts/foundation"
+env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNATURE -u QS_CONFIG_PATH -u QS_CONFIG_NAME \
+	HOME="$base/home" XDG_RUNTIME_DIR="$base/runtime" XDG_STATE_HOME="$base/state" XDG_CACHE_HOME="$base/cache" \
+	XDG_DATA_HOME="$base/data" XDG_CONFIG_HOME="$base/config" DF_FOUNDATION_ROOT="$base" \
+	DBUS_SESSION_BUS_ADDRESS="unix:path=$base/absent-user-bus" DBUS_SYSTEM_BUS_ADDRESS="unix:path=$base/absent-system-bus" \
+	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software timeout 9s quickshell --path "$base" >"$base/log" 2>&1
+rg -q 'VOLUME_RESULT \{"failures":0\}' "$base/log"
+if rg -q 'VOLUME_FAIL|TypeError|ReferenceError|Failed to load configuration' "$base/log"; then exit 1; fi
+printf '%s\n' 'PASS volume first-frame, instant updates, mute and expiry'
