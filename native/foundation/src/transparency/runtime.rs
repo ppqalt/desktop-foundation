@@ -140,6 +140,43 @@ impl Native {
 fn json_query(args: &[&str]) -> Result<Value> {
     Ok(serde_json::from_str(&capture(args)?)?)
 }
+fn select_microphone(info: &Value, sources: &Value, needle: &str) -> Result<String> {
+    let sources = sources
+        .as_array()
+        .ok_or_else(|| invalid("Invalid source list"))?;
+    let physical = |s: &&Value| {
+        let name = s["name"].as_str().unwrap_or("");
+        !name.is_empty()
+            && !name.ends_with(".monitor")
+            && s["properties"]["node.virtual"] != "true"
+            && s["properties"]["device.class"] != "monitor"
+    };
+    let candidates: Vec<_> = sources
+        .iter()
+        .filter(physical)
+        .filter(|s| {
+            let name = s["name"].as_str().unwrap_or("");
+            if needle.is_empty() {
+                info["default_source_name"] == name
+            } else {
+                name.contains(needle)
+            }
+        })
+        .collect();
+    if candidates.len() != 1 {
+        return Err(invalid(if needle.is_empty() {
+            "Select a physical microphone as the default input, or configure microphone_match"
+        } else {
+            "Transparency Mode requires exactly one matching physical microphone"
+        }));
+    }
+    if candidates[0]["mute"] == true {
+        return Err(invalid(
+            "Microphone is muted; Transparency Mode will not unmute recording input",
+        ));
+    }
+    Ok(candidates[0]["name"].as_str().unwrap().into())
+}
 impl Audio for Native {
     fn monitor(&mut self) -> Result<Monitor> {
         let (gain, instance) = request("get_microphone_monitoring_volume\n")?;
@@ -166,28 +203,7 @@ impl Audio for Native {
     fn devices(&mut self, needle: &str) -> Result<(String, String)> {
         let info = json_query(&["pactl", "--format=json", "info"])?;
         let sources = json_query(&["pactl", "--format=json", "list", "sources"])?;
-        let candidates: Vec<_> = sources
-            .as_array()
-            .ok_or_else(|| invalid("Invalid source list"))?
-            .iter()
-            .filter_map(|s| s["name"].as_str())
-            .filter(|s| s.contains(needle) && !s.ends_with(".monitor"))
-            .collect();
-        if candidates.len() != 1 {
-            return Err(invalid(
-                "Transparency Mode requires exactly one matching TC30 microphone",
-            ));
-        }
-        if sources
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|s| s["name"] == candidates[0] && s["mute"] == true)
-        {
-            return Err(invalid(
-                "TC30 is muted; Transparency Mode will not unmute recording input",
-            ));
-        }
+        let microphone = select_microphone(&info, &sources, needle)?;
         let output = info["default_sink_name"]
             .as_str()
             .ok_or_else(|| invalid("No default playback device"))?;
@@ -196,7 +212,7 @@ impl Audio for Native {
                 "Select the physical playback device before Transparency Mode",
             ));
         }
-        Ok((candidates[0].into(), output.into()))
+        Ok((microphone, output.into()))
     }
     fn streams(&mut self) -> Result<Vec<Stream>> {
         let v = json_query(&["pactl", "--format=json", "list", "sink-inputs"])?;
@@ -297,7 +313,7 @@ impl Audio for Native {
             }
             if Instant::now() >= deadline {
                 return Err(invalid(
-                    "EasyEffects monitoring path from TC30 to the current playback device was not established",
+                    "EasyEffects monitoring path from the selected microphone to the current playback device was not established",
                 ));
             }
             std::thread::sleep(Duration::from_millis(10));
@@ -588,6 +604,26 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn selects_default_or_unique_explicit_physical_input() {
+        let info = json!({"default_source_name":"mic-b"});
+        let sources = json!([
+            {"name":"mic-a", "mute":false},
+            {"name":"mic-b", "mute":false},
+            {"name":"virtual", "properties":{"node.virtual":"true"}},
+            {"name":"sink.monitor"}
+        ]);
+        assert_eq!(select_microphone(&info, &sources, "").unwrap(), "mic-b");
+        assert_eq!(
+            select_microphone(&info, &sources, "mic-a").unwrap(),
+            "mic-a"
+        );
+        assert!(select_microphone(&info, &sources, "mic-").is_err());
+        assert!(
+            select_microphone(&json!({"default_source_name":"virtual"}), &sources, "").is_err()
+        );
+        assert!(select_microphone(&info, &json!([{"name":"mic-b", "mute":true}]), "").is_err());
+    }
     #[test]
     fn graph_proof_requires_the_dedicated_monitor_branch() {
         let node = |id, name| json!({"id":id,"type":"PipeWire:Interface:Node","info":{"props":{"node.name":name}}});

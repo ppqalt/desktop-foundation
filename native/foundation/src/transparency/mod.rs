@@ -57,7 +57,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            microphone_match: "TONOR_TC30".into(),
+            microphone_match: String::new(),
             playback_factor: 0.25,
             monitoring_gain: 0.5,
             fade_ms: 80,
@@ -66,8 +66,7 @@ impl Default for Config {
 }
 impl Config {
     pub fn validate(&self) -> Result<()> {
-        if self.microphone_match.is_empty()
-            || !self.playback_factor.is_finite()
+        if !self.playback_factor.is_finite()
             || !(0.0..=1.0).contains(&self.playback_factor)
             || !self.monitoring_gain.is_finite()
             || !(0.0..=4.0).contains(&self.monitoring_gain)

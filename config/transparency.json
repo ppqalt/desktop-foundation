@@ -1,5 +1,5 @@
 {
-  "microphone_match": "TONOR_TC30",
+  "microphone_match": "",
   "playback_factor": 0.25,
   "monitoring_gain": 0.5,
   "fade_ms": 80

@@ -1,12 +1,12 @@
 # Transparency Mode
 
-Standalone **Insert** toggles room listening through the TONOR TC30. This global
+Standalone **Insert** toggles room listening through the selected microphone. This global
 Niri shortcut consumes Insert even while another application has focus; it does
 not repeat while held. No other shortcut changes.
 
 ## Required EasyEffects extension
 
-Stock EasyEffects 8.3.1 exposes monitoring on/off but **not external monitoring
+Stock EasyEffects 8.3.2 exposes monitoring on/off but **not external monitoring
 volume control**. Install the reviewed optional
 [monitoring API patch/package](../patches/easyeffects/README.md), then quit/reopen
 EasyEffects once. `scripts/transparency check` checks the API and devices without
@@ -17,8 +17,8 @@ It never starts/restarts EasyEffects or opens its window.
 
 The Rust owner snapshots monitoring enablement, its exact linear gain, and each
 application's per-channel integer playback volume. It verifies a PipeWire route
-from the TC30 through EasyEffects' dedicated microphone-monitor branch to the
-current physical playback device **before** ducking applications. Muted TC30
+from the selected microphone through EasyEffects' dedicated microphone-monitor branch to the
+current physical playback device **before** ducking applications. Muted microphone
 input is an error; it is never unmuted. Existing effects and device selection
 remain unchanged. This feature adds no processing and does not change Discord,
 source recording gains/mutes, master output volume, presets or application routes.
@@ -35,14 +35,19 @@ Repository defaults: `config/transparency.json`. Optional full user override:
 
 ```json
 {
-  "microphone_match": "TONOR_TC30",
+  "microphone_match": "",
   "playback_factor": 0.25,
   "monitoring_gain": 0.5,
   "fade_ms": 80
 }
 ```
 
-Factors/gain are bounded to [0, 1], fade to 0–500 ms. Monitoring gain is linear,
+An empty `microphone_match` selects the system's default physical input. Set it
+to a distinctive part of a device name to retain an explicit selection; it must
+match exactly one physical input. Virtual default inputs require an explicit
+physical selection. Monitoring still requires the verified EasyEffects route.
+
+Playback factor is bounded to [0, 1], monitoring gain to [0, 4], and fade to 0–500 ms. Monitoring gain is linear,
 not a recording-gain or master-volume percentage. The prior gain (including a
 pre-existing value above 1) is restored rather than replaced with this default.
 

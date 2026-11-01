@@ -1,6 +1,6 @@
-# Optional local package: pinned upstream 8.3.1 plus the reviewed monitor-volume API.
+# Optional local package: pinned upstream 8.3.2 plus the reviewed monitor-volume API.
 pkgname=easyeffects
-pkgver=8.3.1
+pkgver=8.3.2
 pkgrel=1.2
 pkgdesc='Audio Effects for PipeWire, with Desktop Foundation monitoring API'
 arch=(x86_64)
@@ -12,7 +12,7 @@ depends=(kirigami kirigami-addons kiconthemes kconfigwidgets qqc2-desktop-style
          speexdsp gsl webrtc-audio-processing libmysofa)
 makedepends=(cmake extra-cmake-modules git ninja ladspa)
 optdepends=('lsp-plugins-lv2: additional effects')
-source=('git+https://github.com/wwmm/easyeffects.git#commit=b4390ab3fec06fcfbd6dcf2c2fa1d12bca23bc68'
+source=('git+https://github.com/wwmm/easyeffects.git#commit=10de4dbb90f862c139350a34fbd044a3bc9a7a0b'
         monitoring-volume-api.patch)
 sha256sums=('SKIP' 'a372189ba99eebc1a265069d6a00feead450015dde725f4d6cc65e3ba8bdabea')
 prepare() {

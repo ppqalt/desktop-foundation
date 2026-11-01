@@ -1,7 +1,7 @@
 # EasyEffects monitoring-volume API
 
-Optional patch for upstream **8.3.1**, commit
-`b4390ab3fec06fcfbd6dcf2c2fa1d12bca23bc68`. This is an explicit local extension,
+Optional patch for upstream **8.3.2**, commit
+`10de4dbb90f862c139350a34fbd044a3bc9a7a0b`. This is an explicit local extension,
 not an API supplied by the unmodified EasyEffects package.
 
 The upstream socket supports monitoring on/off but exposes plugin properties only
@@ -27,7 +27,7 @@ installed, then install the resulting package through pacman:
 ```sh
 cd patches/easyeffects
 makepkg
-sudo pacman -U ./easyeffects-8.3.1-1.2-x86_64.pkg.tar.zst
+sudo pacman -U ./easyeffects-8.3.2-1.2-x86_64.pkg.tar.zst
 ```
 
 A running EasyEffects process keeps its old executable until it exits. Quit and
@@ -41,9 +41,9 @@ To return to the stock package, install the stock package from the package cache
 first and ensure its recovery journal is cleared.
 
 Upstream reference:
-[local server](https://github.com/wwmm/easyeffects/blob/v8.3.1/src/local_server.cpp),
-[monitor gain](https://github.com/wwmm/easyeffects/blob/v8.3.1/src/microphone_monitor.hpp),
-[monitoring settings](https://github.com/wwmm/easyeffects/blob/v8.3.1/src/contents/kcfg/easyeffects_db_streaminputs.kcfg).
+[local server](https://github.com/wwmm/easyeffects/blob/v8.3.2/src/local_server.cpp),
+[monitor gain](https://github.com/wwmm/easyeffects/blob/v8.3.2/src/microphone_monitor.hpp),
+[monitoring settings](https://github.com/wwmm/easyeffects/blob/v8.3.2/src/contents/kcfg/easyeffects_db_streaminputs.kcfg).
 
 `tests/test-easyeffects-monitor-api /absolute/path/to/patched/easyeffects` verifies
 these commands against a private PipeWire graph and a private D-Bus with no
