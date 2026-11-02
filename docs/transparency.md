@@ -4,6 +4,10 @@ Standalone **Insert** toggles room listening through the selected microphone. Th
 Niri shortcut consumes Insert even while another application has focus; it does
 not repeat while held. No other shortcut changes.
 
+**Shift+Insert** toggles monitoring without changing application volumes. Press
+the same shortcut again to restore the previous monitoring state. Switching
+between the two shortcuts restores the old mode before starting the new one.
+
 ## Required EasyEffects extension
 
 Stock EasyEffects 8.3.2 exposes monitoring on/off but **not external monitoring

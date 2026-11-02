@@ -212,6 +212,10 @@ pub fn reconcile(a: &mut impl Audio, j: &mut Journal, c: &Config) -> Result<()> 
     Ok(())
 }
 pub fn activate(a: &mut impl Audio, c: &Config) -> Result<Journal> {
+    activate_mode(a, c, true)
+}
+/// Start monitoring, optionally ducking application playback.
+pub fn activate_mode(a: &mut impl Audio, c: &Config, duck: bool) -> Result<Journal> {
     c.validate()?;
     let (microphone, output) = a.devices(&c.microphone_match)?;
     let monitor = a.monitor()?;
@@ -244,7 +248,10 @@ pub fn activate(a: &mut impl Audio, c: &Config) -> Result<Journal> {
             )?;
             a.wait(c.fade_ms / 4);
         }
-        reconcile(a, &mut j, c)
+        if duck {
+            reconcile(a, &mut j, c)?;
+        }
+        Ok(())
     })();
     if let Err(error) = result {
         return match restore(a, &mut j, c.fade_ms) {
@@ -260,7 +267,11 @@ pub fn restore(a: &mut impl Audio, j: &mut Journal, fade_ms: u64) -> Result<()> 
         return Err(invalid("Unknown Transparency Mode journal version"));
     }
     let mut errors = Vec::new();
-    match a.streams() {
+    match if j.streams.is_empty() {
+        Ok(Vec::new())
+    } else {
+        a.streams()
+    } {
         Ok(streams) => {
             for current in streams {
                 let key = identity(&current);

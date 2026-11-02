@@ -417,6 +417,23 @@ impl Drop for Subscription {
         let _ = self.child.wait();
     }
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Mode {
+    Duck,
+    Monitor,
+}
+fn toggle_mode(desired: &mut Option<Mode>, message: &[u8]) {
+    let mode = match message {
+        b"toggle" => Mode::Duck,
+        b"monitor" => Mode::Monitor,
+        _ => return,
+    };
+    *desired = if *desired == Some(mode) {
+        None
+    } else {
+        Some(mode)
+    };
+}
 fn serve(root: &Path) -> Result<()> {
     let pid = std::process::id().to_string();
     if env::var("LISTEN_PID").as_deref() != Ok(&pid) || env::var("LISTEN_FDS").as_deref() != Ok("1")
@@ -428,12 +445,11 @@ fn serve(root: &Path) -> Result<()> {
     socket.set_nonblocking(true)?;
     // Consume activation messages before fallible setup/recovery. A rejected
     // request must not remain queued and repeatedly reactivate a failing unit.
-    let mut desired = false;
+    let mut desired = None;
     let mut initial = [0; 32];
     loop {
         match socket.recv(&mut initial) {
-            Ok(n) if &initial[..n] == b"toggle" => desired = !desired,
-            Ok(_) => {}
+            Ok(n) => toggle_mode(&mut desired, &initial[..n]),
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
             Err(e) => return Err(e.into()),
         }
@@ -463,30 +479,41 @@ fn serve(root: &Path) -> Result<()> {
         return Err(std::io::Error::last_os_error().into());
     }
     let mut journal = None;
+    let mut active = None;
     let mut event_buffer = String::new();
     let result = (|| -> Result<()> {
         loop {
             let mut message = [0; 32];
             loop {
                 match socket.recv(&mut message) {
-                    Ok(n) if &message[..n] == b"toggle" => desired = !desired,
-                    Ok(_) => {}
+                    Ok(n) => toggle_mode(&mut desired, &message[..n]),
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
                     Err(e) => return Err(e.into()),
                 }
             }
-            match (&mut journal, desired) {
-                (None, true) => {
-                    journal = Some(activate(&mut audio, &config)?);
-                    notice(root, "Transparency On");
-                }
-                (Some(j), false) => {
+            if active != desired {
+                if let Some(j) = &mut journal {
                     restore(&mut audio, j, config.fade_ms)?;
+                }
+                journal = None;
+                active = desired;
+                if let Some(mode) = active {
+                    journal = Some(activate_mode(&mut audio, &config, mode == Mode::Duck)?);
+                    notice(
+                        root,
+                        if mode == Mode::Duck {
+                            "Transparency On"
+                        } else {
+                            "Monitoring On"
+                        },
+                    );
+                } else {
                     notice(root, "Transparency Off");
                     return Ok(());
                 }
-                (None, false) => return Ok(()),
-                _ => {}
+            }
+            if active.is_none() {
+                return Ok(());
             }
             let mut fds = [
                 libc::pollfd {
@@ -540,7 +567,9 @@ fn serve(root: &Path) -> Result<()> {
                         return Err(invalid("EasyEffects monitoring stopped"));
                     }
                     audio.verify_path(&j.microphone, &j.output)?;
-                    reconcile(&mut audio, j, &config)?;
+                    if active == Some(Mode::Duck) {
+                        reconcile(&mut audio, j, &config)?;
+                    }
                 }
             }
         }
@@ -560,7 +589,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         return Err(invalid("Run Transparency Mode as your normal desktop user"));
     }
     match args.first().map(String::as_str) {
-        Some("toggle") if args.len() == 1 => {
+        Some("toggle" | "monitor") if args.len() == 1 => {
             capture(&[
                 "systemctl",
                 "--user",
@@ -570,7 +599,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             let socket = UnixDatagram::unbound()?;
             socket.set_write_timeout(Some(Duration::from_secs(1)))?;
             socket.connect(runtime()?.join("desktop-foundation-transparency.sock"))?;
-            socket.send(b"toggle")?;
+            socket.send(args[0].as_bytes())?;
             Ok(())
         }
         Some("serve") if args.len() == 1 => {
@@ -597,13 +626,29 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             );
             Ok(())
         }
-        _ => Err(invalid("Expected transparency toggle|check|serve|recover")),
+        _ => Err(invalid(
+            "Expected transparency toggle|monitor|check|serve|recover",
+        )),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shortcuts_toggle_their_mode_and_switch_between_modes() {
+        let mut mode = None;
+        toggle_mode(&mut mode, b"monitor");
+        assert_eq!(mode, Some(Mode::Monitor));
+        toggle_mode(&mut mode, b"toggle");
+        assert_eq!(mode, Some(Mode::Duck));
+        toggle_mode(&mut mode, b"monitor");
+        assert_eq!(mode, Some(Mode::Monitor));
+        toggle_mode(&mut mode, b"unknown");
+        assert_eq!(mode, Some(Mode::Monitor));
+        toggle_mode(&mut mode, b"monitor");
+        assert_eq!(mode, None);
+    }
     #[test]
     fn selects_default_or_unique_explicit_physical_input() {
         let info = json!({"default_source_name":"mic-b"});

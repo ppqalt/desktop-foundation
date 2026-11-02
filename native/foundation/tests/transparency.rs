@@ -117,6 +117,27 @@ fn exact_restoration_for_initially_enabled_and_disabled_monitor() {
     }
 }
 #[test]
+fn monitoring_only_never_changes_playback_and_restores_monitor() {
+    for enabled in [false, true] {
+        let mut a = Fake::new(enabled);
+        let before = a.clone();
+        let mut j = transparency::activate_mode(&mut a, &Config::default(), false).unwrap();
+        assert!(a.monitor.enabled);
+        assert_eq!(a.streams, before.streams);
+        assert!(j.streams.is_empty());
+        a.streams.push(Stream {
+            id: 3,
+            serial: "102".into(),
+            volumes: vec![55555],
+        });
+        transparency::restore(&mut a, &mut j, 0).unwrap();
+        assert_eq!(a.monitor, before.monitor);
+        assert_eq!(a.streams[0..2], before.streams);
+        assert_eq!(a.streams[2].volumes, vec![55555]);
+        assert!(!a.writes.iter().any(|w| w == "stream"));
+    }
+}
+#[test]
 fn missing_microphone_or_api_never_ducks_playback() {
     for mic in [false, true] {
         let mut a = Fake::new(false);
