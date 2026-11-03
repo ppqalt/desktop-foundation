@@ -410,9 +410,15 @@ PopupWindow {
                 return;
             event.accepted = true;
         }
+        ControlIcon {
+            x: 20
+            y: 20
+            name: "bluetooth"
+            color: Material.colors.primary
+        }
         ControlSwitch {
             id: radioControl
-            x: 16
+            x: 52
             y: 8
             text: "Bluetooth"
             marked: root.adapterAvailable
