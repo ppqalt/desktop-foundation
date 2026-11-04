@@ -36,8 +36,6 @@ packages = [
     "xdg-desktop-portal-gnome",
     "xdg-desktop-portal-gtk",
     "oo7",
-    "nautilus",
-    "brave-origin-nightly-bin",
     "hyprpolkitagent",
     "python",
     "python-pillow",
@@ -51,8 +49,5 @@ packages = [
     "apparmor",
     "noto-fonts",
     "noto-fonts-emoji",
-    "papers",
-    "loupe",
-    "gnome-text-editor",
     "desktop-file-utils",
 ]

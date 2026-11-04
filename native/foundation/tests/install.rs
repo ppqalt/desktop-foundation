@@ -15,18 +15,27 @@ static NEXT: AtomicU64 = AtomicU64::new(0);
 #[test]
 fn repository_package_manifests_are_valid_and_have_no_duplicates() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    for group in [
-        "core",
-        "personal",
-        "personal-aur",
-        "greeter",
-        "firmware",
-        "dev",
-        "hyprland",
-    ] {
+    for group in ["core", "personal", "greeter", "firmware", "dev", "hyprland"] {
         let packages = install::manifest(&root, group).unwrap();
         let unique: std::collections::HashSet<_> = packages.iter().collect();
         assert_eq!(packages.len(), unique.len(), "duplicate in {group}");
+    }
+}
+#[test]
+fn core_manifest_excludes_personal_desktop_applications() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let core = install::manifest(&root, "core").unwrap();
+    for name in [
+        "brave-origin-nightly-bin",
+        "nautilus",
+        "papers",
+        "loupe",
+        "gnome-text-editor",
+        "steam",
+        "vesktop-bin",
+        "chatgpt-desktop-bin",
+    ] {
+        assert!(!core.iter().any(|package| package == name), "{name}");
     }
 }
 #[test]
@@ -185,7 +194,7 @@ impl Runtime for Fake {
     fn uid(&self) -> u32 {
         if self.root { 0 } else { 1000 }
     }
-    fn conflicts(&self, root: &Path, paths: &deploy::Paths) -> Result<Vec<String>> {
+    fn conflicts(&self, root: &Path, paths: &deploy::Paths, _: bool) -> Result<Vec<String>> {
         if self.conflict {
             Ok(vec!["fixture conflict".into()])
         } else {
@@ -202,7 +211,7 @@ impl Runtime for Fake {
 #[test]
 fn flags_preserve_layer_defaults_and_reject_unsafe_input() {
     let f = Fixture::new();
-    assert!(f.options(&[]).personal);
+    assert!(!f.options(&[]).personal);
     assert!(!f.options(&["--core"]).personal);
     assert!(!f.options(&["--no-greeter"]).greeter);
     assert_eq!(f.options(&["--profile=default"]).profile, "default");
@@ -269,13 +278,13 @@ fn core_without_packages_never_installs_packages_or_personal_adapters() {
         "preflight",
         "deploy",
         "preferences",
-        "applications",
         "doctor",
     ] {
         assert!(r.named(name), "{name}");
     }
     for name in [
         "bootstrap",
+        "applications",
         "paru-bootstrap",
         "install-app-mods",
         "browser-policy-setup",
@@ -303,7 +312,13 @@ fn core_without_packages_never_installs_packages_or_personal_adapters() {
 fn personal_without_packages_validates_first_and_uses_shared_modification_checks() {
     let f = Fixture::new();
     let mut r = Fake::default();
-    install::execute(&f.root, &f.paths, &f.options(&["--no-packages"]), &mut r).unwrap();
+    install::execute(
+        &f.root,
+        &f.paths,
+        &f.options(&["--personal", "--no-packages"]),
+        &mut r,
+    )
+    .unwrap();
     assert_eq!(
         *r.validations.borrow(),
         ["browser", "chatgpt", "steam", "vesktop"]
@@ -350,7 +365,7 @@ fn ownership_missing_app_root_and_boot_conflicts_stop_before_sudo_or_builds() {
             install::execute(
                 &f.root,
                 &f.paths,
-                &f.options(&["--no-packages", "--clean-boot"]),
+                &f.options(&["--personal", "--no-packages", "--clean-boot"]),
                 &mut r
             )
             .is_err()
@@ -463,7 +478,7 @@ fn invalid_package_and_modification_inputs_are_rejected_before_commands() {
     )
     .unwrap();
     let mut r = Fake::default();
-    assert!(install::execute(&f.root, &f.paths, &f.options(&[]), &mut r).is_err());
+    assert!(install::execute(&f.root, &f.paths, &f.options(&["--personal"]), &mut r).is_err());
     assert!(r.commands.is_empty());
     fs::write(
         f.root.join("packages/core.toml"),
@@ -475,7 +490,7 @@ fn invalid_package_and_modification_inputs_are_rejected_before_commands() {
         "{\"geode\":{\"enabled\":\"yes\"}}",
     )
     .unwrap();
-    assert!(install::execute(&f.root, &f.paths, &f.options(&[]), &mut r).is_err());
+    assert!(install::execute(&f.root, &f.paths, &f.options(&["--personal"]), &mut r).is_err());
     assert!(r.commands.is_empty());
 }
 

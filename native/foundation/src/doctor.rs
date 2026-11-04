@@ -759,10 +759,12 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
     } else {
         o.personal
     };
-    if let Some(roles) = out.result(
-        r.role_check(root, selected_personal),
-        "Application defaults",
-    ) {
+    if (o.personal || r.exists(&journal))
+        && let Some(roles) = out.result(
+            r.role_check(root, selected_personal),
+            "Application defaults",
+        )
+    {
         out.check(
             roles["messages"].as_array().is_some() && roles["failures"].as_array().is_some(),
             "Application defaults response schema",

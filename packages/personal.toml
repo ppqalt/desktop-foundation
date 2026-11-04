@@ -8,4 +8,8 @@ packages = [
     "libxss",
     "libxtst",
     "nodejs",
+    "nautilus",
+    "papers",
+    "loupe",
+    "gnome-text-editor",
 ]

@@ -16,9 +16,9 @@ scripts/install-core --dry-run
 scripts/install-core
 ```
 
-Core installs the Niri desktop, Quickshell, terminal configuration and default
-applications. It builds both Rust backends, deploys configuration, applies app
-roles and enables Bluetooth and AppArmor. The default greeter is greetd with a
+The default installation provides the Niri desktop, Quickshell and terminal
+configuration. It builds both Rust backends, deploys configuration and enables
+Bluetooth and AppArmor. Existing application associations are left alone. The default greeter is greetd with a
 Matrix-capable tuigreet. The keyring uses oo7 with PAM password unlocking through
 greetd. Choose Niri at login, then run `scripts/doctor`. See [keyring setup](keyring.md).
 
@@ -29,8 +29,8 @@ scripts/install-all --dry-run
 scripts/install-all
 ```
 
-`scripts/install` is an alias for the full installation. `install --core` selects
-core. See [personal applications](personal-apps.md) for package sources and setup.
+`scripts/install` selects core; `scripts/install-all` selects the existing
+personal profile. See [personal applications](personal-apps.md) for package sources and setup.
 
 | Option | Purpose |
 | --- | --- |

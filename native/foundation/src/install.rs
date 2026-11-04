@@ -17,7 +17,7 @@ pub struct Options {
 impl Options {
     pub fn parse(root: &Path, args: &[String]) -> Result<Self> {
         let mut o = Self {
-            personal: true,
+            personal: false,
             greeter: true,
             packages: true,
             clean_boot: false,
@@ -140,7 +140,7 @@ pub trait Runtime {
     fn validate_app(&self, name: &str, app: &Value) -> Result<()>;
     fn desktop_exists(&self, name: &str) -> Result<bool>;
     fn uid(&self) -> u32;
-    fn conflicts(&self, root: &Path, paths: &deploy::Paths) -> Result<Vec<String>>;
+    fn conflicts(&self, root: &Path, paths: &deploy::Paths, personal: bool) -> Result<Vec<String>>;
     fn apparmor_enabled(&self) -> bool;
     fn clean_boot_supported(&self) -> bool;
 }
@@ -176,9 +176,11 @@ impl Runtime for Native {
     fn uid(&self) -> u32 {
         unsafe { libc::geteuid() }
     } // SAFETY: no arguments or pointers.
-    fn conflicts(&self, root: &Path, paths: &deploy::Paths) -> Result<Vec<String>> {
+    fn conflicts(&self, root: &Path, paths: &deploy::Paths, personal: bool) -> Result<Vec<String>> {
         let mut errors = deploy::inspect(root, paths)?;
-        errors.extend(application_roles::conflicts()?);
+        if personal {
+            errors.extend(application_roles::conflicts()?);
+        }
         Ok(errors)
     }
     fn apparmor_enabled(&self) -> bool {
@@ -343,7 +345,7 @@ pub fn execute(
             packages.push((group, name));
         }
     }
-    let conflicts = r.conflicts(root, paths)?;
+    let conflicts = r.conflicts(root, paths, o.personal)?;
     if o.dry_run {
         println!(
             "Layer: {}",
@@ -380,16 +382,20 @@ pub fn execute(
             }
             println!("Application modifications: {}", mods.join(", "));
         }
-        println!(
-            "Roles: {}",
-            roles
-                .as_object()
-                .expect("validated roles")
-                .iter()
-                .map(|(name, app)| format!("{name}={}", app["desktop"].as_str().unwrap_or("")))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+        if o.personal {
+            println!(
+                "Roles: {}",
+                roles
+                    .as_object()
+                    .expect("validated roles")
+                    .iter()
+                    .map(|(name, app)| format!("{name}={}", app["desktop"].as_str().unwrap_or("")))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        } else {
+            println!("Application defaults: unchanged");
+        }
         println!("Services: Bluetooth/AppArmor enabled; display manager is not restarted.");
         println!(
             "Boot: {}",
@@ -463,9 +469,6 @@ pub fn execute(
         &["--compositor", "niri", "--profile", &o.profile],
     )?;
     call(r, root, "preferences", &["install", "--theme-only"])?;
-    if !o.personal {
-        call(r, root, "applications", &["apply"])?;
-    }
     r.command(&words(&[
         "sudo",
         "systemctl",
@@ -529,7 +532,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         return Err(invalid("Run the installer as your normal login user"));
     }
     // Preflight ownership before creating even an installer lock directory.
-    let conflicts = runtime.conflicts(&root, &paths)?;
+    let conflicts = runtime.conflicts(&root, &paths, options.personal)?;
     if !conflicts.is_empty() {
         return Err(invalid(format!(
             "Installation conflicts: {}",
