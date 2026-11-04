@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-const COMPILER: &str = "/usr/bin/slangc";
+const CACHED_COMPILER: &str = "/usr/bin/slangc";
 const TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_VERSION: usize = 4 * 1024;
 const MAX_RECORD: usize = 64 * 1024;
@@ -44,7 +44,7 @@ fn file_identity(path: &Path) -> Result<FileIdentity> {
 }
 
 fn identity() -> Result<Vec<FileIdentity>> {
-    let mut paths = vec![PathBuf::from(COMPILER)];
+    let mut paths = vec![PathBuf::from(CACHED_COMPILER)];
     for entry in fs::read_dir("/usr/lib")? {
         let entry = entry?;
         let name = entry.file_name();
@@ -133,15 +133,26 @@ fn emit(version: &[u8]) -> Result<()> {
 
 /// Cache Kitty's combined `-version` response; other invocations remain Slang's.
 pub fn compiler(args: &[String]) -> Result<()> {
+    let compiler = find_compiler(std::env::var_os("PATH").as_deref())
+        .ok_or_else(|| invalid("Slang compiler not found in PATH"))?;
+    let compiler = compiler
+        .to_str()
+        .ok_or_else(|| invalid("Slang compiler path is not UTF-8"))?;
     if args.len() != 1 || args[0] != "-version" {
-        let mut command = vec![COMPILER.to_owned()];
+        let mut command = vec![compiler.to_owned()];
         command.extend_from_slice(args);
         return process::replace(&command);
     }
     // Loader overrides may select dependencies outside the installed package.
     let overridden = std::env::vars_os()
         .any(|(name, _)| name.as_bytes().starts_with(b"LD_") || name == "GLIBC_TUNABLES");
-    let cache = if overridden { None } else { cache_path().ok() };
+    // The cached dependency identity describes the system compiler and its
+    // system libraries only. Other installations always query the real binary.
+    let cache = if overridden || Path::new(compiler) != Path::new(CACHED_COMPILER) {
+        None
+    } else {
+        cache_path().ok()
+    };
     let before = cache.as_ref().and_then(|_| identity().ok());
     if let (Some(path), Some(before)) = (&cache, &before)
         && let Ok(version) = cached(path, before)
@@ -149,7 +160,7 @@ pub fn compiler(args: &[String]) -> Result<()> {
         return emit(version.as_bytes());
     }
     let output = process::checked_capture(
-        &[COMPILER.into(), "-version".into()],
+        &[compiler.into(), "-version".into()],
         TIMEOUT,
         MAX_VERSION as u64,
     )?;
@@ -185,4 +196,36 @@ pub fn compiler(args: &[String]) -> Result<()> {
         }
     }
     emit(&version)
+}
+
+fn find_compiler(path: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    std::env::split_paths(path?)
+        .map(|directory| directory.join("slangc"))
+        .find(|candidate| {
+            candidate.metadata().is_ok_and(|metadata| {
+                metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+            })
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn discovers_executable_compiler_on_supplied_path() {
+        let dir =
+            std::env::temp_dir().join(format!("foundation-slang-search-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let binary = dir.join("slangc");
+        fs::write(&binary, "fixture").unwrap();
+        fs::set_permissions(&binary, fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(find_compiler(Some(dir.as_os_str())).is_none());
+        fs::set_permissions(&binary, fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(find_compiler(Some(dir.as_os_str())), Some(binary));
+        assert!(find_compiler(None).is_none());
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
