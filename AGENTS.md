@@ -96,12 +96,9 @@ The current live shell and normal deployment route select Niri. Archived
 `compositor/hyprland/` and shell adapter sources are not an actively maintained
 second installation path. Preserve recovery of older deployment journals.
 
-**Current gap:** earlier code still contains explicit platform/compositor gates:
-`native/foundation/src/platform.rs`, `deploy.rs`, `preflight.rs`, `update.rs` and
-`scripts/bootstrap`. The capability-based policy above supersedes the older
-“reject every other platform” instruction. These existing gates have not been
-removed by this documentation task. Do not describe that migration as complete,
-or bypass safety checks indiscriminately to make another platform appear supported.
+Niri remains the supported compositor. Deployment validates its actual generated
+configuration, and package bootstrapping requires pacman rather than an OS name.
+These capability checks do not certify untested platforms as supported.
 
 ## 4. Mandatory architectural constraints
 
@@ -499,7 +496,7 @@ compiles/runs Python tests and installs Python tooling. These are tracked migrat
 for new work. Normal native deployment/theme/update and the native/offscreen test
 workflow have already moved away from those paths.
 
-Likewise, explicit platform gates remain despite the revised compatibility policy.
+Niri remains the explicitly supported compositor.
 Some older specialized docs/research refer to historical compositor routes or
 previous styles. Verify them against active dispatchers. Existing duplicate-signal,
 binding-loop or Wayland-focus warnings are not silently certified by a successful

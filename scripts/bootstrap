@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-supported=false
-if [[ -r /etc/os-release ]]; then
-	while IFS="=" read -r key value; do
-		value=${value//\"/}
-		if [[ $key == ID && $value == cachyos ]]; then supported=true; fi
-	done </etc/os-release
-fi
-if ! $supported; then
-	printf '%s\n' 'Desktop Foundation supports CachyOS with Niri only.' >&2
+if ! command -v pacman >/dev/null 2>&1; then
+	printf '%s\n' 'Bootstrapping requires pacman; install the required packages for your system manually.' >&2
 	exit 1
 fi
 read_manifest() {
@@ -73,6 +66,9 @@ for option in "$@"; do
 		;;
 	esac
 done
+contents=$(read_manifest firmware)
+firmware=()
+if [[ -n $contents ]]; then mapfile -t firmware <<<"$contents"; fi
 missing=()
 for package in "${packages[@]}"; do
 	if ! pacman -T "$package" >/dev/null 2>&1; then missing+=("$package"); fi
@@ -82,9 +78,6 @@ if ((${#missing[@]})); then
 	sudo pacman -Syu --needed "${missing[@]}"
 fi
 # Prefer the CachyOS firmware package from its configured signed repository.
-contents=$(read_manifest firmware)
-firmware=()
-if [[ -n $contents ]]; then mapfile -t firmware <<<"$contents"; fi
 for package in "${firmware[@]}"; do
 	if pacman -T "$package" >/dev/null 2>&1; then continue; fi
 	if pacman -Si "$package" >/dev/null 2>&1; then

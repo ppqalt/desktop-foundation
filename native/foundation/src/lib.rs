@@ -23,7 +23,6 @@ pub mod monitor;
 pub mod monitor_config;
 pub mod monitor_shader;
 pub mod packages;
-pub mod platform;
 pub mod preferences;
 pub mod preflight;
 pub mod process;

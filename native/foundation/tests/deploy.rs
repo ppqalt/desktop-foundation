@@ -234,14 +234,7 @@ fn missing_backends_fail_without_creating_state() {
 }
 #[test]
 fn complete_native_deploy_rerun_update_and_restore_are_isolated() {
-    // A full install has an explicit CachyOS guard; pure journal tests above are
-    // host-independent. This flow uses inert executables even on CachyOS.
-    if !desktop_foundationctl::platform::cachyos_release(
-        &fs::read_to_string("/etc/os-release").unwrap_or_default(),
-    ) {
-        eprintln!("Skipping CachyOS-only orchestration on this host");
-        return;
-    }
+    // All external commands and deployment paths are isolated fixtures.
     let f = Fixture::new();
     for name in ["config", "theme", "terminal", "session", "compositor"] {
         theme_render::copy_tree(&source().join(name), &f.root.join(name)).unwrap();

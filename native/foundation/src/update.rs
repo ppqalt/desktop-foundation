@@ -112,7 +112,7 @@ fn installation(root: &Path, home: &Path) -> Result<Installation> {
         None if niri => "niri",
         _ => {
             return Err(invalid(
-                "Desktop Foundation supports CachyOS with Niri only; this installation needs manual migration",
+                "This installation is not configured for Niri and needs manual migration",
             ));
         }
     };
@@ -380,7 +380,6 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         );
         return Ok(());
     }
-    crate::platform::require_cachyos()?;
     let _lock = state::lock(&home.join("update.lock"), Duration::from_secs(1))?;
     let log_path = home.join("update.log");
     state::atomic(&log_path, b"", 0o600)?;

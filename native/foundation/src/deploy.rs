@@ -1,6 +1,6 @@
 //! Write-ahead deployment journal, compatible with existing Python installations.
 //! Configuration links are adopted only through this journal, never inferred.
-use crate::{Result, deploy_units, invalid, platform, preferences, process, state, theme_runtime};
+use crate::{Result, deploy_units, invalid, preferences, process, state, theme_runtime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -502,7 +502,6 @@ pub fn run_command(root: &Path, args: &[String]) -> Result<()> {
         return Ok(());
     }
     if action == "install" {
-        platform::require_cachyos()?;
         require_backends(&root)?;
     }
     state::private_directory(&paths.state)?;

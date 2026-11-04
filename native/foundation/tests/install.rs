@@ -532,6 +532,6 @@ fn real_cli_plan_needs_no_python_and_leaves_private_home_absent() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Roles:"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Application defaults: unchanged"));
     assert!(!f.paths.home.exists());
 }
