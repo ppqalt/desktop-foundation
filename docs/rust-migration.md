@@ -43,6 +43,9 @@ native deployment preparation and preflight do not require it.
 
 ## Remaining Python
 
+Python is permitted where it provides a genuine benefit; this historical
+migration record does not require removal of working Python solely for its language.
+
 This is a runtime migration, not a claim that the repository is Python-free.
 Other privileged setup, Spotify client provisioning, older diagnostic tools,
 older tests and their import-compatible helper modules remain. Those legacy

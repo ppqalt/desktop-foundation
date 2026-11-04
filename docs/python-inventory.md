@@ -1,5 +1,8 @@
 # First-party Python inventory
 
+Python is permitted where it is the best engineering choice. This inventory is
+for dependency and caller tracking; it is not a requirement to remove Python.
+
 Snapshot: after the native startup and failure diagnostics and QML test-runner migrations. Paths below are repository files; build artifacts and third-party code are excluded. Update this inventory after each migration. Python imports and legacy test coverage must be checked before deleting compatibility modules.
 
 ## Runtime entry points without a `.py` suffix

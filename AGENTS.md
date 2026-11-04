@@ -488,7 +488,7 @@ and tests. Preserve third-party code and functional callers.
 Do not remove an import-compatible module until remaining callers and tests have
 a replacement.
 
-**Current reality:** the repository is not Python-free. Legacy privileged
+**Current reality:** Python is used by privileged
 provisioning, older render/helper modules, some client provisioning,
 terminal `select_all.py`, benchmark tooling and older tests remain. The public installer, login setup, doctor,
 startup timeline, boot reports and session-acceptance snapshot now run in Rust. The obsolete

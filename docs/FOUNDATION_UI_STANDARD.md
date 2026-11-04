@@ -436,7 +436,8 @@ control. Incorrect: global Space/WASD handlers consume search text.
 Use production components in an offscreen Quickshell host, replacing only Wayland
 transport and real backend actions. Never test actual power/session actions,
 updates, Bluetooth reconnections, or clearing the user's clipboard history.
-No new Python tests. Rust tests own backend behavior and QML fixtures own input.
+Use Rust tests for native backend behavior and QML fixtures for UI interaction;
+Python tests are appropriate where they offer a concrete benefit.
 
 For each affected surface verify:
 
