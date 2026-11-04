@@ -94,11 +94,30 @@ pub fn manifest(root: &Path, group: &str) -> Result<Vec<String>> {
         return Err(invalid("Invalid package manifest group"));
     }
     let mut text = String::new();
-    fs::File::open(root.join("packages").join(format!("{group}.toml")))?
-        .take(64 * 1024 + 1)
-        .read_to_string(&mut text)?;
+    let directory = root.join("packages");
+    let path = directory.join(format!("{group}.toml"));
+    let (file, legacy) = match fs::File::open(&path) {
+        Ok(file) => (file, false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (
+            fs::File::open(directory.join(format!("{group}.txt")))?,
+            true,
+        ),
+        Err(error) => return Err(error.into()),
+    };
+    file.take(64 * 1024 + 1).read_to_string(&mut text)?;
     if text.len() > 64 * 1024 {
         return Err(invalid("Package manifest exceeds 64 KiB"));
+    }
+    if legacy {
+        return text
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .map(|name| {
+                package(name)?;
+                Ok(name.to_owned())
+            })
+            .collect();
     }
     #[derive(serde::Deserialize)]
     #[serde(deny_unknown_fields)]

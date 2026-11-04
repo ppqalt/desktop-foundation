@@ -43,6 +43,23 @@ fn malformed_manifests_and_invalid_group_names_are_rejected() {
     }
     assert!(install::manifest(&f.root, "../core").is_err());
 }
+#[test]
+fn reads_legacy_manifest_only_when_toml_is_absent() {
+    let f = Fixture::new();
+    let path = f.root.join("packages/core.toml");
+    fs::remove_file(&path).unwrap();
+    fs::write(
+        f.root.join("packages/core.txt"),
+        "# existing checkout\nlegacy-package\n",
+    )
+    .unwrap();
+    assert_eq!(
+        install::manifest(&f.root, "core").unwrap(),
+        ["legacy-package"]
+    );
+    fs::write(&path, "bad = true\n").unwrap();
+    assert!(install::manifest(&f.root, "core").is_err());
+}
 struct Fixture {
     base: PathBuf,
     root: PathBuf,
