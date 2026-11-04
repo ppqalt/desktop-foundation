@@ -18,7 +18,8 @@ environments are not prohibited. Prefer capability checks over distribution-name
 blocks, and do not promise another supported compositor integration. Existing
 legacy gates are documented in the root handbook as a migration gap.
 QML owns presentation and immediate interaction; Rust owns actual system actions,
-validation, persistence and backend data. No new Python code or tests.
+validation, persistence and backend data. Python is available where it provides a
+clear engineering benefit; it should not duplicate the Rust backend.
 
 User requirements override this standard. Material specifications govern design
 where there is no explicit desktop adaptation below. Existing external application

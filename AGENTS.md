@@ -104,9 +104,9 @@ These capability checks do not certify untested platforms as supported.
 
 - MUST use **Rust for backend behavior, tools and system integration**, and
   **QML/Quickshell for presentation and immediate UI interaction**.
-- MUST NOT add Python implementation, tests, installer logic, automation or new
-  Python runtime dependencies. The target is no Python anywhere in these paths.
-  Existing legacy Python remains a migration gap, not a precedent to extend it.
+- Python is permitted where it offers a concrete engineering advantage. Prefer
+  Rust for services, system integration and performance-sensitive behavior; avoid
+  unnecessary runtimes and duplicate implementations.
 - MUST reuse shared components/tokens and follow official Google Material 3
   Expressive guidance. Do not invent measurements or claim an approximation is
   an official token. Record desktop-specific adaptations in the UI standard.
@@ -477,23 +477,23 @@ concise; verbose build/Git output should be available when diagnosing failure,
 not a permanent success transcript. Inspect the published configuration and reload
 result before claiming deployment succeeded; queued IPC alone is not acceptance.
 
-## 13. Python migration policy and current limitations
+## 13. Language policy and current limitations
 
-MUST NOT introduce new Python in production, tests, installation tools or automation.
-Migrate connected behavior to Rust while preserving wrappers/contracts and journals.
+Use Python when it is the best tool for a task; do not port working code solely to
+reduce its language count. Prefer Rust for services, system integration and critical
+lifecycle operations. Preserve wrappers, contracts and journals during migrations.
 After each migration, update [the Python inventory](docs/python-inventory.md),
 including remaining runtime invocations, executable tools, compatibility modules
 and tests. Preserve third-party code and functional callers.
 Do not remove an import-compatible module until remaining callers and tests have
-a replacement. Do not execute Python to implement a supposedly Python-free change.
+a replacement.
 
 **Current reality:** the repository is not Python-free. Legacy privileged
 provisioning, older render/helper modules, some client provisioning,
 terminal `select_all.py`, benchmark tooling and older tests remain. The public installer, login setup, doctor,
 startup timeline, boot reports and session-acceptance snapshot now run in Rust. The obsolete
 `install_engine.py` and its import tests have been removed. CI still
-compiles/runs Python tests and installs Python tooling. These are tracked migration targets, not authorized patterns
-for new work. Normal native deployment/theme/update and the native/offscreen test
+compiles/runs Python tests and installs Python tooling. Normal native deployment/theme/update and the native/offscreen test
 workflow have already moved away from those paths.
 
 Niri remains the explicitly supported compositor.
@@ -575,8 +575,8 @@ not a passing cross-platform installation result.
 CI in `.github/workflows/check.yml` runs portable Rust checks/builds, shell/Fish
 checks and the remaining Python suite on Ubuntu. It does not run a physical Niri
 session or certify wallpaper blur, hardware, login or actual package installation.
-Do not run/extend the legacy Python suite for new Rust/QML work; migrate it when
-that path is in scope. Report exactly which checks ran and their limits.
+Use the most appropriate existing tests for the affected behavior. Report exactly
+which checks ran and their limits.
 
 For an authorized shell update, `scripts/shell-reload` asks the existing shell to
 reload; then inspect its service journal for **Configuration Loaded** or errors.
@@ -636,7 +636,7 @@ A fix belongs at the narrowest layer that owns the defect. Use this decision tab
 
 MUST NOT:
 
-- Add Python or extend a legacy Python implementation because it is nearby.
+- Add a language dependency or duplicate implementation without a concrete benefit.
 - Copy an existing widget to create a competing style/input/motion system.
 - Hardcode an arbitrary theme color, add shadows or replace UI typography locally.
 - Advertise standard navigation through permanent decorative instruction text.
