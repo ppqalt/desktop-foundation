@@ -1,5 +1,5 @@
 //! Finite semantic-palette renderers. No renderer starts or controls an app.
-use crate::{Result, invalid, process, state, theme};
+use crate::{Result, input_config, invalid, process, state, theme};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, time::Duration};
@@ -79,6 +79,22 @@ fn number(value: &Value) -> Result<String> {
 fn quoted(value: &str) -> String {
     serde_json::to_string(value).expect("string serialization")
 }
+pub fn effective_input(root: &Path, profile: &str) -> Result<input_config::EffectiveInput> {
+    if profile.is_empty()
+        || !profile
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
+    {
+        return Err(invalid("Invalid profile name"));
+    }
+    let path = root.join("config/input.lua");
+    input_config::load(
+        lua(&path)?,
+        &path,
+        &root.join("profiles").join(profile),
+        &input_config::user_config()?,
+    )
+}
 pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<String> {
     if profile.is_empty()
         || !profile
@@ -88,7 +104,7 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
         return Err(invalid("Invalid profile name"));
     }
     let v = lua(&root.join("config/window-appearance.lua"))?;
-    let keyboard = lua(&root.join("config/input.lua"))?;
+    let keyboard = effective_input(root, profile)?.settings;
     let monitor: toml::Value =
         toml::from_str(&fs::read_to_string(root.join("config/monitor.toml"))?)
             .map_err(|e| invalid(e.to_string()))?;
@@ -148,9 +164,9 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
             "session_start",
             quoted(&root.join("scripts/session-start").to_string_lossy()),
         ),
-        ("layout", serde_json::to_string(&keyboard["layout"])?),
-        ("repeat_delay", number(&keyboard["repeatDelay"])?),
-        ("repeat_rate", number(&keyboard["repeatRate"])?),
+        ("layout", serde_json::to_string(&keyboard.layout)?),
+        ("repeat_delay", keyboard.repeat_delay.to_string()),
+        ("repeat_rate", keyboard.repeat_rate.to_string()),
         ("gaps", number(&v["spacing"]["betweenWindows"])?),
         ("edge", number(&v["spacing"]["desktopEdge"])?),
         ("border_width", number(&v["focus"]["borderWidth"])?),

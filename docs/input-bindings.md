@@ -5,6 +5,25 @@ with a 350 ms repeat delay and 35 Hz repeat rate. Niri bindings are in
 `compositor/niri/bindings.kdl`; Hyprland bindings are in
 `compositor/hyprland/bindings.lua`.
 
+For Niri, individual settings may be overridden in
+`$XDG_CONFIG_HOME/desktop-foundation/input.toml` (normally
+`~/.config/desktop-foundation/input.toml`):
+
+```toml
+layout = "us"
+# repeat_delay = 350
+# repeat_rate = 35
+```
+
+Unspecified values retain their existing defaults. Optional profile-specific
+`profiles/NAME/input.toml` is applied first, then alphabetically sorted
+`input.d/*.toml` files under the same user configuration directory, and finally
+`input.toml`. Inspect effective values and their source files with
+`scripts/foundation config input --profile NAME`. Settings take effect when the
+Niri configuration is regenerated and validated by deployment; editing a file
+alone does not currently reload it. Invalid overrides stop generation before a
+new configuration is published.
+
 | Binding | Action |
 | --- | --- |
 | Super+Space | Launcher |
