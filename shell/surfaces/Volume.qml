@@ -116,7 +116,7 @@ PanelWindow {
             visible: root.message.length > 0
             ControlIcon {
                 objectName: "audio-notice-icon"
-                name: root.message === "Transparency Off" ? "hearing_disabled" : (root.message === "Transparency On" || root.message === "Monitoring On") ? "hearing" : "mic_off"
+                name: (root.message === "Transparency Off" || root.message === "Monitoring Off") ? "hearing_disabled" : (root.message === "Transparency On" || root.message === "Monitoring On") ? "hearing" : "mic_off"
                 color: Material.colors.primary
             }
             Text {

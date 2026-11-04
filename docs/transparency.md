@@ -48,8 +48,9 @@ Repository defaults: `config/transparency.json`. Optional full user override:
 
 An empty `microphone_match` selects the system's default physical input. Set it
 to a distinctive part of a device name to retain an explicit selection; it must
-match exactly one physical input. Virtual default inputs require an explicit
-physical selection. Monitoring still requires the verified EasyEffects route.
+match exactly one physical input. When the default input is virtual, a single
+detected physical microphone is selected automatically; multiple candidates
+require an explicit selection. Monitoring still requires the verified EasyEffects route.
 
 Playback factor is bounded to [0, 1], monitoring gain to [0, 4], and fade to 0–500 ms. Monitoring gain is linear,
 not a recording-gain or master-volume percentage. The prior gain (including a

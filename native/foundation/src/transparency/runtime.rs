@@ -151,7 +151,7 @@ fn select_microphone(info: &Value, sources: &Value, needle: &str) -> Result<Stri
             && s["properties"]["node.virtual"] != "true"
             && s["properties"]["device.class"] != "monitor"
     };
-    let candidates: Vec<_> = sources
+    let mut candidates: Vec<_> = sources
         .iter()
         .filter(physical)
         .filter(|s| {
@@ -163,6 +163,20 @@ fn select_microphone(info: &Value, sources: &Value, needle: &str) -> Result<Stri
             }
         })
         .collect();
+    // A virtual default (for example an effects microphone) is common. Only
+    // infer its hardware input when exactly one explicitly physical source exists.
+    if needle.is_empty()
+        && candidates.is_empty()
+        && sources.iter().any(|s| {
+            s["name"] == info["default_source_name"] && s["properties"]["node.virtual"] == "true"
+        })
+    {
+        candidates = sources
+            .iter()
+            .filter(physical)
+            .filter(|s| s["properties"]["device.class"] == "sound")
+            .collect();
+    }
     if candidates.len() != 1 {
         return Err(invalid(if needle.is_empty() {
             "Select a physical microphone as the default input, or configure microphone_match"
@@ -422,6 +436,14 @@ enum Mode {
     Duck,
     Monitor,
 }
+impl Mode {
+    fn off_notice(self) -> &'static str {
+        match self {
+            Self::Duck => "Transparency Off",
+            Self::Monitor => "Monitoring Off",
+        }
+    }
+}
 fn toggle_mode(desired: &mut Option<Mode>, message: &[u8]) {
     let mode = match message {
         b"toggle" => Mode::Duck,
@@ -492,6 +514,7 @@ fn serve(root: &Path) -> Result<()> {
                 }
             }
             if active != desired {
+                let previous = active;
                 if let Some(j) = &mut journal {
                     restore(&mut audio, j, config.fade_ms)?;
                 }
@@ -508,7 +531,9 @@ fn serve(root: &Path) -> Result<()> {
                         },
                     );
                 } else {
-                    notice(root, "Transparency Off");
+                    if let Some(mode) = previous {
+                        notice(root, mode.off_notice());
+                    }
                     return Ok(());
                 }
             }
@@ -650,6 +675,11 @@ mod tests {
         assert_eq!(mode, None);
     }
     #[test]
+    fn each_mode_has_its_own_off_notice() {
+        assert_eq!(Mode::Duck.off_notice(), "Transparency Off");
+        assert_eq!(Mode::Monitor.off_notice(), "Monitoring Off");
+    }
+    #[test]
     fn selects_default_or_unique_explicit_physical_input() {
         let info = json!({"default_source_name":"mic-b"});
         let sources = json!([
@@ -668,6 +698,20 @@ mod tests {
             select_microphone(&json!({"default_source_name":"virtual"}), &sources, "").is_err()
         );
         assert!(select_microphone(&info, &json!([{"name":"mic-b", "mute":true}]), "").is_err());
+    }
+    #[test]
+    fn virtual_default_uses_only_unambiguous_physical_input() {
+        let info = json!({"default_source_name":"effects"});
+        let virtual_mic = json!({"name":"effects", "properties":{"node.virtual":"true"}});
+        let mic = json!({"name":"usb-mic", "mute":false, "properties":{"device.class":"sound"}});
+        let other =
+            json!({"name":"other-mic", "mute":false, "properties":{"device.class":"sound"}});
+        assert_eq!(
+            select_microphone(&info, &json!([virtual_mic, mic]), "").unwrap(),
+            "usb-mic"
+        );
+        assert!(select_microphone(&info, &json!([virtual_mic, mic, other]), "").is_err());
+        assert!(select_microphone(&json!({}), &json!([mic]), "").is_err());
     }
     #[test]
     fn graph_proof_requires_the_dedicated_monitor_branch() {
