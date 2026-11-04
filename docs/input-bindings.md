@@ -1,6 +1,6 @@
 # Keyboard and menu controls
 
-Shared keyboard settings are in `config/input.lua`. The default is Finnish,
+Shared keyboard defaults are in `config/input.toml`. The default is Finnish,
 with a 350 ms repeat delay and 35 Hz repeat rate. Niri bindings are in
 `compositor/niri/bindings.kdl`; Hyprland bindings are in
 `compositor/hyprland/bindings.lua`.

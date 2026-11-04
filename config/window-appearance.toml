@@ -1,0 +1,36 @@
+# Shared compositor appearance, in logical pixels.
+rounding = 14
+[spacing]
+betweenWindows = 12
+desktopEdge = 18
+[blur]
+enabled = true
+radius = 7
+qualityPasses = 3
+strength = 1.0
+noise = 0.012
+contrast = 1.0
+brightness = 1.0
+saturationBoost = 0.06
+popupEnabled = false
+[shadow]
+enabled = false
+color = "#080b10"
+activeOpacity = 0.42
+inactiveOpacity = 0.12
+range = 18
+falloffPower = 3
+[shadow.offset]
+x = 0
+y = 5
+[focus]
+inactiveDim = 0.0
+borderWidth = 1
+activeBorder = "#5e7791"
+inactiveBorder = "#364150"
+[opacity]
+active = 0.90
+inactive = 0.90
+fullscreen = 1.0
+[fullscreen]
+decorated = false

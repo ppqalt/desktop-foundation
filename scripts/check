@@ -10,7 +10,6 @@ mapfile -t qml < <(find shell -name '*.qml' -type f | sort)
 for file in "${qml[@]}"; do
 	cmp "$file" <(/usr/lib/qt6/bin/qmlformat "$file")
 done
-while IFS= read -r file; do luac -p "$file"; done < <(find config -name '*.lua' -type f)
 for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
 cargo clippy --version
 for profile in default dual-display-example missing-profile; do

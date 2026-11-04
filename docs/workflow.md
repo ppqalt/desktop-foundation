@@ -15,7 +15,7 @@ integration. Package installation requires sudo; AUR builds run as the login use
 
 | Command | Purpose |
 | --- | --- |
-| `scripts/check` or `scripts/lint` | Check Bash/QML formatting and lint, Lua/Python syntax, compositor profiles and Rust format/Clippy/tests |
+| `scripts/check` or `scripts/lint` | Check Bash/QML formatting and lint, compositor profiles and Rust format/Clippy/tests |
 | `scripts/format` | Format Bash and QML files |
 | `scripts/test` | Build the debug command backend and run Python regression tests |
 | `scripts/doctor` | Inspect installation and active-session services |

@@ -44,7 +44,6 @@ impl Fixture {
             "slangc",
             "fish",
             "fastfetch",
-            "lua",
             "wl-copy",
             "wl-paste",
             "wl-clip-persist",
@@ -67,9 +66,7 @@ impl Fixture {
                 continue;
             }
             let path = bin.join(name);
-            if name == "lua" {
-                symlink("/usr/bin/lua", path).unwrap();
-            } else if name == "niri" {
+            if name == "niri" {
                 fs::write(
                     &path,
                     "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$DF_PREFLIGHT_LOG\"\nexit 0\n",
@@ -104,10 +101,6 @@ impl Drop for Fixture {
 }
 #[test]
 fn update_allows_missing_optional_tools_but_installer_rejects_them() {
-    if !std::path::Path::new("/usr/bin/lua").is_file() {
-        eprintln!("Skipping preflight rendering fixture: lua unavailable");
-        return;
-    }
     let f = Fixture::new(&["playerctl"]);
     let output = f.run(&["--update"]);
     assert!(

@@ -21,8 +21,8 @@ such as swaybg take over their startup process. `native/nothing` provides a
 separate, scoped helper for the [Nothing/CMF device protocol](nothing-controls.md).
 See [the command reference](backend.md).
 
-Shared input and window settings live in `config/input.lua` and
-`config/window-appearance.lua`. Deployment translates them to native Niri KDL.
+Shared input and window settings live in `config/input.toml` and
+`config/window-appearance.toml`. Deployment translates them to native Niri KDL.
 Profiles add hardware-specific output or device
 settings. The shell palette and application themes come from a published theme
 revision under `$XDG_STATE_HOME/desktop-foundation/theme/current`.

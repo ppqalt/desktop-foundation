@@ -1,8 +1,8 @@
 //! Finite semantic-palette renderers. No renderer starts or controls an app.
-use crate::{Result, input_config, invalid, process, state, theme};
+use crate::{Result, input_config, invalid, state, theme};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{fs, path::Path, time::Duration};
+use std::{fs, path::Path};
 
 pub fn read(path: &Path) -> Result<Value> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
@@ -49,25 +49,29 @@ pub fn copy_tree(from: &Path, to: &Path) -> Result<()> {
     }
     Ok(())
 }
-fn lua(path: &Path) -> Result<Value> {
-    const ENCODE: &str = r#"local function encode(v)
-      if type(v)=="table" then local parts={} for k,x in pairs(v) do
-        parts[#parts+1]=string.format("%q",k)..":"..encode(x) end
-        return "{"..table.concat(parts,",").."}"
-      elseif type(v)=="string" then return string.format("%q",v)
-      else return tostring(v) end end
-      print(encode(dofile(arg[1])))"#;
-    let args = [
-        "lua".into(),
-        "-e".into(),
-        ENCODE.into(),
-        "--".into(),
-        "/dev/null".into(),
-        path.to_string_lossy().into_owned(),
-    ];
-    Ok(serde_json::from_slice(
-        &process::checked(&args, None, Duration::from_secs(5), true)?.stdout,
-    )?)
+fn toml_config(path: &Path) -> Result<Value> {
+    let text = fs::read_to_string(path)?;
+    if text.len() > 65536 {
+        return Err(invalid(format!(
+            "Configuration too large: {}",
+            path.display()
+        )));
+    }
+    let value: toml::Value = toml::from_str(&text)
+        .map_err(|error| invalid(format!("Invalid configuration {}: {error}", path.display())))?;
+    Ok(serde_json::to_value(value)?)
+}
+fn guard_legacy(path: &Path, original: &str, replacement: &str) -> Result<()> {
+    match fs::read(path) {
+        Ok(data) if format!("{:x}", Sha256::digest(&data)) != original => Err(invalid(format!(
+            "Customized legacy configuration {} needs migration to {}; preserve the old file and move it aside after migrating",
+            path.display(),
+            replacement
+        ))),
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
 }
 fn number(value: &Value) -> Result<String> {
     if value.is_number() {
@@ -87,9 +91,14 @@ pub fn effective_input(root: &Path, profile: &str) -> Result<input_config::Effec
     {
         return Err(invalid("Invalid profile name"));
     }
-    let path = root.join("config/input.lua");
+    guard_legacy(
+        &root.join("config/input.lua"),
+        "d237b12d34a6abc5627a0b33a2bfdb7d3b01c635d741ab773cc0a720e2fcad3a",
+        "config/input.toml",
+    )?;
+    let path = root.join("config/input.toml");
     input_config::load(
-        lua(&path)?,
+        toml_config(&path)?,
         &path,
         &root.join("profiles").join(profile),
         &input_config::user_config()?,
@@ -103,7 +112,12 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
     {
         return Err(invalid("Invalid profile name"));
     }
-    let v = lua(&root.join("config/window-appearance.lua"))?;
+    guard_legacy(
+        &root.join("config/window-appearance.lua"),
+        "63c236a4357d46bc0ae3813a03ec7f23e2111139b08dd56a400643390f4317dd",
+        "config/window-appearance.toml",
+    )?;
+    let v = toml_config(&root.join("config/window-appearance.toml"))?;
     let keyboard = effective_input(root, profile)?.settings;
     let monitor: toml::Value =
         toml::from_str(&fs::read_to_string(root.join("config/monitor.toml"))?)
@@ -147,12 +161,24 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
     let shadow_x = v["shadow"]["offset"]["x"]
         .as_f64()
         .ok_or_else(|| invalid("Missing shadow offset"))?;
+    let implicit_palette = if semantic.is_none() {
+        state::xdg("XDG_STATE_HOME", ".local/state")
+            .ok()
+            .and_then(|state| {
+                read(&state.join("desktop-foundation/theme/current/semantic.json")).ok()
+            })
+            .or_else(|| read(&root.join("theme/generated.json")).ok())
+    } else {
+        None
+    };
     let border = |key: &str, fallback: &str| -> Result<String> {
-        Ok(quoted(if let Some(p) = semantic {
-            role(p, key)?
-        } else {
-            role(&v["focus"], fallback)?
-        }))
+        Ok(quoted(
+            if let Some(p) = semantic.or(implicit_palette.as_ref()) {
+                role(p, key)?
+            } else {
+                role(&v["focus"], fallback)?
+            },
+        ))
     };
     let entries = [
         (

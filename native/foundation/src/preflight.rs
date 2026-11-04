@@ -69,7 +69,6 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         "slangc",
         "fish",
         "fastfetch",
-        "lua",
         "wl-copy",
         "wl-paste",
         "wl-clip-persist",
@@ -92,15 +91,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         .filter(|name| !apps::executable(name))
         .collect();
     if update {
-        let mandatory = [
-            wm,
-            "quickshell",
-            "kitty",
-            "slangc",
-            "fish",
-            "lua",
-            "fc-cache",
-        ];
+        let mandatory = [wm, "quickshell", "kitty", "slangc", "fish", "fc-cache"];
         let blocking: Vec<_> = missing
             .iter()
             .copied()

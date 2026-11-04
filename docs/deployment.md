@@ -13,7 +13,7 @@ scripts/deploy --compositor niri --profile default
 The core installer performs these builds and deployment itself. A direct deploy
 requires both executable backends. The maintained deployment path targets Niri.
 Profiles under `profiles/` supply hardware overrides; shared input
-remains in `config/input.lua`.
+remains in `config/input.toml`.
 
 Niri's generated KDL is validated before its entry file is published. Deployment also generates
 session units, validates Fish configuration, applies theme preferences and refreshes

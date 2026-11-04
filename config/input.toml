@@ -1,0 +1,4 @@
+# Shared keyboard defaults. User overrides live under ~/.config/desktop-foundation/.
+layout = "fi"
+repeatDelay = 350
+repeatRate = 35

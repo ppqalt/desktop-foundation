@@ -191,7 +191,7 @@ fn ensure_has_no_python_dependency_or_live_reloads() {
     .unwrap();
     let bin = f.path("bin");
     fs::create_dir(&bin).unwrap();
-    for program in ["lua", "niri", "fish"] {
+    for program in ["niri", "fish"] {
         let found = Command::new("sh")
             .args(["-c", &format!("command -v {program}")])
             .output()
@@ -326,17 +326,15 @@ fn preflight_update_runs_without_python_or_package_manager() {
     std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_desktop-foundationctl"), binary).unwrap();
     let bin = f.path("bin");
     fs::create_dir(&bin).unwrap();
-    for program in ["lua", "niri"] {
-        let found = Command::new("sh")
-            .args(["-c", &format!("command -v {program}")])
-            .output()
-            .unwrap();
-        std::os::unix::fs::symlink(
-            String::from_utf8(found.stdout).unwrap().trim(),
-            bin.join(program),
-        )
+    let found = Command::new("sh")
+        .args(["-c", "command -v niri"])
+        .output()
         .unwrap();
-    }
+    std::os::unix::fs::symlink(
+        String::from_utf8(found.stdout).unwrap().trim(),
+        bin.join("niri"),
+    )
+    .unwrap();
     for program in ["quickshell", "kitty", "slangc", "fish", "fc-cache"] {
         let path = bin.join(program);
         fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();

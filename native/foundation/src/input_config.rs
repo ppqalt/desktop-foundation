@@ -1,4 +1,4 @@
-//! Layered keyboard settings. The current legacy base is preserved during migration.
+//! Layered keyboard settings with profile and user overrides.
 use crate::{Result, invalid, state};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -268,7 +268,6 @@ fn complete_native_deploy_rerun_update_and_restore_are_isolated() {
         fs::write(&p,"#!/bin/sh\nprintf '%s %s\\n' \"$0\" \"$*\" >> \"$DF_COMMAND_LOG\"\ncase \"$*\" in *is-active*) exit 3;; esac\n").unwrap();
         fs::set_permissions(p, fs::Permissions::from_mode(0o700)).unwrap();
     }
-    symlink("/usr/bin/lua", bin.join("lua")).unwrap();
     let monitor = f.root.join("scripts/monitor");
     fs::write(&monitor, "#!/bin/sh\nexit 0\n").unwrap();
     fs::set_permissions(monitor, fs::Permissions::from_mode(0o700)).unwrap();

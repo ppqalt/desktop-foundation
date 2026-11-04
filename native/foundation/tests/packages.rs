@@ -224,7 +224,7 @@ fn generated_revision_keeps_owner_and_uses_revision_config() {
     for name in ["theme", "profiles", "compositor"] {
         symlink(original.join(name).canonicalize().unwrap(), root.join(name)).unwrap();
     }
-    for name in ["input.lua", "window-appearance.lua", "monitor.toml"] {
+    for name in ["input.toml", "window-appearance.toml", "monitor.toml"] {
         symlink(
             original.join("config").join(name).canonicalize().unwrap(),
             root.join("config").join(name),

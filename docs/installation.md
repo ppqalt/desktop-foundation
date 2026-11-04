@@ -47,7 +47,7 @@ Greeter setup checks tuigreet's Matrix support before writing login files. A
 system with another display manager should use `--no-greeter`.
 
 The default profile uses automatic outputs and Finnish input. Shared input lives
-in `config/input.lua`; Niri output overrides belong in `profiles/NAME/niri.kdl`.
+in `config/input.toml`; Niri output overrides belong in `profiles/NAME/niri.kdl`.
 The `dual-display-example` profile shows an explicit output layout.
 
 ## Reinstall and update
