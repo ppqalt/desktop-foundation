@@ -205,7 +205,11 @@ fn installation_reports_corrupt_journal_and_theme_hash_mismatch_without_session_
     let root =
         std::env::temp_dir().join(format!("foundation-doctor-install-{}", std::process::id()));
     std::fs::create_dir_all(root.join("packages")).unwrap();
-    std::fs::write(root.join("packages/core.txt"), "fixture-package\n").unwrap();
+    std::fs::write(
+        root.join("packages/core.toml"),
+        "packages = [\"fixture-package\"]\n",
+    )
+    .unwrap();
     let paths = deploy::Paths {
         config: root.join("config"),
         state: root.join("state"),

@@ -86,21 +86,31 @@ fn package(value: &str) -> Result<()> {
     Ok(())
 }
 pub fn manifest(root: &Path, group: &str) -> Result<Vec<String>> {
+    if group.is_empty()
+        || !group
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+    {
+        return Err(invalid("Invalid package manifest group"));
+    }
     let mut text = String::new();
-    fs::File::open(root.join("packages").join(format!("{group}.txt")))?
+    fs::File::open(root.join("packages").join(format!("{group}.toml")))?
         .take(64 * 1024 + 1)
         .read_to_string(&mut text)?;
     if text.len() > 64 * 1024 {
         return Err(invalid("Package manifest exceeds 64 KiB"));
     }
-    text.lines()
-        .map(str::trim)
-        .filter(|s| !s.is_empty() && !s.starts_with('#'))
-        .map(|s| {
-            package(s)?;
-            Ok(s.to_owned())
-        })
-        .collect()
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Manifest {
+        packages: Vec<String>,
+    }
+    let parsed: Manifest = toml::from_str(&text)
+        .map_err(|error| invalid(format!("Invalid package manifest {group}: {error}")))?;
+    for name in &parsed.packages {
+        package(name)?;
+    }
+    Ok(parsed.packages)
 }
 
 /// Substitute only system effects in isolated tests; production has no test env bypass.

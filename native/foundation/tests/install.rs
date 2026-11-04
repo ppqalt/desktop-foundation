@@ -12,6 +12,37 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 static NEXT: AtomicU64 = AtomicU64::new(0);
+#[test]
+fn repository_package_manifests_are_valid_and_have_no_duplicates() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for group in [
+        "core",
+        "personal",
+        "personal-aur",
+        "greeter",
+        "firmware",
+        "dev",
+        "hyprland",
+    ] {
+        let packages = install::manifest(&root, group).unwrap();
+        let unique: std::collections::HashSet<_> = packages.iter().collect();
+        assert_eq!(packages.len(), unique.len(), "duplicate in {group}");
+    }
+}
+#[test]
+fn malformed_manifests_and_invalid_group_names_are_rejected() {
+    let f = Fixture::new();
+    for content in [
+        "packages = [\"-bad\"]",
+        "packages = [3]",
+        "packages = []\nextra = true",
+        "packages = [",
+    ] {
+        fs::write(f.root.join("packages/core.toml"), content).unwrap();
+        assert!(install::manifest(&f.root, "core").is_err());
+    }
+    assert!(install::manifest(&f.root, "../core").is_err());
+}
 struct Fixture {
     base: PathBuf,
     root: PathBuf,
@@ -30,8 +61,8 @@ impl Fixture {
         }
         for group in ["core", "personal", "greeter", "firmware"] {
             fs::write(
-                root.join(format!("packages/{group}.txt")),
-                format!("# fixture\n{group}-package\n"),
+                root.join(format!("packages/{group}.toml")),
+                format!("packages = [\"{group}-package\"]\n"),
             )
             .unwrap();
         }
@@ -409,11 +440,19 @@ fn configuration_override_and_clean_boot_are_explicit() {
 #[test]
 fn invalid_package_and_modification_inputs_are_rejected_before_commands() {
     let f = Fixture::new();
-    fs::write(f.root.join("packages/core.txt"), "--overwrite\n").unwrap();
+    fs::write(
+        f.root.join("packages/core.toml"),
+        "packages = [\"--overwrite\"]\n",
+    )
+    .unwrap();
     let mut r = Fake::default();
     assert!(install::execute(&f.root, &f.paths, &f.options(&[]), &mut r).is_err());
     assert!(r.commands.is_empty());
-    fs::write(f.root.join("packages/core.txt"), "package\n").unwrap();
+    fs::write(
+        f.root.join("packages/core.toml"),
+        "packages = [\"package\"]\n",
+    )
+    .unwrap();
     fs::write(
         f.root.join("config/app-mods.json"),
         "{\"geode\":{\"enabled\":\"yes\"}}",

@@ -12,10 +12,50 @@ if ! $supported; then
 	printf '%s\n' 'Desktop Foundation supports CachyOS with Niri only.' >&2
 	exit 1
 fi
-mapfile -t packages < <(sed '/^#/d; /^$/d' "$root/packages/core.txt")
+read_manifest() {
+	local file="$root/packages/$1.toml" line value state=0
+	local item_re='^[[:space:]]*"([a-zA-Z0-9][a-zA-Z0-9@._+-]*)",[[:space:]]*$'
+	while IFS= read -r line || [[ -n $line ]]; do
+		[[ $line =~ ^[[:space:]]*(#.*)?$ ]] && continue
+		case $state in
+		0)
+			[[ $line == 'packages = [' ]] || {
+				printf 'Invalid package manifest: %s\n' "$file" >&2
+				return 1
+			}
+			state=1
+			;;
+		1)
+			if [[ $line == ']' ]]; then
+				state=2
+			elif [[ $line =~ $item_re ]]; then
+				value=${BASH_REMATCH[1]}
+				((${#value} <= 128)) || return 1
+				printf '%s\n' "$value"
+			else
+				printf 'Invalid package manifest: %s\n' "$file" >&2
+				return 1
+			fi
+			;;
+		*)
+			printf 'Invalid package manifest: %s\n' "$file" >&2
+			return 1
+			;;
+		esac
+	done <"$file"
+	[[ $state == 2 ]] || {
+		printf 'Invalid package manifest: %s\n' "$file" >&2
+		return 1
+	}
+}
+contents=$(read_manifest core)
+packages=()
+if [[ -n $contents ]]; then mapfile -t packages <<<"$contents"; fi
 add_manifest() {
-	local manifest
-	mapfile -t manifest < <(sed '/^#/d; /^$/d' "$root/packages/$1.txt")
+	local manifest contents
+	contents=$(read_manifest "$1") || return 1
+	[[ -n $contents ]] || return 0
+	mapfile -t manifest <<<"$contents"
 	packages+=("${manifest[@]}")
 }
 dev=false
@@ -42,7 +82,9 @@ if ((${#missing[@]})); then
 	sudo pacman -Syu --needed "${missing[@]}"
 fi
 # Prefer the CachyOS firmware package from its configured signed repository.
-mapfile -t firmware < <(sed '/^#/d; /^$/d' "$root/packages/firmware.txt")
+contents=$(read_manifest firmware)
+firmware=()
+if [[ -n $contents ]]; then mapfile -t firmware <<<"$contents"; fi
 for package in "${firmware[@]}"; do
 	if pacman -T "$package" >/dev/null 2>&1; then continue; fi
 	if pacman -Si "$package" >/dev/null 2>&1; then

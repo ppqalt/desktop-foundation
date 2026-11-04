@@ -104,7 +104,7 @@ tests/test_update.py
 - The monitor shader preparation in `native/foundation/src/monitor.rs` invokes
   Kitty's `+runpy` interface for Kitty's own shader pipeline compiler.
 - `shell/services/ClipboardHistory.qml` supports an optional Python fixture override; its normal backend is Rust.
-- `packages/core.txt` still includes `python` and `python-pillow`; `.github/workflows/check.yml` installs Python tooling and compiles/runs the remaining Python tests.
+- `packages/core.toml` still includes `python` and `python-pillow`; `.github/workflows/check.yml` installs Python tooling and compiles/runs the remaining Python tests.
 - Some Python benchmark tools load historical Python baselines. Migrate their measurements and baseline strategy before removing their runtime requirement.
 
 Find current Python source with `rg --files -g '*.py'`; find extensionless entry points with `rg -l '^#!.*python' scripts`. Search invocation and import sites, not just filenames, when updating this list.

@@ -1,0 +1,11 @@
+packages = [
+    "base-devel",
+    "git",
+    "binutils",
+    "gtk3",
+    "nss",
+    "alsa-lib",
+    "libxss",
+    "libxtst",
+    "nodejs",
+]

@@ -87,10 +87,6 @@ class FreshDeployment(unittest.TestCase):
                 self.assertFalse(user_command.is_symlink())
                 self.assertEqual(user_command.read_text(), 'previous user command')
 
-    def test_manifest_has_no_duplicates(self):
-        for file in (ROOT / 'packages').glob('*.txt'):
-            packages = [line for line in file.read_text().splitlines() if line and not line.startswith('#')]
-            self.assertEqual(len(packages), len(set(packages)), str(file))
 
 
 class ParuBootstrap(unittest.TestCase):
