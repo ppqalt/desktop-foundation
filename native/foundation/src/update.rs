@@ -358,11 +358,116 @@ fn active(unit: &str) -> bool {
     .is_ok_and(|output| output.status.success())
 }
 
-pub fn run(root: &Path, args: &[String]) -> Result<()> {
-    let dry = args == ["--dry-run"];
-    if !args.is_empty() && !dry {
-        return Err(invalid("Usage: df-update [--dry-run]"));
+#[derive(Debug, PartialEq, Eq)]
+struct Options {
+    dry: bool,
+    version: Option<String>,
+}
+impl Options {
+    fn parse(args: &[String]) -> Result<Self> {
+        let mut options = Self {
+            dry: false,
+            version: None,
+        };
+        let mut iter = args.iter();
+        while let Some(arg) = iter.next() {
+            if arg == "--dry-run" && !options.dry {
+                options.dry = true;
+            } else if arg == "--version" && options.version.is_none() {
+                options.version = Some(
+                    iter.next()
+                        .ok_or_else(|| invalid("Missing release version"))?
+                        .to_owned(),
+                );
+            } else if let Some(value) = arg.strip_prefix("--version=")
+                && options.version.is_none()
+            {
+                options.version = Some(value.to_owned());
+            } else {
+                return Err(invalid("Usage: df-update [--dry-run] [--version TAG]"));
+            }
+        }
+        if let Some(version) = &options.version {
+            if version.is_empty() || version.len() > 200 || version.chars().any(char::is_control) {
+                return Err(invalid("Invalid release tag"));
+            }
+            let reference = format!("refs/tags/{version}");
+            if !process::run(
+                &["git".into(), "check-ref-format".into(), reference],
+                None,
+                SHORT,
+                true,
+            )?
+            .status
+            .success()
+            {
+                return Err(invalid("Invalid release tag"));
+            }
+        }
+        Ok(options)
     }
+}
+fn release_candidates(version: &str) -> Vec<String> {
+    let alternative = if let Some(rest) = version.strip_prefix('v') {
+        rest.to_string()
+    } else {
+        format!("v{version}")
+    };
+    let mut refs = vec![format!("refs/tags/{version}")];
+    if !alternative.is_empty() {
+        refs.push(format!("refs/tags/{alternative}"));
+    }
+    refs
+}
+fn selected_release<'a>(rows: &'a str, candidates: &[String]) -> Option<(&'a str, String)> {
+    candidates.iter().find_map(|candidate| {
+        rows.lines()
+            .filter_map(|line| line.split_once('\t'))
+            .find(|(_, name)| *name == candidate)
+            .map(|(hash, _)| (hash, candidate.clone()))
+    })
+}
+fn fetch_release(root: &Path, version: &str, log: &File) -> Result<String> {
+    let candidates = release_candidates(version);
+    let mut args = vec!["ls-remote", "--refs", "origin"];
+    args.extend(candidates.iter().map(String::as_str));
+    let output = process::checked_capture(&git(root, &args), Duration::from_secs(120), 16384)?;
+    let rows =
+        std::str::from_utf8(&output.stdout).map_err(|_| invalid("Invalid release metadata"))?;
+    let (advertised, tag) = selected_release(rows, &candidates)
+        .ok_or_else(|| invalid(format!("Release tag not found: {version}")))?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| invalid("Invalid system clock"))?
+        .as_nanos();
+    let reference = format!(
+        "refs/desktop-foundation/release-{}-{nonce}",
+        std::process::id()
+    );
+    let refspec = format!("+{tag}:{reference}");
+    let result = (|| {
+        step(
+            log,
+            "Fetching selected release…",
+            &git(root, &["fetch", "--no-tags", "origin", &refspec]),
+            Duration::from_secs(180),
+        )?;
+        if text(&git(root, &["rev-parse", &reference]))? != advertised {
+            return Err(invalid(
+                "Release tag changed while fetching; retry the update",
+            ));
+        }
+        text(&git(
+            root,
+            &["rev-parse", &format!("{reference}^{{commit}}")],
+        ))
+    })();
+    let _ = text(&git(root, &["update-ref", "-d", &reference]));
+    result
+}
+
+pub fn run(root: &Path, args: &[String]) -> Result<()> {
+    let options = Options::parse(args)?;
     // SAFETY: geteuid has no pointer arguments or side effects.
     if unsafe { libc::geteuid() } == 0 {
         return Err(invalid(
@@ -373,11 +478,14 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let home = state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation");
     let selected = installation(&root, &home)?;
     let before = checkout_revision(&root)?;
-    if dry {
+    if options.dry {
         println!(
             "Fetch, rebuild and redeploy {} profile {}; preserve settings.",
             selected.compositor, selected.profile
         );
+        if let Some(version) = &options.version {
+            println!("Release: {version}");
+        }
         return Ok(());
     }
     let _lock = state::lock(&home.join("update.lock"), Duration::from_secs(1))?;
@@ -390,21 +498,31 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     println!("Fetching Desktop Foundation…");
     let mut phase = "fetch";
     let result = (|| {
-        step(
-            &log,
-            "Fetching Desktop Foundation…",
-            &git(
-                &root,
-                &[
-                    "fetch",
-                    "--no-tags",
-                    "origin",
-                    "+refs/heads/main:refs/remotes/origin/main",
-                ],
-            ),
-            Duration::from_secs(180),
-        )?;
-        let upstream = text(&git(&root, &["rev-parse", "refs/remotes/origin/main"]))?;
+        let upstream = if let Some(version) = &options.version {
+            let target = fetch_release(&root, version, &log)?;
+            if !ancestor(&root, &before, &target)? {
+                return Err(invalid(
+                    "Selected release is older than or divergent from this checkout; safe release rollback is not yet supported",
+                ));
+            }
+            target
+        } else {
+            step(
+                &log,
+                "Fetching Desktop Foundation…",
+                &git(
+                    &root,
+                    &[
+                        "fetch",
+                        "--no-tags",
+                        "origin",
+                        "+refs/heads/main:refs/remotes/origin/main",
+                    ],
+                ),
+                Duration::from_secs(180),
+            )?;
+            text(&git(&root, &["rev-parse", "refs/remotes/origin/main"]))?
+        };
         let diverged =
             !ancestor(&root, &before, &upstream)? && !ancestor(&root, &upstream, &before)?;
         let mut candidate = if ancestor(&root, &before, &upstream)? {
@@ -673,4 +791,138 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             log_path.display()
         ))
     })
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::*;
+    #[test]
+    fn exact_tag_spelling_is_used_without_version_arithmetic() {
+        for version in ["0.3.3", "0.33", "0.3-3", "0.001.1", "1.0.0-rc.1"] {
+            let options =
+                Options::parse(&["--version".into(), version.into(), "--dry-run".into()]).unwrap();
+            assert_eq!(options.version.as_deref(), Some(version));
+            let candidates = release_candidates(version);
+            let advertised = format!("abc\t{}\ndef\t{}\n", candidates[1], candidates[0]);
+            assert_eq!(
+                selected_release(&advertised, &candidates).unwrap().1,
+                candidates[0]
+            );
+            assert_eq!(
+                selected_release(&format!("abc\t{}\n", candidates[1]), &candidates)
+                    .unwrap()
+                    .1,
+                candidates[1]
+            );
+        }
+        assert_eq!(
+            release_candidates("v0.3.3"),
+            ["refs/tags/v0.3.3", "refs/tags/0.3.3"]
+        );
+    }
+    #[test]
+    fn invalid_or_ambiguous_options_fail() {
+        for args in [
+            vec!["--version"],
+            vec!["--version", "../bad"],
+            vec!["--version", ""],
+            vec!["--version", "a", "--version", "b"],
+        ] {
+            assert!(
+                Options::parse(&args.into_iter().map(str::to_owned).collect::<Vec<_>>()).is_err()
+            );
+        }
+    }
+    #[test]
+    fn fetches_annotated_release_from_private_git_fixture_and_cleans_ref() {
+        use std::process::Command;
+        let base = std::env::temp_dir().join(format!("foundation-release-{}", std::process::id()));
+        fs::create_dir_all(&base).unwrap();
+        let remote = base.join("remote.git");
+        let source = base.join("source");
+        let checkout = base.join("checkout");
+        let run = |args: &[&str]| {
+            let output = Command::new("git")
+                .args(args)
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            String::from_utf8(output.stdout).unwrap().trim().to_owned()
+        };
+        run(&["init", "--bare", remote.to_str().unwrap()]);
+        run(&["init", "-b", "main", source.to_str().unwrap()]);
+        fs::write(source.join("content"), "fixture").unwrap();
+        run(&["-C", source.to_str().unwrap(), "add", "content"]);
+        run(&[
+            "-C",
+            source.to_str().unwrap(),
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-m",
+            "fixture",
+        ]);
+        let expected = run(&["-C", source.to_str().unwrap(), "rev-parse", "HEAD"]);
+        run(&[
+            "-C",
+            source.to_str().unwrap(),
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "tag",
+            "-a",
+            "v0.3-3",
+            "-m",
+            "fixture",
+        ]);
+        run(&[
+            "-C",
+            source.to_str().unwrap(),
+            "remote",
+            "add",
+            "origin",
+            remote.to_str().unwrap(),
+        ]);
+        run(&[
+            "-C",
+            source.to_str().unwrap(),
+            "push",
+            "origin",
+            "main",
+            "refs/tags/v0.3-3",
+        ]);
+        run(&["init", "-b", "main", checkout.to_str().unwrap()]);
+        run(&[
+            "-C",
+            checkout.to_str().unwrap(),
+            "remote",
+            "add",
+            "origin",
+            remote.to_str().unwrap(),
+        ]);
+        let log = File::create(base.join("update.log")).unwrap();
+        assert_eq!(fetch_release(&checkout, "0.3-3", &log).unwrap(), expected);
+        assert!(
+            run(&[
+                "-C",
+                checkout.to_str().unwrap(),
+                "for-each-ref",
+                "refs/desktop-foundation/"
+            ])
+            .is_empty()
+        );
+        assert!(fetch_release(&checkout, "0.001.1", &log).is_err());
+        fs::remove_dir_all(base).unwrap();
+    }
 }

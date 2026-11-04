@@ -5,6 +5,13 @@ df-update --dry-run
 df-update
 ```
 
+To select an existing release tag, use `df-update --version 0.3-3`. Version
+strings are treated as tag names, not numbers; forms such as `0.33` and
+`0.001.1` remain distinct. An exact tag is preferred, then the equivalent with
+or without a leading `v`. `--dry-run --version TAG` displays the requested
+target without fetching it. Selecting a release currently requires it to be a
+descendant of the checkout; older or divergent releases stop without deployment.
+
 Deployment installs `~/.local/bin/df-update`. You can also run
 `./scripts/df-update` from the owning checkout. Run it as your desktop user,
 without sudo. Keep `~/.local/bin` on your PATH.
