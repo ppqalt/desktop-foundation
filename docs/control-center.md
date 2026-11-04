@@ -99,7 +99,10 @@ live device controls.
 
 ## Wallpaper selector
 
-The overview's three-column grid reads `~/Pictures/Wallpapers`. Image names are
+The overview's three-column grid reads `Wallpapers` inside the XDG Pictures
+directory (normally `~/Pictures/Wallpapers`). To choose another directory, set
+`directory = "~/My Wallpapers"` in `~/.config/desktop-foundation/wallpapers.toml`.
+Absolute paths are supported. Image names are
 shown on hover and exposed to accessibility tools; the active wallpaper has a
 checkmark. Arrows/WASD navigate, Enter/Space applies, and Tab joins the existing
 focus chain. A partial row retains the same tile width.

@@ -1,6 +1,7 @@
 //! One-shot discovery and cached previews; no polling or resident image process.
 use crate::{Result, backdrop, state, theme_render, theme_runtime};
 use image::{DynamicImage, ImageFormat, ImageReader, imageops::FilterType};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -10,6 +11,59 @@ use std::{
     os::unix::{ffi::OsStrExt, fs::MetadataExt},
     path::{Path, PathBuf},
 };
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WallpaperSettings {
+    directory: String,
+}
+
+fn user_path(value: &str, home: &Path) -> Result<PathBuf> {
+    let path = if value == "~" || value == "$HOME" {
+        home.to_owned()
+    } else if let Some(relative) = value
+        .strip_prefix("~/")
+        .or_else(|| value.strip_prefix("$HOME/"))
+    {
+        home.join(relative)
+    } else {
+        PathBuf::from(value)
+    };
+    if !path.is_absolute() || value.contains('\0') {
+        return Err(crate::invalid(
+            "Wallpaper directory must be absolute or start with ~/",
+        ));
+    }
+    Ok(path)
+}
+
+fn wallpaper_directory(home: &Path, config: &Path) -> Result<PathBuf> {
+    let path = config.join("desktop-foundation/wallpapers.toml");
+    match fs::read_to_string(&path) {
+        Ok(text) => {
+            let settings: WallpaperSettings = toml::from_str(&text)
+                .map_err(|e| crate::invalid(format!("Invalid wallpaper settings: {e}")))?;
+            return user_path(&settings.directory, home);
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e.into()),
+    }
+    // user-dirs.dirs is shell-shaped data. Never execute or expand it as shell.
+    let pictures = fs::read_to_string(config.join("user-dirs.dirs"))
+        .ok()
+        .and_then(|text| {
+            text.lines().find_map(|line| {
+                let value = line.trim().strip_prefix("XDG_PICTURES_DIR=")?.trim();
+                let value = value.strip_prefix('"')?.strip_suffix('"')?;
+                if value.contains(['\\', '"', '`']) {
+                    return None;
+                }
+                user_path(value, home).ok()
+            })
+        })
+        .unwrap_or_else(|| home.join("Pictures"));
+    Ok(pictures.join("Wallpapers"))
+}
 
 fn preview(path: &Path, cache: &Path) -> Result<PathBuf> {
     let meta = fs::metadata(path)?;
@@ -174,9 +228,39 @@ pub fn list(root: &Path) -> Result<Value> {
     }
     let cache =
         state::xdg("XDG_CACHE_HOME", ".cache")?.join("desktop-foundation/wallpaper-previews");
-    catalog_with_previews(
-        &state::home()?.join("Pictures/Wallpapers"),
-        selected.as_deref(),
-        Some(&cache),
-    )
+    let directory =
+        wallpaper_directory(&state::home()?, &state::xdg("XDG_CONFIG_HOME", ".config")?)?;
+    catalog_with_previews(&directory, selected.as_deref(), Some(&cache))
+}
+
+#[cfg(test)]
+mod directory_tests {
+    use super::*;
+
+    #[test]
+    fn honors_override_then_xdg_pictures_then_default() {
+        let base =
+            std::env::temp_dir().join(format!("foundation-wallpaper-path-{}", std::process::id()));
+        fs::create_dir_all(base.join("desktop-foundation")).unwrap();
+        let home = Path::new("/home/example");
+        assert_eq!(
+            wallpaper_directory(home, &base).unwrap(),
+            home.join("Pictures/Wallpapers")
+        );
+        fs::write(
+            base.join("user-dirs.dirs"),
+            "XDG_PICTURES_DIR=\"$HOME/My Pictures\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            wallpaper_directory(home, &base).unwrap(),
+            home.join("My Pictures/Wallpapers")
+        );
+        let settings = base.join("desktop-foundation/wallpapers.toml");
+        fs::write(&settings, "directory = '~/Art'\n").unwrap();
+        assert_eq!(wallpaper_directory(home, &base).unwrap(), home.join("Art"));
+        fs::write(&settings, "directory = 'relative'\n").unwrap();
+        assert!(wallpaper_directory(home, &base).is_err());
+        fs::remove_dir_all(base).unwrap();
+    }
 }
