@@ -46,8 +46,7 @@ PopupWindow {
         if (event.key === Qt.Key_Escape)
             dismiss();
         else if (event.key === Qt.Key_Down || (!editing && event.key === Qt.Key_S) || (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier))) {
-            if (!editing)
-                navigate(1);
+            navigate(1);
             panel.forceActiveFocus();
         } else if (event.key === Qt.Key_Up || (!editing && event.key === Qt.Key_W) || (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier))) {
             if (selectedIndex === 0)

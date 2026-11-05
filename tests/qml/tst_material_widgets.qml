@@ -523,6 +523,15 @@ ShellRoot {
                 keyClick(Qt.Key_Space);
                 compare(launcher.snapshot().query, "w ");
                 launcher.setQuery("");
+                // Moving out of search must navigate on the very first arrow.
+                const nextApplication = launcher.results[1];
+                if (nextApplication) {
+                    keyClick(Qt.Key_Down);
+                    compare(launcher.snapshot().selected, nextApplication.id);
+                    keyClick(Qt.Key_Up);
+                    keyClick(Qt.Key_Up);
+                    verify(launcher.snapshot().inputFocused);
+                }
                 keyClick(Qt.Key_Tab);
                 verify(!launcher.snapshot().inputFocused);
                 keyClick(Qt.Key_Up);
