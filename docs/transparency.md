@@ -1,12 +1,11 @@
 # Transparency Mode
 
-Standalone **Insert** toggles room listening through the selected microphone. This global
-Niri shortcut consumes Insert even while another application has focus; it does
-not repeat while held. No other shortcut changes.
+`scripts/transparency toggle` toggles room listening through the selected
+microphone with application ducking. Insert is assigned to media navigation.
 
 **Shift+Insert** toggles monitoring without changing application volumes. Press
 the same shortcut again to restore the previous monitoring state. Switching
-between the two shortcuts restores the old mode before starting the new one.
+between the two modes restores the old mode before starting the new one.
 
 ## Required EasyEffects extension
 
@@ -73,7 +72,7 @@ pre-existing value above 1) is restored rather than replaced with this default.
   playback volumes even if EasyEffects is unavailable; unresolved monitoring
   recovery remains journaled and is retried on the next start or explicit recovery.
 
-A user systemd datagram socket queues Insert presses during transitions, shutdown
+A user systemd datagram socket queues monitoring requests during transitions, shutdown
 and startup. It activates one Rust owner. That owner and `pactl subscribe` exist
 only during the activation and exit after deactivation. Off leaves only a kernel
 socket, with no polling process/CPU cost. Active mode waits for socket/PipeWire
@@ -100,7 +99,7 @@ exercise the shared temporary notice and immediate volume readout. Live audible
 latency, comfort and physical key acceptance require the actual patched process.
 
 Turn the mode off before removing it. Explicit recovery is safe to rerun.
-Remove only the Insert binding to stop intercepting the key. Stop the unused
+Remove the Shift+Insert binding to stop intercepting that shortcut. Stop the unused
 socket with `systemctl --user stop desktop-foundation-transparency.socket` after
 recovery; existing deployment rollback restores owned configuration/units.
 See the patch README to restore the stock EasyEffects package.

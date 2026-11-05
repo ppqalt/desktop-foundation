@@ -210,6 +210,12 @@ ShellRoot {
         function toggleOtherMedia(): string {
             return mediaControl.toggle(true);
         }
+        function nextMedia(): string {
+            return mediaControl.skip(true);
+        }
+        function previousMedia(): string {
+            return mediaControl.skip(false);
+        }
         function reloadConfiguration(): string {
             if (powerLoader.item?.busy || root.controlCenter?.busy)
                 return "busy";

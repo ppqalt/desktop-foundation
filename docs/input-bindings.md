@@ -31,7 +31,7 @@ new configuration is published.
 | Super+X | System monitor |
 | Super+Z | Control Center |
 | Super+Y | Local AI |
-| Insert | Transparency Mode |
+| Insert / Delete | Next / previous track in End's media player |
 | Shift+Insert | Microphone monitoring without ducking |
 | Super+Shift+Q | Session menu |
 | Super+Tab | Niri overview |

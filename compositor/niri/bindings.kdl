@@ -1,6 +1,7 @@
 // Finnish keysyms: slash = Shift+7. Only one binding consumes that chord.
 binds {
-    "Insert" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/transparency\" toggle"; }
+    "Insert" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/foundation\" shell call nextMedia"; }
+    "Delete" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/foundation\" shell call previousMedia"; }
     "Shift+Insert" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/transparency\" monitor"; }
     "Super+Y" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/local-ai\" start"; }
     "Super+B" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/bluetooth-popup\""; }

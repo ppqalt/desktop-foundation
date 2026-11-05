@@ -58,13 +58,30 @@ QtObject {
         }
         return selected;
     }
-    function toggle(other = false): string {
+    function primaryPlayer() {
         let primary = players.find(player => player.dbusName === primaryName && player.canControl && player.canTogglePlaying && player.playbackState !== MprisPlaybackState.Stopped);
         if (!primary)
             primary = latest("");
+        if (primary)
+            primaryName = primary.dbusName;
+        return primary;
+    }
+    function skip(forward): string {
+        const player = primaryPlayer();
+        if (!player)
+            return "No controllable media player";
+        if (forward ? !player.canGoNext : !player.canGoPrevious)
+            return "Track navigation unavailable";
+        if (forward)
+            player.next();
+        else
+            player.previous();
+        return player.identity;
+    }
+    function toggle(other = false): string {
+        const primary = primaryPlayer();
         if (!primary)
             return "No controllable media player";
-        primaryName = primary.dbusName;
         const selected = other ? latest(primaryName) : primary;
         if (!selected)
             return "No other controllable media player";
