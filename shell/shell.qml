@@ -6,10 +6,14 @@ import "adapters/niri" as NiriBackend
 import "surfaces"
 import "components"
 import "theme"
+import "services" as Services
 
 ShellRoot {
     id: root
     Component.onCompleted: Quickshell.watchFiles = false
+    Services.MediaControl {
+        id: mediaControl
+    }
     LazyLoader {
         id: backdropLoader
         active: Quickshell.env("DF_COMPOSITOR") === "niri"
@@ -200,6 +204,9 @@ ShellRoot {
     }
     IpcHandler {
         target: "foundation"
+        function toggleMedia(): string {
+            return mediaControl.toggle();
+        }
         function reloadConfiguration(): string {
             if (powerLoader.item?.busy || root.controlCenter?.busy)
                 return "busy";
