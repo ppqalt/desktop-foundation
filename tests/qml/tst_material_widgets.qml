@@ -312,7 +312,11 @@ ShellRoot {
                 router.request("power");
                 routeB.busy = true;
                 router.request("monitor");
-                compare(router.externalOpens, opens + 2);
+                compare(router.externalOpens, opens + 3);
+                router.request("controlCenter");
+                verify(router.sidebar.closing);
+                router.request("controlCenter");
+                verify(!router.sidebar.closing);
                 routeB.busy = false;
                 routeA.alive = false;
                 routeB.alive = false;

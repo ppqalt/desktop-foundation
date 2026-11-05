@@ -9,10 +9,6 @@ QtObject {
         const target = surfaces[name];
         if (!target)
             return;
-        for (const key of Object.keys(surfaces)) {
-            if (key === "power" && surfaces[key].item()?.busy)
-                return;
-        }
         // Non-modal sidebars coexist with popups and with each other. Only an
         // explicit request for that sidebar changes its lifecycle.
         if (target.independent) {
@@ -26,6 +22,10 @@ QtObject {
             else
                 target.open(false);
             return;
+        }
+        for (const key of Object.keys(surfaces)) {
+            if (key === "power" && surfaces[key].item()?.busy)
+                return;
         }
         if (pending === name && !showOnly) {
             pending = "";
