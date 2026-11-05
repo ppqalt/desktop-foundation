@@ -813,4 +813,29 @@ mod selection_tests {
         );
         fs::remove_dir_all(dir).unwrap();
     }
+
+    #[test]
+    fn waiting_installer_reads_the_selection_published_by_the_lock_owner() {
+        let dir =
+            std::env::temp_dir().join(format!("df-install-lock-selection-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("profiles/default")).unwrap();
+        fs::create_dir_all(dir.join("state")).unwrap();
+        let state_dir = dir.join("state");
+        let minimal = Options::parse(&dir, &[]).unwrap();
+        save_selection(&state_dir, &minimal).unwrap();
+        let guard = state::lock(&state_dir.join("install.lock"), Duration::from_secs(2)).unwrap();
+        let worker_root = dir.clone();
+        let worker_state = state_dir.clone();
+        let worker = std::thread::spawn(move || {
+            let _guard =
+                state::lock(&worker_state.join("install.lock"), Duration::from_secs(2)).unwrap();
+            selection(&worker_root, &worker_state, &[]).unwrap()
+        });
+        let standard = Options::parse(&dir, &["--standard".into()]).unwrap();
+        save_selection(&state_dir, &standard).unwrap();
+        drop(guard);
+        assert!(worker.join().unwrap().standard);
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
