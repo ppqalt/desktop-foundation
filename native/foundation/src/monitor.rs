@@ -681,6 +681,9 @@ impl Lifecycle {
             self.retire_at = None;
         }
     }
+    fn output_changed(&self) -> bool {
+        self.opening
+    }
     fn closed(&mut self, now: Instant) {
         if self.retire_at.is_none() {
             self.retire_at = Some(now + Duration::from_millis(120));
@@ -913,7 +916,9 @@ fn serve_once(root: &Path) -> Result<bool> {
                     let outputs = niri("outputs")?;
                     if outputs.get(name).and_then(|output| output.get("logical")) != Some(geometry)
                     {
-                        return Ok(false); // Reopen on the new geometry/output.
+                        // Recreate the panel on the current focused output only
+                        // if the user still intends it to be open.
+                        return Ok(lifecycle.output_changed());
                     }
                 }
                 event_buffer.drain(..=end);
@@ -1079,6 +1084,16 @@ mod tests {
         lifecycle.target(false);
         lifecycle.closed(now + Duration::from_secs(2));
         assert!(lifecycle.shutdown_due(now + Duration::from_millis(2120)));
+    }
+
+    #[test]
+    fn output_change_preserves_requested_visibility() {
+        let mut lifecycle = Lifecycle::new();
+        assert!(lifecycle.output_changed());
+        lifecycle.target(false);
+        assert!(!lifecycle.output_changed());
+        lifecycle.target(true);
+        assert!(lifecycle.output_changed());
     }
 
     #[test]
