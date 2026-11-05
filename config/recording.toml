@@ -18,3 +18,4 @@ audio_codec = "opus"
 audio_bitrate_kbps = 512 # per independent track, never a desktop volume change
 startup_timeout_seconds = 120 # includes the portal's selection dialog
 stop_timeout_seconds = 30
+cancel_timeout_milliseconds = 500 # grace before cancelling an unstarted portal capture

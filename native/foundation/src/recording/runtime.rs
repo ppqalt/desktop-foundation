@@ -4,7 +4,7 @@ use std::{
     env,
     ffi::CString,
     fs::OpenOptions,
-    io::{self, Write},
+    io,
     os::{
         fd::{AsRawFd, FromRawFd, OwnedFd},
         unix::{
@@ -39,34 +39,21 @@ fn directory() -> Result<PathBuf> {
     Ok(path)
 }
 fn publish(value: &Value) -> Result<()> {
-    state::atomic(
-        &directory()?.join("status.json"),
-        &serde_json::to_vec(value)?,
-        0o600,
-    )
+    let dir = directory()?;
+    let _publication = state::lock(&dir.join("status.lock"), Duration::from_secs(2))?;
+    state::atomic(&dir.join("status.json"), &serde_json::to_vec(value)?, 0o600)
 }
 pub fn status() -> Result<Value> {
-    match bounded(&directory()?.join("status.json")) {
+    let dir = directory()?;
+    let _publication = state::lock(&dir.join("status.lock"), Duration::from_secs(2))?;
+    match bounded(&dir.join("status.json")) {
         Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
         Err(crate::Error::Io(e)) if e.kind() == io::ErrorKind::NotFound => {
-            // Create once for FileView to watch, without overwriting a concurrent
-            // owner's atomic publication. Its writer may replace our inode.
-            match OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o600)
-                .open(directory()?.join("status.json"))
-            {
-                Ok(mut file) => {
-                    file.write_all(b"{\"phase\":\"idle\"}")?;
-                    file.sync_all()?;
-                }
-                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
-                Err(e) => return Err(e.into()),
-            }
-            Ok(serde_json::from_slice(&bounded(
-                &directory()?.join("status.json"),
-            )?)?)
+            // The same publication lock protects initialization and subsequent
+            // writers. Readers never observe an empty or partially written file.
+            let idle = json!({"phase":"idle"});
+            state::atomic(&dir.join("status.json"), &serde_json::to_vec(&idle)?, 0o600)?;
+            Ok(idle)
         }
         Err(e) => Err(e),
     }
@@ -204,26 +191,6 @@ fn validate_metadata(metadata: &Value, silent: bool) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn finalization_requires_readable_video_and_expected_independent_audio() {
-        let complete = json!({"format":{"duration":"1.25"},"streams":[
-            {"codec_type":"video"},{"codec_type":"audio"},{"codec_type":"audio"}]});
-        validate_metadata(&complete, false).unwrap();
-        assert!(validate_metadata(&complete, true).is_err());
-        let silent = json!({"format":{"duration":"1.25"},"streams":[{"codec_type":"video"}]});
-        validate_metadata(&silent, true).unwrap();
-        assert!(validate_metadata(&silent, false).is_err());
-        for duration in ["0", "NaN", "-1", "unavailable"] {
-            let mut damaged = complete.clone();
-            damaged["format"]["duration"] = duration.into();
-            assert!(validate_metadata(&damaged, false).is_err());
-        }
-        assert!(validate_metadata(&json!({"streams":[]}), true).is_err());
-    }
-}
 struct Signals {
     fd: OwnedFd,
     old: libc::sigset_t,
@@ -254,8 +221,9 @@ impl Signals {
             })
         }
     }
-    fn stopping(&self) -> Result<bool> {
+    fn events(&self) -> Result<(bool, bool)> {
         let mut stopping = false;
+        let mut child_changed = false;
         loop {
             // SAFETY: writable buffer with exact signalfd_siginfo size.
             let mut info: libc::signalfd_siginfo = unsafe { std::mem::zeroed() };
@@ -280,8 +248,9 @@ impl Signals {
                 break;
             }
             stopping |= info.ssi_signo != libc::SIGCHLD as u32;
+            child_changed |= info.ssi_signo == libc::SIGCHLD as u32;
         }
-        Ok(stopping)
+        Ok((stopping, child_changed))
     }
 }
 impl Drop for Signals {
@@ -341,6 +310,12 @@ fn queued(socket: &UnixDatagram) -> Result<Option<Vec<u8>>> {
         Err(e) if e.kind() == io::ErrorKind::WouldBlock => Ok(None),
         Err(e) => Err(e.into()),
     }
+}
+fn drain_stop_requests(socket: &UnixDatagram) -> Result<()> {
+    // Once saving has begun, further presses are stop requests rather than a
+    // new activation waiting in systemd's socket. The kernel queue is bounded.
+    while queued(socket)?.is_some() {}
+    Ok(())
 }
 fn ready(marker: &Path) -> bool {
     bounded(marker).ok().is_some_and(|b| {
@@ -425,6 +400,7 @@ pub fn serve(root: &Path) -> Result<()> {
     publish(&json!({"phase":"starting", "silent":silent}))?;
     let result = capture(root, &socket, silent);
     if let Err(e) = &result {
+        let _ = drain_stop_requests(&socket);
         let mut s = status().unwrap_or_else(|_| json!({}));
         s["phase"] = "error".into();
         s["error"] = e.to_string().into();
@@ -492,35 +468,43 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
     publish(&state)?;
     let mut started = false;
     let mut stopping = false;
+    let mut startup_cancel = false;
     let mut failure = None;
     let mut deadline = Some(Instant::now() + Duration::from_secs(c.startup_timeout_seconds));
     loop {
         if let Some(exit) = child.child.try_wait()? {
             child.reaped = true;
+            let captured = started || ready(&marker);
+            let nonempty = fs::metadata(&file).is_ok_and(|m| m.len() > 0);
+            drain_stop_requests(socket)?;
             let _ = fs::remove_file(&marker);
-            if !started && fs::metadata(&file).is_ok_and(|m| m.len() == 0) {
+            if !captured && !nonempty {
                 let _ = fs::remove_file(&file);
             }
             if let Some(error) = failure {
                 return Err(invalid(error));
             }
-            if !exit.success() {
+            if !exit.success() && !(startup_cancel && !captured && !nonempty) {
                 return Err(invalid(format!(
                     "Recorder exited with {exit}; any partial recording is retained at {}",
                     file.display()
                 )));
             }
-            if !started && !stopping {
+            if !captured && !stopping {
                 return Err(invalid("Recorder exited before a video frame was captured"));
             }
-            if started {
+            if captured || nonempty {
                 state["phase"] = "stopping".into();
                 publish(&state)?;
-                finalized(&file, silent)?;
+                let finalization = finalized(&file, silent);
+                drain_stop_requests(socket)?;
+                finalization?;
+            } else {
+                drain_stop_requests(socket)?;
             }
             state["phase"] = "idle".into();
             publish(&state)?;
-            if started {
+            if captured || nonempty {
                 notify(&format!("Saved {}", file.display()));
             }
             return Ok(());
@@ -531,23 +515,63 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
             state["phase"] = "recording".into();
             publish(&state)?;
         }
+        if startup_cancel && ready(&marker) {
+            // Capture became ready during the cancellation grace period. Give
+            // the newly initialized encoder its normal graceful save window.
+            started = true;
+            startup_cancel = false;
+            state["phase"] = "stopping".into();
+            publish(&state)?;
+            child.stop()?;
+            deadline = Some(Instant::now() + Duration::from_secs(c.stop_timeout_seconds));
+        }
         let expired = deadline.is_some_and(|d| Instant::now() >= d);
         if expired && stopping {
+            if startup_cancel {
+                // No frame has been produced. Some portal selectors do not
+                // service SIGINT while blocked; close only our unstarted child.
+                if let Err(error) = child.child.kill()
+                    && error.raw_os_error() != Some(libc::ESRCH)
+                {
+                    return Err(error.into());
+                }
+                deadline = None;
+                continue;
+            }
             return Err(invalid(
                 "Recorder did not finish saving in time; partial MKV retained",
             ));
         }
         let requested = queued(socket)?.is_some();
-        let shutdown = signals.stopping()?;
+        let (shutdown, child_changed) = signals.events()?;
         if !stopping && (requested || shutdown || expired) {
             stopping = true;
+            startup_cancel = !started && !ready(&marker);
             if expired {
                 failure = Some("Screen selection/capture timed out before the first frame");
             }
-            state["phase"] = "stopping".into();
+            state["phase"] = if startup_cancel {
+                "starting"
+            } else {
+                "stopping"
+            }
+            .into();
+            state["cancelling"] = startup_cancel.into();
             publish(&state)?;
             child.stop()?;
-            deadline = Some(Instant::now() + Duration::from_secs(c.stop_timeout_seconds));
+            deadline = Some(
+                Instant::now()
+                    + if startup_cancel {
+                        Duration::from_millis(c.cancel_timeout_milliseconds)
+                    } else {
+                        Duration::from_secs(c.stop_timeout_seconds)
+                    },
+            );
+        }
+        if child_changed {
+            // SIGCHLD may arrive between try_wait and draining signalfd. Reap
+            // before sleeping again; consuming that wakeup then blocking races.
+            continue;
         }
         let mut fds = [
             libc::pollfd {
@@ -591,5 +615,26 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
         {
             return Err(invalid("Recording event source failed"));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn finalization_requires_readable_video_and_expected_independent_audio() {
+        let complete = json!({"format":{"duration":"1.25"},"streams":[
+            {"codec_type":"video"},{"codec_type":"audio"},{"codec_type":"audio"}]});
+        validate_metadata(&complete, false).unwrap();
+        assert!(validate_metadata(&complete, true).is_err());
+        let silent = json!({"format":{"duration":"1.25"},"streams":[{"codec_type":"video"}]});
+        validate_metadata(&silent, true).unwrap();
+        assert!(validate_metadata(&silent, false).is_err());
+        for duration in ["0", "NaN", "-1", "unavailable"] {
+            let mut damaged = complete.clone();
+            damaged["format"]["duration"] = duration.into();
+            assert!(validate_metadata(&damaged, false).is_err());
+        }
+        assert!(validate_metadata(&json!({"streams":[]}), true).is_err());
     }
 }

@@ -35,6 +35,7 @@ pub struct Config {
     audio_bitrate_kbps: u32,
     startup_timeout_seconds: u64,
     stop_timeout_seconds: u64,
+    cancel_timeout_milliseconds: u64,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -58,6 +59,7 @@ impl Default for Config {
             audio_bitrate_kbps: 512,
             startup_timeout_seconds: 120,
             stop_timeout_seconds: 30,
+            cancel_timeout_milliseconds: 500,
         }
     }
 }
@@ -103,6 +105,7 @@ impl Config {
             || !(32..=512).contains(&self.audio_bitrate_kbps)
             || !(10..=600).contains(&self.startup_timeout_seconds)
             || !(5..=30).contains(&self.stop_timeout_seconds)
+            || !(50..=2000).contains(&self.cancel_timeout_milliseconds)
             || (!self.directory.is_empty() && !Path::new(&self.directory).is_absolute())
         {
             return Err(invalid(

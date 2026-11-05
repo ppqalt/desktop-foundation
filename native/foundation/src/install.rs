@@ -413,7 +413,10 @@ pub fn execute(
         o.greeter.then_some("greeter"),
         o.personal.then_some("personal"),
         (o.personal || o.clean_boot).then_some("firmware"),
-        o.extras.iter().any(|e| e == "recording").then_some("recording"),
+        o.extras
+            .iter()
+            .any(|e| e == "recording")
+            .then_some("recording"),
     ]
     .into_iter()
     .flatten()
@@ -786,14 +789,18 @@ mod selection_tests {
     use super::*;
     #[test]
     fn recording_extra_is_optional_and_preserved() {
-        let dir = std::env::temp_dir().join(format!("df-recording-selection-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("df-recording-selection-{}", std::process::id()));
         fs::create_dir_all(dir.join("profiles/default")).unwrap();
         fs::create_dir_all(dir.join("state")).unwrap();
         let minimal = Options::parse(&dir, &[]).unwrap();
         assert!(minimal.extras.is_empty());
         let options = Options::parse(&dir, &["--extra".into(), "recording".into()]).unwrap();
         save_selection(&dir.join("state"), &options).unwrap();
-        assert_eq!(selection(&dir, &dir.join("state"), &[]).unwrap().extras, ["recording"]);
+        assert_eq!(
+            selection(&dir, &dir.join("state"), &[]).unwrap().extras,
+            ["recording"]
+        );
         fs::remove_dir_all(dir).unwrap();
     }
     #[test]

@@ -7,6 +7,9 @@ import "../../shell/components"
 import "SURFACE_FIXTURES" as Fixtures
 
 ShellRoot {
+    ClockVisibility {
+        id: recordingClock
+    }
     Window {
         visible: true
         width: 640
@@ -574,6 +577,30 @@ ShellRoot {
                 verify(historyMenu.closing);
                 verify(!historyMenu.lifecycle.clipboardEnabled);
                 historyMenu.visible = false;
+            }
+            function test_clock_toggle_during_recording_and_finalization() {
+                recordingClock.enabled = false;
+                recordingClock.recordingPhase = "starting";
+                verify(recordingClock.visible);
+                recordingClock.recordingPhase = "recording";
+                recordingClock.toggle();
+                verify(!recordingClock.visible);
+                recordingClock.recordingPhase = "stopping";
+                verify(!recordingClock.visible);
+                recordingClock.toggle();
+                verify(recordingClock.visible);
+                recordingClock.recordingPhase = "error";
+                verify(recordingClock.visible);
+                recordingClock.toggle();
+                verify(!recordingClock.visible);
+                recordingClock.recordingPhase = "idle";
+                verify(!recordingClock.visible);
+                recordingClock.recordingPhase = "starting";
+                verify(recordingClock.visible);
+                recordingClock.recordingPhase = "stopping";
+                verify(recordingClock.visible);
+                recordingClock.recordingPhase = "idle";
+                verify(!recordingClock.visible);
             }
             function test_session_navigation() {
                 session.visible = true;

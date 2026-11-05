@@ -17,10 +17,11 @@ QtObject {
         command: [Quickshell.shellDir + "/../scripts/record", "status"]
         running: true
         onFinished: code => {
-            if (code === 0) {
-                root.state = response;
-                root.prepared = true;
-            }
+            root.state = code === 0 ? response : {
+                phase: "error",
+                error: failure
+            };
+            root.prepared = true;
         }
     }
     property FileView statusFile: FileView {
@@ -29,6 +30,8 @@ QtObject {
         printErrors: false
         onFileChanged: reload()
         onLoaded: {
+            if (!root.prepared)
+                return;
             try {
                 const value = JSON.parse(text());
                 root.state = ["idle", "starting", "recording", "stopping", "error"].includes(value.phase) ? value : {
@@ -39,6 +42,13 @@ QtObject {
                     phase: "error"
                 };
             }
+        }
+        onLoadFailed: {
+            if (root.prepared)
+                root.state = {
+                    phase: "error",
+                    error: "Recording status is unavailable"
+                };
         }
     }
 }

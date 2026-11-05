@@ -31,10 +31,15 @@ ShellRoot {
         requested: root.popupBackdropRequested
     }
     readonly property bool popupBackdropRequested: (root.launcherEnabled && !root.launcher?.superseded && !root.launcher?.closing) || (root.clipboardEnabled && !root.clipboard?.superseded && !root.clipboard?.closing) || (root.bluetoothEnabled && !bluetoothLoader.item?.superseded && !bluetoothLoader.item?.closing) || (root.powerEnabled && !powerLoader.item?.superseded && !powerLoader.item?.closing) || ["launcher", "clipboard", "bluetooth", "power"].includes(surfaceRouter.pending)
-    property bool clockEnabled: false
+    ClockVisibility {
+        id: clockVisibility
+        recordingPhase: recordingState.phase
+    }
+    property alias clockEnabled: clockVisibility.enabled
+    readonly property bool clockVisible: clockVisibility.visible
     LazyLoader {
         id: clockLoader
-        active: root.clockEnabled || recordingState.visible
+        active: root.clockVisible
         Clock {
             targetScreen: root.launcherScreen
             recordingPhase: recordingState.phase
@@ -246,11 +251,11 @@ ShellRoot {
             });
         }
         function toggleClock(): void {
-            root.clockEnabled = !root.clockEnabled;
+            clockVisibility.toggle();
         }
         function clockStatus(): string {
             return JSON.stringify({
-                visible: root.clockEnabled || recordingState.visible,
+                visible: root.clockVisible,
                 recordingPhase: recordingState.phase,
                 alive: clockLoader.item !== null
             });

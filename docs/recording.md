@@ -6,7 +6,8 @@ Recorder handles capture and encoding. No OBS instance or replay buffer is neede
 
 - **Ctrl+Shift+F12:** start with separate desktop and microphone tracks.
 - **Ctrl+Shift+Alt+F12:** start with no audio.
-- Either shortcut stops an existing recording, keeping its original audio mode.
+- **Ctrl+Shift+F12 stops any active recording**, including a silent recording.
+  The Alt variant also stops an existing recording; neither switches its audio mode.
 
 The clock appears automatically during capture. Its red indicator starts only
 after GPU Screen Recorder reports its first captured frame. It remains visible
@@ -14,6 +15,8 @@ while stopping and while checking the completed container. It clears only after
 the recorder exits successfully and `ffprobe` confirms a nonempty video with the
 expected audio tracks and readable duration. This checks container finalization,
 not a full decode of every frame.
+The normal clock shortcut can still hide or show it while recording, without
+stopping capture. If left visible, the indicator stays through finalization.
 
 On failure, a warning remains in the clock and a notification explains the error.
 Partial files are retained. Inspect `scripts/record status`; use
@@ -71,7 +74,10 @@ unique timestamps; existing recordings are never selected for overwriting.
 One kernel datagram socket activates a single user-service owner. While recording,
 the owner waits for requests, child-exit signals and first-frame filesystem events;
 it does not periodically poll. The recorder and owner exit after saving. The
-Quickshell clock watches the atomically published runtime JSON without a polling
+portal selection can be cancelled before capture begins; a bounded grace period
+handles selectors that do not respond to the recorder's normal stop signal.
+Once a frame is reported, the normal save/finalization window applies instead.
+The Quickshell clock watches the atomically published runtime JSON without a polling
 timer. No service is enabled to record at login.
 
 Source references: [GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/),
