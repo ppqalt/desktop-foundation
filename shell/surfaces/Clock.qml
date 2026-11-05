@@ -10,9 +10,11 @@ PanelWindow {
     id: root
     property var targetScreen: null
     property bool entered: false
+    property string recordingPhase: "idle"
+    readonly property bool recordingVisible: ["starting", "recording", "stopping", "error"].includes(recordingPhase)
     screen: targetScreen
     visible: true
-    implicitWidth: 76
+    implicitWidth: recordingVisible ? 94 : 76
     implicitHeight: 34
     anchors {
         left: true
@@ -50,12 +52,33 @@ PanelWindow {
                 easing.type: Theme.easing
             }
         }
-        Text {
+        Row {
             anchors.centerIn: parent
-            text: Qt.formatDateTime(clock.date, "hh:mm")
-            color: Material.colors.on_surface
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.labelLarge
+            spacing: 8
+            Rectangle {
+                visible: root.recordingVisible
+                width: 8
+                height: 8
+                radius: 4
+                anchors.verticalCenter: parent.verticalCenter
+                color: root.recordingPhase === "starting" ? Material.colors.tertiary : Material.colors.error
+                Accessible.name: root.recordingPhase === "recording" ? "Recording" : root.recordingPhase === "starting" ? "Preparing recording" : root.recordingPhase === "error" ? "Recording failed; inspect recording status" : "Saving recording"
+                Accessible.role: Accessible.Indicator
+                Text {
+                    anchors.centerIn: parent
+                    visible: root.recordingPhase === "error"
+                    text: "!"
+                    font.pixelSize: 8
+                    font.bold: true
+                    color: Material.colors.on_error
+                }
+            }
+            Text {
+                text: Qt.formatDateTime(clock.date, "hh:mm")
+                color: Material.colors.on_surface
+                font.family: Theme.typography.family
+                font.pixelSize: Material.type.labelLarge
+            }
         }
     }
 }

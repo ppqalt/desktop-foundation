@@ -45,6 +45,12 @@ fn run() -> Result<()> {
         println!("usage: shell-profile [--seconds SECONDS] [--popups]");
         return Ok(());
     }
+    if args.first().map(String::as_str) == Some("recording")
+        && args.iter().any(|s| s == "--help" || s == "-h")
+    {
+        println!("usage: recording toggle|silent|stop|plan [--silent]|status|acknowledge");
+        return Ok(());
+    }
     if args.first().map(String::as_str) == Some("bench")
         && args.iter().any(|s| s == "--help" || s == "-h")
     {
@@ -81,6 +87,7 @@ fn run() -> Result<()> {
         return Ok(());
     }
     match args.first().map(String::as_str) {
+        Some("recording") => desktop_foundationctl::recording::run(&root, &args[1..]),
         Some("dns") => print_json(&desktop_foundationctl::dns::run(&root, &args[1..])?),
         Some("shell-profile") => desktop_foundationctl::profiler::run(&root, &args[1..]),
         Some("bench") => desktop_foundationctl::benchmark::run(&root, &args[1..]),

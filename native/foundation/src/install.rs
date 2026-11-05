@@ -55,11 +55,11 @@ impl Options {
                 "--extra" => {
                     i += 1;
                     let extra = args.get(i).ok_or_else(|| invalid("Missing extra name"))?;
-                    if !["steam", "spicetify", "geode"].contains(&extra.as_str())
+                    if !["steam", "spicetify", "geode", "recording"].contains(&extra.as_str())
                         || o.extras.contains(extra)
                     {
                         return Err(invalid(
-                            "Unknown or duplicate extra; choose steam, spicetify or geode",
+                            "Unknown or duplicate extra; choose steam, spicetify, geode or recording",
                         ));
                     }
                     o.extras.push(extra.clone());
@@ -336,6 +336,12 @@ pub fn execute(
     o: &Options,
     r: &mut impl Runtime,
 ) -> Result<()> {
+    if (o.check || !o.packages)
+        && o.extras.iter().any(|e| e == "recording")
+        && !r.executable("gpu-screen-recorder")
+    {
+        return Err(invalid("The recording extra requires gpu-screen-recorder"));
+    }
     if o.check {
         doctor(r, root, o)?;
         if o.standard {
@@ -407,6 +413,7 @@ pub fn execute(
         o.greeter.then_some("greeter"),
         o.personal.then_some("personal"),
         (o.personal || o.clean_boot).then_some("firmware"),
+        o.extras.iter().any(|e| e == "recording").then_some("recording"),
     ]
     .into_iter()
     .flatten()
@@ -555,6 +562,9 @@ pub fn execute(
             bootstrap.push("--firmware");
         }
         call(r, root, "bootstrap", &bootstrap)?;
+        if o.extras.iter().any(|e| e == "recording") {
+            missing_packages(r, &manifest(root, "recording")?)?;
+        }
     }
     call(r, root, "build-nothing", &[])?;
     call(r, root, "build-backend", &[])?;
@@ -774,6 +784,18 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod selection_tests {
     use super::*;
+    #[test]
+    fn recording_extra_is_optional_and_preserved() {
+        let dir = std::env::temp_dir().join(format!("df-recording-selection-{}", std::process::id()));
+        fs::create_dir_all(dir.join("profiles/default")).unwrap();
+        fs::create_dir_all(dir.join("state")).unwrap();
+        let minimal = Options::parse(&dir, &[]).unwrap();
+        assert!(minimal.extras.is_empty());
+        let options = Options::parse(&dir, &["--extra".into(), "recording".into()]).unwrap();
+        save_selection(&dir.join("state"), &options).unwrap();
+        assert_eq!(selection(&dir, &dir.join("state"), &[]).unwrap().extras, ["recording"]);
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn saved_selection_is_reused_and_explicit_profile_overrides_it() {
         let dir = std::env::temp_dir().join(format!("df-install-selection-{}", std::process::id()));

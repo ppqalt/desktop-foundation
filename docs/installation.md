@@ -39,7 +39,7 @@ scripts/install --minimal --extra geode
 
 Geode also selects Steam and may remain pending until Geometry Dash has been
 installed and launched once. The currently selectable extras are `steam`,
-`spicetify` and `geode`; Odysseus continues to use its existing manual setup.
+`spicetify`, `geode` and `recording`; Odysseus continues to use its existing manual setup.
 The minimal and standard paths do not automatically install the optional
 firmware bundle. `--clean-boot` and the legacy personal installer retain it.
 

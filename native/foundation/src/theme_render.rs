@@ -224,6 +224,7 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
         // global wheel binding that would intercept application zoom.
         text.push_str("overview { ctrl-scroll-workspaces true; }\n");
     }
+    text.push_str(&crate::recording::bindings(root)?);
     let host = root.join("profiles").join(profile).join("niri.kdl");
     if host.is_file() {
         text.push_str(&format!("include {}\n", quoted(&host.to_string_lossy())));

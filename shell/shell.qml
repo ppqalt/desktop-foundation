@@ -14,6 +14,9 @@ ShellRoot {
     Services.MediaControl {
         id: mediaControl
     }
+    Services.RecordingState {
+        id: recordingState
+    }
     LazyLoader {
         id: backdropLoader
         active: Quickshell.env("DF_COMPOSITOR") === "niri"
@@ -31,9 +34,10 @@ ShellRoot {
     property bool clockEnabled: false
     LazyLoader {
         id: clockLoader
-        active: root.clockEnabled
+        active: root.clockEnabled || recordingState.visible
         Clock {
             targetScreen: root.launcherScreen
+            recordingPhase: recordingState.phase
         }
     }
     readonly property ControlCenter controlCenter: controlCenterLoader.item as ControlCenter
@@ -246,7 +250,8 @@ ShellRoot {
         }
         function clockStatus(): string {
             return JSON.stringify({
-                visible: root.clockEnabled,
+                visible: root.clockEnabled || recordingState.visible,
+                recordingPhase: recordingState.phase,
                 alive: clockLoader.item !== null
             });
         }

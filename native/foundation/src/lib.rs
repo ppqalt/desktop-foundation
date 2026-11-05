@@ -30,6 +30,7 @@ pub mod preferences;
 pub mod preflight;
 pub mod process;
 pub mod profiler;
+pub mod recording;
 pub mod screenshot;
 pub mod session;
 pub mod shell;

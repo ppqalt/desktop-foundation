@@ -1,0 +1,20 @@
+# Native source resolution; no scaling unless resolution is overridden.
+shortcut = "Ctrl+Shift+F12" # empty disables the binding
+silent_shortcut = "Ctrl+Shift+Alt+F12"
+capture = "portal" # portal, focused-output, or a discovered output name
+resolution = "auto" # auto or WIDTHxHEIGHT (an output resolution limit)
+fps = 0 # 0 follows focused-display refresh, limited by max_fps
+max_fps = 60
+video_codec = "auto" # auto uses GPU Screen Recorder's hardware default
+quality = "very_high"
+frame_mode = "vfr"
+container = "mkv"
+directory = "" # XDG Videos/Recordings
+cursor = true
+restore_portal = true
+desktop_audio = "default_output"
+microphone_audio = "default_input"
+audio_codec = "opus"
+audio_bitrate_kbps = 512 # per independent track, never a desktop volume change
+startup_timeout_seconds = 120 # includes the portal's selection dialog
+stop_timeout_seconds = 30
