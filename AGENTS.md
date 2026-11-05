@@ -427,8 +427,9 @@ appears only on live Wayland remains a real issue even if an offscreen fixture p
 
 ### Entry points and boundaries
 
-`scripts/install-all` invokes the personal installer path; `scripts/install`
-delegates to native `install.rs`. The wrapper builds a missing backend only for
+`scripts/install-all` invokes the legacy personal installer path; `scripts/install`
+delegates to native `install.rs` and reuses the saved installation selection.
+Minimal and Standard can be selected explicitly, with supported extras. The wrapper builds a missing backend only for
 an actual install when Cargo is available; inspection commands report the build
 prerequisite without compiling or creating state. Package manifests live
 under `packages/`. `scripts/bootstrap` is the CachyOS package bootstrap, including

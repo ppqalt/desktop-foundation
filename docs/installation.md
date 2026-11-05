@@ -22,15 +22,42 @@ Bluetooth and AppArmor. Existing application associations are left alone. The de
 Matrix-capable tuigreet. The keyring uses oo7 with PAM password unlocking through
 greetd. Choose Niri at login, then run `scripts/doctor`. See [keyring setup](keyring.md).
 
-For Spotify, ChatGPT, Steam and Vesktop, use the full installer:
+Use Standard to add Brave Origin Nightly, paru, ChatGPT and Vesktop without
+changing application defaults:
+
+```sh
+scripts/install --standard --dry-run
+scripts/install --standard
+```
+
+Add supported extras explicitly, for example:
+
+```sh
+scripts/install --standard --extra steam --extra spicetify
+scripts/install --minimal --extra geode
+```
+
+Geode also selects Steam and may remain pending until Geometry Dash has been
+installed and launched once. The currently selectable extras are `steam`,
+`spicetify` and `geode`; Odysseus continues to use its existing manual setup.
+The minimal and standard paths do not automatically install the optional
+firmware bundle. `--clean-boot` and the legacy personal installer retain it.
+
+Successful installations save their selected layer, extras, hardware profile
+and greeter choice in `$XDG_STATE_HOME/desktop-foundation/installation.toml`.
+Running `scripts/install` again reuses them; an explicit layer replaces the
+saved layer and extras. `--no-packages` and `--dry-run` are one-time options.
+
+The legacy personal installer remains available:
 
 ```sh
 scripts/install-all --dry-run
 scripts/install-all
 ```
 
-`scripts/install` selects core; `scripts/install-all` selects the existing
-personal profile. See [personal applications](personal-apps.md) for package sources and setup.
+`scripts/install` defaults to Minimal on a new installation and reuses the last
+saved selection afterward; `scripts/install-all` selects the legacy personal
+profile. See [personal applications](personal-apps.md) for package sources and setup.
 
 | Option | Purpose |
 | --- | --- |

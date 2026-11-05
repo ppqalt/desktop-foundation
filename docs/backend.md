@@ -26,7 +26,7 @@ cache plan|prune
 theme generate IMAGE
 theme derive --source SOURCE --hash HASH
 theme gtk-accent
-install [--core|--personal] [--profile NAME] [--no-packages] [--no-greeter] [--clean-boot] [--dry-run|--check]
+install [--minimal|--standard|--personal] [--extra NAME] [--profile NAME] [--no-packages] [--no-greeter] [--clean-boot] [--dry-run|--check]
 deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]
 preferences-setup install [--theme-only]|restore
 system-setup install|restore

@@ -13,6 +13,11 @@ use std::{
 };
 static NEXT: AtomicU64 = AtomicU64::new(0);
 #[test]
+fn repository_default_hardware_profile_is_available() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    assert_eq!(Options::parse(&root, &[]).unwrap().profile, "default");
+}
+#[test]
 fn repository_package_manifests_are_valid_and_have_no_duplicates() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     for group in ["core", "personal", "greeter", "firmware", "dev"] {
@@ -534,4 +539,51 @@ fn real_cli_plan_needs_no_python_and_leaves_private_home_absent() {
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("Application defaults: unchanged"));
     assert!(!f.paths.home.exists());
+}
+
+#[test]
+fn standard_installs_only_requested_apps_and_does_not_change_defaults() {
+    let f = Fixture::new();
+    let mut r = Fake {
+        installed: true,
+        ..Fake::default()
+    };
+    install::execute(
+        &f.root,
+        &f.paths,
+        &f.options(&["--standard", "--no-greeter"]),
+        &mut r,
+    )
+    .unwrap();
+    assert_eq!(*r.validations.borrow(), ["browser", "chatgpt", "vesktop"]);
+    assert!(r.named("paru-bootstrap"));
+    assert!(!r.named("applications"));
+    assert!(!r.named("install-app-mods"));
+    assert!(!r.named("browser-policy-setup"));
+}
+
+#[test]
+fn selected_extra_does_not_apply_unselected_modifications() {
+    let f = Fixture::new();
+    let mut r = Fake::default();
+    install::execute(
+        &f.root,
+        &f.paths,
+        &f.options(&[
+            "--minimal",
+            "--extra",
+            "spicetify",
+            "--no-packages",
+            "--no-greeter",
+        ]),
+        &mut r,
+    )
+    .unwrap();
+    let command = r
+        .commands
+        .iter()
+        .find(|c| c[0].ends_with("install-app-mods"))
+        .unwrap();
+    assert_eq!(&command[1..], ["check", "spicetify", "--skip-unavailable"]);
+    assert!(!r.named("applications"));
 }

@@ -7,6 +7,8 @@ use std::{fs, path::Path, process::Command, time::Duration};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Options {
     pub personal: bool,
+    pub standard: bool,
+    pub extras: Vec<String>,
     pub greeter: bool,
     pub packages: bool,
     pub clean_boot: bool,
@@ -18,6 +20,8 @@ impl Options {
     pub fn parse(root: &Path, args: &[String]) -> Result<Self> {
         let mut o = Self {
             personal: false,
+            standard: false,
+            extras: Vec::new(),
             greeter: true,
             packages: true,
             clean_boot: false,
@@ -32,13 +36,33 @@ impl Options {
                 arg if arg.starts_with("--profile=") || arg.starts_with("--hardware-profile=") => {
                     o.profile = arg.split_once('=').expect("matched option").1.into();
                 }
-                "--core" | "--personal" => {
+                "--core" | "--minimal" | "--personal" | "--standard" => {
                     let personal = args[i] == "--personal";
-                    if layer.is_some_and(|old| old != personal) {
-                        return Err(invalid("Choose --core or --personal"));
+                    let selected = if personal {
+                        "personal"
+                    } else if args[i] == "--standard" {
+                        "standard"
+                    } else {
+                        "minimal"
+                    };
+                    if layer.is_some_and(|old| old != selected) {
+                        return Err(invalid("Choose one installation profile"));
                     }
-                    layer = Some(personal);
+                    layer = Some(selected);
                     o.personal = personal;
+                    o.standard = selected == "standard";
+                }
+                "--extra" => {
+                    i += 1;
+                    let extra = args.get(i).ok_or_else(|| invalid("Missing extra name"))?;
+                    if !["steam", "spicetify", "geode"].contains(&extra.as_str())
+                        || o.extras.contains(extra)
+                    {
+                        return Err(invalid(
+                            "Unknown or duplicate extra; choose steam, spicetify or geode",
+                        ));
+                    }
+                    o.extras.push(extra.clone());
                 }
                 "--greeter" => o.greeter = true,
                 "--no-greeter" => o.greeter = false,
@@ -59,6 +83,11 @@ impl Options {
         }
         if o.dry_run && o.check {
             return Err(invalid("Choose --dry-run or --check"));
+        }
+        if o.personal && !o.extras.is_empty() {
+            return Err(invalid(
+                "Legacy --personal already controls its application extras",
+            ));
         }
         if o.profile.is_empty()
             || !o
@@ -308,15 +337,44 @@ pub fn execute(
     r: &mut impl Runtime,
 ) -> Result<()> {
     if o.check {
-        return doctor(r, root, o);
+        doctor(r, root, o)?;
+        if o.standard {
+            let roles = application_roles::roles(root, true)?;
+            let apps: Value = crate::theme_render::read(&root.join("apps/personal.json"))?;
+            for (name, app) in [
+                ("browser", &roles["browser"]),
+                ("chatgpt", &apps["chatgpt"]),
+                ("vesktop", &apps["vesktop"]),
+            ] {
+                r.validate_app(name, app)?;
+            }
+            if !r.executable("paru") {
+                return Err(invalid("Standard profile requires paru"));
+            }
+        }
+        if o.extras.iter().any(|e| e == "steam" || e == "geode") {
+            let apps: Value = crate::theme_render::read(&root.join("apps/personal.json"))?;
+            r.validate_app("steam", &apps["steam"])?;
+        }
+        for extra in &o.extras {
+            if extra == "spicetify" || extra == "geode" {
+                call(
+                    r,
+                    root,
+                    "install-app-mods",
+                    &["check", extra, "--skip-unavailable"],
+                )?;
+            }
+        }
+        return Ok(());
     }
-    let roles = application_roles::roles(root, o.personal)?;
+    let roles = application_roles::roles(root, o.personal || o.standard)?;
     let mods = if o.personal {
         app_mods::configured_at(root, &paths.config)?
     } else {
         Vec::new()
     };
-    let personal: Value = if o.personal {
+    let personal: Value = if o.personal || o.standard || !o.extras.is_empty() {
         crate::theme_render::read(&root.join("apps/personal.json"))?
     } else {
         Value::Null
@@ -331,12 +389,24 @@ pub fn execute(
             app_record(name, app)?;
         }
     }
+    if o.standard {
+        for (name, app) in [
+            ("browser", &roles["browser"]),
+            ("chatgpt", &personal["chatgpt"]),
+            ("vesktop", &personal["vesktop"]),
+        ] {
+            app_record(name, app)?;
+        }
+    }
+    if o.extras.iter().any(|e| e == "steam" || e == "geode") {
+        app_record("steam", &personal["steam"])?;
+    }
     let mut packages = Vec::new();
     for group in [
         Some("core"),
         o.greeter.then_some("greeter"),
         o.personal.then_some("personal"),
-        Some("firmware"),
+        (o.personal || o.clean_boot).then_some("firmware"),
     ]
     .into_iter()
     .flatten()
@@ -351,6 +421,8 @@ pub fn execute(
             "Layer: {}",
             if o.personal {
                 "core + personal"
+            } else if o.standard {
+                "standard"
             } else {
                 "core desktop"
             }
@@ -364,6 +436,12 @@ pub fn execute(
                     "missing"
                 }
             );
+        }
+        if o.standard {
+            println!("Standard: Brave Origin Nightly, paru, ChatGPT, Vesktop");
+        }
+        if !o.extras.is_empty() {
+            println!("Extras: {}", o.extras.join(", "));
         }
         if o.personal {
             for (name, app) in [
@@ -450,14 +528,33 @@ pub fn execute(
             r.validate_app(name, app)?;
         }
     }
+    if !o.packages {
+        if o.standard {
+            for (name, app) in [
+                ("browser", &roles["browser"]),
+                ("chatgpt", &personal["chatgpt"]),
+                ("vesktop", &personal["vesktop"]),
+            ] {
+                r.validate_app(name, app)?;
+            }
+            if !r.executable("paru") {
+                return Err(invalid("Standard requires paru when --no-packages is used"));
+            }
+        }
+        if o.extras.iter().any(|e| e == "steam" || e == "geode") {
+            r.validate_app("steam", &personal["steam"])?;
+        }
+    }
     r.command(&words(&["sudo", "-v"]))?;
     if o.packages {
-        call(
-            r,
-            root,
-            "bootstrap",
-            if o.greeter { &["--greeter"] } else { &[] },
-        )?;
+        let mut bootstrap = Vec::new();
+        if o.greeter {
+            bootstrap.push("--greeter");
+        }
+        if o.personal || o.clean_boot {
+            bootstrap.push("--firmware");
+        }
+        call(r, root, "bootstrap", &bootstrap)?;
     }
     call(r, root, "build-nothing", &[])?;
     call(r, root, "build-backend", &[])?;
@@ -514,15 +611,131 @@ pub fn execute(
         sudo_script(r, root, "browser-policy-setup")?;
         call(r, root, "theme-apply", &[])?;
     }
+    if o.standard && o.packages {
+        if !r.executable("paru") {
+            call(r, root, "paru-bootstrap", &[])?;
+        }
+        provision(r, root, "browser", &roles["browser"], true)?;
+        for name in ["chatgpt", "vesktop"] {
+            provision(r, root, name, &personal[name], true)?;
+        }
+    }
+    if !o.extras.is_empty() {
+        if o.packages && o.extras.iter().any(|e| e == "steam" || e == "geode") {
+            provision(r, root, "steam", &personal["steam"], false)?;
+        }
+        if o.packages && o.extras.iter().any(|e| e == "geode") {
+            missing_packages(r, &words(&["protontricks", "libarchive"]))?;
+        }
+        for extra in &o.extras {
+            if extra == "spicetify" || extra == "geode" {
+                call(
+                    r,
+                    root,
+                    "install-app-mods",
+                    &[
+                        if o.packages { "install" } else { "check" },
+                        extra,
+                        "--skip-unavailable",
+                    ],
+                )?;
+            }
+        }
+    }
     doctor(r, root, o)?;
     println!("Install complete. Log into Niri and run scripts/doctor. Restore: scripts/uninstall.");
     Ok(())
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavedSelection {
+    version: u8,
+    layer: String,
+    extras: Vec<String>,
+    hardware_profile: String,
+    greeter: bool,
+}
+
+fn selection(root: &Path, state_dir: &Path, args: &[String]) -> Result<Options> {
+    // Validate explicit options before considering saved configuration.
+    Options::parse(root, args)?;
+    let path = state_dir.join("installation.toml");
+    let file = match fs::File::open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Options::parse(root, args),
+        Err(e) => return Err(e.into()),
+    };
+    let mut text = String::new();
+    file.take(16385).read_to_string(&mut text)?;
+    if text.len() > 16384 {
+        return Err(invalid("Saved installation selection is too large"));
+    }
+    let saved: SavedSelection = toml::from_str(&text)
+        .map_err(|e| invalid(format!("Invalid saved installation selection: {e}")))?;
+    if saved.version != 1 || !["minimal", "standard", "personal"].contains(&saved.layer.as_str()) {
+        return Err(invalid("Unsupported saved installation selection"));
+    }
+    let mut effective = Vec::new();
+    let explicit_layer = args
+        .iter()
+        .any(|s| ["--minimal", "--core", "--standard", "--personal"].contains(&s.as_str()));
+    if !explicit_layer {
+        effective.push(format!("--{}", saved.layer));
+    }
+    if !explicit_layer && !args.iter().any(|s| s == "--extra") {
+        for extra in saved.extras {
+            effective.extend(["--extra".into(), extra]);
+        }
+    }
+    if !args.iter().any(|s| {
+        s == "--profile"
+            || s == "--hardware-profile"
+            || s.starts_with("--profile=")
+            || s.starts_with("--hardware-profile=")
+    }) {
+        effective.extend(["--profile".into(), saved.hardware_profile]);
+    }
+    if !args.iter().any(|s| s == "--greeter" || s == "--no-greeter") {
+        effective.push(
+            if saved.greeter {
+                "--greeter"
+            } else {
+                "--no-greeter"
+            }
+            .into(),
+        );
+    }
+    effective.extend_from_slice(args);
+    Options::parse(root, &effective)
+}
+
+fn save_selection(dir: &Path, o: &Options) -> Result<()> {
+    let layer = if o.personal {
+        "personal"
+    } else if o.standard {
+        "standard"
+    } else {
+        "minimal"
+    };
+    // Values here have already been restricted to safe identifiers by Options::parse.
+    let extras = o
+        .extras
+        .iter()
+        .map(|s| format!("\"{s}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let document = format!(
+        "version = 1\nlayer = \"{layer}\"\nextras = [{extras}]\nhardware_profile = \"{}\"\ngreeter = {}\n",
+        o.profile, o.greeter
+    );
+    state::atomic(&dir.join("installation.toml"), document.as_bytes(), 0o600)
+}
+
 pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let root = root.canonicalize()?;
-    let options = Options::parse(&root, args)?;
     let paths = deploy::Paths::environment()?;
+    let options = selection(&root, &paths.state, args)?;
     // Dry-run/check never create a state directory or acquire a mutation lock.
     if options.dry_run || options.check {
         return execute(&root, &paths, &options, &mut Native);
@@ -545,5 +758,33 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         invalid(format!(
             "Installation stopped: {e}. Backups retained; resolve the error and rerun."
         ))
-    })
+    })?;
+    save_selection(&paths.state, &options)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod selection_tests {
+    use super::*;
+    #[test]
+    fn saved_selection_is_reused_and_explicit_profile_overrides_it() {
+        let dir = std::env::temp_dir().join(format!("df-install-selection-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("profiles/default")).unwrap();
+        fs::create_dir_all(dir.join("state")).unwrap();
+        let args: Vec<String> = ["--standard", "--extra", "geode", "--no-greeter"]
+            .iter()
+            .map(|s| (*s).into())
+            .collect();
+        let initial = Options::parse(&dir, &args).unwrap();
+        save_selection(&dir.join("state"), &initial).unwrap();
+        let reused = selection(&dir, &dir.join("state"), &["--dry-run".into()]).unwrap();
+        assert!(reused.standard && reused.dry_run && !reused.greeter);
+        assert_eq!(reused.extras, ["geode"]);
+        let minimal = selection(&dir, &dir.join("state"), &["--minimal".into()]).unwrap();
+        assert!(!minimal.standard && minimal.extras.is_empty());
+        fs::write(dir.join("state/installation.toml"), "version = 99\nlayer = 'minimal'\nextras = []\nhardware_profile = 'default'\ngreeter = true\n").unwrap();
+        assert!(selection(&dir, &dir.join("state"), &[]).is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
 }

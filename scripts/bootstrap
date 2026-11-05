@@ -52,21 +52,24 @@ add_manifest() {
 	packages+=("${manifest[@]}")
 }
 dev=false
+install_firmware=false
 for option in "$@"; do
 	case $option in
 	--greeter) add_manifest greeter ;;
 	--personal) add_manifest personal ;;
+	--firmware) install_firmware=true ;;
 	--dev)
 		dev=true
 		add_manifest dev
 		;;
 	*)
-		printf 'Usage: %s [--greeter] [--personal] [--dev]\n' "$0" >&2
+		printf 'Usage: %s [--greeter] [--personal] [--firmware] [--dev]\n' "$0" >&2
 		exit 2
 		;;
 	esac
 done
-contents=$(read_manifest firmware)
+contents=''
+if $install_firmware; then contents=$(read_manifest firmware); fi
 firmware=()
 if [[ -n $contents ]]; then mapfile -t firmware <<<"$contents"; fi
 missing=()
