@@ -1,20 +1,38 @@
 # DNS configuration
 
-DNS management is not enabled by installation. The DNS commands currently provide
-read-only configuration planning and diagnostics; applying and restoring DNS
-settings are not yet implemented.
+DNS management is opt-in. Installation does not change network settings.
 
 ```sh
 scripts/dns plan
 scripts/dns status
 scripts/dns verify
+scripts/dns journals
+scripts/dns apply
+scripts/dns apply --connection UUID
+scripts/dns restore --connection UUID
 ```
+
+Without a UUID, apply selects the sole active non-VPN default connection and
+otherwise asks for an explicit selection. Find a UUID with `nmcli connection
+show --active`. Apply selects an active, non-VPN connection with one device.
+It requires NetworkManager configured
+to use systemd-resolved and a resolver file pointing exclusively to its stub.
+NetworkManager may request authorization. Changes persist with that connection;
+repeat the operation explicitly for each additional connection. VPNs and other
+connections keep their own DNS and may take precedence for their domains.
+
+The original DNS fields are saved in a private journal before modification. On
+failure the operation attempts restoration; if interrupted, run `restore` for
+the same UUID. Restore refuses to overwrite subsequent external edits. Keep the
+journal until restoration succeeds. Restore currently requires the same connection
+to be active for reapplication; it will retain the journal if
+that cannot be confirmed.
 
 `plan` reads `config/dns.toml`, followed by alphabetically sorted
 `$XDG_CONFIG_HOME/desktop-foundation/dns.d/*.toml` and finally
 `$XDG_CONFIG_HOME/desktop-foundation/dns.toml` (defaulting to `~/.config`).
 The available providers are `adguard`, `quad9` and `custom`. AdGuard's default
-service filters advertisements and trackers. Configuring this computer would not
+service filters advertisements and trackers. Configuring this computer does not
 configure other devices on the network.
 
 ```toml
@@ -24,9 +42,10 @@ servers = ["192.0.2.1"]
 tls_name = "dns.example.org"
 ```
 
-A TLS hostname is required for authenticated DNS-over-TLS. Supported
-configuration transport names are `tls`, `https` and `plaintext`; selecting a
-transport in a plan does not enable or guarantee it. HTTPS application is not
-implemented. A successful `verify` lookup demonstrates only name resolution,
-not which provider or transport handled the request. VPN and split-DNS routing
-must be respected by any future apply implementation.
+TLS requires an authentication hostname and disables plaintext fallback for the
+selected connection. DNS-over-HTTPS is not supported by this backend and is
+rejected before making changes. Plain DNS is used only when explicitly selected.
+A successful lookup in `verify` demonstrates name resolution, not the provider
+or transport used. Applying checks the selected link's reported TLS setting and
+runs a link-specific DNS lookup; other applications and VPNs can use their own
+resolvers. Browser DNS-over-HTTPS settings are not managed.

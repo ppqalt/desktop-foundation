@@ -183,6 +183,20 @@ pub fn run(root: &Path, args: &[String]) -> Result<Value> {
             &state::xdg("XDG_CONFIG_HOME", ".config")?,
         )?)?),
         [action] if action == "status" => Ok(inspect()),
+        [action] if action == "journals" => {
+            Ok(json!({"connections": crate::dns_transaction::journals()?}))
+        }
+        [action] if action == "apply" => {
+            let plan = plan(root, &state::xdg("XDG_CONFIG_HOME", ".config")?)?;
+            let uuid = crate::dns_transaction::default_connection()?;
+            crate::dns_transaction::run(
+                action,
+                &uuid,
+                &plan.servers,
+                &plan.tls_name,
+                &plan.transport,
+            )
+        }
         [action] if action == "verify" => {
             let result = command(&["resolvectl", "query", "example.com"]);
             if let Some(output) = result {
@@ -195,10 +209,22 @@ pub fn run(root: &Path, args: &[String]) -> Result<Value> {
                 ))
             }
         }
-        [action] if action == "apply" || action == "restore" => Err(invalid(
-            "DNS changes are not available yet: safe transactional application and restore are not implemented",
+        [action, flag, uuid] if action == "restore" && flag == "--connection" => {
+            crate::dns_transaction::run(action, uuid, &[], "", "")
+        }
+        [action, flag, uuid] if action == "apply" && flag == "--connection" => {
+            let plan = plan(root, &state::xdg("XDG_CONFIG_HOME", ".config")?)?;
+            crate::dns_transaction::run(
+                action,
+                uuid,
+                &plan.servers,
+                &plan.tls_name,
+                &plan.transport,
+            )
+        }
+        _ => Err(invalid(
+            "usage: dns plan|status|verify|journals|apply [--connection UUID]|restore --connection UUID",
         )),
-        _ => Err(invalid("usage: dns plan|status|verify|apply|restore")),
     }
 }
 #[cfg(test)]

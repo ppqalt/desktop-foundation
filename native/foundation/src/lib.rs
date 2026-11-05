@@ -14,6 +14,7 @@ pub mod deploy;
 pub mod deploy_units;
 pub mod diagnostics;
 pub mod dns;
+pub mod dns_transaction;
 pub mod doctor;
 pub mod failure;
 pub mod geode;
