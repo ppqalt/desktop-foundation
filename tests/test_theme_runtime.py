@@ -27,6 +27,7 @@ class RuntimeTheme(unittest.TestCase):
         processes=patch.object(runtime,'subprocess',SimpleNamespace(**vars(runtime.subprocess)))
         processes.start();self.addCleanup(processes.stop)
         calls=patch.object(runtime.subprocess,'run');calls.start();self.addCleanup(calls.stop)
+        brave=patch('brave_policy.refresh',return_value=False);brave.start();self.addCleanup(brave.stop)
         niri=patch('render_niri.render',return_value='// validated separately by native checks\n');niri.start();self.addCleanup(niri.stop)
 
     def bundle(self):return runtime.stage(self.palette,self.image)

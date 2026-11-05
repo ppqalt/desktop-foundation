@@ -55,22 +55,25 @@ fn customized_legacy_settings_are_never_silently_discarded_or_executed() {
         )
         .unwrap();
     }
-    let legacy = root.join("config/input.lua");
     let contents = "error('this Lua must not execute')\n";
-    fs::write(&legacy, contents).unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
-        .arg("--root")
-        .arg(&root)
-        .args(["render", "niri", "default"])
-        .env("HOME", &base)
-        .env("XDG_CONFIG_HOME", base.join("config"))
-        .env("XDG_STATE_HOME", base.join("state"))
-        .env("PATH", base.join("no-executables"))
-        .output()
-        .unwrap();
-    assert!(!result.status.success());
-    assert!(String::from_utf8_lossy(&result.stderr).contains("needs migration"));
-    assert_eq!(fs::read_to_string(&legacy).unwrap(), contents);
-    assert!(result.stdout.is_empty());
+    for name in ["input.lua", "window-appearance.lua"] {
+        let legacy = root.join("config").join(name);
+        fs::write(&legacy, contents).unwrap();
+        let result = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
+            .arg("--root")
+            .arg(&root)
+            .args(["render", "niri", "default"])
+            .env("HOME", &base)
+            .env("XDG_CONFIG_HOME", base.join("config"))
+            .env("XDG_STATE_HOME", base.join("state"))
+            .env("PATH", base.join("no-executables"))
+            .output()
+            .unwrap();
+        assert!(!result.status.success());
+        assert!(String::from_utf8_lossy(&result.stderr).contains("needs migration"));
+        assert_eq!(fs::read_to_string(&legacy).unwrap(), contents);
+        assert!(result.stdout.is_empty());
+        fs::remove_file(legacy).unwrap();
+    }
     fs::remove_dir_all(base).unwrap();
 }

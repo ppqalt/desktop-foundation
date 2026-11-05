@@ -1,7 +1,7 @@
 # Window appearance
 
 Shared settings are in `config/window-appearance.toml`. The Niri renderer produces
-native KDL. The archived Hyprland configuration still uses its legacy Lua files.
+native KDL.
 
 The default uses 14-pixel corners, 90% window opacity and narrow focus borders.
 Kitty uses its own background opacity so text remains opaque.

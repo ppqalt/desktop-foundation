@@ -10,8 +10,8 @@ scripts/build-nothing
 scripts/deploy --compositor niri --profile default
 ```
 
-Add `--hyprland` to bootstrap for the secondary compositor or `--greeter` for login
-integration. Package installation requires sudo; AUR builds run as the login user.
+Add `--greeter` to bootstrap for login integration. Package installation requires
+sudo; AUR builds run as the login user.
 
 | Command | Purpose |
 | --- | --- |

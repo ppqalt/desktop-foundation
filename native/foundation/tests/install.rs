@@ -15,7 +15,7 @@ static NEXT: AtomicU64 = AtomicU64::new(0);
 #[test]
 fn repository_package_manifests_are_valid_and_have_no_duplicates() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    for group in ["core", "personal", "greeter", "firmware", "dev", "hyprland"] {
+    for group in ["core", "personal", "greeter", "firmware", "dev"] {
         let packages = install::manifest(&root, group).unwrap();
         let unique: std::collections::HashSet<_> = packages.iter().collect();
         assert_eq!(packages.len(), unique.len(), "duplicate in {group}");

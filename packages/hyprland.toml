@@ -1,5 +1,0 @@
-packages = [
-    "hyprland",
-    "uwsm",
-    "xdg-desktop-portal-hyprland",
-]

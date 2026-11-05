@@ -1,2 +1,0 @@
--- Optional input-device overrides only. Shared keyboard preferences are loaded
--- from compositor/hyprland/input.lua before host profiles.

@@ -481,14 +481,6 @@ pub fn render(root: &Path, target: &Path, p: &Value, profile: &str, reset: bool)
     }
     write(&target.join("notifications.conf"), &notifications)?;
     write_json(&target.join("semantic.json"), p)?;
-    write(
-        &target.join("window-colors.lua"),
-        &format!(
-            "return {{ windowActive = {}, windowInactive = {} }}\n",
-            quoted(role(p, "windowActive")?),
-            quoted(role(p, "windowInactive")?)
-        ),
-    )?;
     write(&target.join("niri.kdl"), &niri(root, profile, Some(p))?)?;
     write_json(&target.join("brave/manifest.json"), &brave(p)?)?;
     write_json(

@@ -16,7 +16,7 @@ Additional package groups are selected with `--greeter` and
 | --- | --- |
 | Bash | ShellCheck, shfmt |
 | QML | qmllint, qmlformat, qmlls, qmlprofiler, qsb |
-| Shared configuration | luac |
+| Shared configuration | Rust TOML parser and Niri validation |
 | Rust | Cargo, rustfmt, Clippy, rust-analyzer |
 | Native build | GCC, Clang/LLVM, CMake, Ninja, pkgconf |
 | Profiling | hyperfine, heaptrack, gdb, strace, perf |

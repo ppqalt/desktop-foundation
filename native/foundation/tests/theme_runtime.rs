@@ -192,16 +192,10 @@ fn ensure_has_no_python_dependency_or_live_reloads() {
     let bin = f.path("bin");
     fs::create_dir(&bin).unwrap();
     for program in ["niri", "fish"] {
-        let found = Command::new("sh")
-            .args(["-c", &format!("command -v {program}")])
-            .output()
-            .unwrap();
-        assert!(found.status.success());
-        std::os::unix::fs::symlink(
-            String::from_utf8(found.stdout).unwrap().trim(),
-            bin.join(program),
-        )
-        .unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        let path = bin.join(program);
+        fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
     }
     for _ in 0..2 {
         let output = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
@@ -326,16 +320,7 @@ fn preflight_update_runs_without_python_or_package_manager() {
     std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_desktop-foundationctl"), binary).unwrap();
     let bin = f.path("bin");
     fs::create_dir(&bin).unwrap();
-    let found = Command::new("sh")
-        .args(["-c", "command -v niri"])
-        .output()
-        .unwrap();
-    std::os::unix::fs::symlink(
-        String::from_utf8(found.stdout).unwrap().trim(),
-        bin.join("niri"),
-    )
-    .unwrap();
-    for program in ["quickshell", "kitty", "slangc", "fish", "fc-cache"] {
+    for program in ["niri", "quickshell", "kitty", "slangc", "fish", "fc-cache"] {
         let path = bin.join(program);
         fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
         fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();

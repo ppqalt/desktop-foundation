@@ -92,9 +92,9 @@ machine. Check actual binaries, protocols, configuration features, services and
 package-manager requirements. A missing Niri capability is a legitimate failure;
 a different `ID` in `/etc/os-release` alone should not be.
 
-The current live shell and normal deployment route select Niri. Archived
-`compositor/hyprland/` and shell adapter sources are not an actively maintained
-second installation path. Preserve recovery of older deployment journals.
+The live shell and deployment route select Niri. Archived shell adapter sources
+are not an actively maintained second installation path. Preserve recovery of
+older deployment journals.
 
 Niri remains the supported compositor. Deployment validates its actual generated
 configuration, and package bootstrapping requires pacman rather than an OS name.

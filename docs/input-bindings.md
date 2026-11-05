@@ -2,8 +2,7 @@
 
 Shared keyboard defaults are in `config/input.toml`. The default is Finnish,
 with a 350 ms repeat delay and 35 Hz repeat rate. Niri bindings are in
-`compositor/niri/bindings.kdl`; Hyprland bindings are in
-`compositor/hyprland/bindings.lua`.
+`compositor/niri/bindings.kdl`.
 
 For Niri, individual settings may be overridden in
 `$XDG_CONFIG_HOME/desktop-foundation/input.toml` (normally

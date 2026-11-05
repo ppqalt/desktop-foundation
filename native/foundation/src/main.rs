@@ -115,6 +115,16 @@ fn run() -> Result<()> {
             print!("{}", theme_render::niri(&root, &args[2], None)?);
             Ok(())
         }
+        Some("render") if args.len() == 4 && args[1] == "niri" && args[3] == "--semantic-stdin" => {
+            let mut input = Vec::new();
+            io::stdin().take(65537).read_to_end(&mut input)?;
+            if input.len() > 65536 {
+                return Err(invalid("Semantic palette JSON is too large"));
+            }
+            let palette = serde_json::from_slice(&input)?;
+            print!("{}", theme_render::niri(&root, &args[2], Some(&palette))?);
+            Ok(())
+        }
         Some("render") if args.len() == 3 && args[1] == "terminal" => {
             theme_render::terminal(&PathBuf::from(&args[2]))
         }
