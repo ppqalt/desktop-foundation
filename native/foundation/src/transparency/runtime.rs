@@ -64,6 +64,14 @@ fn request(command: &str) -> Result<(String, String)> {
         .ok_or_else(|| invalid("Invalid EasyEffects process identity"))?;
     let instance = format!("{}:{start}", cred.pid);
     socket.write_all(command.as_bytes())?;
+    // Upstream setters intentionally have no response. Confirm through the
+    // separate state query rather than depending on a patched acknowledgement.
+    if matches!(
+        command,
+        "microphone_monitoring:1\n" | "microphone_monitoring:0\n"
+    ) {
+        return Ok((String::new(), instance));
+    }
     let mut data = Vec::new();
     loop {
         let mut chunk = [0; 64];
@@ -278,15 +286,30 @@ impl Audio for Native {
         Ok(streams)
     }
     fn set_enabled(&mut self, value: bool) -> Result<()> {
-        let (answer, _) = request(if value {
+        let (_, instance) = request(if value {
             "microphone_monitoring:1\n"
         } else {
             "microphone_monitoring:0\n"
         })?;
-        if answer != "ok" {
-            return Err(invalid("Monitoring toggle was not acknowledged"));
+        let deadline = Instant::now() + TIMEOUT;
+        loop {
+            let (answer, current_instance) = request("get_microphone_monitoring\n")?;
+            if current_instance != instance {
+                return Err(invalid("EasyEffects restarted while changing monitoring"));
+            }
+            if answer == if value { "1" } else { "2" } {
+                return Ok(());
+            }
+            if !matches!(answer.as_str(), "1" | "2") {
+                return Err(invalid("Invalid EasyEffects monitoring state"));
+            }
+            if Instant::now() >= deadline {
+                return Err(invalid(
+                    "EasyEffects did not confirm the requested monitoring state",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(10));
         }
-        Ok(())
     }
     fn set_gain(&mut self, value: f64) -> Result<()> {
         let (answer, _) = request(&format!("microphone_monitoring_volume:{value:.17}\n"))?;
