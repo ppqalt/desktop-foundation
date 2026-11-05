@@ -45,7 +45,8 @@ new configuration is published.
 | Super+Shift+arrows or HJKL | Move window/column |
 | Super+1…9 / Super+Ctrl+1…9 | Focus workspace / move window to workspace |
 | PageUp / PageDown | Volume +3% / −3% |
-| End | Play/pause |
+| End | Play/pause most recently playing media player |
+| Home | Play/pause another available media player |
 | Print / Super+Shift+S | Copy screen / selected region |
 
 Menu toggles use `repeat=false`. Volume and navigation keep key repeat.

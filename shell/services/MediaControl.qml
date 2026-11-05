@@ -10,18 +10,26 @@ QtObject {
     property var ranks: ({})
     property var states: ({})
     property int sequence: 0
-    property string pendingName: ""
-    property bool pendingPlaying: false
+    property string primaryName: ""
+    property var pending: ({})
+
+    function requestFor(name) {
+        const request = pending[name];
+        return request && request.expires > Date.now() ? request : null;
+    }
 
     function observe(player): void {
         const name = player.dbusName;
-        if (player.playbackState === MprisPlaybackState.Playing && states[name] !== MprisPlaybackState.Playing)
+        const request = requestFor(name);
+        if (player.playbackState === MprisPlaybackState.Playing && states[name] !== MprisPlaybackState.Playing) {
             ranks[name] = ++sequence;
-        states[name] = player.playbackState;
-        if (pendingName === name && player.isPlaying === pendingPlaying) {
-            pendingName = "";
-            confirmation.stop();
+            // Home resumes the secondary player without swapping the two keys.
+            if (!request?.other)
+                primaryName = name;
         }
+        states[name] = player.playbackState;
+        if (request && player.isPlaying === request.playing)
+            delete pending[name];
     }
     function prune(): void {
         const names = new Set(players.map(player => player.dbusName));
@@ -29,19 +37,18 @@ QtObject {
             if (!names.has(name)) {
                 delete states[name];
                 delete ranks[name];
+                delete pending[name];
             }
         }
-        if (pendingName && !names.has(pendingName)) {
-            pendingName = "";
-            confirmation.stop();
-        }
+        if (primaryName && !names.has(primaryName))
+            primaryName = "";
     }
     onPlayersChanged: prune()
-    function toggle(): string {
+    function latest(exclude) {
         let selected = null;
         let rank = -1;
         for (const player of players) {
-            if (!player.canControl || !player.canTogglePlaying || player.playbackState === MprisPlaybackState.Stopped || player.dbusName === "org.mpris.MediaPlayer2.playerctld")
+            if (player.dbusName === exclude || !player.canControl || !player.canTogglePlaying || player.playbackState === MprisPlaybackState.Stopped || player.dbusName === "org.mpris.MediaPlayer2.playerctld")
                 continue;
             const candidateRank = ranks[player.dbusName] ?? 0;
             if (candidateRank > rank) {
@@ -49,21 +56,30 @@ QtObject {
                 rank = candidateRank;
             }
         }
-        if (!selected)
+        return selected;
+    }
+    function toggle(other = false): string {
+        let primary = players.find(player => player.dbusName === primaryName && player.canControl && player.canTogglePlaying && player.playbackState !== MprisPlaybackState.Stopped);
+        if (!primary)
+            primary = latest("");
+        if (!primary)
             return "No controllable media player";
-        const playing = pendingName === selected.dbusName ? pendingPlaying : selected.isPlaying;
-        pendingName = selected.dbusName;
-        pendingPlaying = !playing;
-        if (pendingPlaying)
+        primaryName = primary.dbusName;
+        const selected = other ? latest(primaryName) : primary;
+        if (!selected)
+            return "No other controllable media player";
+        const previous = requestFor(selected.dbusName);
+        const playing = !(previous ? previous.playing : selected.isPlaying);
+        pending[selected.dbusName] = {
+            playing,
+            other,
+            expires: Date.now() + 1500
+        };
+        if (playing)
             selected.play();
         else
             selected.pause();
-        confirmation.restart();
         return selected.identity;
-    }
-    property Timer confirmation: Timer {
-        interval: 1500
-        onTriggered: root.pendingName = ""
     }
     property Instantiator observers: Instantiator {
         model: root.players

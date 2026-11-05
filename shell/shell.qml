@@ -207,6 +207,9 @@ ShellRoot {
         function toggleMedia(): string {
             return mediaControl.toggle();
         }
+        function toggleOtherMedia(): string {
+            return mediaControl.toggle(true);
+        }
         function reloadConfiguration(): string {
             if (powerLoader.item?.busy || root.controlCenter?.busy)
                 return "busy";
