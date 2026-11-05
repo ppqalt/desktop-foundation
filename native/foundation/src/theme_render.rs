@@ -218,6 +218,12 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
     for (key, value) in entries {
         text = text.replace(&format!("@{key}@"), &value);
     }
+    if keyboard.overview_ctrl_scroll {
+        // This setting requires the scoped compositor capability. Stock Niri
+        // rejects it during deployment validation; never replace it with a
+        // global wheel binding that would intercept application zoom.
+        text.push_str("overview { ctrl-scroll-workspaces true; }\n");
+    }
     let host = root.join("profiles").join(profile).join("niri.kdl");
     if host.is_file() {
         text.push_str(&format!("include {}\n", quoted(&host.to_string_lossy())));

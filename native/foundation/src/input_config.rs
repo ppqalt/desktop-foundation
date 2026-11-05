@@ -16,6 +16,8 @@ pub struct Input {
     pub repeat_delay: u32,
     #[serde(alias = "repeatRate")]
     pub repeat_rate: u32,
+    #[serde(default)]
+    pub overview_ctrl_scroll: bool,
 }
 #[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -23,6 +25,7 @@ struct Override {
     layout: Option<String>,
     repeat_delay: Option<u32>,
     repeat_rate: Option<u32>,
+    overview_ctrl_scroll: Option<bool>,
 }
 #[derive(Serialize)]
 pub struct EffectiveInput {
@@ -58,6 +61,9 @@ fn overlay(path: &Path, result: &mut EffectiveInput) -> Result<()> {
     if let Some(value) = change.repeat_rate {
         result.settings.repeat_rate = value;
     }
+    if let Some(value) = change.overview_ctrl_scroll {
+        result.settings.overview_ctrl_scroll = value;
+    }
     result.sources.push(path.to_owned());
     Ok(())
 }
@@ -67,7 +73,7 @@ pub fn load(
     profile: &Path,
     config: &Path,
 ) -> Result<EffectiveInput> {
-    let relevant = serde_json::json!({"layout":base["layout"],"repeatDelay":base["repeatDelay"],"repeatRate":base["repeatRate"]});
+    let relevant = serde_json::json!({"layout":base["layout"],"repeatDelay":base["repeatDelay"],"repeatRate":base["repeatRate"],"overview_ctrl_scroll":base.get("overview_ctrl_scroll").cloned().unwrap_or(Value::Bool(false))});
     let settings: Input = serde_json::from_value(relevant)
         .map_err(|error| invalid(format!("Invalid base input settings: {error}")))?;
     let mut result = EffectiveInput {
@@ -143,7 +149,8 @@ mod tests {
             Input {
                 layout: "us".into(),
                 repeat_rate: 40,
-                repeat_delay: 280
+                repeat_delay: 280,
+                overview_ctrl_scroll: false,
             }
         );
         assert_eq!(result.sources.len(), 4);

@@ -33,6 +33,15 @@ fn renderer_uses_partial_input_override_and_rejects_invalid_values() {
     assert!(rendered.contains("layout \"us\""));
     assert!(rendered.contains("repeat-delay 350"));
     assert!(rendered.contains("repeat-rate 35"));
+    assert!(!rendered.contains("ctrl-scroll-workspaces"));
+    fs::write(&input, "overview_ctrl_scroll = true\n").unwrap();
+    let result = run();
+    assert!(result.status.success());
+    let rendered = String::from_utf8(result.stdout).unwrap();
+    assert!(rendered.contains("overview { ctrl-scroll-workspaces true; }"));
+    assert!(!rendered.contains("Ctrl+WheelScroll"));
+    fs::write(&input, "overview_ctrl_scroll = 'true'\n").unwrap();
+    assert!(!run().status.success());
     fs::write(&input, "layout = 123\n").unwrap();
     let result = run();
     assert!(!result.status.success());

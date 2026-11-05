@@ -2,3 +2,5 @@
 layout = "fi"
 repeatDelay = 350
 repeatRate = 35
+# Enable only after installing the overview-scoped Niri patch in patches/niri/.
+overview_ctrl_scroll = false

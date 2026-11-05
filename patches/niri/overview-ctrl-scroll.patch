@@ -1,0 +1,103 @@
+--- a/niri-config/src/misc.rs
++++ b/niri-config/src/misc.rs
+@@ -120,6 +120,7 @@
+ 
+ #[derive(Debug, Clone, Copy, PartialEq)]
+ pub struct Overview {
++    pub ctrl_scroll_workspaces: bool,
+     pub zoom: f64,
+     pub backdrop_color: Color,
+     pub workspace_shadow: WorkspaceShadow,
+@@ -128,6 +129,7 @@
+ impl Default for Overview {
+     fn default() -> Self {
+         Self {
++            ctrl_scroll_workspaces: false,
+             zoom: 0.5,
+             backdrop_color: DEFAULT_BACKDROP_COLOR,
+             workspace_shadow: WorkspaceShadow::default(),
+@@ -138,6 +140,8 @@
+ #[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
+ pub struct OverviewPart {
+     #[knuffel(child, unwrap(argument))]
++    pub ctrl_scroll_workspaces: Option<bool>,
++    #[knuffel(child, unwrap(argument))]
+     pub zoom: Option<FloatOrInt<0, 1>>,
+     #[knuffel(child)]
+     pub backdrop_color: Option<Color>,
+@@ -147,7 +151,7 @@
+ 
+ impl MergeWith<OverviewPart> for Overview {
+     fn merge_with(&mut self, part: &OverviewPart) {
+-        merge!((self, part), zoom, workspace_shadow);
++        merge!((self, part), ctrl_scroll_workspaces, zoom, workspace_shadow);
+         merge_clone!((self, part), backdrop_color);
+     }
+ }
+--- a/niri-config/src/lib.rs
++++ b/niri-config/src/lib.rs
+@@ -1663,6 +1663,7 @@
+                 },
+             },
+             overview: Overview {
++                ctrl_scroll_workspaces: false,
+                 zoom: 0.5,
+                 backdrop_color: Color {
+                     r: 0.15,
+--- a/src/input/mod.rs
++++ b/src/input/mod.rs
+@@ -3171,16 +3171,27 @@
+                 let vertical = vertical_amount_v120.unwrap_or(0.);
+                 let ticks = self.niri.vertical_wheel_tracker.accumulate(vertical);
+                 if ticks != 0 {
+-                    let (bind_up, bind_down) = if should_handle_in_overview && modifiers.is_empty()
++                    let (bind_up, bind_down) = if should_handle_in_overview
++                        && (modifiers.is_empty()
++                            || (modifiers == Modifiers::CTRL
++                                && self.niri.config.borrow().overview.ctrl_scroll_workspaces))
+                     {
+                         let bind_up = Some(Bind {
+                             key: Key {
+                                 trigger: Trigger::WheelScrollUp,
+-                                modifiers: Modifiers::empty(),
++                                modifiers,
+                             },
+-                            action: Action::FocusWorkspaceUpUnderMouse,
++                            action: if modifiers == Modifiers::CTRL {
++                                Action::FocusWorkspaceUp
++                            } else {
++                                Action::FocusWorkspaceUpUnderMouse
++                            },
+                             repeat: true,
+-                            cooldown: Some(Duration::from_millis(50)),
++                            cooldown: if modifiers == Modifiers::CTRL {
++                                None
++                            } else {
++                                Some(Duration::from_millis(50))
++                            },
+                             allow_when_locked: false,
+                             allow_inhibiting: false,
+                             hotkey_overlay_title: None,
+@@ -3188,11 +3199,19 @@
+                         let bind_down = Some(Bind {
+                             key: Key {
+                                 trigger: Trigger::WheelScrollDown,
+-                                modifiers: Modifiers::empty(),
++                                modifiers,
+                             },
+-                            action: Action::FocusWorkspaceDownUnderMouse,
++                            action: if modifiers == Modifiers::CTRL {
++                                Action::FocusWorkspaceDown
++                            } else {
++                                Action::FocusWorkspaceDownUnderMouse
++                            },
+                             repeat: true,
+-                            cooldown: Some(Duration::from_millis(50)),
++                            cooldown: if modifiers == Modifiers::CTRL {
++                                None
++                            } else {
++                                Some(Duration::from_millis(50))
++                            },
+                             allow_when_locked: false,
+                             allow_inhibiting: false,
+                             hotkey_overlay_title: None,
