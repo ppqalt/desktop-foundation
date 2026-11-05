@@ -40,7 +40,7 @@ struct Journal {
 trait Backend {
     fn settings(&self, uuid: &str) -> Result<Settings>;
     fn change(&self, uuid: &str, s: &Settings) -> Result<()>;
-    fn reapply(&self, uuid: &str, device: &str) -> Result<()>;
+    fn reapply(&self, uuid: &str, device: &str) -> Result<String>;
     fn verify(&self, device: &str, desired: &Settings) -> Result<()>;
 }
 struct NetworkManager;
@@ -90,25 +90,33 @@ impl Backend for NetworkManager {
         nm(&args)?;
         Ok(())
     }
-    fn reapply(&self, uuid: &str, _device: &str) -> Result<()> {
+    fn reapply(&self, uuid: &str, _device: &str) -> Result<String> {
         let device = active_device(uuid)?;
         nm(&["device", "reapply", &device])?;
-        Ok(())
+        Ok(device)
     }
     fn verify(&self, device: &str, desired: &Settings) -> Result<()> {
         let status = command(&["resolvectl".into(), "status".into(), device.into()])?;
         if desired.tls == "2" && !status.split_whitespace().any(|s| s == "+DNSOverTLS") {
             return Err(invalid("The active connection did not report DNS-over-TLS"));
         }
-        command(&[
-            "resolvectl".into(),
-            "query".into(),
-            "--interface".into(),
-            device.into(),
-            "example.com".into(),
-        ])?;
+        command(&verification_query(device))?;
         Ok(())
     }
+}
+fn verification_query(device: &str) -> Vec<String> {
+    [
+        "resolvectl",
+        "query",
+        "--cache=no",
+        "--protocol=dns",
+        "--interface",
+        device,
+        "example.com",
+    ]
+    .iter()
+    .map(|value| (*value).to_owned())
+    .collect()
 }
 fn valid_uuid(s: &str) -> bool {
     s.len() == 36
@@ -243,8 +251,8 @@ fn apply<B: Backend>(
                 "NetworkManager did not retain the requested DNS settings",
             ));
         }
-        backend.reapply(uuid, device)?;
-        backend.verify(device, &journal.desired)?;
+        let active_device = backend.reapply(uuid, device)?;
+        backend.verify(&active_device, &journal.desired)?;
         Ok(())
     })();
     if let Err(error) = operation {
@@ -459,6 +467,8 @@ mod tests {
         current: RefCell<Settings>,
         fail_verify: Cell<bool>,
         writes: Cell<u32>,
+        active_device: RefCell<Option<String>>,
+        verified_device: RefCell<String>,
     }
     impl Backend for Fake {
         fn settings(&self, _: &str) -> Result<Settings> {
@@ -469,10 +479,15 @@ mod tests {
             self.writes.set(self.writes.get() + 1);
             Ok(())
         }
-        fn reapply(&self, _: &str, _: &str) -> Result<()> {
-            Ok(())
+        fn reapply(&self, _: &str, device: &str) -> Result<String> {
+            Ok(self
+                .active_device
+                .borrow()
+                .clone()
+                .unwrap_or_else(|| device.into()))
         }
-        fn verify(&self, _: &str, _: &Settings) -> Result<()> {
+        fn verify(&self, device: &str, _: &Settings) -> Result<()> {
+            *self.verified_device.borrow_mut() = device.into();
             if self.fail_verify.get() {
                 Err(invalid("offline"))
             } else {
@@ -498,6 +513,8 @@ mod tests {
             current: RefCell::new(original.clone()),
             fail_verify: Cell::new(false),
             writes: Cell::new(0),
+            active_device: RefCell::new(None),
+            verified_device: RefCell::new(String::new()),
         };
         (dir, backend, original)
     }
@@ -548,9 +565,24 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
     #[test]
+    fn verification_follows_connection_to_new_interface() {
+        let (dir, backend, _) = fixture();
+        *backend.active_device.borrow_mut() = Some("new-device".into());
+        apply(&backend, &dir, UUID, "old-device", target()).unwrap();
+        assert_eq!(*backend.verified_device.borrow(), "new-device");
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
     fn https_never_silently_downgrades() {
         assert!(desired(&["9.9.9.9".parse().unwrap()], "dns.quad9.net", "https").is_err());
         assert_eq!(target().tls, "2");
         assert_eq!(target().auto4, "yes");
+    }
+    #[test]
+    fn verification_requires_an_uncached_unicast_lookup_on_the_selected_link() {
+        let query = verification_query("test0");
+        assert!(query.contains(&"--cache=no".to_owned()));
+        assert!(query.contains(&"--protocol=dns".to_owned()));
+        assert_eq!(query[5], "test0");
     }
 }

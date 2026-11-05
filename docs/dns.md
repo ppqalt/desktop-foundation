@@ -47,5 +47,7 @@ selected connection. DNS-over-HTTPS is not supported by this backend and is
 rejected before making changes. Plain DNS is used only when explicitly selected.
 A successful lookup in `verify` demonstrates name resolution, not the provider
 or transport used. Applying checks the selected link's reported TLS setting and
-runs a link-specific DNS lookup; other applications and VPNs can use their own
+runs a link-specific, uncached DNS lookup. The installed `resolvectl` must
+support `--cache=no`; if it does not, application fails and attempts restoration.
+Other applications and VPNs can use their own
 resolvers. Browser DNS-over-HTTPS settings are not managed.
