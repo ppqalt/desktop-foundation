@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source_path=$(readlink -f -- "${BASH_SOURCE[0]}")
+root=$(cd -- "${source_path%/*}/.." && pwd)
+exec "$root/native/foundation/target/release/desktop-foundationctl" --root "$root" dns "$@"

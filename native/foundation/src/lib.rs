@@ -13,6 +13,7 @@ pub mod control_center;
 pub mod deploy;
 pub mod deploy_units;
 pub mod diagnostics;
+pub mod dns;
 pub mod doctor;
 pub mod failure;
 pub mod geode;
