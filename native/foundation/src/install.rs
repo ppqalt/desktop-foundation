@@ -658,8 +658,6 @@ struct SavedSelection {
 }
 
 fn selection(root: &Path, state_dir: &Path, args: &[String]) -> Result<Options> {
-    // Validate explicit options before considering saved configuration.
-    Options::parse(root, args)?;
     let path = state_dir.join("installation.toml");
     let file = match fs::File::open(path) {
         Ok(file) => file,
@@ -754,6 +752,16 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     }
     state::private_directory(&paths.state)?;
     let _lock = state::lock(&paths.state.join("install.lock"), Duration::from_secs(30))?;
+    // Another installer may have completed while we waited for the lock.
+    // Re-read its selection and ownership state before changing anything.
+    let options = selection(&root, &paths.state, args)?;
+    let conflicts = runtime.conflicts(&root, &paths, options.personal)?;
+    if !conflicts.is_empty() {
+        return Err(invalid(format!(
+            "Installation conflicts: {}",
+            conflicts.join(", ")
+        )));
+    }
     execute(&root, &paths, &options, &mut runtime).map_err(|e| {
         invalid(format!(
             "Installation stopped: {e}. Backups retained; resolve the error and rerun."
@@ -785,6 +793,24 @@ mod selection_tests {
         assert!(!minimal.standard && minimal.extras.is_empty());
         fs::write(dir.join("state/installation.toml"), "version = 99\nlayer = 'minimal'\nextras = []\nhardware_profile = 'default'\ngreeter = true\n").unwrap();
         assert!(selection(&dir, &dir.join("state"), &[]).is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn saved_custom_profile_does_not_require_missing_default_profile() {
+        let dir =
+            std::env::temp_dir().join(format!("df-install-custom-profile-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("profiles/custom")).unwrap();
+        fs::create_dir_all(dir.join("state")).unwrap();
+        let initial = Options::parse(&dir, &["--profile".into(), "custom".into()]).unwrap();
+        save_selection(&dir.join("state"), &initial).unwrap();
+        assert_eq!(
+            selection(&dir, &dir.join("state"), &["--dry-run".into()])
+                .unwrap()
+                .profile,
+            "custom"
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 }
