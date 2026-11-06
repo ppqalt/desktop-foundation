@@ -1,45 +1,8 @@
---- a/niri-config/src/misc.rs
-+++ b/niri-config/src/misc.rs
-@@ -120,6 +120,7 @@
- 
- #[derive(Debug, Clone, Copy, PartialEq)]
- pub struct Overview {
-+    pub ctrl_scroll_workspaces: bool,
-     pub zoom: f64,
-     pub backdrop_color: Color,
-     pub workspace_shadow: WorkspaceShadow,
-@@ -128,6 +129,7 @@
- impl Default for Overview {
-     fn default() -> Self {
-         Self {
-+            ctrl_scroll_workspaces: false,
-             zoom: 0.5,
-             backdrop_color: DEFAULT_BACKDROP_COLOR,
-             workspace_shadow: WorkspaceShadow::default(),
-@@ -138,6 +140,8 @@
- #[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
- pub struct OverviewPart {
-     #[knuffel(child, unwrap(argument))]
-+    pub ctrl_scroll_workspaces: Option<bool>,
-+    #[knuffel(child, unwrap(argument))]
-     pub zoom: Option<FloatOrInt<0, 1>>,
-     #[knuffel(child)]
-     pub backdrop_color: Option<Color>,
-@@ -147,7 +151,10 @@
- 
- impl MergeWith<OverviewPart> for Overview {
-     fn merge_with(&mut self, part: &OverviewPart) {
--        merge!((self, part), zoom, workspace_shadow);
-+        if let Some(value) = part.ctrl_scroll_workspaces {
-+            self.ctrl_scroll_workspaces = value;
-+        }
-+        merge!((self, part), zoom, workspace_shadow);
-         merge_clone!((self, part), backdrop_color);
-     }
- }
+diff --git a/niri-config/src/lib.rs b/niri-config/src/lib.rs
+index 329b7669..6856bfcd 100644
 --- a/niri-config/src/lib.rs
 +++ b/niri-config/src/lib.rs
-@@ -1663,6 +1663,7 @@
+@@ -1663,6 +1663,7 @@ mod tests {
                  },
              },
              overview: Overview {
@@ -47,60 +10,67 @@
                  zoom: 0.5,
                  backdrop_color: Color {
                      r: 0.15,
+diff --git a/niri-config/src/misc.rs b/niri-config/src/misc.rs
+index 66a200ca..368422d5 100644
+--- a/niri-config/src/misc.rs
++++ b/niri-config/src/misc.rs
+@@ -120,6 +120,7 @@ impl MergeWith<ClipboardPart> for Clipboard {
+ 
+ #[derive(Debug, Clone, Copy, PartialEq)]
+ pub struct Overview {
++    pub ctrl_scroll_workspaces: bool,
+     pub zoom: f64,
+     pub backdrop_color: Color,
+     pub workspace_shadow: WorkspaceShadow,
+@@ -128,6 +129,7 @@ pub struct Overview {
+ impl Default for Overview {
+     fn default() -> Self {
+         Self {
++            ctrl_scroll_workspaces: false,
+             zoom: 0.5,
+             backdrop_color: DEFAULT_BACKDROP_COLOR,
+             workspace_shadow: WorkspaceShadow::default(),
+@@ -138,5 +140,7 @@ impl Default for Overview {
+ #[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
+ pub struct OverviewPart {
++    #[knuffel(child, unwrap(argument))]
++    pub ctrl_scroll_workspaces: Option<bool>,
+     #[knuffel(child, unwrap(argument))]
+     pub zoom: Option<FloatOrInt<0, 1>>,
+     #[knuffel(child)]
+@@ -147,6 +151,9 @@ pub struct OverviewPart {
+ 
+ impl MergeWith<OverviewPart> for Overview {
+     fn merge_with(&mut self, part: &OverviewPart) {
++        if let Some(value) = part.ctrl_scroll_workspaces {
++            self.ctrl_scroll_workspaces = value;
++        }
+         merge!((self, part), zoom, workspace_shadow);
+         merge_clone!((self, part), backdrop_color);
+     }
+diff --git a/src/input/mod.rs b/src/input/mod.rs
+index f1ad4932..98ad1e15 100644
 --- a/src/input/mod.rs
 +++ b/src/input/mod.rs
-@@ -3171,16 +3171,27 @@
-                 let vertical = vertical_amount_v120.unwrap_or(0.);
-                 let ticks = self.niri.vertical_wheel_tracker.accumulate(vertical);
-                 if ticks != 0 {
--                    let (bind_up, bind_down) = if should_handle_in_overview && modifiers.is_empty()
-+                    let (bind_up, bind_down) = if should_handle_in_overview
-+                        && (modifiers.is_empty()
-+                            || (modifiers == Modifiers::CTRL
-+                                && self.niri.config.borrow().overview.ctrl_scroll_workspaces))
-                     {
-                         let bind_up = Some(Bind {
-                             key: Key {
-                                 trigger: Trigger::WheelScrollUp,
--                                modifiers: Modifiers::empty(),
-+                                modifiers,
-                             },
--                            action: Action::FocusWorkspaceUpUnderMouse,
-+                            action: if modifiers == Modifiers::CTRL {
-+                                Action::FocusWorkspaceUp
-+                            } else {
-+                                Action::FocusWorkspaceUpUnderMouse
-+                            },
-                             repeat: true,
--                            cooldown: Some(Duration::from_millis(50)),
-+                            cooldown: if modifiers == Modifiers::CTRL {
-+                                None
-+                            } else {
-+                                Some(Duration::from_millis(50))
-+                            },
-                             allow_when_locked: false,
-                             allow_inhibiting: false,
-                             hotkey_overlay_title: None,
-@@ -3188,11 +3199,19 @@
-                         let bind_down = Some(Bind {
-                             key: Key {
-                                 trigger: Trigger::WheelScrollDown,
--                                modifiers: Modifiers::empty(),
-+                                modifiers,
-                             },
--                            action: Action::FocusWorkspaceDownUnderMouse,
-+                            action: if modifiers == Modifiers::CTRL {
-+                                Action::FocusWorkspaceDown
-+                            } else {
-+                                Action::FocusWorkspaceDownUnderMouse
-+                            },
-                             repeat: true,
--                            cooldown: Some(Duration::from_millis(50)),
-+                            cooldown: if modifiers == Modifiers::CTRL {
-+                                None
-+                            } else {
-+                                Some(Duration::from_millis(50))
-+                            },
-                             allow_when_locked: false,
-                             allow_inhibiting: false,
-                             hotkey_overlay_title: None,
+@@ -3106,6 +3106,21 @@ impl State {
+             let should_handle = should_handle_in_overview
+                 || is_mru_open
+                 || self.niri.mods_with_wheel_binds.contains(&modifiers);
++            if should_handle_in_overview
++                && modifiers == Modifiers::CTRL
++                && self.niri.config.borrow().overview.ctrl_scroll_workspaces
++            {
++                let ticks = self.niri.vertical_wheel_tracker.accumulate(vertical_amount_v120.unwrap_or(0.));
++                if ticks != 0 {
++                    {
++                        let mut config = self.niri.config.borrow_mut();
++                        config.overview.zoom = (config.overview.zoom - f64::from(ticks) * 0.05).clamp(0.15, 0.75);
++                        self.niri.layout.update_config(&config);
++                    }
++                    self.niri.queue_redraw_all();
++                }
++                return;
++            }
+             if should_handle {
+                 let horizontal = horizontal_amount_v120.unwrap_or(0.);
+                 let ticks = self.niri.horizontal_wheel_tracker.accumulate(horizontal);

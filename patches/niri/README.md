@@ -2,8 +2,8 @@
 
 `overview-ctrl-scroll.patch` adds an opt-in setting to Niri's native overview
 wheel handler. It was prepared against upstream commit `8ed0da4`, the source
-revision reported by the installed Niri 26.04 executable. It has not been built,
-applied to an installed package, or tested.
+revision reported by Niri 26.04. The corrected zoom behavior requires the
+corresponding rebuilt compositor package.
 
 The patch adds this compositor configuration:
 
@@ -13,10 +13,11 @@ overview {
 }
 ```
 
-With overview open, vertical wheel events with exactly Ctrl use Niri's existing
-`FocusWorkspaceUp` and `FocusWorkspaceDown` actions on the focused output. They
-retain the native workspace animations and leave overview open. Ctrl scrolling
-has no additional cooldown and uses Niri's wheel-detent accumulator. Ordinary
+With overview open, vertical wheel events with exactly Ctrl adjust the overview
+zoom: up zooms in and down zooms out. The overview remains open. Zoom changes
+are clamped between 15% and 75% and apply to all outputs. The setting retains
+its original name for compatibility. Ctrl scrolling uses Niri's wheel-detent
+accumulator without an additional cooldown. Ordinary
 wheel, horizontal wheel, touchpad gestures and other modifier combinations keep
 their existing behavior. The existing exclusion for layer surfaces is preserved.
 
@@ -49,9 +50,8 @@ value and the existing source-file list.
 
 ## Deferred acceptance
 
-No tests or builds were run for this change. Before activation, verify source
-compatibility and configuration reload, up/down wheel detents, rapid repeated
-scrolling, workspace limits and empty workspaces, focused-output behavior on
+Before activation, verify source compatibility and configuration reload,
+up/down wheel detents, rapid repeated scrolling, zoom limits, behavior on
 multiple monitors, and unchanged browser Ctrl+wheel outside overview. Touchpad
 Ctrl scrolling is deliberately unchanged; the requested navigation is for mouse
 wheel events. Ordinary touchpad overview gestures remain native.
