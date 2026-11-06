@@ -25,12 +25,15 @@
      pub zoom: Option<FloatOrInt<0, 1>>,
      #[knuffel(child)]
      pub backdrop_color: Option<Color>,
-@@ -147,7 +151,7 @@
+@@ -147,7 +151,10 @@
  
  impl MergeWith<OverviewPart> for Overview {
      fn merge_with(&mut self, part: &OverviewPart) {
 -        merge!((self, part), zoom, workspace_shadow);
-+        merge!((self, part), ctrl_scroll_workspaces, zoom, workspace_shadow);
++        if let Some(value) = part.ctrl_scroll_workspaces {
++            self.ctrl_scroll_workspaces = value;
++        }
++        merge!((self, part), zoom, workspace_shadow);
          merge_clone!((self, part), backdrop_color);
      }
  }
