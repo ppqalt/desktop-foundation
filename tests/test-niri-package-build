@@ -12,6 +12,7 @@ mkdir -m 700 "$base/bin" "$base/state" "$base/home"
 cat >"$base/bin/makepkg" <<'SH'
 #!/bin/sh
 [ "${FAIL_BUILD:-}" != 1 ] || exit 9
+[ -z "${CARGO_TARGET_DIR:-}" ] || exit 8
 printf 'fixture package' > "$PKGDEST/niri-foundation-26.04-1-x86_64.pkg.tar.zst"
 SH
 cat >"$base/bin/pacman" <<'SH'
@@ -26,6 +27,8 @@ export PATH="$base/bin:$PATH" HOME="$base/home" XDG_STATE_HOME="$base/state"
 mapfile -d '' files < <(find "$base/state/desktop-foundation/niri-builds" -type f -name '*.pkg.tar.zst' -print0)
 ((${#files[@]} == 1))
 [[ $(cat "${files[0]}") == 'fixture package' ]]
+result=$(CARGO_TARGET_DIR=/not-used "$root/scripts/build-niri-package" --print-path)
+[[ -f $result && $(cat "$result") == 'fixture package' ]]
 if FAIL_BUILD=1 "$root/scripts/build-niri-package" >/dev/null 2>&1; then exit 1; fi
 if BAD_IDENTITY=1 "$root/scripts/build-niri-package" >/dev/null 2>&1; then exit 1; fi
 mapfile -d '' builds < <(find "$base/state/desktop-foundation/niri-builds" -maxdepth 1 -name 'build.*' -print0)

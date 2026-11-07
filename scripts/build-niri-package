@@ -2,8 +2,11 @@
 # Build only. Package installation and any session changes are separate actions.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-if (($#)); then
-	printf '%s\n' 'Usage: scripts/build-niri-package' >&2
+print_path=false
+if (($# == 1)) && [[ $1 == --print-path ]]; then
+	print_path=true
+elif (($#)); then
+	printf '%s\n' 'Usage: scripts/build-niri-package [--print-path]' >&2
 	exit 2
 fi
 if ((EUID == 0)); then
@@ -34,7 +37,11 @@ cp -- "$root/patches/niri/PKGBUILD" "$root/patches/niri/overview-ctrl-scroll.pat
 mkdir -m 700 "$work/packages"
 (
 	cd -- "$work"
-	PKGDEST="$work/packages" makepkg --noconfirm
+	if $print_path; then
+		PKGDEST="$work/packages" env -u CARGO_TARGET_DIR makepkg --noconfirm >&2
+	else
+		PKGDEST="$work/packages" env -u CARGO_TARGET_DIR makepkg --noconfirm
+	fi
 )
 mapfile -d '' packages < <(find "$work/packages" -maxdepth 1 -type f -name 'niri-foundation-*.pkg.tar.*' ! -name '*.sig' -print0)
 if ((${#packages[@]} != 1)); then
@@ -51,5 +58,9 @@ chmod 700 "$package_dir"
 # Publish the package name only after the full copy has completed.
 cp -- "${packages[0]}" "$package_dir/.package.tmp"
 mv -- "$package_dir/.package.tmp" "$package_dir/${packages[0]##*/}"
-printf 'Niri package built and verified: %s/%s\n' "$package_dir" "${packages[0]##*/}"
-printf '%s\n' 'Nothing was installed or changed in the active session.'
+if $print_path; then
+	printf '%s/%s\n' "$package_dir" "${packages[0]##*/}"
+else
+	printf 'Niri package built and verified: %s/%s\n' "$package_dir" "${packages[0]##*/}"
+	printf '%s\n' 'Nothing was installed or changed in the active session.'
+fi
