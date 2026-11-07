@@ -391,6 +391,8 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         [] | ["toggle"] => runtime::request(false, false),
         ["silent"] => runtime::request(true, false),
         ["stop"] => runtime::request(false, true),
+        ["replay-on"] => runtime::replay_set(true),
+        ["replay-off"] => runtime::replay_set(false),
         ["replay-save"] => runtime::replay_request(true),
         ["replay-toggle"] => runtime::replay_request(false),
         ["serve"] => runtime::serve(root),
@@ -405,11 +407,17 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             Ok(())
         }
         ["status"] => {
-            println!("{}", runtime::status()?);
+            let mut state = runtime::status()?;
+            if state["buffer_seconds"].is_null()
+                && let Ok((config, _)) = settings(root)
+            {
+                state["buffer_seconds"] = config.replay_seconds.into();
+            }
+            println!("{state}");
             Ok(())
         }
         _ => Err(invalid(
-            "Expected recording toggle|silent|stop|replay-save|replay-toggle|plan [--silent]|status",
+            "Expected recording toggle|silent|stop|replay-on|replay-off|replay-save|replay-toggle|plan [--silent]|status",
         )),
     }
 }

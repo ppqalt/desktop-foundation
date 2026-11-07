@@ -13,6 +13,7 @@ import "../components"
 PanelWindow {
     id: root
     required property var sidebarStyle
+    property var recording: null
     property var targetScreen: null
     property bool handoff: false
     property bool superseded: false
@@ -31,7 +32,7 @@ PanelWindow {
     property int requestRevision: 0
     property int pendingOutput: -1
     property int pendingInput: -1
-    readonly property bool busy: deviceRequest.running || audioAction.running || wallpapers.busy
+    readonly property bool busy: deviceRequest.running || audioAction.running || replayRequest.running || wallpapers.busy
     readonly property var audio: stateData.audio ?? ({})
     readonly property var network: stateData.network ?? ({})
     readonly property bool wifiAvailable: (network.devices ?? []).some(d => d.kind === "wifi")
@@ -82,6 +83,8 @@ PanelWindow {
             height: height,
             busy: busy,
             polling: status.running,
+            replayStatus: replayControl.statusText,
+            replayEnabled: replayControl.replayEnabled,
             queued: queue.length + audioQueue.length
         };
     }
@@ -247,6 +250,22 @@ PanelWindow {
     ControlRequest {
         id: audioAction
         onFinished: code => root.completed(audioAction, code)
+    }
+    ControlRequest {
+        id: replayRequest
+        expectJson: false
+        onFinished: code => {
+            if (code !== 0)
+                root.error = failure || "Could not change Instant Replay.";
+            root.finishClose();
+        }
+    }
+    function requestReplay(action): void {
+        if (closing || replayRequest.running)
+            return;
+        error = "";
+        replayRequest.command = [Quickshell.shellDir + "/../scripts/record", action];
+        replayRequest.running = true;
     }
     Rectangle {
         id: card
@@ -543,6 +562,15 @@ PanelWindow {
                                     }
                                 }
                             }
+                        }
+                        ReplayControl {
+                            id: replayControl
+                            Layout.fillWidth: true
+                            visible: root.page === "overview"
+                            recording: root.recording
+                            pending: replayRequest.running
+                            onSetEnabled: enabled => root.requestReplay(enabled ? "replay-on" : "replay-off")
+                            onSaveRequested: root.requestReplay("replay-save")
                         }
                         ControlAction {
                             objectName: "cachyUpdateShortcut"

@@ -121,13 +121,24 @@ fn request_inner(silent: bool, stop: bool) -> Result<()> {
     Ok(())
 }
 pub fn replay_request(save: bool) -> Result<()> {
-    let result = replay_request_inner(save);
+    let result = replay_request_inner(if save {
+        b"replay-save"
+    } else {
+        b"replay-toggle"
+    });
     if let Err(error) = &result {
         notify(&error.to_string());
     }
     result
 }
-fn replay_request_inner(save: bool) -> Result<()> {
+pub fn replay_set(enabled: bool) -> Result<()> {
+    let result = replay_request_inner(if enabled { b"replay-on" } else { b"replay-off" });
+    if let Err(error) = &result {
+        notify(&error.to_string());
+    }
+    result
+}
+fn replay_request_inner(action: &[u8]) -> Result<()> {
     if !apps::executable("gpu-screen-recorder") {
         return Err(invalid("Install gpu-screen-recorder to enable replay"));
     }
@@ -136,6 +147,7 @@ fn replay_request_inner(save: bool) -> Result<()> {
     let current = status()?;
     if ["starting", "recording", "stopping"].contains(&current["phase"].as_str().unwrap_or(""))
         && current["replay"] != true
+        && current["replay_paused"] != true
     {
         return Err(invalid("Stop the current recording before starting replay"));
     }
@@ -152,14 +164,7 @@ fn replay_request_inner(save: bool) -> Result<()> {
     )?;
     let socket = UnixDatagram::unbound()?;
     socket.set_write_timeout(Some(Duration::from_secs(1)))?;
-    socket.send_to(
-        if save {
-            b"replay-save"
-        } else {
-            b"replay-toggle"
-        },
-        dir.join("requests.sock"),
-    )?;
+    socket.send_to(action, dir.join("requests.sock"))?;
     Ok(())
 }
 fn notify(message: &str) {
@@ -370,6 +375,8 @@ fn queued(socket: &UnixDatagram) -> Result<Option<Vec<u8>>> {
                 b"stop".as_slice(),
                 b"replay-save".as_slice(),
                 b"replay-toggle".as_slice(),
+                b"replay-on".as_slice(),
+                b"replay-off".as_slice(),
             ]
             .contains(&&buf[..n]) =>
         {
@@ -384,6 +391,50 @@ fn drain_stop_requests(socket: &UnixDatagram) -> Result<()> {
     // Once saving has begun, further presses are stop requests rather than a
     // new activation waiting in systemd's socket. The kernel queue is bounded.
     while queued(socket)?.is_some() {}
+    Ok(())
+}
+fn capture_replay_request(
+    request: &[u8],
+    paused: bool,
+    resume: &mut bool,
+    state: &mut Value,
+) -> Result<bool> {
+    if paused
+        && [
+            b"replay-toggle".as_slice(),
+            b"replay-on".as_slice(),
+            b"replay-off".as_slice(),
+        ]
+        .contains(&request)
+    {
+        *resume = match request {
+            b"replay-on" => true,
+            b"replay-off" => false,
+            _ => !*resume,
+        };
+        state["replay"] = (*resume).into();
+        state["replay_status"] = if *resume { "paused" } else { "off" }.into();
+        publish(state)?;
+        return Ok(true);
+    }
+    if request == b"replay-save" && paused {
+        state["save_status"] = "error".into();
+        state["save_error"] = "Replay is paused during desktop-only recording".into();
+        publish(state)?;
+        notify("Replay is paused during desktop-only recording");
+        return Ok(true);
+    }
+    Ok(false)
+}
+fn drain_capture_requests(
+    socket: &UnixDatagram,
+    paused: bool,
+    resume: &mut bool,
+    state: &mut Value,
+) -> Result<()> {
+    while let Some(request) = queued(socket)? {
+        let _ = capture_replay_request(&request, paused, resume, state)?;
+    }
     Ok(())
 }
 fn first_frame_timestamp(text: &str) -> bool {
@@ -473,21 +524,25 @@ pub fn serve(root: &Path) -> Result<()> {
     let Some(initial) = initial else {
         return Ok(());
     };
-    if initial == b"stop" {
+    if initial == b"stop" || initial == b"replay-off" {
         publish(&json!({"phase":"idle"}))?;
         return Ok(());
     }
     let silent = initial == b"silent";
     let dir = directory()?;
     let _owner = state::lock(&dir.join("owner.lock"), Duration::from_millis(100))?;
-    publish(&json!({"phase":"starting", "silent":silent}))?;
-    let result = if initial == b"replay-save" || initial == b"replay-toggle" {
+    let starting_replay =
+        initial == b"replay-save" || initial == b"replay-toggle" || initial == b"replay-on";
+    publish(
+        &json!({"phase":"starting", "silent":silent, "replay":starting_replay, "replay_status":if starting_replay {"starting"} else {"off"}}),
+    )?;
+    let result = if starting_replay {
         let mut save = initial == b"replay-save";
         loop {
             match replay::run(root, &socket, save) {
-                Ok(true) => match capture(root, &socket, true) {
-                    Ok(true) => break Ok(()),
-                    Ok(false) => save = false,
+                Ok(true) => match capture(root, &socket, true, true) {
+                    Ok((true, _)) | Ok((false, false)) => break Ok(()),
+                    Ok((false, true)) => save = false,
                     Err(error) => break Err(error),
                 },
                 Ok(false) => break Ok(()),
@@ -495,7 +550,7 @@ pub fn serve(root: &Path) -> Result<()> {
             }
         }
     } else {
-        capture(root, &socket, silent).map(|_| ())
+        capture(root, &socket, silent, false).map(|_| ())
     };
     if let Err(e) = &result {
         let _ = drain_stop_requests(&socket);
@@ -530,7 +585,13 @@ fn readable_name(kind: &str) -> Result<String> {
         now.subsec_micros()
     ))
 }
-fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<bool> {
+fn capture(
+    root: &Path,
+    socket: &UnixDatagram,
+    silent: bool,
+    replay_paused: bool,
+) -> Result<(bool, bool)> {
+    let mut resume_replay = replay_paused;
     capabilities()?;
     let (c, _) = settings(root)?;
     let display = output().unwrap_or(Value::Null);
@@ -556,9 +617,12 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<bool> {
         .contains(&request.as_slice())
         {
             publish(&json!({"phase":"idle"}))?;
-            return Ok(false);
+            return Ok((false, resume_replay));
         }
-        notify("Stop the current recording before starting replay");
+        let mut pending = json!({"phase":"starting", "replay":resume_replay, "replay_paused":replay_paused, "replay_status":if resume_replay {"paused"} else {"off"}, "buffer_seconds":c.replay_seconds});
+        if !capture_replay_request(&request, replay_paused, &mut resume_replay, &mut pending)? {
+            notify("Stop the current recording before starting replay");
+        }
     }
     let reserved = OpenOptions::new()
         .write(true)
@@ -590,6 +654,7 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<bool> {
         reaped: false,
     };
     let mut state = json!({"phase":"starting", "silent":silent, "output":file,
+        "replay":resume_replay, "replay_paused":replay_paused, "replay_status":if resume_replay {"paused"} else {"off"}, "buffer_seconds":c.replay_seconds,
         "fps":selected_fps(&c, &display), "resolution":c.resolution, "focused_display":display["name"]});
     publish(&state)?;
     let mut started = false;
@@ -603,7 +668,7 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<bool> {
             child.reaped = true;
             let captured = started || ready(&marker);
             let nonempty = fs::metadata(&file).is_ok_and(|m| m.len() > 0);
-            drain_stop_requests(socket)?;
+            drain_capture_requests(socket, replay_paused, &mut resume_replay, &mut state)?;
             let _ = fs::remove_file(&marker);
             if !captured && !nonempty {
                 let _ = fs::remove_file(&file);
@@ -624,17 +689,21 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<bool> {
                 state["phase"] = "stopping".into();
                 publish(&state)?;
                 let finalization = finalized(&file, silent);
-                drain_stop_requests(socket)?;
+                drain_capture_requests(socket, replay_paused, &mut resume_replay, &mut state)?;
                 finalization?;
             } else {
-                drain_stop_requests(socket)?;
+                drain_capture_requests(socket, replay_paused, &mut resume_replay, &mut state)?;
             }
-            state["phase"] = "idle".into();
+            if shutdown_requested {
+                resume_replay = false;
+            }
+            state["phase"] = if resume_replay { "starting" } else { "idle" }.into();
+            state["replay_status"] = if resume_replay { "starting" } else { "off" }.into();
             publish(&state)?;
             if captured || nonempty {
                 notify(&format!("Saved {}", file.display()));
             }
-            return Ok(shutdown_requested);
+            return Ok((shutdown_requested, resume_replay));
         }
         if !started && !stopping && ready(&marker) {
             started = true;
@@ -670,6 +739,16 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<bool> {
             ));
         }
         let requested = match queued(socket)? {
+            Some(request)
+                if capture_replay_request(
+                    &request,
+                    replay_paused,
+                    &mut resume_replay,
+                    &mut state,
+                )? =>
+            {
+                false
+            }
             Some(request) if request.starts_with(b"replay-") => {
                 notify("Stop the current recording before starting replay");
                 false

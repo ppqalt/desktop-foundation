@@ -60,6 +60,7 @@ ShellRoot {
         id: controlCenterLoader
         active: root.controlCenterEnabled
         ControlCenter {
+            recording: recordingState
             handoff: root.handoffSurface === "controlCenter"
             sidebarStyle: root.controlCenterStyle
             targetScreen: root.launcherScreen

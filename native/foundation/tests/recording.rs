@@ -695,3 +695,66 @@ fn shutdown_during_desktop_only_does_not_restart_replay() {
     assert_eq!(f.state()["phase"], "idle");
     wait_files(&f.root.join("videos"), 1);
 }
+
+#[test]
+fn replay_state_reports_buffering_then_ready_and_validated_saves() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    let config = f.root.join("config/recording.toml");
+    let contents = fs::read_to_string(&config).unwrap();
+    fs::write(&config, format!("{contents}replay_seconds = 2\n")).unwrap();
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.socket
+        .send_to(
+            b"replay-on",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    assert_eq!(f.state()["replay_status"], "buffering");
+    f.client("replay-save");
+    wait_files(&f.root.join("videos"), 1);
+    assert_eq!(f.state()["save_status"], "saved");
+    let until = Instant::now() + Duration::from_secs(5);
+    while f.state()["replay_status"] != "ready" && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(f.state()["replay_status"], "ready");
+    f.client("replay-on");
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(f.state()["replay_status"], "ready");
+    f.client("replay-off");
+    assert!(f.wait_exit());
+    assert_eq!(f.state()["replay_status"], "off");
+}
+
+#[test]
+fn desktop_only_pauses_replay_and_explicit_off_prevents_resume() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.socket
+        .send_to(
+            b"replay-on",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    fs::write(f.root.join("probe.json"),json!({"format":{"duration":"1.5"},"streams":[{"codec_type":"video","codec_name":"h264","width":2560,"height":1440,"nb_read_packets":"10"},{"codec_type":"audio","codec_name":"opus","nb_read_packets":"10"}]}).to_string()).unwrap();
+    f.client("silent");
+    f.wait_phase("recording");
+    assert_eq!(f.state()["replay_status"], "paused");
+    f.client("replay-off");
+    let until = Instant::now() + Duration::from_secs(3);
+    while f.state()["replay_status"] != "off" && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(f.state()["replay_status"], "off");
+    f.client("toggle");
+    assert!(f.wait_exit());
+    assert_eq!(f.state()["phase"], "idle");
+}

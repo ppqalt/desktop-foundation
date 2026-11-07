@@ -80,6 +80,39 @@ fn publish_saved(path: &Value, staging: &Path, output: &Path, kind: &str) -> Res
     Err(invalid("Could not reserve a unique recording name"))
 }
 
+fn save_replay(
+    state: &mut Value,
+    ipc_path: &Path,
+    staging: &Path,
+    output: &Path,
+    timeout: Duration,
+) -> Result<()> {
+    state["save_status"] = "saving".into();
+    state
+        .as_object_mut()
+        .expect("recording state object")
+        .remove("save_error");
+    publish(state)?;
+    let result = no_retained_output(staging, "Replay_")
+        .and_then(|()| ipc(ipc_path, "save-replay", timeout))
+        .and_then(|v| publish_saved(&v, staging, output, "Replay"));
+    match result {
+        Ok(path) => {
+            state["save_status"] = "saved".into();
+            state["saved_path"] = path.to_string_lossy().to_string().into();
+            publish(state)?;
+            notify(&format!("Saved {}", path.display()));
+        }
+        Err(error) => {
+            state["save_status"] = "error".into();
+            state["save_error"] = error.to_string().into();
+            publish(state)?;
+            notify(&format!("Replay not saved: {error}"));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Result<bool> {
     capabilities()?;
     let help = process::run(
@@ -209,9 +242,10 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
     let mut regular = false;
     let mut pending_save = save_initial;
     let mut pending_regular = false;
-    let mut state = json!({"phase":"starting", "replay":true, "buffer_seconds":c.replay_seconds, "fps": selected_fps(&c, &display), "focused_display":display["name"]});
+    let mut state = json!({"phase":"starting", "replay":true, "replay_status":"starting", "buffer_seconds":c.replay_seconds, "save_status":if save_initial {"saving"} else {"idle"}, "fps": selected_fps(&c, &display), "focused_display":display["name"]});
     publish(&state)?;
     let started = Instant::now();
+    let mut buffer_deadline: Option<Instant> = None;
     let mut failure = None;
     let mut desktop_only = false;
     loop {
@@ -233,6 +267,9 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
         if !ready && events[..count].contains(&b'R') {
             ready = true;
             state["phase"] = "replay".into();
+            state["replay_status"] = "buffering".into();
+            buffer_deadline =
+                Some(Instant::now() + Duration::from_secs(u64::from(c.replay_seconds)));
             publish(&state)?;
             if pending_regular {
                 match no_retained_output(&staging, "Video_")
@@ -248,21 +285,20 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
                 pending_regular = false;
             }
             if pending_save {
-                match no_retained_output(&staging, "Replay_")
-                    .and_then(|()| {
-                        ipc(
-                            &ipc_path,
-                            "save-replay",
-                            Duration::from_secs(c.stop_timeout_seconds),
-                        )
-                    })
-                    .and_then(|v| publish_saved(&v, &staging, &output_dir, "Replay"))
-                {
-                    Ok(path) => notify(&format!("Saved {}", path.display())),
-                    Err(e) => notify(&format!("Replay not saved: {e}")),
-                }
+                save_replay(
+                    &mut state,
+                    &ipc_path,
+                    &staging,
+                    &output_dir,
+                    Duration::from_secs(c.stop_timeout_seconds),
+                )?;
                 pending_save = false;
             }
+        }
+        if buffer_deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            state["replay_status"] = "ready".into();
+            buffer_deadline = None;
+            publish(&state)?;
         }
         let request = queued(socket)?;
         let (shutdown, child_changed) = signals.events()?;
@@ -272,6 +308,7 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
         if shutdown
             || (request.as_deref() == Some(b"stop") && !regular)
             || request.as_deref() == Some(b"replay-toggle")
+            || request.as_deref() == Some(b"replay-off")
             || startup_expired
             || display_changed
             || desktop_request
@@ -327,20 +364,19 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
         }
         if let Some(request) = request {
             match request.as_slice() {
-                b"replay-save" if !ready => pending_save = true,
-                b"replay-save" => match no_retained_output(&staging, "Replay_")
-                    .and_then(|()| {
-                        ipc(
-                            &ipc_path,
-                            "save-replay",
-                            Duration::from_secs(c.stop_timeout_seconds),
-                        )
-                    })
-                    .and_then(|v| publish_saved(&v, &staging, &output_dir, "Replay"))
-                {
-                    Ok(path) => notify(&format!("Saved {}", path.display())),
-                    Err(e) => notify(&format!("Replay not saved: {e}")),
-                },
+                b"replay-save" if !ready => {
+                    pending_save = true;
+                    state["save_status"] = "saving".into();
+                    publish(&state)?;
+                }
+                b"replay-save" => save_replay(
+                    &mut state,
+                    &ipc_path,
+                    &staging,
+                    &output_dir,
+                    Duration::from_secs(c.stop_timeout_seconds),
+                )?,
+                b"replay-on" => {}
                 b"toggle" if !ready => pending_regular = !pending_regular,
                 b"toggle" | b"stop" | b"silent" if regular && ready => {
                     state["phase"] = "stopping".into();
@@ -396,13 +432,18 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
                 revents: 0,
             },
         ];
-        let timeout = if ready {
-            -1
-        } else {
+        let timeout = if !ready {
             Duration::from_secs(c.startup_timeout_seconds)
                 .saturating_sub(started.elapsed())
                 .as_millis()
                 .clamp(1, i32::MAX as u128) as i32
+        } else if let Some(deadline) = buffer_deadline {
+            deadline
+                .saturating_duration_since(Instant::now())
+                .as_millis()
+                .clamp(1, i32::MAX as u128) as i32
+        } else {
+            -1
         };
         // SAFETY: fds references initialized poll descriptors.
         if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, timeout) } < 0
@@ -420,7 +461,13 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
     }
     // Remove only our empty private staging directory; failed saves remain recoverable.
     let _ = fs::remove_dir(&staging);
-    publish(&json!({"phase":"idle"}))?;
+    if desktop_only {
+        publish(
+            &json!({"phase":"starting", "replay":true, "replay_paused":true, "replay_status":"paused", "buffer_seconds":c.replay_seconds}),
+        )?;
+    } else {
+        publish(&json!({"phase":"idle", "replay":false, "replay_status":"off"}))?;
+    }
     if desktop_only {
         notify("Replay buffer paused for desktop-only recording; it will restart afterward");
     } else {
