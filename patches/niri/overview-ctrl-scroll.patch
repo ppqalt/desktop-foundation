@@ -52,11 +52,12 @@ diff --git a/src/input/mod.rs b/src/input/mod.rs
 index f1ad4932..98ad1e15 100644
 --- a/src/input/mod.rs
 +++ b/src/input/mod.rs
-@@ -3106,6 +3106,21 @@ impl State {
+@@ -3106,6 +3106,22 @@ impl State {
              let should_handle = should_handle_in_overview
                  || is_mru_open
                  || self.niri.mods_with_wheel_binds.contains(&modifiers);
 +            if should_handle_in_overview
++                && vertical_amount_v120.unwrap_or(0.) != 0.
 +                && modifiers == Modifiers::CTRL
 +                && self.niri.config.borrow().overview.ctrl_scroll_workspaces
 +            {
