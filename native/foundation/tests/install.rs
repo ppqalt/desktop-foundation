@@ -145,6 +145,7 @@ struct Fake {
     variant: bool,
     conflict: bool,
     missing_app: bool,
+    missing_recorder: bool,
     no_pacman: bool,
     root: bool,
     no_apparmor: bool,
@@ -182,7 +183,7 @@ impl Runtime for Fake {
         if name == "pacman" {
             !self.no_pacman
         } else if name == "gpu-screen-recorder" {
-            true
+            !self.missing_recorder
         } else {
             self.variant
         }
@@ -611,4 +612,21 @@ fn everything_installs_recording_package() {
             .any(|args| args.iter().any(|arg| arg == "recording-package")),
         "full install must provision recording"
     );
+}
+
+#[test]
+fn everything_without_packages_rejects_missing_recorder_before_mutation() {
+    let f = Fixture::new();
+    let mut r = Fake {
+        missing_recorder: true,
+        ..Fake::default()
+    };
+    let result = install::execute(
+        &f.root,
+        &f.paths,
+        &f.options(&["--personal", "--no-packages"]),
+        &mut r,
+    );
+    assert!(result.is_err());
+    assert!(r.commands.is_empty());
 }
