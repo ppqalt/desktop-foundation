@@ -16,12 +16,13 @@ overview {
 With overview open, vertical wheel events with exactly Ctrl adjust the overview
 zoom: up zooms in and down zooms out. The overview remains open. Zoom changes
 are clamped between 15% and 75% and apply to all outputs. The setting retains
-its original name for compatibility. Ctrl scrolling uses Niri's wheel-detent
-accumulator without an additional cooldown. Ordinary
+its original name for compatibility. Ctrl scrolling uses an independent wheel-detent accumulator without an additional cooldown, so partial high-resolution wheel events do not leak into workspace scrolling. Ordinary
 wheel, horizontal wheel, touchpad gestures and other modifier combinations keep
 their existing behavior. The existing exclusion for layer surfaces is preserved.
 
-Outside overview the new branch is unreachable. There are no global bindings,
+The patch also gives overlay-layer surfaces pointer priority over the hot corner. This lets a screenshot selector cover the corner without changing or reloading the user's hot-corner settings; closing or crashing the selector naturally removes the overlay. This behavior still needs physical-session acceptance.
+
+Outside overview the new zoom branch is unreachable. There are no global bindings,
 input grabs, replayed events, IPC listeners or background processes.
 
 ## Integration
