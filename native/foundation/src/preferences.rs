@@ -362,7 +362,7 @@ pub fn setup(root: &Path, args: &[String]) -> Result<()> {
         return Err(invalid("Unknown browser role"));
     }
     for (key, value) in [
-        ("font-name", "'Google Sans Flex 10'"),
+        ("font-name", "'Google Sans Flex 11'"),
         ("color-scheme", "'prefer-dark'"),
         ("gtk-theme", "'adw-gtk3-dark'"),
     ] {

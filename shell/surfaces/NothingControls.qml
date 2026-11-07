@@ -12,12 +12,15 @@ SurfaceCard {
     required property real availableHeight
     required property string audio
     signal back
-    signal failed(string message)
+    signal readyReported
+    signal failed(string message, bool unsupported)
+    signal restartRequested
     signal disconnect
     property var earState: ({})
     // Startup and command responses are staged until a complete readback is ready.
     property var incomingState: ({})
     property bool ready: false
+    property bool failureReported: false
     property string pendingRowId: ""
     property var pendingCommand: null
     property bool pendingReadback: false
@@ -101,6 +104,12 @@ SurfaceCard {
     Component.onCompleted: {
         forceActiveFocus();
         Qt.callLater(() => root.entered = true);
+    }
+    function reportFailure(message: string, unsupported = false): void {
+        if (failureReported || leaving)
+            return;
+        failureReported = true;
+        failed(message, unsupported);
     }
     function batteryText(): string {
         if (!ready)
@@ -261,7 +270,9 @@ SurfaceCard {
         confirmationDeadline.stop();
         error = "";
         backend.write(JSON.stringify(value) + "\n");
-        commandDeadline.interval = value.action === "fit" ? 24000 : 6000;
+        // Rust bounds setting/readback/synchronization to 30 seconds.
+        // Fit can also use its 20-second result deadline plus sound queries.
+        commandDeadline.interval = value.action === "fit" ? 70000 : 35000;
         commandDeadline.restart();
     }
     function cycle(values, current, delta): var {
@@ -300,6 +311,7 @@ SurfaceCard {
             earState = incomingState;
             ready = true;
             startupDeadline.stop();
+            readyReported();
         }
         if (message.event === "complete" || message.event === "error") {
             if (ready)
@@ -314,8 +326,14 @@ SurfaceCard {
         }
         if (message.event === "error")
             error = message.message;
+        if (message.event === "unavailable")
+            error = "Some controls did not respond. Available controls remain usable; reopen Controls to retry missing features.";
+        if (message.event === "restart") {
+            leaving = true;
+            restartRequested();
+        }
         if (message.fatal)
-            failed(message.message);
+            reportFailure(message.message, message.unsupported === true);
     }
     function handlePlaybackResult(result): void {
         playbackResult = result;
@@ -497,22 +515,23 @@ SurfaceCard {
     }
     Timer {
         id: commandDeadline
-        interval: 6000
+        interval: 35000
         onTriggered: {
             root.busy = false;
             root.error = "Earbuds did not respond. Reopen Controls to reconnect.";
             backend.signal(15);
-            root.failed(root.error);
+            root.reportFailure(root.error);
         }
     }
     Timer {
         id: startupDeadline
         running: !root.ready
-        interval: 35000
+        // Connect (10 s), model read (5 s), optional query budget (30 s).
+        interval: 50000
         onTriggered: {
-            root.error = "Earbud controls timed out.";
+            root.error = "Earbud controls timed out. Select Controls to retry.";
             backend.signal(15);
-            root.failed(root.error);
+            root.reportFailure(root.error);
         }
     }
     Process {
@@ -564,7 +583,7 @@ SurfaceCard {
             if (root.leaving)
                 root.back();
             else
-                root.failed(root.error || "Earbud controls disconnected. Reconnect and try again.");
+                root.reportFailure(root.error || "Earbud controls disconnected. Reconnect and try again.");
         }
     }
     Text {

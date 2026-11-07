@@ -33,6 +33,10 @@ PopupWindow {
     property var controlDevice: null
     property var controlPaths: []
     property var unsupportedPaths: []
+    property var retryControlsPaths: []
+    property string discoveryError: ""
+    property var discoveryIssues: []
+    property bool discoveryQueued: false
     property bool radioBusy: false
     property bool radioTarget: false
     property bool busy: false
@@ -40,7 +44,7 @@ PopupWindow {
     property string pendingAction: ""
     property string error: ""
     property var result: ({})
-    readonly property var devices: Bluetooth.devices.values.filter(d => d.paired || d.bonded).sort((a, b) => a.name.localeCompare(b.name) || a.address.localeCompare(b.address))
+    readonly property var devices: Bluetooth.devices.values.filter(d => d.paired || d.bonded || d.trusted || d.connected).sort((a, b) => a.name.localeCompare(b.name) || a.address.localeCompare(b.address))
     readonly property bool adapterAvailable: Bluetooth.adapters.values.some(a => a.enabled)
     surfaceNamespace: "desktop-foundation-bluetooth"
     PwObjectTracker {
@@ -163,9 +167,9 @@ PopupWindow {
         beginDismissal();
     }
     function supportsControls(device): bool {
-        return controlPaths.includes(device.dbusPath) && !unsupportedPaths.includes(device.dbusPath);
+        return (controlPaths.includes(device.dbusPath) || retryControlsPaths.includes(device.dbusPath)) && !unsupportedPaths.includes(device.dbusPath);
     }
-    function activate(index: int, forceDisconnect = false): void {
+    function activate(index: int, forceDisconnect = false, capabilitiesChecked = false): void {
         if (busy || radioBusy || controlsOpening || closing)
             return;
         defaultSelectionPending = false;
@@ -186,8 +190,14 @@ PopupWindow {
             error = device.blocked ? "Device blocked. Open Bluetooth Manager to change this." : "Bluetooth is off. Use the switch to turn it on.";
             return;
         }
-        if (device.connected && !discoveryDone && !forceDisconnect) {
+        if (device.connected && !forceDisconnect && (!discoveryDone || !supportsControls(device) && !capabilitiesChecked)) {
             pendingActivation = device.dbusPath;
+            if (discoveryDone)
+                refreshDiscovery();
+            return;
+        }
+        if (device.connected && !forceDisconnect && !supportsControls(device) && (discoveryError || discoveryIssues.some(issue => issue.path === device.dbusPath))) {
+            error = discoveryError || "Device services could not be read. Select the device to retry.";
             return;
         }
         if (device.connected && supportsControls(device) && !forceDisconnect) {
@@ -243,7 +253,21 @@ PopupWindow {
         };
     }
     onSelectedChanged: rememberSelection()
-    onDevicesChanged: updateDeviceSelection()
+    onDevicesChanged: {
+        updateDeviceSelection();
+        Qt.callLater(refreshDiscovery);
+    }
+    function refreshDiscovery(): void {
+        if (closing || controlDevice || pendingControls)
+            return;
+        if (discovery.running) {
+            discoveryQueued = true;
+            return;
+        }
+        discoveryDone = false;
+        discoveryError = "";
+        discovery.running = true;
+    }
     ControlRequest {
         id: discovery
         command: [Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/nothing-backend", "--discover"]
@@ -251,19 +275,29 @@ PopupWindow {
         onFinished: code => {
             if (code === 0 && !root.closing) {
                 root.controlPaths = response.devices || [];
-                root.batteryQueue = root.devices.filter(d => d.connected && root.controlPaths.includes(d.dbusPath));
-                root.nextBattery();
+                root.discoveryError = "";
+                root.discoveryIssues = response.errors || [];
+                root.batteryQueue = root.devices.filter(d => d.connected && root.supportsControls(d));
+            } else {
+                root.discoveryError = "Could not discover device controls. Select the device to retry.";
+                root.batteryQueue = [];
             }
             root.finishDiscovery();
+            root.nextBattery();
         }
     }
     function finishDiscovery(): void {
         discoveryDone = true;
+        if (discoveryQueued) {
+            discoveryQueued = false;
+            refreshDiscovery();
+            return;
+        }
         if (pendingActivation) {
             const index = devices.findIndex(d => d.dbusPath === pendingActivation);
             pendingActivation = "";
             if (index >= 0 && !closing)
-                activate(index);
+                activate(index, false, true);
         }
     }
     function forgetBattery(device): void {
@@ -283,7 +317,7 @@ PopupWindow {
         batteryExpiry.restart();
     }
     function nextBattery(): void {
-        if (closing || controlDevice || pendingControls || !batteryQueue.length)
+        if (closing || controlDevice || pendingControls || discovery.running || batteryProbe.running || !batteryQueue.length)
             return;
         batteryDevice = batteryQueue[0];
         batteryQueue = batteryQueue.slice(1);
@@ -337,9 +371,14 @@ PopupWindow {
                 else
                     root.restoreFocus();
             }
-            onFailed: message => {
-                if (root.controlDevice)
-                    root.unsupportedPaths = [...root.unsupportedPaths, root.controlDevice.dbusPath];
+            onFailed: (message, unsupported) => {
+                if (root.controlDevice) {
+                    const path = root.controlDevice.dbusPath;
+                    if (unsupported)
+                        root.unsupportedPaths = [...new Set([...root.unsupportedPaths, path])];
+                    else
+                        root.retryControlsPaths = [...new Set([...root.retryControlsPaths, path])];
+                }
                 root.error = message.includes("br-connection-create-socket") || message.includes("br-connection-busy") ? "Control channel unavailable. Close other earbud control apps, then reopen Bluetooth." : message;
                 root.controlDevice = null;
                 root.restoreFocus();
@@ -445,7 +484,7 @@ PopupWindow {
             Text {
                 anchors.centerIn: parent
                 visible: root.devices.length === 0
-                text: "No paired devices yet"
+                text: "No saved or connected devices yet"
                 color: Material.colors.on_surface_variant
                 font.family: Theme.typography.family
                 font.pixelSize: Theme.typography.body
