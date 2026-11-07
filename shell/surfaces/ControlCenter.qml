@@ -594,7 +594,7 @@ PanelWindow {
                                 Layout.fillWidth: true
                                 text: "Applications"
                                 badge: root.applicationsExpanded ? "⌃" : "⌄"
-                                detail: (root.audio.applications ?? []).length + " audio streams"
+                                detail: (root.audio.applications ?? []).length + ((root.audio.applications ?? []).length === 1 ? " audio stream" : " audio streams")
                                 onClicked: {
                                     root.applicationsExpanded = !root.applicationsExpanded;
                                     if (root.applicationsExpanded)

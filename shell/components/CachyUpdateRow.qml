@@ -62,7 +62,7 @@ ColumnLayout {
         spacing: 4
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.minimumWidth: Math.max(0, root.width - 104)
+            Layout.minimumWidth: Math.max(0, root.width - 152)
             spacing: 0
             Text {
                 Layout.fillWidth: true
@@ -85,11 +85,10 @@ ColumnLayout {
         ControlAction {
             objectName: "updateDetails"
             compact: true
-            iconOnly: true
-            symbol: root.expanded ? "expand_less" : "expand_more"
-            text: root.expanded ? "Hide update details" : "Show update details"
-            Layout.preferredWidth: 48
-            Layout.maximumWidth: 48
+            text: root.expanded ? "Hide" : "Details"
+            Accessible.name: root.expanded ? "Hide update details" : "Show update details"
+            Layout.preferredWidth: 96
+            Layout.maximumWidth: 96
             onClicked: root.expanded = !root.expanded
         }
         ControlAction {
