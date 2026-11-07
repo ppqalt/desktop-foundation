@@ -25,7 +25,7 @@ ShellRoot {
             interval: 1000
             running: true
             onTriggered: {
-                if (picker.entries.length !== 36 || Object.keys(picker.previewUrls).length === 0 || picker.previewUrls[picker.entries[35].path]) {
+                if (picker.columnCount !== 4 || picker.entries.length !== 36 || Object.keys(picker.previewUrls).length === 0 || picker.previewUrls[picker.entries[35].path]) {
                     console.error("Initial previews were not bounded to the viewport");
                     Qt.exit(1);
                     return;

@@ -148,6 +148,7 @@ fn qml_grid_keyboard_selection_failure_and_preview_pixels_are_verified_offscreen
         ("b.png", [180, 50, 20]),
         ("c.png", [40, 160, 70]),
         ("d.png", [120, 60, 170]),
+        ("e.png", [140, 120, 30]),
     ] {
         image(&directory.join(name), color);
     }

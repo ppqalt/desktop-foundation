@@ -16,6 +16,7 @@ ColumnLayout {
     readonly property bool loading: inventory.running
     property bool initialized: false
     property var viewport: null
+    readonly property int columnCount: 4
     property var previewUrls: ({})
     property var previewFailures: ({})
     property string previewPath: ""
@@ -49,11 +50,11 @@ ColumnLayout {
     function loadVisiblePreview(): void {
         if (!active || previewRequest.running || !entries.length)
             return;
-        const tileHeight = (grid.width - 24) / 3 * 0.6;
+        const tileHeight = ((grid.width - grid.spacing * (root.columnCount - 1)) / root.columnCount) * 0.6;
         const rowHeight = tileHeight + grid.spacing;
         const offset = viewport ? grid.mapToItem(viewport, 0, 0).y : 0;
-        const first = viewport ? Math.max(0, Math.floor((-offset) / rowHeight) - 1) * 3 : 0;
-        const last = viewport ? Math.min(entries.length, (Math.ceil((viewport.height - offset) / rowHeight) + 1) * 3) : entries.length;
+        const first = viewport ? Math.max(0, Math.floor((-offset) / rowHeight) - 1) * root.columnCount : 0;
+        const last = viewport ? Math.min(entries.length, (Math.ceil((viewport.height - offset) / rowHeight) + 1) * root.columnCount) : entries.length;
         for (let i = first; i < last; ++i) {
             const path = entries[i].path;
             if (!previewUrls[path] && !previewFailures[path]) {
@@ -137,7 +138,7 @@ ColumnLayout {
     Grid {
         id: grid
         Layout.fillWidth: true
-        columns: 3
+        columns: root.columnCount
         spacing: 12
         Repeater {
             id: tiles
@@ -147,7 +148,7 @@ ColumnLayout {
                 required property var modelData
                 required property int index
                 objectName: "wallpaper-" + index
-                width: (grid.width - 24) / 3
+                width: (grid.width - grid.spacing * (root.columnCount - 1)) / root.columnCount
                 height: width * 0.6
                 activeFocusOnTab: true
                 enabled: root.active && !root.busy
@@ -179,10 +180,10 @@ ColumnLayout {
                         return;
                     const direction = Material.direction(event.key);
                     if (direction) {
-                        const next = index + direction[0] + direction[1] * 3;
-                        if (next >= 0 && next < tiles.count && (!direction[0] || Math.floor(next / 3) === Math.floor(index / 3)))
+                        const next = index + direction[0] + direction[1] * root.columnCount;
+                        if (next >= 0 && next < tiles.count && (!direction[0] || Math.floor(next / root.columnCount) === Math.floor(index / root.columnCount)))
                             tiles.itemAt(next).forceActiveFocus(Qt.TabFocusReason);
-                        else if (direction[1] < 0 && index < 3)
+                        else if (direction[1] < 0 && index < root.columnCount)
                             Material.moveFocus(tile, 0, -1);
                         event.accepted = true;
                     }

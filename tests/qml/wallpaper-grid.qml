@@ -40,11 +40,13 @@ ShellRoot {
                 const second = find(picker, "wallpaper-1");
                 const third = find(picker, "wallpaper-2");
                 const fourth = find(picker, "wallpaper-3");
-                verify(first && second && third && fourth);
+                const fifth = find(picker, "wallpaper-4");
+                verify(first && second && third && fourth && fifth);
                 compare(first.y, third.y);
-                verify(fourth.y > third.y);
-                compare(first.width, (picker.width - 24) / 3);
-                compare(fourth.x, first.x);
+                compare(fourth.y, third.y);
+                verify(fifth.y > fourth.y);
+                compare(first.width, (picker.width - 36) / 4);
+                compare(fifth.x, first.x);
                 window.requestActivate();
                 first.forceActiveFocus();
                 wait(20);
@@ -53,9 +55,18 @@ ShellRoot {
                 keyClick(Qt.Key_D);
                 verify(third.activeFocus);
                 keyClick(Qt.Key_Right);
-                verify(third.activeFocus);
+                verify(fourth.activeFocus);
+                keyClick(Qt.Key_Right);
+                verify(fourth.activeFocus);
+                keyClick(Qt.Key_Left);
                 keyClick(Qt.Key_Left);
                 verify(second.activeFocus);
+                first.forceActiveFocus();
+                keyClick(Qt.Key_Down);
+                verify(fifth.activeFocus);
+                keyClick(Qt.Key_Up);
+                verify(first.activeFocus);
+                second.forceActiveFocus();
                 keyClick(Qt.Key_Space);
                 verify(picker.busy);
                 picker.active = false;
@@ -70,10 +81,10 @@ ShellRoot {
                 wait(180);
                 compare(picker.currentPath, before);
                 verify(window.lastError.length > 0);
-                // Empty third column stays empty when there are only two files.
+                // Empty columns stays empty when there are only two files.
                 picker.entries = picker.entries.slice(0, 2);
                 wait(20);
-                compare(find(picker, "wallpaper-0").width, (picker.width - 24) / 3);
+                compare(find(picker, "wallpaper-0").width, (picker.width - 36) / 4);
             }
         }
         Timer {
@@ -81,7 +92,7 @@ ShellRoot {
             running: true
             repeat: true
             onTriggered: {
-                if (picker.loading || picker.entries.length !== 4)
+                if (picker.loading || picker.entries.length !== 5)
                     return;
                 stop();
                 keys.wait(500);
