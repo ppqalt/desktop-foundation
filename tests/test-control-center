@@ -56,7 +56,7 @@ if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNA
 	cat "$base/log" >&2
 	exit 1
 fi
-if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|CONTROL_TIMEOUT|TypeError|ReferenceError|ERROR|QML (Warning|Error)' "$base/log"; then
+if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|CONTROL_TIMEOUT|TypeError|ReferenceError|ERROR|QML (Warning|Error)|Qt Quick Layouts: Detected recursive' "$base/log"; then
 	cat "$base/log" >&2
 	exit 1
 fi

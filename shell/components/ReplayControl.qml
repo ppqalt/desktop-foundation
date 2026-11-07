@@ -5,6 +5,7 @@ import "../theme"
 
 ColumnLayout {
     id: root
+    objectName: "replayControl"
     property var recording: null
     property bool pending: false
     readonly property var replayState: recording?.state ?? ({})
@@ -41,11 +42,15 @@ ColumnLayout {
     }
     RowLayout {
         Layout.fillWidth: true
+        Layout.minimumWidth: root.width
         spacing: 4
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.minimumWidth: Math.max(0, root.width - 154)
             spacing: 0
             Text {
+                Layout.fillWidth: true
+                elide: Text.ElideRight
                 text: "Instant Replay"
                 color: Material.colors.on_surface
                 font.family: Theme.typography.family
@@ -53,6 +58,8 @@ ColumnLayout {
             }
             Text {
                 objectName: "replayStatus"
+                Layout.fillWidth: true
+                elide: Text.ElideRight
                 text: root.duration + " · " + root.statusText + (root.replayState.save_status === "saving" ? " · Saving" : root.replayState.save_status === "saved" ? " · Saved" : root.replayState.save_status === "error" ? " · Save failed" : "")
                 color: Material.colors.on_surface_variant
                 font.family: Theme.typography.family
@@ -64,15 +71,18 @@ ColumnLayout {
             text: "Save"
             compact: true
             Layout.preferredWidth: 82
+            Layout.maximumWidth: 82
             enabled: root.replayEnabled && ["starting", "buffering", "ready"].includes(root.replayState.replay_status) && root.replayState.save_status !== "saving" && !root.pending
             onClicked: root.saveRequested()
         }
         ControlSwitch {
             objectName: "replayToggle"
+            Layout.preferredWidth: 64
+            Layout.maximumWidth: 64
             text: "Instant Replay"
             marked: root.replayEnabled
             pending: root.pending
-            enabled: root.recording?.prepared && !root.pending && (root.replayEnabled || root.replayState.replay_paused === true || root.replayState.phase === "idle" || root.replayState.phase === "error")
+            enabled: !!root.recording?.prepared && !root.pending && (root.replayEnabled || root.replayState.replay_paused === true || root.replayState.phase === "idle" || root.replayState.phase === "error")
             onClicked: root.setEnabled(!marked)
         }
     }

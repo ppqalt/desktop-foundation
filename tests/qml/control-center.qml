@@ -75,6 +75,18 @@ ShellRoot {
             } else if (fixture.stage === 1) {
                 if (panel.snapshot().moving || !panel.stateData.audio)
                     return;
+                const replayToggle = find(panel.contentItem, "replayToggle");
+                const updateAction = find(panel.contentItem, "cachyUpdateShortcut");
+                if (replayToggle && updateAction) {
+                    const save = find(panel.contentItem, "saveReplay");
+                    const toggleX = replayToggle.mapToItem(panel.contentItem, 0, 0).x;
+                    const saveRight = save.mapToItem(panel.contentItem, 0, 0).x + save.width;
+                    fixture.check(toggleX > panel.width - 120, "replay toggle is not right-aligned");
+                    fixture.check(toggleX >= saveRight && toggleX - saveRight <= 8, "save is not immediately left of the toggle");
+                    fixture.check(updateAction.mapToItem(panel.contentItem, 0, 0).x > panel.width - 120, "update action is not right-aligned");
+                } else {
+                    fixture.check(false, "sidebar actions missing");
+                }
                 const updateStatus = find(panel.contentItem, "updateStatus");
                 if (!updateStatus)
                     return;

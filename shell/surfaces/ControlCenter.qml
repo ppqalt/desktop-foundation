@@ -607,7 +607,9 @@ PanelWindow {
                                     required property var modelData
                                     Layout.fillWidth: true
                                     Text {
-                                        Layout.preferredWidth: Math.min(200, parent.width * 0.35)
+                                        Layout.preferredWidth: 160
+                                        Layout.maximumWidth: 200
+                                        Layout.fillWidth: true
                                         text: parent.modelData.label || parent.modelData.name
                                         elide: Text.ElideRight
                                         color: Material.colors.on_surface
@@ -641,6 +643,7 @@ PanelWindow {
                         ReplayControl {
                             id: replayControl
                             Layout.fillWidth: true
+                            Layout.minimumWidth: body.width
                             visible: root.page === "overview"
                             recording: root.recording
                             pending: replayRequest.running
@@ -650,6 +653,7 @@ PanelWindow {
                         CachyUpdateRow {
                             visible: root.page === "overview"
                             Layout.fillWidth: true
+                            Layout.minimumWidth: body.width
                             onLaunchRequested: {
                                 root.enqueue(["cachy-update"]);
                                 root.dismiss();

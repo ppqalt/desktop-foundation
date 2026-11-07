@@ -7,6 +7,7 @@ import "../theme"
 
 ColumnLayout {
     id: root
+    objectName: "cachyUpdateRow"
     readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/arch-update/"
     property var packages: null
     property var aur: null
@@ -57,11 +58,15 @@ ColumnLayout {
     }
     RowLayout {
         Layout.fillWidth: true
+        Layout.minimumWidth: root.width
         spacing: 4
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.minimumWidth: Math.max(0, root.width - 104)
             spacing: 0
             Text {
+                Layout.fillWidth: true
+                elide: Text.ElideRight
                 text: "Cachy Update"
                 color: Material.colors.on_surface
                 font.family: Theme.typography.family
@@ -69,6 +74,8 @@ ColumnLayout {
             }
             Text {
                 objectName: "updateStatus"
+                Layout.fillWidth: true
+                elide: Text.ElideRight
                 text: root.status
                 color: Material.colors.on_surface_variant
                 font.family: Theme.typography.family
@@ -82,6 +89,7 @@ ColumnLayout {
             symbol: root.expanded ? "expand_less" : "expand_more"
             text: root.expanded ? "Hide update details" : "Show update details"
             Layout.preferredWidth: 48
+            Layout.maximumWidth: 48
             onClicked: root.expanded = !root.expanded
         }
         ControlAction {
@@ -91,6 +99,7 @@ ColumnLayout {
             symbol: "system_update_alt"
             text: "Open Cachy Update"
             Layout.preferredWidth: 48
+            Layout.maximumWidth: 48
             onClicked: root.launchRequested()
         }
     }
