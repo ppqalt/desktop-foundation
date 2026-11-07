@@ -62,7 +62,7 @@ PanelWindow {
                 height: 8
                 radius: 4
                 anchors.verticalCenter: parent.verticalCenter
-                color: root.recordingPhase === "starting" ? Material.colors.tertiary : Material.colors.error
+                color: root.recordingPhase === "starting" ? Material.colors.primary : Material.colors.error
                 Accessible.name: ["recording", "replay-recording"].includes(root.recordingPhase) ? "Recording" : root.recordingPhase === "starting" ? "Preparing recording" : root.recordingPhase === "error" ? "Recording failed; inspect recording status" : "Saving recording"
                 Accessible.role: Accessible.Indicator
                 Text {
@@ -76,13 +76,13 @@ PanelWindow {
             }
             Rectangle {
                 visible: root.replayActive
-                width: 6
-                height: 6
-                radius: 3
+                width: 8
+                height: 8
+                radius: 4
                 anchors.verticalCenter: parent.verticalCenter
                 color: "transparent"
-                border.width: 1.5
-                border.color: Material.colors.tertiary
+                border.width: 2
+                border.color: Material.colors.primary
                 Accessible.name: "Replay buffer active"
                 Accessible.role: Accessible.Indicator
             }
