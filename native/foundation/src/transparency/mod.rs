@@ -1,4 +1,5 @@
 //! One durable audio transaction. Adapters never own restoration policy.
+mod branch;
 mod runtime;
 use crate::{Result, invalid};
 pub use runtime::run;
@@ -105,7 +106,7 @@ fn gain(a: &mut impl Audio, j: &mut Journal, target: f64) -> Result<()> {
     a.persist(Some(j))?;
     a.set_gain(target)?;
     let confirmed = a.monitor()?;
-    if confirmed.instance != j.monitor_instance || (confirmed.gain - target).abs() > 1e-9 {
+    if confirmed.instance != j.monitor_instance || (confirmed.gain - target).abs() > 1e-6 {
         return Err(invalid("Monitoring volume readback failed"));
     }
     j.gain.managed = confirmed.gain;

@@ -75,11 +75,9 @@ fn request(command: &str) -> Result<(String, String)> {
     let mut data = Vec::new();
     loop {
         let mut chunk = [0; 64];
-        let n = socket.read(&mut chunk).map_err(|e| {
-            invalid(format!(
-                "EasyEffects monitoring-volume API unavailable: {e}; install the reviewed API patch"
-            ))
-        })?;
+        let n = socket
+            .read(&mut chunk)
+            .map_err(|e| invalid(format!("EasyEffects socket response unavailable: {e}")))?;
         if n == 0 {
             return Err(invalid("Incomplete EasyEffects response"));
         }
@@ -137,11 +135,37 @@ fn read(path: &Path) -> Result<Vec<u8>> {
 }
 struct Native {
     directory: PathBuf,
+    branch: Option<super::branch::Branch>,
+    gain: f64,
+    upstream_original: Option<(bool, String)>,
+    output: Option<String>,
 }
 impl Native {
     fn new() -> Result<Self> {
+        let directory = directory()?;
+        let saved = match fs::read(directory.join("journal.json")) {
+            Ok(data) => Some(serde_json::from_slice::<Value>(&data)?),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e.into()),
+        };
+        if saved
+            .as_ref()
+            .is_some_and(|v| v["backend"] != "pipewire-branch-v1")
+        {
+            return Err(invalid(
+                "A legacy Transparency journal needs recovery with the previous Foundation backend before migration; the journal was preserved",
+            ));
+        }
+        let upstream_original = match &saved {
+            Some(v) => serde_json::from_value(v["upstream_original"].clone())?,
+            None => None,
+        };
         Ok(Self {
-            directory: directory()?,
+            directory,
+            branch: None,
+            gain: 1.0,
+            upstream_original,
+            output: None,
         })
     }
 }
@@ -201,25 +225,25 @@ fn select_microphone(info: &Value, sources: &Value, needle: &str) -> Result<Stri
 }
 impl Audio for Native {
     fn monitor(&mut self) -> Result<Monitor> {
-        let (gain, instance) = request("get_microphone_monitoring_volume\n")?;
-        let gain: f64 = gain
-            .parse()
-            .map_err(|_| invalid("Invalid monitoring volume response"))?;
-        let (enabled, other) = request("get_microphone_monitoring\n")?;
-        if instance != other || !gain.is_finite() || !(0.0..=4.0).contains(&gain) {
+        let (state, instance) = request("get_microphone_monitoring\n")?;
+        if !matches!(state.as_str(), "1" | "2") {
+            return Err(invalid("Invalid upstream monitoring state"));
+        }
+        if self.branch.is_some() && state == "1" {
             return Err(invalid(
-                "EasyEffects monitoring state changed or is invalid",
+                "Upstream monitoring was enabled externally; stopping the separate branch to avoid duplicate playback",
             ));
         }
-        let enabled = match enabled.as_str() {
-            "1" => true,
-            "2" => false,
-            _ => return Err(invalid("Invalid monitoring state response")),
-        };
+        if self.upstream_original.is_none() {
+            self.upstream_original = Some((state == "1", instance.clone()));
+        }
         Ok(Monitor {
             instance,
-            enabled,
-            gain,
+            enabled: self.branch.is_some(),
+            gain: match &self.branch {
+                Some(branch) => branch.gain()?,
+                None => self.gain,
+            },
         })
     }
     fn devices(&mut self, needle: &str) -> Result<(String, String)> {
@@ -234,6 +258,7 @@ impl Audio for Native {
                 "Select the physical playback device before Transparency Mode",
             ));
         }
+        self.output = Some(output.into());
         Ok((microphone, output.into()))
     }
     fn streams(&mut self) -> Result<Vec<Stream>> {
@@ -250,6 +275,7 @@ impl Audio for Native {
                 || name.to_ascii_lowercase().contains("easyeffects")
                 || node.starts_with("ee_")
                 || node.starts_with("easyeffects")
+                || node.starts_with("df-monitor-")
             {
                 continue;
             }
@@ -286,36 +312,23 @@ impl Audio for Native {
         Ok(streams)
     }
     fn set_enabled(&mut self, value: bool) -> Result<()> {
-        let (_, instance) = request(if value {
-            "microphone_monitoring:1\n"
-        } else {
-            "microphone_monitoring:0\n"
-        })?;
-        let deadline = Instant::now() + TIMEOUT;
-        loop {
-            let (answer, current_instance) = request("get_microphone_monitoring\n")?;
-            if current_instance != instance {
-                return Err(invalid("EasyEffects restarted while changing monitoring"));
-            }
-            if answer == if value { "1" } else { "2" } {
-                return Ok(());
-            }
-            if !matches!(answer.as_str(), "1" | "2") {
-                return Err(invalid("Invalid EasyEffects monitoring state"));
-            }
-            if Instant::now() >= deadline {
-                return Err(invalid(
-                    "EasyEffects did not confirm the requested monitoring state",
-                ));
-            }
-            std::thread::sleep(Duration::from_millis(10));
+        if value && self.branch.is_none() {
+            stock_enabled(false)?;
+            let output = self
+                .output
+                .as_ref()
+                .ok_or_else(|| invalid("No selected monitoring output"))?;
+            self.branch = Some(super::branch::Branch::start(output, self.gain)?);
+        } else if !value {
+            self.branch = None;
         }
+        Ok(())
     }
     fn set_gain(&mut self, value: f64) -> Result<()> {
-        let (answer, _) = request(&format!("microphone_monitoring_volume:{value:.17}\n"))?;
-        if answer != "ok" {
-            return Err(invalid(format!("Monitoring volume rejected: {answer}")));
+        if let Some(branch) = &self.branch {
+            branch.set_gain(value)?;
         }
+        self.gain = value;
         Ok(())
     }
     fn set_stream(&mut self, expected: &Stream, stream: &Stream) -> Result<()> {
@@ -345,7 +358,17 @@ impl Audio for Native {
         let deadline = Instant::now() + Duration::from_millis(600);
         loop {
             let dump = json_query(&["pw-dump"])?;
-            if path_ready(&dump, microphone, output) {
+            let ready = match &self.branch {
+                Some(branch) => branch_path_ready(
+                    &dump,
+                    microphone,
+                    output,
+                    branch.capture_name(),
+                    branch.playback_name(),
+                ),
+                None => false,
+            };
+            if ready {
                 return Ok(());
             }
             if Instant::now() >= deadline {
@@ -360,8 +383,21 @@ impl Audio for Native {
         state::private_directory(&self.directory)?;
         let path = self.directory.join("journal.json");
         if let Some(j) = journal {
-            state::atomic(&path, &serde_json::to_vec(j)?, 0o600)
+            let mut saved = serde_json::to_value(j)?;
+            saved["backend"] = "pipewire-branch-v1".into();
+            saved["upstream_original"] = serde_json::to_value(&self.upstream_original)?;
+            state::atomic(&path, &serde_json::to_vec(&saved)?, 0o600)
         } else {
+            {
+                self.branch = None;
+                if let Some((enabled, instance)) = &self.upstream_original {
+                    let (current, current_instance) = request("get_microphone_monitoring\n")?;
+                    if *enabled && current == "2" && *instance == current_instance {
+                        stock_enabled(true)?;
+                    }
+                }
+            }
+            self.upstream_original = None;
             match fs::remove_file(&path) {
                 Ok(()) => {
                     fs::File::open(&self.directory)?.sync_all()?;
@@ -377,6 +413,52 @@ impl Audio for Native {
     }
 }
 /// Prove the monitor branch, not a recording/application route, reaches the physical sink.
+fn branch_path_ready(
+    dump: &Value,
+    microphone: &str,
+    output: &str,
+    capture: &str,
+    playback: &str,
+) -> bool {
+    let Some(rows) = dump.as_array() else {
+        return false;
+    };
+    let id = |name: &str| {
+        rows.iter()
+            .find(|row| {
+                row["type"] == "PipeWire:Interface:Node"
+                    && row["info"]["props"]["node.name"] == name
+            })
+            .and_then(|row| row["id"].as_u64())
+    };
+    let (Some(input), Some(tap), Some(out)) =
+        (id(capture), id("ee_sie_output_level"), id(playback))
+    else {
+        return false;
+    };
+    let incoming: Vec<_> = rows
+        .iter()
+        .filter(|row| {
+            row["type"] == "PipeWire:Interface:Link" && row["info"]["input-node-id"] == input
+        })
+        .collect();
+    if incoming.is_empty()
+        || incoming
+            .iter()
+            .any(|row| row["info"]["output-node-id"] != tap)
+    {
+        return false;
+    }
+    let mut graph = dump.clone();
+    let rows = graph.as_array_mut().unwrap();
+    for row in rows.iter_mut() {
+        if row["type"] == "PipeWire:Interface:Node" && row["id"] == input {
+            row["info"]["props"]["node.name"] = "ee_mic_monitor_output_level".into();
+        }
+    }
+    rows.push(json!({"type":"PipeWire:Interface:Link","info":{"state":"active","output-node-id":input,"input-node-id":out}}));
+    path_ready(&graph, microphone, output)
+}
 pub fn path_ready(dump: &Value, microphone: &str, output: &str) -> bool {
     let Some(rows) = dump.as_array() else {
         return false;
@@ -684,6 +766,63 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
+    #[ignore = "requires explicitly authorized headphones and a connected microphone"]
+    fn authorized_live_monitoring_and_ducking_restore() {
+        assert_eq!(
+            std::env::var("DF_AUTHORIZED_LIVE_AUDIO").as_deref(),
+            Ok("1")
+        );
+        let mut audio = Native::new().unwrap();
+        state::private_directory(&audio.directory).unwrap();
+        let _owner = state::lock(&audio.directory.join("owner.lock"), TIMEOUT).unwrap();
+        assert!(
+            !audio.directory.join("journal.json").exists(),
+            "recover the current transaction before testing"
+        );
+        let snapshot = || -> Result<Value> {
+            let mut result = Vec::new();
+            for kind in ["sources", "sinks"] {
+                let rows = json_query(&["pactl", "--format=json", "list", kind])?;
+                for row in rows
+                    .as_array()
+                    .ok_or_else(|| invalid("Invalid audio snapshot"))?
+                {
+                    result.push(json!({"kind":kind,"name":row["name"],"volume":row["volume"],"mute":row["mute"]}));
+                }
+            }
+            Ok(json!(result))
+        };
+        for duck in [false, true] {
+            let before = snapshot().unwrap();
+            let streams = audio.streams().unwrap();
+            let config = Config {
+                monitoring_gain: 0.05,
+                fade_ms: 20,
+                ..Config::default()
+            };
+            let mut journal = activate_mode(&mut audio, &config, duck).unwrap();
+            std::thread::sleep(Duration::from_secs(2));
+            let proof = audio.verify_path(&journal.microphone, &journal.output);
+            let restored = restore(&mut audio, &mut journal, 20);
+            restored.unwrap();
+            proof.unwrap();
+            assert_eq!(
+                snapshot().unwrap(),
+                before,
+                "recording or output gain changed"
+            );
+            let after = audio.streams().unwrap();
+            for original in streams {
+                if let Some(current) = after
+                    .iter()
+                    .find(|s| s.id == original.id && s.serial == original.serial)
+                {
+                    assert_eq!(current, &original);
+                }
+            }
+        }
+    }
+    #[test]
     fn shortcuts_toggle_their_mode_and_switch_between_modes() {
         let mut mode = None;
         toggle_mode(&mut mode, b"monitor");
@@ -759,5 +898,32 @@ mod tests {
             "different-microphone",
             "daybreak"
         ));
+    }
+}
+
+fn stock_enabled(value: bool) -> Result<()> {
+    let (_, instance) = request(if value {
+        "microphone_monitoring:1\n"
+    } else {
+        "microphone_monitoring:0\n"
+    })?;
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        let (answer, current_instance) = request("get_microphone_monitoring\n")?;
+        if current_instance != instance {
+            return Err(invalid("EasyEffects restarted while changing monitoring"));
+        }
+        if answer == if value { "1" } else { "2" } {
+            return Ok(());
+        }
+        if !matches!(answer.as_str(), "1" | "2") {
+            return Err(invalid("Invalid EasyEffects monitoring state"));
+        }
+        if Instant::now() >= deadline {
+            return Err(invalid(
+                "EasyEffects did not confirm the requested monitoring state",
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(10));
     }
 }
