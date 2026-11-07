@@ -43,6 +43,7 @@ ShellRoot {
         Clock {
             targetScreen: root.launcherScreen
             recordingPhase: recordingState.phase
+            replayActive: recordingState.replayActive
         }
     }
     readonly property ControlCenter controlCenter: controlCenterLoader.item as ControlCenter

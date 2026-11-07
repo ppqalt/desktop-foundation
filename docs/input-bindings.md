@@ -49,7 +49,9 @@ new configuration is published.
 | End | Play/pause most recently playing media player |
 | Home | Play/pause another available media player |
 | Ctrl+Shift+F12 | Start recording with separate desktop/microphone tracks; press again to save |
-| Ctrl+Shift+Alt+F12 | Start silent recording; press again to save |
+| Ctrl+Shift+Alt+F12 | Record desktop audio only; press again to save |
+| Ctrl+Shift+F11 | Save instant replay, or start its buffer if inactive |
+| Ctrl+Shift+Alt+F11 | Start or stop the instant replay buffer |
 | Print / Super+Shift+S | Copy screen / selected region |
 
 Menu toggles use `repeat=false`. Volume and navigation keep key repeat.

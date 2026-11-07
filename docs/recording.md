@@ -2,12 +2,24 @@
 
 Install the optional `gpu-screen-recorder` package, or select `--extra recording`
 in the installer. Foundation owns recording through its Rust backend; GPU Screen
-Recorder handles capture and encoding. No OBS instance or replay buffer is needed.
+Recorder handles capture, encoding and instant replay in one process.
 
-- **Ctrl+Shift+F12:** start with separate desktop and microphone tracks.
-- **Ctrl+Shift+Alt+F12:** start with no audio.
-- **Ctrl+Shift+F12 stops any active recording**, including a silent recording.
-  The Alt variant also stops an existing recording; neither switches its audio mode.
+- **Ctrl+Shift+F12:** start or stop recording with separate desktop and microphone tracks.
+- **Ctrl+Shift+Alt+F12:** record desktop audio only, with no microphone track.
+- **Ctrl+Shift+Alt+F11:** start or stop the instant replay buffer.
+- **Ctrl+Shift+F11:** save the buffered replay. If replay is off, this starts the
+  buffer and saves whatever is available after the first frames arrive.
+
+Replay keeps a 135-second rolling buffer in RAM, including separate desktop and
+microphone tracks. A saved clip can be slightly longer because it starts at an
+earlier video keyframe. A 16 Mbps video limit and 512 kbps per audio track make the nominal encoded
+buffer about 287 MB at full length, plus recorder overhead. Early saves contain
+only the available history. Replay is opt-in and does not start at login. During
+replay, the normal recording shortcut uses the same capture process. Desktop-only
+recording pauses and clears replay, then restarts it after the recording stops;
+this ensures the desktop-only recording never captures microphone audio. The buffer
+must refill afterward. The replay-save and replay-toggle shortcuts are configurable
+through `replay_shortcut` and `replay_toggle_shortcut`.
 
 The clock appears automatically during capture. Its red indicator starts only
 after GPU Screen Recorder reports its first captured frame. It remains visible
@@ -15,8 +27,9 @@ while stopping and while checking the completed container. It clears only after
 the recorder exits successfully and `ffprobe` confirms a nonempty video with the
 expected audio tracks and readable duration. This checks container finalization,
 not a full decode of every frame.
-The normal clock shortcut can still hide or show it while recording, without
-stopping capture. If left visible, the indicator stays through finalization.
+A small outlined indicator distinguishes an active replay buffer; the red
+recording indicator remains visible during a simultaneous recording. The normal
+clock shortcut can still hide or show it while recording, without stopping capture. If left visible, the indicator stays through finalization.
 
 On failure, a warning remains in the clock and a notification explains the error.
 Partial files are retained. Inspect `scripts/record status`; use
@@ -29,7 +42,7 @@ Override selected values in `$XDG_CONFIG_HOME/desktop-foundation/recording.toml`
 (normally `~/.config/desktop-foundation/recording.toml`). Sorted fragments in
 `recording.d/*.toml` load before that file. `scripts/record plan` prints effective
 settings, sources, the focused display and the exact proposed command without
-starting capture. `scripts/record plan --silent` shows the no-audio variant.
+starting capture. `scripts/record plan --silent` shows the desktop-audio-only variant.
 
 ```toml
 resolution = "auto"
@@ -38,8 +51,9 @@ max_fps = 60
 audio_bitrate_kbps = 512
 ```
 
-`auto` resolution passes through the actual captured source's dimensions. No
-monitor name, GPU model or rendering device is fixed. Automatic frame rate follows
+`auto` resolution passes through the actual captured source's dimensions. Choose
+a display in the portal for native display resolution. Scaling overrides are rejected.
+No monitor name, GPU model or rendering device is fixed. Automatic frame rate follows
 the focused Niri display's refresh rate, capped by `max_fps`; an explicit `fps`
 overrides that cap. With portal capture the selected screen may differ from the
 focused display; choose an explicit rate when that distinction matters.
@@ -59,30 +73,37 @@ on each recording.
 Hardware encoding is required: Foundation disables CPU-encoding fallback so a
 missing GPU capability cannot unexpectedly consume the CPU. `video_codec = "auto"`
 uses the recorder's hardware default; explicit codecs fail if unsupported.
-Container, video quality, frame mode, cursor, output directory, capture source,
-audio source roles, codec/bitrate, shortcuts and bounded startup/stop waits are
-configurable. Shortcut changes take effect on configuration redeployment;
+MKV and Opus are required. Video quality, frame mode, cursor, output directory,
+capture source, audio source roles, bitrate, shortcuts and bounded startup/stop
+waits are configurable. Shortcut changes take effect on configuration redeployment;
 other settings are read for the next recording.
 
 Audio defaults follow `default_output` and `default_input`, preserving the current
 system-selected playback and recording sources, including processing selected by
-the user. Separate `-a` options create independent tracks. No volume, sample-rate,
+the user. Separate `-a` options create independent tracks. Desktop-only recording
+uses only the output source. No volume, sample-rate,
 EQ or EasyEffects setting is changed. Opus defaults to 512 kbps **per track**;
 it is high-bitrate lossy audio, not lossless. GPU Screen Recorder negotiates the
 source formats. There is no extra lossless capture or muxing pipeline.
 
 Files go to XDG Videos/Recordings unless `directory` is an absolute override.
 MKV is the default so an interrupted recording can remain recoverable. Names use
-unique timestamps; existing recordings are never selected for overwriting.
+readable local timestamps and unique suffixes; existing recordings are never
+overwritten. Desktop-only files start with `Desktop-`, normal recordings with
+`Recording-` and replays with `Replay-`.
 
 ## Lifecycle
 
 One kernel datagram socket activates a single user-service owner. While recording,
-the owner waits for requests, child-exit signals and first-frame filesystem events;
-it does not periodically poll. The recorder and owner exit after saving. The
+the owner waits for requests, child-exit signals and first-frame filesystem events.
+Replay uses the same owner and recorder; it waits on recorder events and requests.
+The recorder and owner exit when recording or replay stops. The
 portal selection can be cancelled before capture begins; a bounded grace period
 handles selectors that do not respond to the recorder's normal stop signal.
 Once a frame is reported, the normal save/finalization window applies instead.
+If capture format changes while replay is active, replay stops safely; any active
+normal recording is finalized first. Restart replay to capture the new mode. A
+recorder crash leaves partial files in its private staging directory for recovery.
 The Quickshell clock watches the atomically published runtime JSON without a polling
 timer. No service is enabled to record at login.
 

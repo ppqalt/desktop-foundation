@@ -1,5 +1,6 @@
 //! A socket-activated owner. Sleeps on kernel events, and exits after saving.
 use super::*;
+mod replay;
 use std::{
     env,
     ffi::CString,
@@ -64,7 +65,7 @@ pub fn cleanup() -> Result<()> {
     let mut s = status()?;
     if matches!(
         s["phase"].as_str(),
-        Some("starting" | "recording" | "stopping")
+        Some("starting" | "recording" | "stopping" | "replay" | "replay-recording")
     ) {
         s["phase"] = "error".into();
         s["error"] =
@@ -89,7 +90,7 @@ fn request_inner(silent: bool, stop: bool) -> Result<()> {
     if stop
         && !matches!(
             status()?["phase"].as_str(),
-            Some("starting" | "recording" | "stopping")
+            Some("starting" | "recording" | "stopping" | "replay" | "replay-recording")
         )
     {
         return Ok(());
@@ -114,6 +115,48 @@ fn request_inner(silent: bool, stop: bool) -> Result<()> {
             b"silent"
         } else {
             b"toggle"
+        },
+        dir.join("requests.sock"),
+    )?;
+    Ok(())
+}
+pub fn replay_request(save: bool) -> Result<()> {
+    let result = replay_request_inner(save);
+    if let Err(error) = &result {
+        notify(&error.to_string());
+    }
+    result
+}
+fn replay_request_inner(save: bool) -> Result<()> {
+    if !apps::executable("gpu-screen-recorder") {
+        return Err(invalid("Install gpu-screen-recorder to enable replay"));
+    }
+    let dir = directory()?;
+    let _lock = state::lock(&dir.join("request.lock"), Duration::from_secs(3))?;
+    let current = status()?;
+    if ["starting", "recording", "stopping"].contains(&current["phase"].as_str().unwrap_or(""))
+        && current["replay"] != true
+    {
+        return Err(invalid("Stop the current recording before starting replay"));
+    }
+    process::checked(
+        &[
+            "systemctl".into(),
+            "--user".into(),
+            "start".into(),
+            SOCKET.into(),
+        ],
+        None,
+        Duration::from_secs(3),
+        true,
+    )?;
+    let socket = UnixDatagram::unbound()?;
+    socket.set_write_timeout(Some(Duration::from_secs(1)))?;
+    socket.send_to(
+        if save {
+            b"replay-save"
+        } else {
+            b"replay-toggle"
         },
         dir.join("requests.sock"),
     )?;
@@ -152,14 +195,15 @@ fn finalized(file: &Path, silent: bool) -> Result<()> {
             "ffprobe".into(),
             "-v".into(),
             "error".into(),
+            "-count_packets".into(),
             "-show_entries".into(),
-            "format=duration,size:stream=codec_type".into(),
+            "format=duration,size:stream=codec_type,codec_name,width,height,nb_read_packets".into(),
             "-of".into(),
             "json".into(),
             file.to_string_lossy().into_owned(),
         ],
         None,
-        Duration::from_secs(5),
+        Duration::from_secs(30),
         true,
     )?;
     let metadata: Value = serde_json::from_slice(&output.stdout)?;
@@ -177,8 +221,31 @@ fn validate_metadata(metadata: &Value, silent: bool) -> Result<()> {
         .iter()
         .filter(|v| v["codec_type"] == "audio")
         .count();
+    let packets = |stream: &Value| {
+        stream["nb_read_packets"]
+            .as_str()
+            .and_then(|value| value.parse::<u64>().ok())
+            .is_some_and(|count| count > 0)
+    };
+    let valid_video = streams
+        .iter()
+        .filter(|v| v["codec_type"] == "video")
+        .all(|v| {
+            v["codec_name"]
+                .as_str()
+                .is_some_and(|name| !name.is_empty())
+                && v["width"].as_u64().is_some_and(|width| width > 0)
+                && v["height"].as_u64().is_some_and(|height| height > 0)
+                && packets(v)
+        });
+    let valid_audio = streams
+        .iter()
+        .filter(|v| v["codec_type"] == "audio")
+        .all(|v| v["codec_name"] == "opus" && packets(v));
     if videos != 1
-        || audios != if silent { 0 } else { 2 }
+        || audios != if silent { 1 } else { 2 }
+        || !valid_video
+        || !valid_audio
         || !metadata["format"]["duration"]
             .as_str()
             .and_then(|s| s.parse::<f64>().ok())
@@ -301,6 +368,8 @@ fn queued(socket: &UnixDatagram) -> Result<Option<Vec<u8>>> {
                 b"toggle".as_slice(),
                 b"silent".as_slice(),
                 b"stop".as_slice(),
+                b"replay-save".as_slice(),
+                b"replay-toggle".as_slice(),
             ]
             .contains(&&buf[..n]) =>
         {
@@ -412,7 +481,22 @@ pub fn serve(root: &Path) -> Result<()> {
     let dir = directory()?;
     let _owner = state::lock(&dir.join("owner.lock"), Duration::from_millis(100))?;
     publish(&json!({"phase":"starting", "silent":silent}))?;
-    let result = capture(root, &socket, silent);
+    let result = if initial == b"replay-save" || initial == b"replay-toggle" {
+        let mut save = initial == b"replay-save";
+        loop {
+            match replay::run(root, &socket, save) {
+                Ok(true) => match capture(root, &socket, true) {
+                    Ok(true) => break Ok(()),
+                    Ok(false) => save = false,
+                    Err(error) => break Err(error),
+                },
+                Ok(false) => break Ok(()),
+                Err(error) => break Err(error),
+            }
+        }
+    } else {
+        capture(root, &socket, silent).map(|_| ())
+    };
     if let Err(e) = &result {
         let _ = drain_stop_requests(&socket);
         let mut s = status().unwrap_or_else(|_| json!({}));
@@ -423,7 +507,30 @@ pub fn serve(root: &Path) -> Result<()> {
     }
     result
 }
-fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
+fn readable_name(kind: &str) -> Result<String> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| invalid("Invalid system clock"))?;
+    let seconds =
+        libc::time_t::try_from(now.as_secs()).map_err(|_| invalid("Invalid system clock"))?;
+    let mut local = std::mem::MaybeUninit::<libc::tm>::uninit();
+    // SAFETY: valid pointers, and localtime_r initializes the tm on success.
+    if unsafe { libc::localtime_r(&seconds, local.as_mut_ptr()) }.is_null() {
+        return Err(invalid("Cannot format local recording time"));
+    }
+    let local = unsafe { local.assume_init() };
+    Ok(format!(
+        "{kind}-{:04}-{:02}-{:02}_{:02}-{:02}-{:02}-{:06}.mkv",
+        local.tm_year + 1900,
+        local.tm_mon + 1,
+        local.tm_mday,
+        local.tm_hour,
+        local.tm_min,
+        local.tm_sec,
+        now.subsec_micros()
+    ))
+}
+fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<bool> {
     capabilities()?;
     let (c, _) = settings(root)?;
     let display = output().unwrap_or(Value::Null);
@@ -433,20 +540,25 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
         PathBuf::from(&c.directory)
     };
     fs::create_dir_all(&output_dir)?;
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| invalid("Invalid system clock"))?
-        .as_nanos();
-    let file = output_dir.join(format!("Foundation-{stamp}.{}", c.container));
+    let file = output_dir.join(readable_name(if silent { "Desktop" } else { "Recording" })?);
     let marker = PathBuf::from(format!("{}.ts", file.display()));
     let state_dir =
         state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation/recording");
     state::private_directory(&state_dir)?;
     let args = command(&c, &display, silent, &file, &state_dir.join("portal-token"))?;
     // A second press during setup cancels, instead of unexpectedly starting capture later.
-    if queued(socket)?.is_some() {
-        publish(&json!({"phase":"idle"}))?;
-        return Ok(());
+    if let Some(request) = queued(socket)? {
+        if [
+            b"toggle".as_slice(),
+            b"silent".as_slice(),
+            b"stop".as_slice(),
+        ]
+        .contains(&request.as_slice())
+        {
+            publish(&json!({"phase":"idle"}))?;
+            return Ok(false);
+        }
+        notify("Stop the current recording before starting replay");
     }
     let reserved = OpenOptions::new()
         .write(true)
@@ -484,6 +596,7 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
     let mut stopping = false;
     let mut startup_cancel = false;
     let mut failure = None;
+    let mut shutdown_requested = false;
     let mut deadline = Some(Instant::now() + Duration::from_secs(c.startup_timeout_seconds));
     loop {
         if let Some(exit) = child.child.try_wait()? {
@@ -521,7 +634,7 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
             if captured || nonempty {
                 notify(&format!("Saved {}", file.display()));
             }
-            return Ok(());
+            return Ok(shutdown_requested);
         }
         if !started && !stopping && ready(&marker) {
             started = true;
@@ -556,8 +669,16 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
                 "Recorder did not finish saving in time; partial MKV retained",
             ));
         }
-        let requested = queued(socket)?.is_some();
+        let requested = match queued(socket)? {
+            Some(request) if request.starts_with(b"replay-") => {
+                notify("Stop the current recording before starting replay");
+                false
+            }
+            Some(_) => true,
+            None => false,
+        };
         let (shutdown, child_changed) = signals.events()?;
+        shutdown_requested |= shutdown;
         if !stopping && (requested || shutdown || expired) {
             stopping = true;
             startup_cancel = !started && !ready(&marker);
@@ -655,10 +776,10 @@ mod tests {
     #[test]
     fn finalization_requires_readable_video_and_expected_independent_audio() {
         let complete = json!({"format":{"duration":"1.25"},"streams":[
-            {"codec_type":"video"},{"codec_type":"audio"},{"codec_type":"audio"}]});
+            {"codec_type":"video","codec_name":"h264","width":2560,"height":1440,"nb_read_packets":"10"},{"codec_type":"audio","codec_name":"opus","nb_read_packets":"10"},{"codec_type":"audio","codec_name":"opus","nb_read_packets":"10"}]});
         validate_metadata(&complete, false).unwrap();
         assert!(validate_metadata(&complete, true).is_err());
-        let silent = json!({"format":{"duration":"1.25"},"streams":[{"codec_type":"video"}]});
+        let silent = json!({"format":{"duration":"1.25"},"streams":[{"codec_type":"video","codec_name":"h264","width":2560,"height":1440,"nb_read_packets":"10"},{"codec_type":"audio","codec_name":"opus","nb_read_packets":"10"}]});
         validate_metadata(&silent, true).unwrap();
         assert!(validate_metadata(&silent, false).is_err());
         for duration in ["0", "NaN", "-1", "unavailable"] {

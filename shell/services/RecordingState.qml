@@ -11,7 +11,8 @@ QtObject {
             phase: "idle"
         })
     readonly property string phase: state.phase ?? "idle"
-    readonly property bool visible: ["starting", "recording", "stopping", "error"].includes(phase)
+    readonly property bool replayActive: (state.replay === true && ["starting", "stopping"].includes(phase)) || ["replay", "replay-recording"].includes(phase)
+    readonly property bool visible: ["starting", "recording", "stopping", "error", "replay", "replay-recording"].includes(phase)
     property bool prepared: false
     property ControlRequest initialize: ControlRequest {
         command: [Quickshell.shellDir + "/../scripts/record", "status"]
@@ -34,7 +35,7 @@ QtObject {
                 return;
             try {
                 const value = JSON.parse(text());
-                root.state = ["idle", "starting", "recording", "stopping", "error"].includes(value.phase) ? value : {
+                root.state = ["idle", "starting", "recording", "stopping", "error", "replay", "replay-recording"].includes(value.phase) ? value : {
                     phase: "error"
                 };
             } catch (e) {

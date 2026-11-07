@@ -11,10 +11,11 @@ PanelWindow {
     property var targetScreen: null
     property bool entered: false
     property string recordingPhase: "idle"
-    readonly property bool recordingVisible: ["starting", "recording", "stopping", "error"].includes(recordingPhase)
+    property bool replayActive: false
+    readonly property bool recordingVisible: ["starting", "recording", "stopping", "error", "replay-recording"].includes(recordingPhase)
     screen: targetScreen
     visible: true
-    implicitWidth: recordingVisible ? 94 : 76
+    implicitWidth: 76 + (recordingVisible ? 18 : 0) + (replayActive ? 14 : 0)
     implicitHeight: 34
     anchors {
         left: true
@@ -62,7 +63,7 @@ PanelWindow {
                 radius: 4
                 anchors.verticalCenter: parent.verticalCenter
                 color: root.recordingPhase === "starting" ? Material.colors.tertiary : Material.colors.error
-                Accessible.name: root.recordingPhase === "recording" ? "Recording" : root.recordingPhase === "starting" ? "Preparing recording" : root.recordingPhase === "error" ? "Recording failed; inspect recording status" : "Saving recording"
+                Accessible.name: ["recording", "replay-recording"].includes(root.recordingPhase) ? "Recording" : root.recordingPhase === "starting" ? "Preparing recording" : root.recordingPhase === "error" ? "Recording failed; inspect recording status" : "Saving recording"
                 Accessible.role: Accessible.Indicator
                 Text {
                     anchors.centerIn: parent
@@ -72,6 +73,18 @@ PanelWindow {
                     font.bold: true
                     color: Material.colors.on_error
                 }
+            }
+            Rectangle {
+                visible: root.replayActive
+                width: 6
+                height: 6
+                radius: 3
+                anchors.verticalCenter: parent.verticalCenter
+                color: "transparent"
+                border.width: 1.5
+                border.color: Material.colors.tertiary
+                Accessible.name: "Replay buffer active"
+                Accessible.role: Accessible.Indicator
             }
             Text {
                 text: Qt.formatDateTime(clock.date, "hh:mm")

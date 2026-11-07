@@ -71,9 +71,13 @@ impl Fixture {
             ),
         )
         .unwrap();
-        let mut streams = vec![json!({"codec_type":"video"})];
+        let mut streams = vec![
+            json!({"codec_type":"video", "codec_name":"h264", "width":2560, "height":1440, "nb_read_packets":"10"}),
+        ];
+        streams.push(json!({"codec_type":"audio", "codec_name":"opus", "nb_read_packets":"10"}));
         if !silent {
-            streams.extend([json!({"codec_type":"audio"}), json!({"codec_type":"audio"})]);
+            streams
+                .push(json!({"codec_type":"audio", "codec_name":"opus", "nb_read_packets":"10"}));
         }
         fs::write(
             root.join("probe.json"),
@@ -244,12 +248,14 @@ impl Drop for Fixture {
 }
 
 #[test]
-fn normal_shortcut_stops_silent_capture_and_indicator_waits_for_finalization() {
+fn normal_shortcut_stops_desktop_only_capture_and_indicator_waits_for_finalization() {
     let mut f = Fixture::new(true);
     f.start(true);
     f.wait_phase("recording");
     let arguments = fs::read_to_string(f.root.join("arguments")).unwrap();
-    assert!(!arguments.lines().any(|s| s == "-a"));
+    assert_eq!(arguments.lines().filter(|s| *s == "-a").count(), 1);
+    assert!(arguments.lines().any(|s| s == "default_output"));
+    assert!(!arguments.lines().any(|s| s == "default_input"));
     assert!(!arguments.lines().any(|s| s == "-s"));
     f.client("toggle");
     f.wait_phase("stopping");
@@ -359,4 +365,333 @@ fn stopping_an_unstarted_portal_selector_cancels_without_waiting_for_the_save_ti
     assert_eq!(f.state()["phase"], "idle");
     assert!(!f.root.join("probe-started").exists());
     assert!(!PathBuf::from(f.state()["output"].as_str().unwrap()).exists());
+}
+
+fn replay_fixture(f: &Fixture) {
+    f.script("gpu-screen-recorder", r##"#!/usr/bin/python3
+import json,os,signal,socket,sys,time,threading
+if sys.argv[1:] == ['--help']:
+ print('-write-first-frame-ts -fallback-cpu-encoding -portal-session-token-filepath -ab -ipc -ro -replay-storage -bm')
+ sys.exit(0)
+args=sys.argv[1:]
+def value(k): return args[args.index(k)+1]
+root=os.environ['DF_RECORDING_FIXTURE_ROOT']; open(root+'/arguments','w').write('\n'.join(args))
+if '-ipc' not in args:
+ open(root+'/desktop-arguments','w').write('\n'.join(args))
+ out=value('-o'); open(out,'wb').write(b'fixture media')
+ signal.signal(signal.SIGINT,lambda *_: sys.exit(0))
+ open(out+'.ts','w').write('monotonic_microsec realtime_microsec\n100 200\n')
+ while True: time.sleep(.02)
+path=value('-ipc'); out=value('-o'); listener=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); listener.bind(path);listener.listen()
+open(root+'/replay-pid','w').write(str(os.getpid()))
+time.sleep(.25)
+print('gsr info: update fps: 60, damage fps: 60',file=sys.stderr,flush=True)
+def display_changes():
+ while not os.path.exists(root+'/display-changed'): time.sleep(.02)
+ print('gsr info: pipewire: negotiated format:',file=sys.stderr,flush=True)
+threading.Thread(target=display_changes,daemon=True).start()
+counter=0
+signal.signal(signal.SIGINT,lambda *_: sys.exit(0))
+while True:
+ c,_=listener.accept()
+ with c:
+  data=b''
+  while b'\n' not in data: data+=c.recv(4096)
+  req=json.loads(data); action=req['name']; answer={'id':1,'result':'ok'}
+  if action in ('save-replay','stop-replay-recording'):
+   counter+=1;name=('Replay_' if action=='save-replay' else 'Video_')+str(counter)+'.mkv'
+   file=os.path.join(out,name);open(file,'wb').write(b'fixture media');answer['data']=file
+   if action=='stop-replay-recording': open(file+'.ts','w').write('retained marker')
+  c.sendall((json.dumps(answer)+'\n').encode())
+"##);
+}
+
+fn wait_files(dir: &std::path::Path, count: usize) {
+    let until = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < until {
+        if fs::read_dir(dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.path().extension().is_some_and(|x| x == "mkv"))
+            .count()
+            >= count
+        {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("Expected {count} saved recordings");
+}
+
+#[test]
+fn replay_and_regular_recording_share_one_owned_process() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    f.socket
+        .send_to(
+            b"replay-toggle",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    let arguments = fs::read_to_string(f.root.join("arguments")).unwrap();
+    assert!(arguments.contains("-r\n135\n"));
+    assert!(arguments.contains("-bm\ncbr\n"));
+    assert_eq!(arguments.lines().filter(|s| *s == "-a").count(), 2);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.client("replay-save");
+    wait_files(&f.root.join("videos"), 1);
+    f.client("toggle");
+    f.wait_phase("replay-recording");
+    f.client("replay-save");
+    wait_files(&f.root.join("videos"), 2);
+    f.client("toggle");
+    f.wait_phase("replay");
+    wait_files(&f.root.join("videos"), 3);
+    for entry in fs::read_dir(f.root.join("videos"))
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|x| x == "mkv"))
+    {
+        assert_eq!(
+            entry.metadata().unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(
+            entry.file_name().to_string_lossy().starts_with("Replay-")
+                || entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("Recording-")
+        );
+    }
+    f.client("replay-toggle");
+    assert!(f.wait_exit());
+    assert_eq!(f.state()["phase"], "idle");
+}
+
+#[test]
+fn early_replay_save_waits_until_the_buffer_has_frames() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.socket
+        .send_to(
+            b"replay-save",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    wait_files(&f.root.join("videos"), 1);
+    f.client("replay-toggle");
+    assert!(f.wait_exit());
+}
+
+#[test]
+fn display_renegotiation_saves_active_recording_and_stops_replay() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.socket
+        .send_to(
+            b"replay-toggle",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    f.client("toggle");
+    f.wait_phase("replay-recording");
+    fs::write(f.root.join("display-changed"), "").unwrap();
+    assert!(!f.wait_exit());
+    assert_eq!(f.state()["phase"], "error");
+    assert!(
+        f.state()["error"]
+            .as_str()
+            .unwrap()
+            .contains("Display capture format changed")
+    );
+    wait_files(&f.root.join("videos"), 1);
+}
+
+#[test]
+fn crashed_replay_is_reported_and_does_not_silently_restart() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    f.socket
+        .send_to(
+            b"replay-toggle",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    let pid: i32 = fs::read_to_string(f.root.join("replay-pid"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!(pid > 1);
+    // SAFETY: pid is the live private test recorder created by this fixture.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGKILL) }, 0);
+    assert!(!f.wait_exit());
+    assert_eq!(f.state()["phase"], "error");
+    assert!(
+        f.state()["error"]
+            .as_str()
+            .unwrap()
+            .contains("partial files retained")
+    );
+}
+
+#[test]
+fn desktop_only_shortcut_pauses_replay_without_recording_microphone_then_resumes_it() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.socket
+        .send_to(
+            b"replay-toggle",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    fs::write(f.root.join("probe.json"),json!({"format":{"duration":"1.5"},"streams":[{"codec_type":"video","codec_name":"h264","width":2560,"height":1440,"nb_read_packets":"10"},{"codec_type":"audio","codec_name":"opus", "nb_read_packets":"10"}]}).to_string()).unwrap();
+    f.client("silent");
+    f.wait_phase("recording");
+    let args = fs::read_to_string(f.root.join("desktop-arguments")).unwrap();
+    assert_eq!(args.lines().filter(|v| *v == "-a").count(), 1);
+    assert!(args.lines().any(|v| v == "default_output"));
+    assert!(!args.lines().any(|v| v == "default_input"));
+    f.client("toggle");
+    f.wait_phase("replay");
+    wait_files(&f.root.join("videos"), 1);
+    assert!(
+        fs::read_dir(f.root.join("videos"))
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|e| e.file_name().to_string_lossy().starts_with("Desktop-"))
+    );
+    f.client("replay-toggle");
+    assert!(f.wait_exit());
+}
+
+#[test]
+fn invalid_replay_is_retained_privately_and_never_reported_saved() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    f.script(
+        "notify-send",
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$DF_RECORDING_FIXTURE_ROOT/notices\"\n",
+    );
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    fs::write(f.root.join("probe.json"), "{\"streams\":[]}").unwrap();
+    f.socket
+        .send_to(
+            b"replay-toggle",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    f.client("replay-save");
+    let until = Instant::now() + Duration::from_secs(8);
+    while !f.root.join("notices").exists() && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let notices = fs::read_to_string(f.root.join("notices")).unwrap();
+    assert!(notices.contains("Replay not saved"), "{notices}");
+    assert!(!notices.contains("Saved "), "{notices}");
+    assert_eq!(
+        fs::read_dir(f.root.join("videos"))
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.path().extension().is_some_and(|x| x == "mkv"))
+            .count(),
+        0
+    );
+    assert!(
+        fs::read_dir(f.root.join("videos"))
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|e| e
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".foundation-replay-"))
+    );
+    f.client("replay-toggle");
+    assert!(f.wait_exit());
+}
+
+#[test]
+fn service_shutdown_gives_owner_time_to_finalize_its_recorder() {
+    let definitions = desktop_foundationctl::deploy_units::definitions(
+        std::path::Path::new("/checkout"),
+        std::path::Path::new("/state"),
+    );
+    let service = &definitions
+        .iter()
+        .find(|(name, _)| name == "desktop-foundation-recording.service")
+        .unwrap()
+        .1;
+    assert!(service.contains("KillMode=mixed\n"));
+    assert!(service.contains("KillSignal=SIGINT\n"));
+    assert!(service.contains("TimeoutStopSec=75\n"));
+}
+
+#[test]
+fn shutdown_saves_active_regular_recording_and_stops_replay_cleanly() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.socket
+        .send_to(
+            b"replay-toggle",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    f.client("toggle");
+    f.wait_phase("replay-recording");
+    let pid = f.owner.as_ref().unwrap().id() as i32;
+    // SAFETY: the owner is the private child started by this fixture.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    assert!(f.wait_exit());
+    assert_eq!(f.state()["phase"], "idle");
+    wait_files(&f.root.join("videos"), 1);
+}
+
+#[test]
+fn shutdown_during_desktop_only_does_not_restart_replay() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.socket
+        .send_to(
+            b"replay-toggle",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    fs::write(f.root.join("probe.json"), json!({"format":{"duration":"1.5"},"streams":[{"codec_type":"video","codec_name":"h264","width":2560,"height":1440,"nb_read_packets":"10"},{"codec_type":"audio","codec_name":"opus","nb_read_packets":"10"}]}).to_string()).unwrap();
+    f.client("silent");
+    f.wait_phase("recording");
+    let pid = f.owner.as_ref().unwrap().id() as i32;
+    // SAFETY: the owner is the private child started by this fixture.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    assert!(f.wait_exit());
+    assert_eq!(f.state()["phase"], "idle");
+    wait_files(&f.root.join("videos"), 1);
 }

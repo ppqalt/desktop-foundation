@@ -18,6 +18,10 @@ const SOCKET: &str = "desktop-foundation-recording.socket";
 pub struct Config {
     shortcut: String,
     silent_shortcut: String,
+    replay_shortcut: String,
+    replay_toggle_shortcut: String,
+    replay_seconds: u32,
+    replay_bitrate_kbps: u32,
     capture: String,
     resolution: String,
     fps: u32,
@@ -42,6 +46,10 @@ impl Default for Config {
         Self {
             shortcut: "Ctrl+Shift+F12".into(),
             silent_shortcut: "Ctrl+Shift+Alt+F12".into(),
+            replay_shortcut: "Ctrl+Shift+F11".into(),
+            replay_toggle_shortcut: "Ctrl+Shift+Alt+F11".into(),
+            replay_seconds: 135,
+            replay_bitrate_kbps: 16000,
             capture: "portal".into(),
             resolution: "auto".into(),
             fps: 0,
@@ -65,7 +73,12 @@ impl Default for Config {
 }
 impl Config {
     fn validate(&self) -> Result<()> {
-        for shortcut in [&self.shortcut, &self.silent_shortcut] {
+        for shortcut in [
+            &self.shortcut,
+            &self.silent_shortcut,
+            &self.replay_shortcut,
+            &self.replay_toggle_shortcut,
+        ] {
             if shortcut.len() > 128
                 || !shortcut
                     .bytes()
@@ -76,16 +89,25 @@ impl Config {
                 ));
             }
         }
-        if !self.shortcut.is_empty() && self.shortcut == self.silent_shortcut {
-            return Err(invalid("Recording shortcuts must be distinct"));
+        let shortcuts = [
+            &self.shortcut,
+            &self.silent_shortcut,
+            &self.replay_shortcut,
+            &self.replay_toggle_shortcut,
+        ];
+        for (index, shortcut) in shortcuts.iter().enumerate() {
+            if !shortcut.is_empty()
+                && shortcuts[..index]
+                    .iter()
+                    .any(|other| other.eq_ignore_ascii_case(shortcut))
+            {
+                return Err(invalid("Recording shortcuts must be distinct"));
+            }
         }
-        let dimension = self.resolution.split_once('x').is_some_and(|(w, h)| {
-            [w, h]
-                .into_iter()
-                .all(|v| v.parse::<u32>().is_ok_and(|v| (16..=32768).contains(&v)))
-        });
-        if self.resolution != "auto" && !dimension {
-            return Err(invalid("Recording resolution must be auto or WIDTHxHEIGHT"));
+        if self.resolution != "auto" {
+            return Err(invalid(
+                "Recording always uses the selected source's native resolution",
+            ));
         }
         if self.capture.is_empty()
             || self.capture.len() > 128
@@ -94,14 +116,16 @@ impl Config {
                 .capture
                 .chars()
                 .any(|c| c.is_control() || matches!(c, '|' | ';'))
-            || self.fps > 240
-            || !(1..=240).contains(&self.max_fps)
+            || (self.fps != 0 && !(60..=240).contains(&self.fps))
+            || !(60..=240).contains(&self.max_fps)
+            || !(2..=3600).contains(&self.replay_seconds)
+            || !(1000..=100000).contains(&self.replay_bitrate_kbps)
             || !["auto", "h264", "hevc", "av1", "hevc_10bit", "av1_10bit"]
                 .contains(&self.video_codec.as_str())
             || !["medium", "high", "very_high", "ultra"].contains(&self.quality.as_str())
             || !["cfr", "vfr", "content"].contains(&self.frame_mode.as_str())
-            || !["mkv", "mp4"].contains(&self.container.as_str())
-            || !["opus", "aac"].contains(&self.audio_codec.as_str())
+            || self.container != "mkv"
+            || self.audio_codec != "opus"
             || !(32..=512).contains(&self.audio_bitrate_kbps)
             || !(10..=600).contains(&self.startup_timeout_seconds)
             || !(5..=30).contains(&self.stop_timeout_seconds)
@@ -233,12 +257,9 @@ fn selected_fps(c: &Config, display: &Value) -> u32 {
         .filter(|hz| hz.is_finite() && *hz > 0.0)
         .map(|mhz| (mhz / 1000.0).round().clamp(1.0, 240.0) as u32)
         .unwrap_or(c.max_fps);
-    refresh.min(c.max_fps)
+    refresh.clamp(60, c.max_fps)
 }
 fn audio_defaults(silent: bool) -> Value {
-    if silent {
-        return json!({"enabled":false});
-    }
     let result = process::checked(
         &["pactl".into(), "--format=json".into(), "info".into()],
         None,
@@ -247,7 +268,7 @@ fn audio_defaults(silent: bool) -> Value {
     );
     match result.and_then(|v| serde_json::from_slice::<Value>(&v.stdout).map_err(Into::into)) {
         Ok(info) => {
-            json!({"default_output":info["default_sink_name"], "default_input":info["default_source_name"],
+            json!({"default_output":info["default_sink_name"], "default_input":if silent {Value::Null} else {info["default_source_name"].clone()},
             "server_sample_specification":info["default_sample_specification"]})
         }
         Err(e) => json!({"diagnostic":e.to_string()}),
@@ -306,18 +327,16 @@ fn command(
             token.to_string_lossy().into_owned(),
         ]);
     }
+    args.extend(["-a".into(), c.desktop_audio.clone()]);
     if !silent {
-        args.extend([
-            "-a".into(),
-            c.desktop_audio.clone(),
-            "-a".into(),
-            c.microphone_audio.clone(),
-            "-ac".into(),
-            c.audio_codec.clone(),
-            "-ab".into(),
-            c.audio_bitrate_kbps.to_string(),
-        ]);
+        args.extend(["-a".into(), c.microphone_audio.clone()]);
     }
+    args.extend([
+        "-ac".into(),
+        c.audio_codec.clone(),
+        "-ab".into(),
+        c.audio_bitrate_kbps.to_string(),
+    ]);
     args.extend(["-o".into(), file.to_string_lossy().into_owned()]);
     Ok(args)
 }
@@ -336,15 +355,20 @@ pub fn plan(root: &Path, silent: bool) -> Result<Value> {
     Ok(
         json!({"available": apps::executable("gpu-screen-recorder"), "settings": c, "sources": sources,
         "focused_display": display, "fps": selected_fps(&c, &display), "directory": directory,
-        "silent": silent, "tracks": if silent {0} else {2}, "command": args, "audio_defaults": audio_defaults(silent),
+        "silent": silent, "tracks": if silent {1} else {2}, "command": args, "audio_defaults": audio_defaults(silent),
         "resolution_policy": "auto preserves the actual captured source resolution; a portal selection may differ from the focused output",
-        "audio_policy": "separate default-output and default-input tracks; recorder negotiates formats without changing device volumes"}),
+        "audio_policy": if silent {"desktop output only; microphone is not captured"} else {"separate default-output and default-input tracks; no device volume changes"}}),
     )
 }
 pub fn bindings(root: &Path) -> Result<String> {
     let (c, _) = settings(root)?;
     let mut text = String::from("binds {\n");
-    for (key, action) in [(&c.shortcut, "toggle"), (&c.silent_shortcut, "silent")] {
+    for (key, action) in [
+        (&c.shortcut, "toggle"),
+        (&c.silent_shortcut, "silent"),
+        (&c.replay_shortcut, "replay-save"),
+        (&c.replay_toggle_shortcut, "replay-toggle"),
+    ] {
         if !key.is_empty() {
             let command = format!("exec \"$DF_FOUNDATION_ROOT/scripts/record\" {action}");
             text.push_str(&format!(
@@ -367,6 +391,8 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         [] | ["toggle"] => runtime::request(false, false),
         ["silent"] => runtime::request(true, false),
         ["stop"] => runtime::request(false, true),
+        ["replay-save"] => runtime::replay_request(true),
+        ["replay-toggle"] => runtime::replay_request(false),
         ["serve"] => runtime::serve(root),
         ["cleanup"] => runtime::cleanup(),
         ["acknowledge"] => runtime::acknowledge(),
@@ -383,7 +409,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             Ok(())
         }
         _ => Err(invalid(
-            "Expected recording toggle|silent|stop|plan [--silent]|status",
+            "Expected recording toggle|silent|stop|replay-save|replay-toggle|plan [--silent]|status",
         )),
     }
 }
@@ -416,11 +442,9 @@ mod tests {
             Path::new("/tmp/token"),
         )
         .unwrap();
-        assert!(
-            !silent
-                .iter()
-                .any(|v| ["-a", "-ac", "-ab"].contains(&v.as_str()))
-        );
+        assert_eq!(silent.iter().filter(|v| *v == "-a").count(), 1);
+        assert!(silent.windows(2).any(|v| v == ["-a", "default_output"]));
+        assert!(!silent.contains(&"default_input".to_string()));
     }
     #[test]
     fn overrides_and_missing_displays_are_explicit() {
@@ -440,12 +464,11 @@ mod tests {
         );
         c.capture = "portal".into();
         c.resolution = "1920x1080".into();
+        assert!(c.validate().is_err());
+        c.resolution = "auto".into();
         c.fps = 120;
         c.validate().unwrap();
         assert_eq!(selected_fps(&c, &Value::Null), 120);
-        c.resolution = "bad".into();
-        assert!(c.validate().is_err());
-        c.resolution = "auto".into();
         c.microphone_audio = "default_input|default_output".into();
         assert!(c.validate().is_err());
     }

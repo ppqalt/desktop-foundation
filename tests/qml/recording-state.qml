@@ -51,6 +51,15 @@ ShellRoot {
             verify(clock.visible);
             writePhase("idle");
             verify(!clock.visible);
+            writePhase("replay");
+            verify(recording.replayActive);
+            verify(clock.visible);
+            writePhase("replay-recording");
+            verify(recording.replayActive);
+            verify(clock.visible);
+            writePhase("idle");
+            verify(!recording.replayActive);
+            verify(!clock.visible);
         }
         function cleanupTestCase() {
             console.log("RECORDING_STATE_PASS");
