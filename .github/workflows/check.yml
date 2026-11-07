@@ -28,6 +28,7 @@ jobs:
           python3 -m compileall -q scripts
           python3 -m unittest discover -s tests -v
           ./tests/test-niri-package-build
+          ./tests/test-install-bootstrap
       - name: Fish syntax
         run: fish --no-config -n terminal/fish/config.fish
       - name: Native earbud backend

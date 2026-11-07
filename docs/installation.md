@@ -6,10 +6,11 @@ checkout in a permanent directory and run the installer as that user. Installer
 orchestration is native Rust; Python remains necessary for the not-yet-migrated
 privileged helpers.
 
-The installer needs the release backend. On a fresh checkout, prepare the build
-tools/dependencies with `scripts/bootstrap`, then run `scripts/build-backend`.
-A normal install can build a missing backend when Cargo is available. Inspection
-(`--dry-run`, `--plan`, `--check`) never performs that implicit build.
+A normal installation bootstraps missing build dependencies and builds the release
+backend automatically. It verifies any existing deployment owner before running
+package setup. Inspection (`--dry-run`, `--plan`, `--check`) never installs packages
+or builds the backend; run `scripts/bootstrap` and `scripts/build-backend` first if
+you want to use those inspection options on a completely fresh checkout.
 
 ```sh
 scripts/install-core --dry-run
@@ -57,7 +58,7 @@ scripts/install-all
 
 `scripts/install` defaults to Minimal on a new installation and reuses the last
 saved selection afterward; `scripts/install-all` selects the legacy personal
-profile. See [personal applications](personal-apps.md) for package sources and setup.
+profile and includes the recording package. See [personal applications](personal-apps.md) for package sources and setup.
 
 | Option | Purpose |
 | --- | --- |

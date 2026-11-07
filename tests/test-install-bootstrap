@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Exercise the public wrapper with inert provisioners and private state.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+base=$(mktemp -d /tmp/df-install-bootstrap.XXXXXXXX)
+trap 'rm -r -- "$base"' EXIT
+mkdir -p "$base/repo/scripts" "$base/state" "$base/home"
+cp "$root/scripts/install" "$base/repo/scripts/install"
+cat >"$base/repo/scripts/bootstrap" <<'SH'
+#!/bin/sh
+printf 'bootstrap\n' >> "$DF_TEST_LOG"
+SH
+cat >"$base/repo/scripts/build-backend" <<'SH'
+#!/bin/sh
+printf 'build\n' >> "$DF_TEST_LOG"
+mkdir -p "$(dirname "$0")/../native/foundation/target/release"
+printf '#!/bin/sh\n' > "$(dirname "$0")/../native/foundation/target/release/desktop-foundationctl"
+chmod +x "$(dirname "$0")/../native/foundation/target/release/desktop-foundationctl"
+SH
+cat >"$base/repo/scripts/foundation" <<'SH'
+#!/bin/sh
+printf 'foundation %s\n' "$*" >> "$DF_TEST_LOG"
+SH
+chmod +x "$base/repo/scripts/"*
+export HOME="$base/home" XDG_STATE_HOME="$base/state" DF_TEST_LOG="$base/log"
+"$base/repo/scripts/install" --core
+[[ $(cat "$base/log") == $'bootstrap\nbuild\nfoundation install --core' ]]
+rm "$base/repo/native/foundation/target/release/desktop-foundationctl" "$base/log"
+"$base/repo/scripts/install" --core --no-packages
+[[ $(cat "$base/log") == $'build\nfoundation install --core --no-packages' ]]
+rm "$base/repo/native/foundation/target/release/desktop-foundationctl" "$base/log"
+if "$base/repo/scripts/install" --dry-run >/dev/null 2>&1; then exit 1; fi
+[[ ! -e $base/log ]]
+mkdir -p "$base/state/desktop-foundation"
+printf '{"root":"/different/checkout"}\n' >"$base/state/desktop-foundation/manifest.json"
+if "$base/repo/scripts/install" --core >/dev/null 2>&1; then exit 1; fi
+[[ ! -e $base/log ]]
+printf 'invalid json\n' >"$base/state/desktop-foundation/manifest.json"
+if "$base/repo/scripts/install" --core >/dev/null 2>&1; then exit 1; fi
+[[ ! -e $base/log ]]
+printf '{"root":"%s"}\n' "$base/repo" >"$base/state/desktop-foundation/manifest.json"
+"$base/repo/scripts/install" --core
+[[ $(cat "$base/log") == $'bootstrap\nbuild\nfoundation install --core' ]]
+printf '%s\n' 'PASS fresh bootstrap, inspection, no-packages and ownership protection'

@@ -2,16 +2,52 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 if [[ ! -x $root/native/foundation/target/release/desktop-foundationctl ]]; then
+	no_packages=false
 	for option in "$@"; do
 		case $option in
 		--dry-run | --plan | --check | --help | -h)
 			printf '%s\n' 'Build the native installer first: scripts/build-backend (scripts/bootstrap supplies missing build tools).' >&2
 			exit 1
 			;;
+		--no-packages) no_packages=true ;;
 		esac
 	done
-	if ! command -v cargo >/dev/null; then
-		printf '%s\n' 'Build tools are missing. Run scripts/bootstrap, then rerun the installer.' >&2
+	# Do not provision packages from a different checkout before the native
+	# installer gets its opportunity to enforce deployment ownership.
+	state_base=${XDG_STATE_HOME:-$HOME/.local/state}
+	[[ $state_base = /* ]] || {
+		printf '%s\n' 'XDG_STATE_HOME must be absolute.' >&2
+		exit 1
+	}
+	manifest="$state_base/desktop-foundation/manifest.json"
+	if [[ -e $manifest || -L $manifest ]]; then
+		if ! command -v python3 >/dev/null 2>&1; then
+			printf '%s\n' 'Python is required to verify existing deployment ownership before bootstrapping.' >&2
+			exit 1
+		fi
+		python3 - "$manifest" "$root" <<'PY'
+import json, os, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+try:
+    with path.open("rb") as file:
+        contents = file.read(1024 * 1024 + 1)
+    if len(contents) > 1024 * 1024:
+        raise ValueError("manifest is too large")
+    owner = json.loads(contents)["root"]
+    if not isinstance(owner, str) or not os.path.isabs(owner):
+        raise ValueError("invalid owner")
+    if os.path.realpath(owner) != os.path.realpath(sys.argv[2]):
+        raise ValueError("a different checkout owns deployment")
+except (OSError, ValueError, KeyError, TypeError) as error:
+    print(f"Cannot bootstrap this checkout: {error}. Nothing changed.", file=sys.stderr)
+    sys.exit(1)
+PY
+	fi
+	if ! $no_packages; then
+		"$root/scripts/bootstrap"
+	fi
+	if ! command -v cargo >/dev/null 2>&1; then
+		printf '%s\n' 'Cargo is missing; install the build dependencies before using --no-packages.' >&2
 		exit 1
 	fi
 	"$root/scripts/build-backend"
