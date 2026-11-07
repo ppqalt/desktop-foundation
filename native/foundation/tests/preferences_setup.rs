@@ -75,7 +75,7 @@ fn native_theme_preferences_roundtrip_and_rerun_preserve_originals() {
         let r = f.invoke(&["install", "--theme-only"]);
         assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
     }
-    assert_eq!(f.setting("font-name"), "'Google Sans Flex 10'");
+    assert_eq!(f.setting("font-name"), "'Google Sans Flex 11'");
     assert_eq!(f.setting("icon-theme"), "'UserIcons'");
     assert_eq!(f.writes(), 3);
     let saved: Value = serde_json::from_slice(
@@ -109,7 +109,7 @@ fn external_preference_change_stops_restore_before_any_write() {
     assert!(!r.status.success());
     assert_eq!(f.writes(), writes);
     assert_eq!(f.setting("gtk-theme"), "'External'");
-    assert_eq!(f.setting("font-name"), "'Google Sans Flex 10'");
+    assert_eq!(f.setting("font-name"), "'Google Sans Flex 11'");
     assert!(
         f.0.join("state/desktop-foundation/preferences.json")
             .is_file()
@@ -128,7 +128,7 @@ fn invalid_mime_journal_does_not_restore_preferences_first() {
     let r = f.invoke(&["restore"]);
     assert!(!r.status.success());
     assert_eq!(f.writes(), writes);
-    assert_eq!(f.setting("font-name"), "'Google Sans Flex 10'");
+    assert_eq!(f.setting("font-name"), "'Google Sans Flex 11'");
     assert!(
         f.0.join("state/desktop-foundation/preferences.json")
             .is_file()
