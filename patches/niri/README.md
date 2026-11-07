@@ -25,10 +25,20 @@ The patch also gives overlay-layer surfaces pointer priority over the hot corner
 Outside overview the new zoom branch is unreachable. There are no global bindings,
 input grabs, replayed events, IPC listeners or background processes.
 
-## Integration
+## Build and integration status
 
-Apply the patch to the Niri source used by the compositor package, retaining any
-existing distribution patches. Review overlapping hunks when updating Niri.
+`scripts/build-niri-package` builds a pinned, separate `niri-foundation` pacman
+package without installing it. It provides `niri=26.04` and conflicts with stock
+`niri`, so an unattended repository upgrade cannot silently replace this package
+with stock Niri. The build checks the patch checksum, builds the exact source
+commit with the lockfile and runs Niri configuration tests. The package is retained
+in a private per-build state directory. It does not automatically follow Niri
+security updates: maintainers must review and rebuild the pinned revision.
+
+The ordinary installer does not yet install this package or enable the setting.
+The package is built from upstream source and does not claim to include CachyOS
+patches. Review the distribution recipe and overlapping patches before replacing
+a distribution package.
 Build, configuration validation and behavioral acceptance are still required
 before replacing the installed compositor. Installing a changed executable does
 not update an already running compositor; the new binary needs a later session.

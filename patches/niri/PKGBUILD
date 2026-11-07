@@ -1,0 +1,57 @@
+# Maintainer: Desktop Foundation contributors
+# This is a separate pacman package so repository upgrades cannot silently
+# replace the compositor with a build that rejects the Foundation config.
+pkgname=niri-foundation
+pkgver=26.04
+pkgrel=1
+pkgdesc='Niri with Desktop Foundation overview input fixes'
+arch=('x86_64' 'x86_64_v3')
+url='https://github.com/niri-wm/niri'
+license=('GPL-3.0-or-later')
+# GCC C LTO objects in libspa-sys are not readable by Rust's LLD linker.
+# Niri's own Cargo release profile still enables Rust thin LTO.
+options=('!lto')
+provides=("niri=$pkgver")
+conflicts=('niri')
+depends=('cairo' 'glib2' 'glibc' 'libdisplay-info' 'libgcc' 'libinput'
+         'libpipewire' 'libxkbcommon' 'mesa' 'pango' 'pixman' 'seatd'
+         'systemd-libs' 'xdg-desktop-portal-impl')
+makedepends=('git' 'rustup' 'pkgconf' 'clang')
+source=('niri::git+https://github.com/niri-wm/niri.git#commit=8ed0da44d974c32c6877d2f4630c314da0717ecb'
+        'overview-ctrl-scroll.patch')
+sha256sums=('SKIP'
+            '873da4c22115e7f4f65fc70efd2cb1f56038e543b71b704271270f87246f6f9c')
+
+prepare() {
+  cd "$srcdir/niri"
+  git apply --check "$srcdir/overview-ctrl-scroll.patch"
+  git apply "$srcdir/overview-ctrl-scroll.patch"
+}
+
+build() {
+  cd "$srcdir/niri"
+  cargo +1.98.1 build --locked --release --bin niri
+}
+
+check() {
+  cd "$srcdir/niri"
+  cargo +1.98.1 test --locked -p niri-config --lib
+  printf 'overview { ctrl-scroll-workspaces true; }\n' > "$srcdir/check.kdl"
+  target/release/niri validate -c "$srcdir/check.kdl"
+}
+
+package() {
+  cd "$srcdir/niri"
+  install -Dm755 target/release/niri "$pkgdir/usr/bin/niri"
+  install -Dm755 resources/niri-session "$pkgdir/usr/bin/niri-session"
+  install -Dm644 resources/niri.service "$pkgdir/usr/lib/systemd/user/niri.service"
+  install -Dm644 resources/niri-shutdown.target "$pkgdir/usr/lib/systemd/user/niri-shutdown.target"
+  install -Dm644 resources/niri.desktop "$pkgdir/usr/share/wayland-sessions/niri.desktop"
+  install -Dm644 resources/niri-portals.conf "$pkgdir/usr/share/xdg-desktop-portal/niri-portals.conf"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/niri/README.md"
+  install -Dm644 resources/default-config.kdl "$pkgdir/usr/share/doc/niri/default-config.kdl"
+  install -d "$pkgdir/usr/share/bash-completion/completions" "$pkgdir/usr/share/fish/vendor_completions.d" "$pkgdir/usr/share/zsh/site-functions"
+  target/release/niri completions bash > "$pkgdir/usr/share/bash-completion/completions/niri"
+  target/release/niri completions fish > "$pkgdir/usr/share/fish/vendor_completions.d/niri.fish"
+  target/release/niri completions zsh > "$pkgdir/usr/share/zsh/site-functions/_niri"
+}

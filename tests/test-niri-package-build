@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Isolated builder contract; never builds or installs a system package.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+patch_hash=$(sha256sum "$root/patches/niri/overview-ctrl-scroll.patch")
+patch_hash=${patch_hash%% *}
+rg -Fq "$patch_hash" "$root/patches/niri/PKGBUILD"
+rg -Fq "conflicts=('niri')" "$root/patches/niri/PKGBUILD"
+base=$(mktemp -d /tmp/df-niri-builder-test.XXXXXXXX)
+trap 'rm -r -- "$base"' EXIT
+mkdir -m 700 "$base/bin" "$base/state" "$base/home"
+cat >"$base/bin/makepkg" <<'SH'
+#!/bin/sh
+[ "${FAIL_BUILD:-}" != 1 ] || exit 9
+printf 'fixture package' > "$PKGDEST/niri-foundation-26.04-1-x86_64.pkg.tar.zst"
+SH
+cat >"$base/bin/pacman" <<'SH'
+#!/bin/sh
+[ "$#" = 2 ] && [ "$1" = -Qp ] || exit 2
+[ "${BAD_IDENTITY:-}" != 1 ] || { printf '%s\n' 'niri 26.04-1'; exit; }
+printf '%s\n' 'niri-foundation 26.04-1'
+SH
+chmod 700 "$base/bin/makepkg" "$base/bin/pacman"
+export PATH="$base/bin:$PATH" HOME="$base/home" XDG_STATE_HOME="$base/state"
+"$root/scripts/build-niri-package" >"$base/log"
+mapfile -d '' files < <(find "$base/state/desktop-foundation/niri-builds" -type f -name '*.pkg.tar.zst' -print0)
+((${#files[@]} == 1))
+[[ $(cat "${files[0]}") == 'fixture package' ]]
+if FAIL_BUILD=1 "$root/scripts/build-niri-package" >/dev/null 2>&1; then exit 1; fi
+if BAD_IDENTITY=1 "$root/scripts/build-niri-package" >/dev/null 2>&1; then exit 1; fi
+mapfile -d '' builds < <(find "$base/state/desktop-foundation/niri-builds" -maxdepth 1 -name 'build.*' -print0)
+((${#builds[@]} == 0))
+printf '%s\n' 'PASS isolated Niri package builder success, failure, identity and cleanup'
