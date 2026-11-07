@@ -337,7 +337,7 @@ pub fn execute(
     r: &mut impl Runtime,
 ) -> Result<()> {
     if (o.check || !o.packages)
-        && o.extras.iter().any(|e| e == "recording")
+        && (o.personal || o.extras.iter().any(|e| e == "recording"))
         && !r.executable("gpu-screen-recorder")
     {
         return Err(invalid("The recording extra requires gpu-screen-recorder"));
@@ -413,10 +413,7 @@ pub fn execute(
         o.greeter.then_some("greeter"),
         o.personal.then_some("personal"),
         (o.personal || o.clean_boot).then_some("firmware"),
-        o.extras
-            .iter()
-            .any(|e| e == "recording")
-            .then_some("recording"),
+        (o.personal || o.extras.iter().any(|e| e == "recording")).then_some("recording"),
     ]
     .into_iter()
     .flatten()
@@ -565,7 +562,7 @@ pub fn execute(
             bootstrap.push("--firmware");
         }
         call(r, root, "bootstrap", &bootstrap)?;
-        if o.extras.iter().any(|e| e == "recording") {
+        if o.personal || o.extras.iter().any(|e| e == "recording") {
             missing_packages(r, &manifest(root, "recording")?)?;
         }
     }

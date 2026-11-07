@@ -90,7 +90,7 @@ impl Fixture {
         for path in ["profiles/default", "packages", "config", "apps"] {
             fs::create_dir_all(root.join(path)).unwrap();
         }
-        for group in ["core", "personal", "greeter", "firmware"] {
+        for group in ["core", "personal", "greeter", "firmware", "recording"] {
             fs::write(
                 root.join(format!("packages/{group}.toml")),
                 format!("packages = [\"{group}-package\"]\n"),
@@ -181,6 +181,8 @@ impl Runtime for Fake {
     fn executable(&self, name: &str) -> bool {
         if name == "pacman" {
             !self.no_pacman
+        } else if name == "gpu-screen-recorder" {
+            true
         } else {
             self.variant
         }
@@ -586,4 +588,27 @@ fn selected_extra_does_not_apply_unselected_modifications() {
         .unwrap();
     assert_eq!(&command[1..], ["check", "spicetify", "--skip-unavailable"]);
     assert!(!r.named("applications"));
+}
+
+#[test]
+fn everything_installs_recording_package() {
+    let f = Fixture::new();
+    let mut r = Fake {
+        available: true,
+        variant: false,
+        ..Fake::default()
+    };
+    install::execute(
+        &f.root,
+        &f.paths,
+        &f.options(&["--personal", "--no-greeter"]),
+        &mut r,
+    )
+    .unwrap();
+    assert!(
+        r.commands
+            .iter()
+            .any(|args| args.iter().any(|arg| arg == "recording-package")),
+        "full install must provision recording"
+    );
 }
