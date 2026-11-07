@@ -20,7 +20,7 @@ ln -s "$root/theme" "$base/theme"
 perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n    \}\n//; s/^    (?:screen:|implicitWidth:|margins.left:|exclusionMode:|WlrLayershell\.).*\n//mg' "$root/shell/surfaces/ControlCenter.qml" >"$base/shell/surfaces/ControlCenterFixture.qml"
 cp "$root/tests/qml/control-center.qml" "$base/shell.qml"
 cat >"$base/snapshot.json" <<'JSON'
-{"audio":{"available":true,"output":"speakers","input":"mic","outputs":[{"name":"speakers","description":"Speakers","volume":50,"muted":false},{"name":"headphones","description":"Headphones","volume":40,"muted":false}],"inputs":[{"name":"mic","description":"Microphone","volume":33,"muted":false}]},"network":{"available":true,"enabled":true,"wifi":true,"state":"connected","devices":[{"name":"enp4s0","kind":"ethernet","connection":"Office","state":"connected"}],"connections":[]}}
+{"audio":{"available":true,"applications":[{"id":42,"serial":"100","name":"Music","volume":50}],"output":"speakers","input":"mic","outputs":[{"name":"speakers","description":"Speakers","volume":50,"muted":false},{"name":"headphones","description":"Headphones","volume":40,"muted":false}],"inputs":[{"name":"mic","description":"Microphone","volume":33,"muted":false}]},"network":{"available":true,"enabled":true,"wifi":true,"state":"connected","devices":[{"name":"enp4s0","kind":"ethernet","connection":"Office","state":"connected"}],"connections":[]}}
 JSON
 cat >"$base/native/foundation/target/release/desktop-foundationctl" <<'WORKER'
 #!/bin/sh
@@ -55,6 +55,6 @@ if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|
 	cat "$base/log" >&2
 	exit 1
 fi
-for call in 'volume output 51' 'networking off' 'select output headphones'; do rg -Fx "$call" "$base/calls" >/dev/null; done
+for call in 'volume output 51' 'networking off' 'select output headphones' 'stream-volume 42 100 37'; do rg -Fx "$call" "$base/calls" >/dev/null; done
 awk '$0=="volume output 52"{v=NR} $0=="done wifi on"{d=NR} END{exit !(v && d && v<d)}' "$base/calls"
 printf '%s\n' 'PASS production Control Center navigation, concurrent requests, reversal and disposal'

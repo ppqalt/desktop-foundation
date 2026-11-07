@@ -32,6 +32,8 @@ PanelWindow {
     property int requestRevision: 0
     property int pendingOutput: -1
     property int pendingInput: -1
+    property bool applicationsExpanded: false
+    property var pendingApplications: ({})
     readonly property bool busy: deviceRequest.running || audioAction.running || replayRequest.running || wallpapers.busy
     readonly property var audio: stateData.audio ?? ({})
     readonly property var network: stateData.network ?? ({})
@@ -122,9 +124,9 @@ PanelWindow {
             return;
         requestRevision++;
         initialFocus = false;
-        const audioRequest = ["volume", "mute", "select"].includes(args[0]);
+        const audioRequest = ["volume", "mute", "select", "stream-volume"].includes(args[0]);
         let pending = (audioRequest ? audioQueue : queue).slice();
-        const existing = args[0] === "volume" ? pending.findIndex(p => p[0] === "volume" && p[1] === args[1]) : -1;
+        const existing = args[0] === "volume" || args[0] === "stream-volume" ? pending.findIndex(p => p[0] === args[0] && p[1] === args[1] && (args[0] !== "stream-volume" || p[2] === args[2])) : -1;
         if (existing >= 0)
             pending[existing] = args;
         else if (pending.length < 8)
@@ -160,8 +162,11 @@ PanelWindow {
             if (!audioQueue.length) {
                 pendingOutput = -1;
                 pendingInput = -1;
+                pendingApplications = ({});
             }
         }
+        if (worker === audioAction && !audioQueue.length)
+            pendingApplications = ({});
         Qt.callLater(() => {
             root.pump();
             root.finishClose();
@@ -222,6 +227,23 @@ PanelWindow {
         if (!inputVolume.pressed)
             pendingInput = -1;
         return true;
+    }
+    Timer {
+        id: audioEventRefresh
+        interval: 120
+        onTriggered: root.refresh()
+    }
+    Process {
+        id: audioEvents
+        command: ["pactl", "subscribe"]
+        running: !root.closing && root.applicationsExpanded
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                if (data.includes("on sink-input") || data.includes("on sink #") || data.includes("on source #"))
+                    audioEventRefresh.restart();
+            }
+        }
     }
     ControlRequest {
         id: status
@@ -559,6 +581,59 @@ PanelWindow {
                                         font.features: {
                                             "tnum": 1
                                         }
+                                    }
+                                }
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: root.page === "overview" || root.page === "audio"
+                            spacing: 0
+                            ControlAction {
+                                objectName: "applicationsToggle"
+                                Layout.fillWidth: true
+                                text: "Applications"
+                                badge: root.applicationsExpanded ? "⌃" : "⌄"
+                                detail: (root.audio.applications ?? []).length + " audio streams"
+                                onClicked: {
+                                    root.applicationsExpanded = !root.applicationsExpanded;
+                                    if (root.applicationsExpanded)
+                                        root.refresh();
+                                }
+                            }
+                            Repeater {
+                                model: root.applicationsExpanded ? root.audio.applications ?? [] : []
+                                delegate: RowLayout {
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    Text {
+                                        Layout.preferredWidth: Math.min(200, parent.width * 0.35)
+                                        text: parent.modelData.name
+                                        elide: Text.ElideRight
+                                        color: Material.colors.on_surface
+                                        font.family: Theme.typography.family
+                                        font.pixelSize: Material.type.bodyMedium
+                                    }
+                                    ControlVolume {
+                                        objectName: "applicationVolume-" + parent.modelData.serial
+                                        Layout.fillWidth: true
+                                        Accessible.name: parent.modelData.name + " volume"
+                                        value: root.pendingApplications[parent.modelData.serial] ?? parent.modelData.volume
+                                        onMoved: {
+                                            const stream = parent.modelData;
+                                            const values = Object.assign({}, root.pendingApplications);
+                                            values[stream.serial] = Math.round(value);
+                                            root.pendingApplications = values;
+                                            root.enqueue(["stream-volume", String(stream.id), stream.serial, String(values[stream.serial])]);
+                                        }
+                                    }
+                                    Text {
+                                        Layout.preferredWidth: 45
+                                        horizontalAlignment: Text.AlignRight
+                                        text: (root.pendingApplications[parent.modelData.serial] ?? parent.modelData.volume) + "%"
+                                        color: Material.colors.on_surface_variant
+                                        font.family: Theme.typography.family
+                                        font.pixelSize: Material.type.bodyMedium
                                     }
                                 }
                             }

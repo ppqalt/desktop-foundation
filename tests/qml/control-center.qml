@@ -76,6 +76,14 @@ ShellRoot {
                     network: {}
                 }, panel.requestRevision - 1), "obsolete snapshot accepted");
                 fixture.check(panel.stateData === savedState, "obsolete snapshot changed state");
+                panel.applicationsExpanded = true;
+                const application = find(panel.contentItem, "applicationVolume-100");
+                fixture.check(!!application, "application slider is missing");
+                if (application) {
+                    application.value = 37;
+                    application.moved();
+                }
+                panel.applicationsExpanded = false;
                 panel.requestActivate();
                 panel.navigate("audio");
                 find(panel.contentItem, "outputChoice").forceActiveFocus();

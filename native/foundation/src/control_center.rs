@@ -72,8 +72,41 @@ fn audio() -> Result<Value> {
         .filter(|s| !s["name"].as_str().unwrap_or("").ends_with(".monitor"))
         .map(endpoint)
         .collect();
+    let streams = pulse("sink-inputs")?;
+    let applications: Vec<_> = streams
+        .as_array()
+        .ok_or_else(|| invalid("Invalid playback stream list"))?
+        .iter()
+        .filter_map(|stream| {
+            let id = stream["index"].as_u64()?;
+            let serial = stream["properties"]["object.serial"].as_str().filter(|s| {
+                !s.is_empty() && s.len() <= 32 && s.bytes().all(|b| b.is_ascii_digit())
+            })?;
+            let properties = &stream["properties"];
+            let name = properties["application.name"]
+                .as_str()
+                .or_else(|| properties["application.process.binary"].as_str())
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or("Application");
+            let lower = name.to_ascii_lowercase();
+            let node = properties["node.name"].as_str().unwrap_or("");
+            if lower.contains("easy effects")
+                || lower.contains("easyeffects")
+                || node.starts_with("ee_")
+                || node.starts_with("easyeffects")
+            {
+                return None;
+            }
+            let mut item = endpoint(stream);
+            item["name"] = name.into();
+            item["id"] = id.into();
+            item["serial"] = serial.into();
+            Some(item)
+        })
+        .take(256)
+        .collect();
     Ok(
-        json!({"available":true,"outputs":outputs,"inputs":inputs,"output":info["default_sink_name"],"input":info["default_source_name"]}),
+        json!({"available":true,"outputs":outputs,"inputs":inputs,"applications":applications,"output":info["default_sink_name"],"input":info["default_source_name"]}),
     )
 }
 // nmcli's escaped terse fields may contain colons and backslashes in names.
@@ -185,6 +218,35 @@ fn audio_action(args: &[String]) -> Result<()> {
     // Same lock as the keyboard volume backend; no competing read/modify/write.
     let _lock = state::lock(&runtime.join("desktop-foundation-volume.lock"), QUERY)?;
     match args {
+        [action, id, serial, value] if action == "stream-volume" => {
+            let id_num: u32 = id.parse().map_err(|_| invalid("Invalid playback stream"))?;
+            let percent: u32 = value.parse().map_err(|_| invalid("Invalid volume"))?;
+            if percent > 100
+                || serial.is_empty()
+                || serial.len() > 32
+                || !serial.bytes().all(|b| b.is_ascii_digit())
+            {
+                return Err(invalid("Invalid playback stream or volume"));
+            }
+            let streams = pulse("sink-inputs")?;
+            if !streams.as_array().is_some_and(|streams| {
+                streams.iter().any(|s| {
+                    s["index"].as_u64() == Some(id_num.into())
+                        && s["properties"]["object.serial"].as_str() == Some(serial)
+                })
+            }) {
+                return Err(invalid("Playback stream has changed or disappeared"));
+            }
+            request(
+                &[
+                    "pactl",
+                    "set-sink-input-volume",
+                    &id_num.to_string(),
+                    &format!("{percent}%"),
+                ],
+                QUERY,
+            )?;
+        }
         [action, kind, value]
             if action == "volume" && ["output", "input"].contains(&kind.as_str()) =>
         {
@@ -314,7 +376,7 @@ pub fn run(args: &[String]) -> Result<Value> {
                 network().unwrap_or_else(|e| json!({"available":false,"error":e.to_string()}));
             return Ok(json!({"audio":audio,"network":network}));
         }
-        ["volume" | "mute" | "select", ..] => {
+        ["volume" | "mute" | "select" | "stream-volume", ..] => {
             audio_action(args)?;
             return Ok(json!({"success":true,"audio":audio()?}));
         }

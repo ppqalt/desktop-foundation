@@ -16,7 +16,8 @@ case "$name $*" in
 'pactl --format=json info') printf '%s\n' '{"default_sink_name":"speakers","default_source_name":"mic"}';;
 'pactl --format=json list sinks') printf '%s\n' '[{"index":1,"name":"speakers","description":"Speakers","mute":false,"volume":{"mono":{"value":32768}}}]';;
 'pactl --format=json list sources') printf '%s\n' '[{"index":1,"name":"mic","description":"Microphone","mute":false,"volume":{"mono":{"value":32768}}},{"name":"speakers.monitor"}]';;
-'pactl --format=json list sink-inputs'|'pactl --format=json list source-outputs') printf '%s\n' '[{"index":42}]';;
+'pactl --format=json list sink-inputs') printf '%s\n' '[{"index":42,"properties":{"object.serial":"100","application.name":"Music"},"volume":{"mono":{"value":32768}}},{"index":43,"properties":{"object.serial":"101","application.name":"Music"},"volume":{"mono":{"value":16384}}}]';;
+'pactl --format=json list source-outputs') printf '%s\n' '[{"index":42}]';;
 'nmcli '*general) printf '%s\n' 'enabled:enabled:connected:full';;
 'nmcli '*device\ status) printf '%s\n' 'enp4s0:ethernet:connected:Office\:LAN' 'wlan0:wifi:disconnected:';;
 'nmcli '*connection\ show) printf '%s\n' 'Office\:LAN:12345678-abcd-1234-abcd-123456789abc:802-3-ethernet:enp4s0';;
@@ -95,6 +96,10 @@ fn snapshot_handles_escaped_names_and_isolates_service_failures() {
     let f = Fixture::new();
     let value = f.ok(&["snapshot"]);
     assert_eq!(value["audio"]["outputs"][0]["volume"], 50);
+    assert_eq!(value["audio"]["applications"][0]["name"], "Music");
+    assert_eq!(value["audio"]["applications"][0]["serial"], "100");
+    assert_eq!(value["audio"]["applications"].as_array().unwrap().len(), 2);
+    assert_eq!(value["audio"]["applications"][1]["volume"], 25);
     assert_eq!(value["audio"]["inputs"].as_array().unwrap().len(), 1);
     assert_eq!(value["network"]["connections"][0]["name"], "Office:LAN");
     assert_eq!(value["network"]["connections"][0]["active"], true);
@@ -148,6 +153,23 @@ fn audio_controls_route_streams_and_reject_invalid_values() {
     ] {
         assert!(f.calls().iter().any(|call| call == &expected));
     }
+    f.ok(&["stream-volume", "42", "100", "37"]);
+    f.ok(&["stream-volume", "43", "101", "70"]);
+    assert!(
+        f.calls()
+            .iter()
+            .any(|v| v == &["pactl", "set-sink-input-volume", "43", "70%"])
+    );
+    assert!(
+        f.calls()
+            .iter()
+            .any(|v| v == &["pactl", "set-sink-input-volume", "42", "37%"])
+    );
+    assert!(
+        !f.call(&["stream-volume", "42", "101", "37"], None)
+            .status
+            .success()
+    );
     let before = f.calls();
     for args in [
         vec!["volume", "output", "101"],
