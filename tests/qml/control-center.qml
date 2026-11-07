@@ -11,6 +11,11 @@ ShellRoot {
     property int failures: 0
     property bool enabled: true
     property bool concurrentSent: false
+    property bool updateCacheChecked: false
+    Process {
+        id: updateWriter
+        command: ["/bin/sh", "-c", "printf 'repo-three 1 -> 2\\n' >> \"$XDG_STATE_HOME/arch-update/last_updates_check_packages\""]
+    }
     property int count: 0
     property real velocity: 0
     function check(ok, why) {
@@ -69,6 +74,24 @@ ShellRoot {
                 }
             } else if (fixture.stage === 1) {
                 if (panel.snapshot().moving || !panel.stateData.audio)
+                    return;
+                const updateStatus = find(panel.contentItem, "updateStatus");
+                if (!updateStatus)
+                    return;
+                if (!fixture.updateCacheChecked) {
+                    if (updateStatus.text !== "Last check: 3 updates")
+                        return;
+                    const updateDetails = find(panel.contentItem, "updateDetails");
+                    updateDetails.clicked();
+                    fixture.check(find(panel.contentItem, "updateList").visible, "update details did not expand");
+                    fixture.check(find(panel.contentItem, "updateList").text.includes("aur-one"), "cached update details missing");
+                    updateDetails.clicked();
+                    fixture.check(!find(panel.contentItem, "updateList").visible, "update details did not collapse");
+                    fixture.updateCacheChecked = true;
+                    updateWriter.running = true;
+                    return;
+                }
+                if (updateStatus.text !== "Last check: 4 updates")
                     return;
                 const savedState = panel.stateData;
                 fixture.check(!panel.acceptSnapshot({

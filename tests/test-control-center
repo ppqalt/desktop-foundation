@@ -17,6 +17,11 @@ for leaf in home runtime config state cache data; do mkdir -m 700 "$base/$leaf";
 ln -s "$root/shell/components" "$base/shell/components"
 ln -s "$root/shell/theme" "$base/shell/theme"
 ln -s "$root/theme" "$base/theme"
+mkdir -p "$base/state/arch-update"
+printf '%s\n' 'repo-one 1 -> 2' 'repo-two 1 -> 2' >"$base/state/arch-update/last_updates_check_packages"
+printf '%s\n' 'aur-one 1 -> 2' >"$base/state/arch-update/last_updates_check_aur"
+: >"$base/state/arch-update/last_updates_check_flatpak"
+printf '%s\n' '1000000000' '2026-11-08 00:00:00' >"$base/state/arch-update/last_updates_check_time"
 perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n    \}\n//; s/^    (?:screen:|implicitWidth:|margins.left:|exclusionMode:|WlrLayershell\.).*\n//mg' "$root/shell/surfaces/ControlCenter.qml" >"$base/shell/surfaces/ControlCenterFixture.qml"
 cp "$root/tests/qml/control-center.qml" "$base/shell.qml"
 cat >"$base/snapshot.json" <<'JSON'

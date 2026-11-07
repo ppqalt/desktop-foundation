@@ -647,14 +647,10 @@ PanelWindow {
                             onSetEnabled: enabled => root.requestReplay(enabled ? "replay-on" : "replay-off")
                             onSaveRequested: root.requestReplay("replay-save")
                         }
-                        ControlAction {
-                            objectName: "cachyUpdateShortcut"
+                        CachyUpdateRow {
                             visible: root.page === "overview"
-                            text: "Cachy Update"
-                            symbol: "system_update_alt"
-                            compact: true
                             Layout.fillWidth: true
-                            onClicked: {
+                            onLaunchRequested: {
                                 root.enqueue(["cachy-update"]);
                                 root.dismiss();
                             }
