@@ -3,7 +3,7 @@
 Shared settings are in `config/window-appearance.toml`. The Niri renderer produces
 native KDL.
 
-The default uses 14-pixel corners, 90% window opacity and narrow focus borders.
+The default uses 14-pixel corners, 94% window opacity and narrow focus borders.
 Kitty uses its own background opacity so text remains opaque.
 Niri centers a single tiled column; multiple columns retain scrolling behavior.
 Super+C centers the current column manually.

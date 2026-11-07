@@ -29,8 +29,8 @@ borderWidth = 1
 activeBorder = "#5e7791"
 inactiveBorder = "#364150"
 [opacity]
-active = 0.90
-inactive = 0.90
+active = 0.94
+inactive = 0.94
 fullscreen = 1.0
 [fullscreen]
 decorated = false

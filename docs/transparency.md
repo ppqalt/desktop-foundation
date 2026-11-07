@@ -1,9 +1,10 @@
 # Transparency Mode
 
-`scripts/transparency toggle` toggles room listening through the selected
-microphone with application ducking. Insert is assigned to media navigation.
+**Pause/Break** toggles room listening through the selected microphone with
+application ducking (`scripts/transparency toggle`). Insert and Delete remain
+assigned to next and previous track.
 
-**Shift+Insert** toggles monitoring without changing application volumes. Press
+**Shift+Pause/Break** toggles monitoring without changing application volumes. Press
 the same shortcut again to restore the previous monitoring state. Switching
 between the two modes restores the old mode before starting the new one.
 
@@ -99,7 +100,7 @@ exercise the shared temporary notice and immediate volume readout. Live audible
 latency, comfort and physical key acceptance require the actual patched process.
 
 Turn the mode off before removing it. Explicit recovery is safe to rerun.
-Remove the Shift+Insert binding to stop intercepting that shortcut. Stop the unused
+Remove the Pause and Shift+Pause bindings to stop intercepting those shortcuts. Stop the unused
 socket with `systemctl --user stop desktop-foundation-transparency.socket` after
 recovery; existing deployment rollback restores owned configuration/units.
 See the patch README to restore the stock EasyEffects package.

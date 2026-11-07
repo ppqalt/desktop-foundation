@@ -32,7 +32,8 @@ new configuration is published.
 | Super+Z | Control Center |
 | Super+Y | Local AI |
 | Insert / Delete | Next / previous track in End's media player |
-| Shift+Insert | Microphone monitoring without ducking |
+| Pause/Break | Toggle full Transparency Mode with playback ducking |
+| Shift+Pause/Break | Toggle microphone monitoring without ducking |
 | Super+Shift+Q | Session menu |
 | Super+Tab | Niri overview |
 | Super+Shift+C | Corner clock |

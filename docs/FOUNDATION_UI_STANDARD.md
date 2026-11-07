@@ -184,7 +184,7 @@ staleness, external changes, unavailable/error, cleanup and reduced motion.
 Keep physical presentation latency distinct from offscreen handler/frame timing.
 Run relevant Rust tests, QML offscreen checks, repository checks and release build
 before active-session deployment. Hardware actions remain isolated fixtures;
-Insert and its restoration transaction must not regress.
+Transparency Mode and its restoration transaction must not regress.
 
 ## Existing architecture and ownership
 

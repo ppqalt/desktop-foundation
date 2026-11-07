@@ -2,7 +2,8 @@
 binds {
     "Insert" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/foundation\" shell call nextMedia"; }
     "Delete" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/foundation\" shell call previousMedia"; }
-    "Shift+Insert" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/transparency\" monitor"; }
+    "Pause" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/transparency\" toggle"; }
+    "Shift+Pause" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/transparency\" monitor"; }
     "Super+Y" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/local-ai\" start"; }
     "Super+B" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/bluetooth-popup\""; }
     "Super+Tab" repeat=false { toggle-overview; }
