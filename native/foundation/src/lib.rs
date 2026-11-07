@@ -22,6 +22,7 @@ pub mod input_config;
 pub mod install;
 pub mod keyring;
 pub mod local_ai;
+pub mod media;
 pub mod monitor;
 pub mod monitor_config;
 pub mod monitor_shader;

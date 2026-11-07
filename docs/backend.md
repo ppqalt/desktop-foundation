@@ -32,7 +32,7 @@ preferences-setup install [--theme-only]|restore
 system-setup install|restore
 preflight [--profile NAME] [--compositor niri] [--update]
 theme-runtime generate|apply|reset|wallpaper|rollback|promote|ensure
-wallpapers list
+wallpapers list|probe FILE
 preferences [--state DIRECTORY] set TYPE KEY VALUE|check|restore|gtk-refresh
 wallpaper start
 notifications start|check-owner

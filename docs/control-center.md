@@ -109,7 +109,8 @@ focus chain. A partial row retains the same tile width.
 
 Rust inventories PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, TGA, QOI, PNM, PBM,
 PGM, PPM, PAM, ICO, HDR, OpenEXR and Farbfeld images and caches small, rounded
-PNG previews. Formats unsupported by the wallpaper renderer are converted to a
+PNG previews. JPEG XL and HEIC/HEIF are also available when the installed FFmpeg
+can decode them. Formats unsupported by the wallpaper renderer are converted to a
 cached PNG while the original remains the selected source. QML displays previews asynchronously without shader masks or
 per-tile offscreen effects. Changed/deleted images invalidate their cached
 previews. The directory is read when entering the overview, without a watcher or

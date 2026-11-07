@@ -145,7 +145,7 @@ pub fn catalog_with_previews(
             .to_ascii_lowercase();
         if ![
             "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff", "avif", "tga", "qoi", "pnm",
-            "pbm", "pgm", "ppm", "pam", "ico", "hdr", "exr", "ff",
+            "pbm", "pgm", "ppm", "pam", "ico", "hdr", "exr", "ff", "jxl", "heic", "heif",
         ]
         .contains(&extension.as_str())
         {
@@ -157,7 +157,17 @@ pub fn catalog_with_previews(
         let dimensions = ImageReader::open(&path)
             .and_then(|r| r.with_guessed_format())
             .ok()
-            .and_then(|r| r.into_dimensions().ok());
+            .and_then(|r| r.into_dimensions().ok())
+            .or_else(|| {
+                ["jxl", "heic", "heif"]
+                    .contains(&extension.as_str())
+                    .then(|| {
+                        backdrop::decode(&path)
+                            .ok()
+                            .map(|image| (image.width(), image.height()))
+                    })
+                    .flatten()
+            });
         let Some((width, height)) = dimensions else {
             continue;
         };

@@ -22,10 +22,19 @@ pub fn hash(path: &Path) -> Result<String> {
     Ok(format!("{:x}", hash.finalize()))
 }
 pub fn decode(path: &Path) -> Result<DynamicImage> {
-    ImageReader::open(path)?
+    let native = ImageReader::open(path)?
         .with_guessed_format()?
         .decode()
-        .map_err(|e| invalid(format!("Invalid wallpaper: {e}")))
+        .map_err(|e| invalid(format!("Invalid wallpaper: {e}")));
+    if native.is_err()
+        && path
+            .extension()
+            .and_then(|s| s.to_str())
+            .is_some_and(|ext| ["jxl", "heic", "heif"].contains(&ext.to_ascii_lowercase().as_str()))
+    {
+        return crate::media::first_frame(path);
+    }
+    native
 }
 /// Convert expanded image formats once for consumers with narrower decoder support.
 /// The source remains authoritative for hashing, selection and rollback.
@@ -36,7 +45,8 @@ pub fn compatible_image(path: &Path) -> Result<PathBuf> {
         .unwrap_or("")
         .to_ascii_lowercase();
     if ![
-        "avif", "tga", "qoi", "pnm", "pbm", "pgm", "ppm", "pam", "ico", "hdr", "exr", "ff",
+        "avif", "tga", "qoi", "pnm", "pbm", "pgm", "ppm", "pam", "ico", "hdr", "exr", "ff", "jxl",
+        "heic", "heif",
     ]
     .contains(&extension.as_str())
     {
