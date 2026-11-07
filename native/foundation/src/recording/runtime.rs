@@ -317,12 +317,26 @@ fn drain_stop_requests(socket: &UnixDatagram) -> Result<()> {
     while queued(socket)?.is_some() {}
     Ok(())
 }
+fn first_frame_timestamp(text: &str) -> bool {
+    let values: Vec<_> = text.split_whitespace().collect();
+    let pair = match values.as_slice() {
+        [monotonic, realtime] => [*monotonic, *realtime],
+        [
+            "monotonic_microsec",
+            "realtime_microsec",
+            monotonic,
+            realtime,
+        ] => [*monotonic, *realtime],
+        _ => return false,
+    };
+    pair.iter()
+        .all(|value| value.parse::<u64>().is_ok_and(|n| n > 0))
+}
 fn ready(marker: &Path) -> bool {
-    bounded(marker).ok().is_some_and(|b| {
-        std::str::from_utf8(&b).ok().is_some_and(|s| {
-            let values: Vec<_> = s.split_whitespace().collect();
-            values.len() == 2 && values.iter().all(|s| s.parse::<u64>().is_ok_and(|n| n > 0))
-        })
+    bounded(marker).ok().is_some_and(|bytes| {
+        std::str::from_utf8(&bytes)
+            .ok()
+            .is_some_and(first_frame_timestamp)
     })
 }
 fn watch(path: &Path) -> Result<OwnedFd> {
@@ -621,6 +635,23 @@ fn capture(root: &Path, socket: &UnixDatagram, silent: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn first_frame_accepts_current_and_legacy_timestamp_formats_only() {
+        assert!(first_frame_timestamp(
+            "monotonic_microsec\trealtime_microsec\n501491478\t1794083556868029\n"
+        ));
+        assert!(first_frame_timestamp("100 200\n"));
+        for invalid in [
+            "",
+            "monotonic_microsec realtime_microsec",
+            "wrong header 100 200",
+            "100 0",
+            "0 200",
+            "100 200 extra",
+        ] {
+            assert!(!first_frame_timestamp(invalid), "accepted {invalid:?}");
+        }
+    }
     #[test]
     fn finalization_requires_readable_video_and_expected_independent_audio() {
         let complete = json!({"format":{"duration":"1.25"},"streams":[

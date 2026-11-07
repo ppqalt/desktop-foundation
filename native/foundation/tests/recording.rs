@@ -108,7 +108,11 @@ if [ -e "$DF_RECORDING_FIXTURE_ROOT/wait-for-source" ]; then
 fi
 printf 'synthetic video fixture\n' > "$output"
 trap 'printf finished >> "$output"; exit 0' INT TERM
-printf '100 200\n' > "$output.ts"
+if [ -e "$DF_RECORDING_FIXTURE_ROOT/legacy-marker" ]; then
+    printf '100 200\n' > "$output.ts"
+else
+    printf 'monotonic_microsec\trealtime_microsec\n100\t200\n' > "$output.ts"
+fi
 if [ -e "$DF_RECORDING_FIXTURE_ROOT/finish-immediately" ]; then exit 0; fi
 while :; do /bin/sleep 0.02; done
 "#,
@@ -308,6 +312,18 @@ fn first_frame_is_checked_even_when_the_synthetic_encoder_exits_immediately() {
     assert!(f.wait_exit());
     assert_eq!(f.state()["phase"], "idle");
     assert!(f.root.join("probe-started").exists());
+}
+
+#[test]
+fn legacy_numeric_marker_still_transitions_to_recording() {
+    let mut f = Fixture::new(true);
+    fs::write(f.root.join("legacy-marker"), "").unwrap();
+    f.start(true);
+    f.wait_phase("recording");
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.client("stop");
+    assert!(f.wait_exit());
+    assert_eq!(f.state()["phase"], "idle");
 }
 
 #[test]

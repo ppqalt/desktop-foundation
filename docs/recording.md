@@ -45,6 +45,12 @@ overrides that cap. With portal capture the selected screen may differ from the
 focused display; choose an explicit rate when that distinction matters.
 
 The portal asks which screen/window to share, and can remember approved sessions.
+On Niri, a globally forced `GDK_BACKEND` can prevent the GNOME portal from
+exposing screencasting. If `scripts/record status` reports a portal failure,
+check the portal logs and ensure that variable is unset for
+`xdg-desktop-portal-gnome.service`; restart the portal services only when no
+screen-sharing session is active. Other applications can retain their own backend
+settings. See the [Niri portal guidance](https://github.com/niri-wm/niri/wiki/Important-Software#portals).
 `capture = "focused-output"` uses Niri's current output directly, with the
 permissions required by GPU Screen Recorder's native monitor backend. A discovered
 output name can also be configured. `restore_portal = false` asks for selection
