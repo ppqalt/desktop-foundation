@@ -7,7 +7,7 @@ widget.
 The overview contains a network summary and two audio cards: output and
 microphone. Each audio card has a device-details action, mute button, short
 volume slider and percentage. Device selection opens an Audio view inside the
-same frame. A compact Cachy Update button opens the installed `cachy-update` in Kitty.
+same frame. The collapsible Applications section shows one slider per active playback stream, so multiple streams from one app remain independently adjustable. It subscribes to audio changes while expanded and verifies stream identity before setting volume. A compact Cachy Update button opens the installed `cachy-update` in Kitty.
 Network details show device actions and saved connections, omitting
 active non-VPN profiles already represented by a device. Network settings opens
 NetworkManager's packaged `nmtui` in Kitty for adding networks or editing
