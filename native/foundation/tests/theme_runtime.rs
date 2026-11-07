@@ -126,16 +126,21 @@ fn renderers_keep_semantic_roles_and_reject_injection() {
     let mut invalid = p.clone();
     invalid["accent"] = json!("red\nexec shell");
     assert!(render::brave(&invalid).is_err());
-    let output = Command::new("niri")
+    match Command::new("niri")
         .args(["validate", "-c"])
         .arg(f.path("niri.kdl"))
         .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    {
+        Ok(output) => assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        ),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!("Skipping Niri validation: executable unavailable");
+        }
+        Err(error) => panic!("Failed to run Niri validation: {error}"),
+    }
 }
 #[test]
 fn native_decoding_supports_png_and_jpeg_and_rejects_invalid_files() {
