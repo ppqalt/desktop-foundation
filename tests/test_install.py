@@ -32,11 +32,19 @@ class FreshDeployment(unittest.TestCase):
                 if command[:2] == ['niri', 'validate'] or command[0] in {'systemctl', 'fc-cache', str(ROOT / 'scripts/monitor')} or (len(command) > 1 and command[1] == str(ROOT / 'scripts/preferences.py')):
                     return subprocess.CompletedProcess(command, 0)
                 return real_run(command, **kwargs)
-            with patch.dict(os.environ, {'HOME': str(base), 'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(data), 'XDG_STATE_HOME': str(state.parent)}), patch.multiple(deploy, CONFIG=config, DATA=data, STATE=state), patch.object(deploy.subprocess, 'run', side_effect=isolated_run), patch.object(deploy, 'require_native_backends') as prerequisites, contextlib.redirect_stdout(io.StringIO()):
+            with patch.dict(os.environ, {'HOME': str(base), 'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(data), 'XDG_STATE_HOME': str(state.parent), 'PATH': str(base / 'bin') + os.pathsep + os.environ['PATH'], 'DF_TEST_NIRI_LOG': str(base / 'niri-validation.log')}), patch.multiple(deploy, CONFIG=config, DATA=data, STATE=state), patch.object(deploy.subprocess, 'run', side_effect=isolated_run), patch.object(deploy, 'require_native_backends') as prerequisites, contextlib.redirect_stdout(io.StringIO()):
                 with patch.object(sys, 'argv', ['deploy', 'install', '--dry-run']):
                     deploy.main()
                 self.assertEqual(list(base.iterdir()), [])
                 config.mkdir()
+                # Theme generation invokes Niri from the native backend, beyond
+                # the Python subprocess mock. Use an isolated parser stand-in on
+                # portable CI and verify the candidate file exists for each call.
+                tools = base / 'bin'
+                tools.mkdir()
+                niri = tools / 'niri'
+                niri.write_text('#!/bin/sh\n[ "$1" = validate ] && [ "$2" = -c ] && [ -f "$3" ] || exit 1\nprintf "%s\\n" "$3" >> "$DF_TEST_NIRI_LOG"\n')
+                niri.chmod(0o755)
                 user_command = base / '.local/bin/df-update'
                 user_command.parent.mkdir(parents=True)
                 user_command.write_text('previous user command')
@@ -84,6 +92,7 @@ class FreshDeployment(unittest.TestCase):
                 self.assertEqual((kitty / 'old.conf').read_text(), 'keep me')
                 self.assertFalse((config / 'niri/config.kdl').exists())
                 self.assertEqual(prerequisites.call_count, 4)
+                self.assertGreaterEqual(len((base / 'niri-validation.log').read_text().splitlines()), 3)
                 self.assertFalse(user_command.is_symlink())
                 self.assertEqual(user_command.read_text(), 'previous user command')
 
