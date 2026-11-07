@@ -143,8 +143,11 @@ pub fn catalog_with_previews(
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_ascii_lowercase();
-        if !["png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff"]
-            .contains(&extension.as_str())
+        if ![
+            "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff", "avif", "tga", "qoi", "pnm",
+            "pbm", "pgm", "ppm", "pam", "ico", "hdr", "exr", "ff",
+        ]
+        .contains(&extension.as_str())
         {
             continue;
         }

@@ -192,6 +192,7 @@ pub fn wallpaper(root: &Path) -> Result<()> {
     if !current.exists() {
         crate::backdrop::prepare_legacy(&image, &config.mode)?;
     }
+    let image = crate::backdrop::compatible_image(&image)?;
     process::replace(&[
         text_path(&executable)?,
         "--image".into(),

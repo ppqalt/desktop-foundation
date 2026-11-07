@@ -57,6 +57,32 @@ fn missing_directory_is_an_empty_state() {
     assert_eq!(catalog["images"].as_array().unwrap().len(), 0);
 }
 #[test]
+fn expanded_formats_generate_real_previews() {
+    let f = Fixture::new();
+    let directory = f.0.join("images");
+    fs::create_dir(&directory).unwrap();
+    fs::write(
+        directory.join("test.AVIF"),
+        include_bytes!("fixtures/wallpaper.avif"),
+    )
+    .unwrap();
+    for extension in ["tga", "qoi", "ppm", "bmp"] {
+        image(&directory.join(format!("test.{extension}")), [200, 60, 20]);
+    }
+    fs::write(directory.join("invalid.avif"), b"invalid").unwrap();
+    let cache = f.0.join("cache");
+    let catalog = wallpapers::catalog_with_previews(&directory, None, Some(&cache)).unwrap();
+    let images = catalog["images"].as_array().unwrap();
+    assert_eq!(images.len(), 5, "{catalog}");
+    assert!(images.iter().any(|item| item["name"] == "test.AVIF"));
+    assert_eq!(fs::read_dir(&cache).unwrap().count(), 5);
+    for entry in fs::read_dir(cache).unwrap() {
+        let preview = image::open(entry.unwrap().path()).unwrap().to_rgba8();
+        assert_eq!(preview.dimensions(), (480, 288));
+        assert_eq!(preview.get_pixel(240, 144).0[3], 255);
+    }
+}
+#[test]
 fn native_preview_is_visible_rounded_cached_and_replaced_when_image_changes() {
     let f = Fixture::new();
     let directory = f.0.join("images");

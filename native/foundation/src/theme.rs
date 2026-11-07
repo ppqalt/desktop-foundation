@@ -612,6 +612,7 @@ pub fn generate(root: &Path, image: &Path) -> Result<Generation> {
     // No caller templates, hooks, polling or persistent Matugen process. The
     // private config is dropped on success, invalid JSON, child failure/timeout.
     let temporary = MatugenConfig::create(&cache)?;
+    let compatible = crate::backdrop::compatible_image(&image)?;
     let args = vec![
         text_path(&executable)?,
         "--config".into(),
@@ -624,7 +625,7 @@ pub fn generate(root: &Path, image: &Path) -> Result<Generation> {
         "--source-color-index".into(),
         "0".into(),
         "image".into(),
-        text_path(&image)?,
+        text_path(&compatible)?,
     ];
     let output = process::checked(&args, None, Duration::from_secs(60), true)?;
     let material = material_colors(&serde_json::from_slice(&output.stdout)?)?;

@@ -307,6 +307,68 @@ fn native_generation_caches_once_and_failure_keeps_active_files() {
 }
 
 #[test]
+fn avif_theme_generation_converts_for_matugen_and_keeps_original_source() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = Fixture::new();
+    let bin = f.path("bin");
+    fs::create_dir(&bin).unwrap();
+    let output = f.path("matugen.json");
+    render::write_json(&output, &json!({"colors":{"dark":render::read(&root().join("theme/fallback/material.json")).unwrap()}})).unwrap();
+    let tool = bin.join("matugen");
+    fs::write(&tool, "#!/bin/sh\nfor arg do last=$arg; done\ncase $last in *.png) test -f \"$last\" || exit 2;; *) exit 3;; esac\n/bin/cat \"$DF_THEME_OUTPUT\"\n").unwrap();
+    fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
+    let source = f.path("wallpaper.avif");
+    fs::write(&source, include_bytes!("fixtures/wallpaper.avif")).unwrap();
+    let hdr = f.path("wallpaper.hdr");
+    image::DynamicImage::ImageRgb32F(image::ImageBuffer::from_pixel(
+        12,
+        8,
+        image::Rgb([0.3_f32, 0.4, 0.5]),
+    ))
+    .save(&hdr)
+    .unwrap();
+    let run = |source: &Path| {
+        Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
+            .arg("--root")
+            .arg(root())
+            .args(["theme-runtime", "generate"])
+            .arg(source)
+            .env("HOME", &f.0)
+            .env("PATH", &bin)
+            .env("XDG_STATE_HOME", f.path("state"))
+            .env("XDG_CACHE_HOME", f.path("cache"))
+            .env("DF_THEME_OUTPUT", &output)
+            .env_remove("NIRI_SOCKET")
+            .env_remove("DBUS_SESSION_BUS_ADDRESS")
+            .output()
+            .unwrap()
+    };
+    for input in [&source, &hdr] {
+        let result = run(input);
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let palette: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+        assert!(palette["material"].is_object());
+    }
+    let converted = f.path("cache/desktop-foundation/wallpaper-compatible");
+    let files: Vec<_> = fs::read_dir(converted).unwrap().collect();
+    assert_eq!(files.len(), 2);
+    assert_eq!(
+        image::open(files[0].as_ref().unwrap().path())
+            .unwrap()
+            .width(),
+        12
+    );
+    assert_eq!(
+        fs::read(source).unwrap(),
+        include_bytes!("fixtures/wallpaper.avif")
+    );
+}
+
+#[test]
 fn preflight_update_runs_without_python_or_package_manager() {
     use std::os::unix::fs::PermissionsExt;
     let f = Fixture::new();

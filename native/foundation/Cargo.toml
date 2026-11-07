@@ -23,7 +23,7 @@ path = "src/bin/measure.rs"
 required-features = ["bench"]
 
 [dependencies]
-image = { version = "=0.25.8", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "tiff"] }
+image = { version = "=0.25.8", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "tiff", "avif-native", "tga", "qoi", "pnm", "ico", "hdr", "exr", "ff"] }
 libc = "0.2"
 quick-xml = "0.41"
 rusqlite = { version = "0.37", default-features = false }
