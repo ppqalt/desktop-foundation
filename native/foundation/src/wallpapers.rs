@@ -239,11 +239,38 @@ pub fn list(root: &Path) -> Result<Value> {
             .ok();
         }
     }
-    let cache =
-        state::xdg("XDG_CACHE_HOME", ".cache")?.join("desktop-foundation/wallpaper-previews");
     let directory =
         wallpaper_directory(&state::home()?, &state::xdg("XDG_CONFIG_HOME", ".config")?)?;
-    catalog_with_previews(&directory, selected.as_deref(), Some(&cache))
+    catalog(&directory, selected.as_deref())
+}
+
+/// Generate a single preview only for an image in the configured catalogue.
+pub fn preview_for(path: &Path, directory: &Path, cache: &Path) -> Result<Value> {
+    let resolved = path.canonicalize()?;
+    let belongs = fs::read_dir(directory)?
+        .filter_map(|entry| entry.ok())
+        .any(|entry| {
+            entry
+                .path()
+                .canonicalize()
+                .is_ok_and(|candidate| candidate == resolved)
+        });
+    if !belongs || !resolved.is_file() {
+        return Err(crate::invalid(
+            "Wallpaper is outside the configured directory",
+        ));
+    }
+    state::private_directory(cache)?;
+    let image = preview(&resolved, cache)?;
+    Ok(json!({"path": resolved, "url": state::file_uri(&image)?}))
+}
+
+pub fn preview_selected(path: &Path) -> Result<Value> {
+    let directory =
+        wallpaper_directory(&state::home()?, &state::xdg("XDG_CONFIG_HOME", ".config")?)?;
+    let cache =
+        state::xdg("XDG_CACHE_HOME", ".cache")?.join("desktop-foundation/wallpaper-previews");
+    preview_for(path, &directory, &cache)
 }
 
 #[cfg(test)]

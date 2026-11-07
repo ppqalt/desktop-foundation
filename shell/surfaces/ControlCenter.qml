@@ -349,6 +349,18 @@ PanelWindow {
                     contentWidth: width
                     contentHeight: body.height
                     boundsBehavior: Flickable.StopAtBounds
+                    WheelHandler {
+                        target: null
+                        onWheel: event => {
+                            if (!event.pixelDelta.y && !event.angleDelta.y) {
+                                event.accepted = false;
+                                return;
+                            }
+                            const delta = event.pixelDelta.y || event.angleDelta.y * 1.25;
+                            scroll.contentY = Math.max(0, Math.min(scroll.contentHeight - scroll.height, scroll.contentY - delta));
+                            event.accepted = true;
+                        }
+                    }
                     ScrollBar.vertical: ScrollBar {
                         policy: ScrollBar.AsNeeded
                         visible: scroll.contentHeight > scroll.height
@@ -550,6 +562,7 @@ PanelWindow {
                             visible: root.page === "overview"
                             active: !root.closing && visible
                             backend: root.backend
+                            viewport: scroll
                             onStarted: root.error = ""
                             onFailed: message => root.error = message
                             onSettled: {

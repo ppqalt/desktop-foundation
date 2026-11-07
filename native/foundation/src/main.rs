@@ -108,6 +108,9 @@ fn run() -> Result<()> {
         Some("wallpapers") if args.as_slice() == ["wallpapers", "list"] => {
             print_json(&wallpapers::list(&root)?)
         }
+        Some("wallpapers") if args.len() == 3 && args[1] == "preview" => print_json(
+            &wallpapers::preview_selected(std::path::Path::new(&args[2]))?,
+        ),
         Some("wallpapers") if args.len() == 3 && args[1] == "probe" => print_json(
             &desktop_foundationctl::media::probe(std::path::Path::new(&args[2]))?,
         ),

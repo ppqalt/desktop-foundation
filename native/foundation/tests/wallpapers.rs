@@ -50,6 +50,27 @@ fn catalog_is_sorted_filters_invalid_files_and_tracks_selection() {
     assert_eq!(images[1]["selected"], true);
 }
 #[test]
+fn previews_are_generated_on_demand_and_reject_foreign_files() {
+    let f = Fixture::new();
+    let directory = f.0.join("images");
+    let cache = f.0.join("cache");
+    fs::create_dir(&directory).unwrap();
+    let first = directory.join("a.png");
+    let second = directory.join("b.png");
+    let outside = f.0.join("outside.png");
+    image(&first, [20, 50, 150]);
+    image(&second, [200, 50, 20]);
+    image(&outside, [40, 160, 70]);
+    let catalog = wallpapers::catalog(&directory, None).unwrap();
+    assert_eq!(catalog["images"].as_array().unwrap().len(), 2);
+    assert!(!cache.exists(), "listing must not generate previews");
+    let result = wallpapers::preview_for(&first, &directory, &cache).unwrap();
+    assert!(result["url"].as_str().unwrap().starts_with("file://"));
+    assert_eq!(fs::read_dir(&cache).unwrap().count(), 1);
+    assert!(wallpapers::preview_for(&outside, &directory, &cache).is_err());
+    assert_eq!(fs::read_dir(&cache).unwrap().count(), 1);
+}
+#[test]
 fn missing_directory_is_an_empty_state() {
     let f = Fixture::new();
     let catalog = wallpapers::catalog(&f.0.join("missing"), None).unwrap();
@@ -142,7 +163,7 @@ fn qml_grid_keyboard_selection_failure_and_preview_pixels_are_verified_offscreen
         .replace("../../shell/", "shell/");
     fs::write(f.0.join("shell.qml"), qml).unwrap();
     let backend = f.0.join("backend");
-    fs::write(&backend,"#!/bin/sh\ncase \"$3 $4\" in\n'wallpapers list') /bin/cat \"$DF_WALLPAPER_CATALOG\";;\n'theme-runtime wallpaper') printf '%s\\n' \"$5\" >> \"$DF_WALLPAPER_CALLS\"; /bin/sleep 0.1; case \"$5\" in */c.png) printf 'inert failure' >&2; exit 1;; esac;;\n*) exit 2;;\nesac\n").unwrap();
+    fs::write(&backend,"#!/bin/sh\ncase \"$3 $4\" in\n'wallpapers list') /bin/cat \"$DF_WALLPAPER_CATALOG\";;\n'wallpapers preview') python3 -c 'import json,sys; items=json.load(open(sys.argv[1]))[\"images\"]; print(json.dumps(next(x for x in items if x[\"path\"] == sys.argv[2])))' \"$DF_WALLPAPER_CATALOG\" \"$5\";;\n'theme-runtime wallpaper') printf '%s\\n' \"$5\" >> \"$DF_WALLPAPER_CALLS\"; /bin/sleep 0.1; case \"$5\" in */c.png) printf 'inert failure' >&2; exit 1;; esac;;\n*) exit 2;;\nesac\n").unwrap();
     fs::set_permissions(&backend, fs::Permissions::from_mode(0o700)).unwrap();
     let capture = f.0.join("capture.png");
     let calls = f.0.join("calls");
@@ -197,4 +218,65 @@ fn qml_grid_keyboard_selection_failure_and_preview_pixels_are_verified_offscreen
     if let Some(path) = std::env::var_os("DF_WALLPAPER_TEST_CAPTURE") {
         fs::copy(capture, path).unwrap();
     }
+}
+
+#[test]
+fn qml_only_requests_nearby_previews_and_loads_more_when_scrolled() {
+    if !Command::new("sh")
+        .args(["-c", "command -v quickshell >/dev/null 2>&1"])
+        .status()
+        .is_ok_and(|status| status.success())
+    {
+        eprintln!("Skipping wallpaper QML integration test: Quickshell is unavailable");
+        return;
+    }
+    let f = Fixture::new();
+    let directory = f.0.join("images");
+    fs::create_dir(&directory).unwrap();
+    for index in 0..36 {
+        image(&directory.join(format!("{index:02}.png")), [20, 50, 150]);
+    }
+    let data = f.0.join("catalog.json");
+    render::write_json(&data, &wallpapers::catalog(&directory, None).unwrap()).unwrap();
+    render::copy_tree(&root().join("shell"), &f.0.join("shell")).unwrap();
+    let qml = fs::read_to_string(root().join("tests/qml/wallpaper-lazy.qml"))
+        .unwrap()
+        .replace("../../shell/", "shell/");
+    fs::write(f.0.join("shell.qml"), qml).unwrap();
+    let backend = f.0.join("backend");
+    fs::write(&backend, r##"#!/bin/sh
+case "$3 $4" in
+'wallpapers list') /bin/cat "$DF_WALLPAPER_CATALOG";;
+'wallpapers preview') python3 -c 'import json,sys; items=json.load(open(sys.argv[1]))["images"]; print(json.dumps(next(x for x in items if x["path"] == sys.argv[2])))' "$DF_WALLPAPER_CATALOG" "$5";;
+*) exit 2;;
+esac
+"##).unwrap();
+    fs::set_permissions(&backend, fs::Permissions::from_mode(0o700)).unwrap();
+    let result = Command::new("timeout")
+        .args(["8s", "quickshell", "-p"])
+        .arg(f.0.join("shell.qml"))
+        .env("DF_WALLPAPER_BACKEND", backend)
+        .env("DF_WALLPAPER_CATALOG", data)
+        .env("DF_FOUNDATION_ROOT", root())
+        .env("XDG_STATE_HOME", f.0.join("state"))
+        .env("QT_QPA_PLATFORM", "offscreen")
+        .env("QT_QUICK_BACKEND", "software")
+        .env_remove("WAYLAND_DISPLAY")
+        .env_remove("DISPLAY")
+        .env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .output()
+        .unwrap();
+    let log = format!(
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        result.status.success() && log.contains("LAZY_WALLPAPER_CHECKS_PASSED"),
+        "{log}"
+    );
+    assert!(
+        !log.contains("TypeError") && !log.contains("ReferenceError"),
+        "{log}"
+    );
 }

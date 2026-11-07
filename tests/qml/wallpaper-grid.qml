@@ -84,6 +84,7 @@ ShellRoot {
                 if (picker.loading || picker.entries.length !== 4)
                     return;
                 stop();
+                keys.wait(500);
                 keys.runChecks();
                 picker.grabToImage(result => {
                     // A fully transparent/empty preview must fail this fixture.

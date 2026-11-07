@@ -15,6 +15,10 @@ ColumnLayout {
     readonly property bool busy: apply.running
     readonly property bool loading: inventory.running
     property bool initialized: false
+    property var viewport: null
+    property var previewUrls: ({})
+    property var previewFailures: ({})
+    property string previewPath: ""
     signal started
     signal failed(string message)
     signal settled
@@ -28,12 +32,65 @@ ColumnLayout {
             return;
         if (active)
             refresh();
-        else
+        else {
             inventory.running = false;
+            previewRequest.running = false;
+            previewTimer.stop();
+        }
     }
     function refresh(): void {
         if (active && !inventory.running && !busy)
             inventory.running = true;
+    }
+    function schedulePreviews(): void {
+        if (active)
+            previewTimer.restart();
+    }
+    function loadVisiblePreview(): void {
+        if (!active || previewRequest.running || !entries.length)
+            return;
+        const tileHeight = (grid.width - 24) / 3 * 0.6;
+        const rowHeight = tileHeight + grid.spacing;
+        const offset = viewport ? grid.mapToItem(viewport, 0, 0).y : 0;
+        const first = viewport ? Math.max(0, Math.floor((-offset) / rowHeight) - 1) * 3 : 0;
+        const last = viewport ? Math.min(entries.length, (Math.ceil((viewport.height - offset) / rowHeight) + 1) * 3) : entries.length;
+        for (let i = first; i < last; ++i) {
+            const path = entries[i].path;
+            if (!previewUrls[path] && !previewFailures[path]) {
+                previewPath = path;
+                previewRequest.command = [backend, "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "wallpapers", "preview", path];
+                previewRequest.running = true;
+                return;
+            }
+        }
+    }
+    Timer {
+        id: previewTimer
+        interval: 35
+        onTriggered: root.loadVisiblePreview()
+    }
+    Connections {
+        target: root.viewport
+        function onContentYChanged(): void {
+            root.schedulePreviews();
+        }
+        function onHeightChanged(): void {
+            root.schedulePreviews();
+        }
+    }
+    ControlRequest {
+        id: previewRequest
+        onFinished: code => {
+            if (!root.active)
+                return;
+            const values = Object.assign({}, code === 0 && response.url ? root.previewUrls : root.previewFailures);
+            values[root.previewPath] = code === 0 && response.url ? response.url : true;
+            if (code === 0 && response.url)
+                root.previewUrls = values;
+            else
+                root.previewFailures = values;
+            root.schedulePreviews();
+        }
     }
     function choose(entry): void {
         if (!active || busy || entry.path === currentPath)
@@ -52,6 +109,9 @@ ColumnLayout {
             if (code === 0 && Array.isArray(response.images)) {
                 root.entries = response.images;
                 root.currentPath = response.current || "";
+                root.previewUrls = ({});
+                root.previewFailures = ({});
+                root.schedulePreviews();
             } else
                 root.failed(failure || "Could not read wallpapers.");
         }
@@ -92,6 +152,13 @@ ColumnLayout {
                 activeFocusOnTab: true
                 enabled: root.active && !root.busy
                 readonly property bool selected: root.currentPath === modelData.path
+                readonly property bool nearViewport: {
+                    if (!root.viewport)
+                        return true;
+                    const scrollY = root.viewport.contentY;
+                    const top = tile.mapToItem(root.viewport.contentItem, 0, 0).y - scrollY;
+                    return top + height >= -height && top <= root.viewport.height + height;
+                }
                 Accessible.name: modelData.name
                 Accessible.role: Accessible.RadioButton
                 Accessible.checkable: true
@@ -129,7 +196,7 @@ ColumnLayout {
                     Image {
                         id: image
                         anchors.fill: parent
-                        source: root.active ? tile.modelData.url : ""
+                        source: root.active && tile.nearViewport ? root.previewUrls[tile.modelData.path] || "" : ""
                         sourceSize.width: Math.ceil(tile.width * (Screen.devicePixelRatio || 1))
                         sourceSize.height: Math.ceil(tile.height * (Screen.devicePixelRatio || 1))
                         fillMode: Image.PreserveAspectCrop
@@ -138,7 +205,7 @@ ColumnLayout {
                     Text {
                         anchors.centerIn: parent
                         width: parent.width - 24
-                        visible: image.status === Image.Error
+                        visible: image.status === Image.Error || !!root.previewFailures[tile.modelData.path]
                         text: tile.modelData.name
                         textFormat: Text.PlainText
                         elide: Text.ElideRight
