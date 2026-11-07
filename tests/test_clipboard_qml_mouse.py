@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from PIL import Image
 
-from test_clipboard_qml_focus import window_transport
+from test_clipboard_qml_focus import window_transport, install_window_transport
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -207,7 +207,8 @@ class ClipboardMouseAndViewport(unittest.TestCase):
             production = window_transport((ROOT / 'shell/surfaces/Clipboard.qml').read_text())
             body, ending = production.rsplit('}', 1)
             (surfaces / 'ClipboardFixture.qml').write_text(body + INSPECTION + '}' + ending)
-            for name in ('components', 'services', 'theme', 'assets'):
+            install_window_transport(base)
+            for name in ('services', 'theme', 'assets'):
                 (base / 'shell' / name).symlink_to(ROOT / 'shell' / name, target_is_directory=True)
             (base / 'shell.qml').write_text(COMMON.replace('SCRIPT', script))
             state = base / 'clipboard'; state.mkdir()

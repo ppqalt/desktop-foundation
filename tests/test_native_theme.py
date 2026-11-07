@@ -16,7 +16,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = ROOT / 'native/foundation/target/debug/desktop-foundationctl'
-POLICY = 'graphite-v2'
+POLICY = 'graphite-v3-material'
 GOLDENS = json.loads(r'''[{"material":{"primary":"#98ccf9","secondary":"#bdc7d5"},"palette":{"background":"#161b20","elevated":"#212b33","foreground":"#eef1f6","muted":"#9c9c9c","subtle":"#6c6c6c","border":"#425668","accent":"#98ccf9","selected":"#304150","selectionBorder":"#6082a0","iconTile":"#1a242c","hover":"#24313c","error":"#f1a5a5","scrim":"#50080b10","source":"fixture","accentStrong":"#9fcbf2","windowActive":"#587792","windowInactive":"#2c3740","wallpaperHash":"1111111111111111111111111111111111111111111111111111111111111111","policy":"graphite-v2"}},{"material":{"primary":"#ffb599","secondary":"#dfbfaf"},"palette":{"background":"#201916","elevated":"#332621","foreground":"#eef1f6","muted":"#9c9c9c","subtle":"#6c6c6c","border":"#684d42","accent":"#ffb599","selected":"#503930","selectionBorder":"#a07260","iconTile":"#2c1f1a","hover":"#3c2b24","error":"#f1a5a5","scrim":"#50080b10","source":"fixture","accentStrong":"#f9b79d","windowActive":"#926858","windowInactive":"#40322c","wallpaperHash":"1111111111111111111111111111111111111111111111111111111111111111","policy":"graphite-v2"}},{"material":{"primary":"#fbb5ed","secondary":"#cdc2d0"},"palette":{"background":"#20161e","elevated":"#332130","foreground":"#eef1f6","muted":"#9c9c9c","subtle":"#6c6c6c","border":"#684260","accent":"#fbb5ed","selected":"#50304a","selectionBorder":"#a06093","iconTile":"#2c1a28","hover":"#3c2437","error":"#f1a5a5","scrim":"#50080b10","source":"fixture","accentStrong":"#f2b8e7","windowActive":"#925887","windowInactive":"#402c3c","wallpaperHash":"1111111111111111111111111111111111111111111111111111111111111111","policy":"graphite-v2"}},{"material":{"primary":"#000000","secondary":"#000001"},"palette":{"background":"#1b1b1b","elevated":"#2a2a2a","foreground":"#eef1f6","muted":"#9c9c9c","subtle":"#6c6c6c","border":"#555555","accent":"#b0b0b0","selected":"#404040","selectionBorder":"#808080","iconTile":"#232323","hover":"#303030","error":"#f1a5a5","scrim":"#50080b10","source":"fixture","accentStrong":"#b0b0b0","windowActive":"#757575","windowInactive":"#363636","wallpaperHash":"1111111111111111111111111111111111111111111111111111111111111111","policy":"graphite-v2"}},{"material":{"primary":"#010203","secondary":"#808080"},"palette":{"background":"#161b20","elevated":"#212a33","foreground":"#eef1f6","muted":"#9c9c9c","subtle":"#6c6c6c","border":"#425568","accent":"#b0b0b0","selected":"#304050","selectionBorder":"#6080a0","iconTile":"#1a232c","hover":"#24303c","error":"#f1a5a5","scrim":"#50080b10","source":"fixture","accentStrong":"#b0b0b0","windowActive":"#587592","windowInactive":"#2c3640","wallpaperHash":"1111111111111111111111111111111111111111111111111111111111111111","policy":"graphite-v2"}},{"material":{"primary":"#0000ff","secondary":"#ff0000"},"palette":{"background":"#161620","elevated":"#212133","foreground":"#eef1f6","muted":"#9c9c9c","subtle":"#6c6c6c","border":"#424268","accent":"#9292ff","selected":"#303050","selectionBorder":"#6060a0","iconTile":"#1a1a2c","hover":"#24243c","error":"#f1a5a5","scrim":"#50080b10","source":"fixture","accentStrong":"#a792e9","windowActive":"#585892","windowInactive":"#2c2c40","wallpaperHash":"1111111111111111111111111111111111111111111111111111111111111111","policy":"graphite-v2"}},{"material":{"primary":"#ff0000","secondary":"#00ff00"},"palette":{"background":"#201616","elevated":"#332121","foreground":"#eef1f6","muted":"#9c9c9c","subtle":"#6c6c6c","border":"#684242","accent":"#ff7979","selected":"#503030","selectionBorder":"#a06060","iconTile":"#2c1a1a","hover":"#3c2424","error":"#f1a5a5","scrim":"#50080b10","source":"fixture","accentStrong":"#e49279","windowActive":"#925858","windowInactive":"#402c2c","wallpaperHash":"1111111111111111111111111111111111111111111111111111111111111111","policy":"graphite-v2"}},{"material":{"primary":"#98CCF9","secondary":"#BDC7D5"},"palette":{"background":"#161b20","elevated":"#212b33","foreground":"#eef1f6","muted":"#9c9c9c","subtle":"#6c6c6c","border":"#425668","accent":"#98CCF9","selected":"#304150","selectionBorder":"#6082a0","iconTile":"#1a242c","hover":"#24313c","error":"#f1a5a5","scrim":"#50080b10","source":"fixture","accentStrong":"#9fcbf2","windowActive":"#587792","windowInactive":"#2c3740","wallpaperHash":"1111111111111111111111111111111111111111111111111111111111111111","policy":"graphite-v2"}}]''')
 
 FAKE_MATUGEN = r'''import json, os, sys
@@ -34,7 +34,7 @@ assert args[-2] == 'image' and Path(args[-1]).is_file()
 with open(os.environ['DF_THEME_LOG'], 'a') as trace:
     trace.write(json.dumps({'args': args, 'config': str(config)}) + '\n')
 mode = os.environ.get('DF_THEME_MODE', 'modern')
-material = {'primary': '#98ccf9', 'secondary': '#bdc7d5'}
+material = json.loads(os.environ['DF_THEME_MATERIAL'])
 if mode == 'fail':
     print('synthetic generator failure', file=sys.stderr)
     sys.exit(2)
@@ -73,6 +73,7 @@ class NativeTheme(unittest.TestCase):
         fallback = self.root / 'theme/fallback'
         fallback.mkdir(parents=True)
         shutil.copy2(ROOT / 'theme/fallback/semantic.json', fallback / 'semantic.json')
+        shutil.copy2(ROOT / 'theme/fallback/material.json', fallback / 'material.json')
         self.bin = self.base / 'bin'; self.bin.mkdir()
         for name in ('cache', 'state', 'config', 'runtime'):
             (self.base / name).mkdir(mode=0o700)
@@ -86,7 +87,8 @@ class NativeTheme(unittest.TestCase):
                     'XDG_STATE_HOME': str(self.base / 'state'),
                     'XDG_CONFIG_HOME': str(self.base / 'config'),
                     'XDG_RUNTIME_DIR': str(self.base / 'runtime'),
-                    'DF_THEME_LOG': str(self.log)}
+                    'DF_THEME_LOG': str(self.log),
+                    'DF_THEME_MATERIAL': json.dumps(dict(json.loads((fallback / 'material.json').read_text()), primary='#98ccf9', secondary='#bdc7d5'))}
         self.image = self.root / 'wallpaper.bin'
         self.image.write_bytes(b'isolated wallpaper bytes for palette extraction')
         self.digest = hashlib.sha256(self.image.read_bytes()).hexdigest()
@@ -105,7 +107,7 @@ class NativeTheme(unittest.TestCase):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
 
     def frozen_palette(self):
-        palette = dict(GOLDENS[0]['palette'])
+        palette = dict(GOLDENS[0]['palette'], policy=POLICY, material=json.loads(self.env['DF_THEME_MATERIAL']))
         palette.update(wallpaperHash=self.digest, source='old-location/wallpaper.bin')
         return palette
 
@@ -114,7 +116,8 @@ class NativeTheme(unittest.TestCase):
             with self.subTest(primary=case['material']['primary']):
                 result = self.invoke('derive', '--source', 'fixture', '--hash', '1' * 64,
                                      input=json.dumps(case['material']))
-                self.assertEqual(json.loads(result.stdout), case['palette'])
+                expected = dict(case['palette'], policy=POLICY, material=json.loads((self.root / 'theme/fallback/material.json').read_text()))
+                self.assertEqual(json.loads(result.stdout), expected)
         # Wallpaper brightness cannot replace graphite surface lightness.
         result = self.invoke('derive', '--source', 'fixture', '--hash', '1' * 64,
                              input=json.dumps({'primary': '#ffffff', 'secondary': '#000000'}))

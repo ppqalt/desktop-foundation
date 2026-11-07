@@ -38,7 +38,7 @@ class Update(unittest.TestCase):
         (self.root / '.gitignore').write_text('/native/*/target/\n')
         (self.root / 'profiles/default').mkdir(parents=True)
         (self.root / 'profiles/default/niri.kdl').write_text('// fixture\n')
-        for name in ['build-backend', 'build-nothing', 'preflight.py', 'deploy', 'niri', 'shell-reload', 'monitor']:
+        for name in ['build-backend', 'build-nothing', 'preflight', 'deploy', 'niri', 'shell-reload', 'monitor']:
             self.script(name)
         (self.root / 'payload.txt').write_text('initial\n')
         self.commit('initial')
@@ -131,7 +131,7 @@ if name in ['build-backend', 'build-nothing']:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.git('rev-parse', 'HEAD').strip(), revision)
         calls = self.calls()
-        self.assertEqual([c['name'] for c in calls], ['build-backend', 'build-nothing', 'preflight.py', 'deploy', 'niri', 'shell-reload', 'monitor'])
+        self.assertEqual([c['name'] for c in calls], ['build-backend', 'build-nothing', 'preflight', 'deploy', 'niri', 'shell-reload', 'monitor'])
         self.assertTrue(all(c['root'] != str(self.root) for c in calls[:3]))
         self.assertEqual(calls[0]['private'], 'private')
         self.assertEqual(calls[3]['root'], str(self.root))
@@ -266,7 +266,7 @@ if name in ['build-backend', 'build-nothing']:
 
     def test_validation_failure_does_not_publish(self):
         self.remote_change()
-        result = self.invoke(DF_FAIL_STAGE='preflight.py')
+        result = self.invoke(DF_FAIL_STAGE='preflight')
         self.assertNotEqual(result.returncode, 0); self.unchanged()
 
     def test_failed_fetch_does_not_publish(self):

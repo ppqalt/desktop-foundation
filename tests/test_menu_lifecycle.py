@@ -24,30 +24,36 @@ def function(name):
 
 @unittest.skipUnless(shutil.which('node'),'policy fixture requires Node')
 class MenuLifecycle(unittest.TestCase):
-    def test_shortcut_and_cross_menu_closes_use_animation_and_keep_busy_action(self):
-        names=['dismissPower','togglePower','toggleBluetooth','toggleClipboard','showClipboard','toggleLauncher','showLauncher','reloadConfiguration']
+    def test_router_handoff_and_busy_power_action(self):
+        names=['togglePower','toggleBluetooth','toggleClipboard','showClipboard','toggleLauncher','showLauncher','reloadConfiguration']
         functions='\n'.join('function '+name+'() {'+function(name)[2]+'}' for name in names)
-        script=r'''
+        router=(ROOT/'shell/components/SurfaceRouter.qml').read_text()
+        functions += '\nfunction request(name, showOnly = false) {' + block(router, 'function request(') + '}'
+        script=r"""
 const vm=require('node:vm');const assert=require('node:assert/strict');
-const events=[];const callbacks=[];
-const context={powerEnabled:true,launcherEnabled:false,clipboardEnabled:false,bluetoothEnabled:false,
-    powerLoader:{item:{busy:false,dismiss(){events.push('power-dismiss');}}},bluetoothLoader:{item:null},
-    launcher:null,clipboard:null,Qt:{callLater(fn){callbacks.push(fn)}},Quickshell:{reload(hard){events.push(['reload',hard])}}};
-context.root=context;vm.createContext(context);vm.runInContext(FUNCTIONS,context);
-context.togglePower();assert.equal(context.powerEnabled,true);assert.deepEqual(events,['power-dismiss']);
-context.powerEnabled=false;context.powerLoader.item=null;context.togglePower();assert.equal(context.powerEnabled,true);
-for(const name of ['toggleBluetooth','toggleClipboard','showClipboard','toggleLauncher','showLauncher']){
-    events.length=0;context.powerEnabled=true;context.powerLoader.item={busy:false,dismiss(){events.push('power-dismiss')}};
-    context.launcherEnabled=false;context.launcher=null;context.clipboard=null;context.clipboardEnabled=false;context.bluetoothEnabled=false;
-    context[name]();assert.equal(context.powerEnabled,true,name+' unloaded instead of dismissing');assert.equal(events[0],'power-dismiss');
-    context.powerLoader.item.busy=true;events.length=0;context.launcherEnabled=false;context.clipboardEnabled=false;context.bluetoothEnabled=false;
-    context[name]();assert.deepEqual(events,[],name+' affected pending power action');
-    assert.equal(context.launcherEnabled||context.clipboardEnabled||context.bluetoothEnabled,false);
+const events=[];const callbacks=[];const items={};
+const context={pending:'', surfaces:{}, Theme:{refreshMotionPreference(){}},
+    powerLoader:{item:null},controlCenter:null,
+    Qt:{callLater(fn){callbacks.push(fn)}},Quickshell:{reload(hard){events.push(['reload',hard])}}};
+for (const name of ['power','bluetooth','clipboard','launcher']) {
+    context.surfaces[name]={item:()=>items[name]||null, retiring:()=>false,
+        open(handoff){events.push(['open',name,handoff]);items[name]={busy:false,closing:false,superseded:false}},
+        dismiss(){events.push(['dismiss',name]);items[name].closing=true},
+        present(){events.push(['present',name]);items[name].closing=false}};
 }
+context.root=context;context.surfaceRouter=context;
+vm.createContext(context);vm.runInContext(FUNCTIONS,context);
+context.togglePower();assert.equal(items.power.closing,false);
+items.power.busy=true;context.powerLoader.item=items.power;events.length=0;
+for(const name of ['toggleBluetooth','toggleClipboard','showClipboard','toggleLauncher','showLauncher'])context[name]();
+assert.deepEqual(events,[],'busy power action must block popup handoff');
 assert.equal(context.reloadConfiguration(),'busy');assert.equal(callbacks.length,0);
-context.powerLoader.item.busy=false;assert.equal(context.reloadConfiguration(),'queued');assert.equal(callbacks.length,1);
-assert.deepEqual(events,[]);callbacks.shift()();assert.deepEqual(events,[['reload',true]]);
-'''.replace('FUNCTIONS',json.dumps(functions))
+items.power.busy=false;context.toggleClipboard();
+assert.deepEqual(events,[['dismiss','power'],['open','clipboard',true]]);
+assert.equal(items.power.superseded,true);
+assert.equal(context.reloadConfiguration(),'queued');callbacks.shift()();
+assert.deepEqual(events.at(-1),['reload',true]);
+""".replace('FUNCTIONS',json.dumps(functions))
         result=subprocess.run(['node','-e',script],capture_output=True,text=True,timeout=8)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
@@ -73,6 +79,8 @@ import QtQuick.Window
 import Quickshell
 import Quickshell.Io
 ShellRoot {
+    id: root
+    property var controlCenter: null
     Component.onCompleted: Quickshell.watchFiles = false
     Window { width: 100; height: 100; visible: true }
     QtObject { id: powerLoader; property var item: null }

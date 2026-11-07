@@ -230,6 +230,7 @@ class NothingSurfaceQol(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='foundation-qol-qml-') as directory:
             base = Path(directory)
             (base / 'app').symlink_to(ROOT / 'shell', target_is_directory=True)
+            (base / 'theme').symlink_to(ROOT / 'theme', target_is_directory=True)
             scripts = base / 'scripts'; scripts.mkdir()
             backend = scripts / 'nothing-backend'
             backend.write_text('#!' + sys.executable + '\n' + r'''

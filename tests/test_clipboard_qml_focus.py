@@ -18,13 +18,27 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def window_transport(source):
+    if 'PopupWindow {' not in source:
+        raise AssertionError('Clipboard window changed; review the offscreen host')
+    return source
+
+
+def install_window_transport(base):
+    (base / 'theme').symlink_to(ROOT / 'theme', target_is_directory=True)
+    components = base / 'shell/components'
+    components.mkdir()
+    for child in (ROOT / 'shell/components').iterdir():
+        if child.name != 'PopupWindow.qml':
+            (components / child.name).symlink_to(child, target_is_directory=child.is_dir())
+    source = (ROOT / 'shell/components/PopupWindow.qml').read_text()
     source = source.replace('PanelWindow {', 'Window {', 1)
     source = source.replace('import QtQuick\n', 'import QtQuick\nimport QtQuick.Window\n', 1)
     source, count = re.subn(r'    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n', '', source, count=1)
     if count != 1:
         raise AssertionError('Layer-shell transport changed; review the offscreen host')
-    return '\n'.join(line for line in source.splitlines()
-                     if not line.startswith(('    screen:', '    exclusionMode:', '    WlrLayershell.'))) + '\n'
+    source = '\n'.join(line for line in source.splitlines()
+                       if not line.startswith(('    screen:', '    exclusionMode:', '    WlrLayershell.'))) + '\n'
+    (components / 'PopupWindow.qml').write_text(source)
 
 
 QML = r'''
@@ -42,10 +56,10 @@ ShellRoot {
     function check(condition, detail) {
         if (!condition) { failures++; console.error("FOCUS_FAIL " + detail); }
     }
-    function card() { return clip.contentItem.children.find(child => child.radius === 24); }
+    function card() { return clip.contentItem.children.find(child => child.radius === 28); }
     function capture(name) {
         const directory = Quickshell.env("DF_QOL_PREVIEW_DIR");
-        const card = clip.contentItem.children.find(child => child.radius === 24);
+        const card = clip.contentItem.children.find(child => child.radius === 28);
         if (directory && card) card.grabToImage(result => result.saveToFile(directory + "/" + name));
     }
     ClipboardFixture {
@@ -64,6 +78,7 @@ ShellRoot {
                 clip.width = 220;
                 Qt.callLater(() => {
                     fixture.check(fixture.card().width === 172, "Initial geometry starts a size morph");
+                    clip.entered = false;
                     clip.width = 900;
                     Qt.callLater(() => {
                         fixture.check(fixture.card().width === 640, "Initial output width animates instead of settling");
@@ -75,6 +90,8 @@ ShellRoot {
             } else if (fixture.stage === 1) {
                 fixture.capture("clipboard.png");
                 fixture.check(s.inputFocused, "Search is not the active Qt input");
+                keyboard.keyClick(Qt.Key_Tab);
+                fixture.check(!clip.snapshot().inputFocused, "Tab cannot leave search");
                 keyboard.keyClick(Qt.Key_Tab);
                 fixture.check(clip.actionFocus === 1, "Tab cannot reach Pin");
                 keyboard.keyClick(Qt.Key_Tab);
@@ -125,6 +142,8 @@ ShellRoot {
                 keyboard.keyClick(Qt.Key_A);
                 keyboard.keyClick(Qt.Key_Delete, Qt.ControlModifier);
                 fixture.check(clip.snapshot().query === "" && clip.snapshot().count === 13, "Modal typing affects hidden search or history");
+                keyboard.keyClick(Qt.Key_Home);
+                fixture.check(clip.clearChoice === 0, "Home cannot return to Cancel");
                 keyboard.keyClick(Qt.Key_Tab);
                 fixture.check(clip.clearChoice === 1 && clip.snapshot().confirmationFocused, "Tab cannot focus Clear history");
                 keyboard.keyClick(Qt.Key_Tab, Qt.ShiftModifier);
@@ -137,7 +156,12 @@ ShellRoot {
                 if (!s.error) { keyboard.keyClick(Qt.Key_Return); return; }
                 fixture.check(!clip.closing && s.error.includes("Restore the original"), "Missing file copy closes surface or loses recovery message");
                 keyboard.keyClick(Qt.Key_Tab); keyboard.keyClick(Qt.Key_Tab);
-                fixture.check(clip.clearSelected, "Files expose a nonfunctional plain-copy control or cannot reach Clear history");
+                fixture.check(clip.actionFocus === 1, "Files cannot reach Pin");
+                keyboard.keyClick(Qt.Key_Tab);
+                fixture.check(clip.actionFocus === 1, "Files expose a nonfunctional plain-copy control");
+                keyboard.keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+                keyboard.keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+                fixture.check(clip.clearSelected, "Files cannot reach Clear history");
                 keyboard.keyClick(Qt.Key_Return);
                 keyboard.keyClick(Qt.Key_Right);
                 fixture.check(clip.clearChoice === 1, "Right cannot choose normal cleanup");
@@ -173,7 +197,8 @@ class ClipboardFocus(unittest.TestCase):
             base = Path(directory)
             surface = base / 'shell/surfaces'; surface.mkdir(parents=True)
             (surface / 'ClipboardFixture.qml').write_text(window_transport((ROOT / 'shell/surfaces/Clipboard.qml').read_text()))
-            for name in ('components', 'services', 'theme', 'assets'):
+            install_window_transport(base)
+            for name in ('services', 'theme', 'assets'):
                 (base / 'shell' / name).symlink_to(ROOT / 'shell' / name, target_is_directory=True)
             (base / 'shell.qml').write_text(QML)
             state = base / 'clipboard'; state.mkdir()
@@ -222,4 +247,4 @@ class ClipboardFocus(unittest.TestCase):
             self.assertNotIn('TypeError', log)
             self.assertNotIn('ReferenceError', log)
             self.assertNotIn('Failed to load configuration', log)
-            self.assertEqual((state / 'actions.log').read_text(), 'init\npin\nunpin\ncopy-plain\npin\npin\ncopy\nclear\nclear-all\n')
+            self.assertEqual((state / 'actions.log').read_text(), 'pin\nunpin\ncopy-plain\npin\npin\ncopy\nclear\nclear-all\n')

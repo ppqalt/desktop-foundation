@@ -59,7 +59,7 @@ class SessionStartup(unittest.TestCase):
         for name in ['session-start', 'shell-start', 'clipboard-start']:
             text = (ROOT / 'scripts' / name).read_text()
             self.assertNotIn('daemon-reload', text)
-            self.assertNotIn('printf', text)
+            self.assertNotIn(' > ', text)  # Diagnostics may print; login must not generate files.
         self.assertNotIn('write_text', (ROOT / 'scripts/niri_notifications.py').read_text())
         self.assertNotIn('scripts/dark-mode', (ROOT / 'scripts/session-start').read_text())
 

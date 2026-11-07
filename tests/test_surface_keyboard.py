@@ -48,6 +48,10 @@ def production(surface, names):
             raise AssertionError('Missing production function: ' + name)
         arguments = re.sub(r':\s*(?:int|real|string|bool|var)\b', '', signature.group(1))
         functions.append('function ' + name + '(' + arguments + ') {' + block(source, 'function ' + name + '(') + '}')
+    if surface == 'Launcher' and 'handleKey' not in names:
+        names = [*names, 'handleKey']
+        signature = re.search(r'function handleKey\((.*?)\)\s*:\s*void\s*\{', source)
+        functions.append('function handleKey(' + signature.group(1) + ') {' + block(source, 'function handleKey(') + '}')
     entry = re.search(r'Keys.onPressed:\s*event\s*=>\s*([^\n]+)', source).group(1)
     handler = block(source, 'Keys.onPressed:') if entry.startswith('{') else entry + ';'
     return '\n'.join(functions) + '\nhandler = event => {' + handler + '};'
@@ -70,16 +74,21 @@ const context = {
     results: Array.from({length: 12}, (_, index) => ({id: 'item-' + index, kind: index === 0 ? 'rich' : 'text', mime: 'text/plain', pinned: false})),
     actions: ['suspend', 'logout', 'reboot', 'poweroff'].map(id => ({id})),
     search: {focus: true, text: 'query', forceActiveFocus() {events.push('focus');}},
-    list: {height: 198, contentHeight: 792, originY: 0, contentY: 0, forceLayout() {}, indexAt(x, y) {return Math.floor(y / 66);}, itemAtIndex(index) {return {y: index * 66, height: 62};}, positionViewAtBeginning() {this.contentY = 0;}, positionViewAtIndex(index, mode) {events.push(['visible', index]); if (mode === 2) this.contentY = index * 66;}},
+    list: {height: 228, contentHeight: 792, originY: 0, contentY: 0, forceLayout() {}, indexAt(x, y) {return Math.floor(y / 66);}, itemAtIndex(index) {return {y: index * 66, height: 62};}, positionViewAtBeginning() {this.contentY = 0;}, positionViewAtIndex(index, mode) {events.push(['visible', index]); if (mode === 2) this.contentY = index * 66;}},
     ListView: {Contain: 1, Beginning: 2}, exitAnimation: {start() {events.push('dismiss');}},
     applications: {launch(entry) {events.push(['launch', entry.id]); return true;}},
     history: {entries: Array.from({length: 12}, (_, index) => ({id: 'item-' + index})),
               busy: false, request(action, identity) {events.push([action, identity]);}},
     lifecycle: {powerEnabled: true}, actionProcess: {command: [], running: false},
-    Quickshell: {env() {return '/isolated/fixture';}}
+    Quickshell: {env() {return '/isolated/fixture';}},
+    panel: {forceActiveFocus() {events.push('panel-focus');}},
+    beginDismissal() {context.closing = true; events.push('dismiss');},
+    restoreInitialFocus() {context.card.forceActiveFocus();}
 };
 context.root = context;
 vm.createContext(context);
+vm.runInContext(MATERIAL, context);
+context.Material = {listIndex: context.listIndex, isActivation: context.isActivation, repeatSuppressed: context.repeatSuppressed};
 vm.runInContext(PRODUCTION, context);
 function key(name, modifiers = 0, repeated = false) {
     const event = {key: Qt['Key_' + name], modifiers, isAutoRepeat: repeated, accepted: false};
@@ -87,6 +96,13 @@ function key(name, modifiers = 0, repeated = false) {
     return event.accepted;
 }
 '''
+        material = (ROOT / 'shell/theme/Material.qml').read_text()
+        helpers = []
+        for name in ('listIndex', 'isActivation', 'repeatSuppressed'):
+            signature = re.search(r'function ' + name + r'\((.*?)\)\s*:\s*\w+\s*\{', material)
+            arguments = re.sub(r':\s*(?:int|real|string|bool|var)\b', '', signature.group(1))
+            helpers.append('function ' + name + '(' + arguments + ') {' + block(material, 'function ' + name + '(') + '}')
+        code = code.replace('MATERIAL', json.dumps('\n'.join(helpers)))
         code = code.replace('PRODUCTION', json.dumps(production(surface, names))) + checks
         result = subprocess.run(['node', '-e', code], capture_output=True, text=True,
                                 timeout=10, env={'PATH': '/usr/bin:/bin'})
@@ -102,6 +118,7 @@ key('Tab', Qt.ShiftModifier); assert.equal(context.selectedIndex, 1);
 key('Down', 0, true); assert.equal(context.selectedIndex, 2);
 key('P', Qt.ControlModifier); assert.equal(context.selectedIndex, 1);
 key('PageUp'); assert.equal(context.selectedIndex, 0);
+context.search.activeFocus = true;
 for (const name of ['Home', 'End', 'Left', 'Right', 'Space', 'A'])
     assert.equal(key(name), false, name + ' belongs to the search field');
 key('Return', 0, true); assert.equal(events.filter(e => e[0] === 'launch').length, 0);
@@ -132,8 +149,10 @@ key('Return'); assert.deepEqual(events.find(e => e[0] === 'copy-plain'), ['copy-
 key('Tab'); assert.equal(context.selectedIndex, 1); assert.equal(context.actionFocus, 0);
 key('Backtab'); assert.equal(context.selectedIndex, 0); assert.equal(context.actionFocus, 2);
 key('Escape'); assert.equal(context.actionFocus, 0); assert.equal(context.closing, false);
+context.search.activeFocus = true;
 for (const name of ['Home', 'End', 'Left', 'Right', 'Space', 'A'])
     assert.equal(key(name), false, name + ' belongs to the search field');
+context.search.activeFocus = false;
 key('C', Qt.ControlModifier | Qt.ShiftModifier); assert.equal(events.filter(e => e[0] === 'copy-plain').length, 2);
 key('Delete', Qt.ControlModifier, true); assert.equal(events.some(e => e[0] === 'delete'), false);
 key('Delete', Qt.ControlModifier); assert.deepEqual(events.find(e => e[0] === 'delete'), ['delete', 'item-0']);
@@ -253,9 +272,9 @@ assert.equal(context.list.contentY, 0, 'Older index refresh must not scroll new 
 
     def test_power_keyboard_navigation_and_actions_only_call_harmless_spies(self):
         self.run_policy('Power', ['navigate', 'dismiss', 'choose', 'execute'], r'''
-key('Backtab'); assert.equal(context.selected, 3);
-key('Tab'); assert.equal(context.selected, 0);
-key('Tab', Qt.ShiftModifier); assert.equal(context.selected, 3);
+key('Backtab'); assert.equal(context.selected, 0);
+key('Tab'); assert.equal(context.selected, 1);
+key('Tab', Qt.ShiftModifier); assert.equal(context.selected, 0);
 key('Home'); assert.equal(context.selected, 0);
 key('Right'); assert.equal(context.selected, 1);
 key('Down', 0, true); assert.equal(context.selected, 2);

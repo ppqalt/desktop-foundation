@@ -3,6 +3,7 @@
 No Wayland, D-Bus, service manager, notification provider or wallpaper process
 is contacted. Final exec ownership is checked using fake executable PIDs.
 """
+import base64
 import json
 import os
 from pathlib import Path
@@ -42,7 +43,7 @@ class NativeSession(unittest.TestCase):
         self.bin = self.base/'bin'; self.bin.mkdir()
         self.state = self.base/'state/desktop-foundation'
         self.current = self.state/'theme/current'; self.current.mkdir(parents=True)
-        self.image = self.base/'wall with spaces.png'; self.image.write_bytes(b'fixture image')
+        self.image = self.base/'wall with spaces.png'; self.image.write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMQVDL+DwACFAFmBODefwAAAABJRU5ErkJggg=='))
         self.log = self.base/'calls.jsonl'
         self.env = dict(PATH=str(self.bin), HOME=str(self.base),
                         XDG_STATE_HOME=str(self.base/'state'), XDG_CACHE_HOME=str(self.base/'cache'),
@@ -143,16 +144,18 @@ class NativeSession(unittest.TestCase):
                 self.log.unlink(missing_ok=True)
                 result,pid=self.invoke('wallpaper','start')
                 calls=self.calls()
-                self.assertEqual([call['name'] for call in calls],['python3','swaybg'])
-                self.assertEqual(calls[0]['args'],[str(self.root/'scripts/niri_wallpaper.py'),'--prepare-backdrop',str(self.image),'fill'])
-                self.assertEqual(calls[1]['pid'],pid)
+                self.assertEqual([call['name'] for call in calls],['swaybg'])
+                backdrop=json.loads((self.base/'cache/desktop-foundation/overview/backdrop.json').read_text())
+                self.assertEqual(backdrop['mode'],'fill')
+                self.assertTrue(Path(backdrop['image'].removeprefix('file://')).is_file())
+                self.assertEqual(calls[0]['pid'],pid)
                 self.assertEqual(json.loads(result.stdout)['pid'],pid)
 
     def test_failed_legacy_preparation_never_starts_wallpaper(self):
-        shutil.rmtree(self.current); self.env['DF_LEGACY_FAIL']='1'
+        shutil.rmtree(self.current); self.image.write_bytes(b'invalid image')
         result,_=self.invoke('wallpaper','start',check=False)
         self.assertNotEqual(result.returncode,0)
-        self.assertEqual([call['name'] for call in self.calls()],['python3'])
+        self.assertEqual(self.calls(),[])
 
     def test_invalid_config_and_images_fail_before_side_effects(self):
         config=self.current/'wallpaper.toml'
