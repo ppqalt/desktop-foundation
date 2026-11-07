@@ -99,6 +99,12 @@ fn audio() -> Result<Value> {
             }
             let mut item = endpoint(stream);
             item["name"] = name.into();
+            let detail = properties["media.name"]
+                .as_str()
+                .filter(|s| !s.trim().is_empty() && *s != name);
+            item["label"] = detail
+                .map_or_else(|| name.to_owned(), |s| format!("{name} · {s}"))
+                .into();
             item["id"] = id.into();
             item["serial"] = serial.into();
             Some(item)

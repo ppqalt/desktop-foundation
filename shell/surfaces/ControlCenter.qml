@@ -608,7 +608,7 @@ PanelWindow {
                                     Layout.fillWidth: true
                                     Text {
                                         Layout.preferredWidth: Math.min(200, parent.width * 0.35)
-                                        text: parent.modelData.name
+                                        text: parent.modelData.label || parent.modelData.name
                                         elide: Text.ElideRight
                                         color: Material.colors.on_surface
                                         font.family: Theme.typography.family

@@ -16,7 +16,7 @@ case "$name $*" in
 'pactl --format=json info') printf '%s\n' '{"default_sink_name":"speakers","default_source_name":"mic"}';;
 'pactl --format=json list sinks') printf '%s\n' '[{"index":1,"name":"speakers","description":"Speakers","mute":false,"volume":{"mono":{"value":32768}}}]';;
 'pactl --format=json list sources') printf '%s\n' '[{"index":1,"name":"mic","description":"Microphone","mute":false,"volume":{"mono":{"value":32768}}},{"name":"speakers.monitor"}]';;
-'pactl --format=json list sink-inputs') printf '%s\n' '[{"index":42,"properties":{"object.serial":"100","application.name":"Music"},"volume":{"mono":{"value":32768}}},{"index":43,"properties":{"object.serial":"101","application.name":"Music"},"volume":{"mono":{"value":16384}}}]';;
+'pactl --format=json list sink-inputs') printf '%s\n' '[{"index":42,"properties":{"object.serial":"100","application.name":"Music"},"volume":{"mono":{"value":32768}}},{"index":43,"properties":{"object.serial":"101","application.name":"Music","media.name":"Game"},"volume":{"mono":{"value":16384}}}]';;
 'pactl --format=json list source-outputs') printf '%s\n' '[{"index":42}]';;
 'nmcli '*general) printf '%s\n' 'enabled:enabled:connected:full';;
 'nmcli '*device\ status) printf '%s\n' 'enp4s0:ethernet:connected:Office\:LAN' 'wlan0:wifi:disconnected:';;
@@ -100,6 +100,7 @@ fn snapshot_handles_escaped_names_and_isolates_service_failures() {
     assert_eq!(value["audio"]["applications"][0]["serial"], "100");
     assert_eq!(value["audio"]["applications"].as_array().unwrap().len(), 2);
     assert_eq!(value["audio"]["applications"][1]["volume"], 25);
+    assert_eq!(value["audio"]["applications"][1]["label"], "Music · Game");
     assert_eq!(value["audio"]["inputs"].as_array().unwrap().len(), 1);
     assert_eq!(value["network"]["connections"][0]["name"], "Office:LAN");
     assert_eq!(value["network"]["connections"][0]["active"], true);
