@@ -13,8 +13,8 @@ AbstractButton {
     property bool iconOnly: false
     // Compact = M3 small button, 40dp visual in a 48dp input target.
     // Otherwise use M3 one/two-line list items, 56/72dp.
-    implicitHeight: compact ? 48 : detail ? 72 : 56
-    implicitWidth: compact ? iconOnly ? 48 : 128 : 240
+    implicitHeight: compact ? Material.control.target : detail ? Material.control.listTwoLine : Material.control.listOneLine
+    implicitWidth: compact ? iconOnly ? Material.control.target : Material.control.compactButtonWidth : Material.control.listWidth
     activeFocusOnTab: true
     Accessible.name: text + (detail ? ", " + detail : "") + (badge ? ", " + badge : "")
     Accessible.role: toggle ? Accessible.CheckBox : Accessible.Button

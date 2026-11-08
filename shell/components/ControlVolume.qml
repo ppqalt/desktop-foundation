@@ -9,9 +9,9 @@ Slider {
     from: 0
     to: 100
     stepSize: 1
-    padding: 6
+    padding: Material.control.sliderPadding
     activeFocusOnTab: true
-    implicitHeight: 48
+    implicitHeight: Material.control.target
     Accessible.name: "Volume"
     Keys.onPressed: event => {
         if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
@@ -37,7 +37,7 @@ Slider {
         x: root.leftPadding
         y: (root.height - height) / 2
         width: root.availableWidth
-        height: 24
+        height: Material.control.sliderTrackHeight
         opacity: root.enabled ? 1 : 0.12
         Rectangle {
             width: Math.max(0, root.handleCenter - root.leftPadding - 8)
@@ -67,7 +67,7 @@ Slider {
         x: root.handleCenter - width / 2
         y: (root.height - height) / 2
         width: root.pressed ? 2 : 4
-        height: 44
+        height: Material.control.sliderHandleHeight
         radius: 2
         color: root.activeColor
         opacity: root.enabled ? 1 : 0.38

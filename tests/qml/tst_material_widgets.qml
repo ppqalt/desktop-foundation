@@ -487,6 +487,23 @@ ShellRoot {
                 verify(!sidebar.running);
                 Theme.reducedMotion = false;
             }
+            function test_control_geometry_tokens() {
+                compare(firstControl.implicitHeight, Material.control.listOneLine);
+                compare(firstControl.implicitWidth, Material.control.listWidth);
+                compare(radio.implicitWidth, Material.control.switchWidth);
+                compare(radio.implicitHeight, Material.control.target);
+                compare(find(radio, "control-switch-track").width, Material.control.switchTrackWidth);
+                compare(find(radio, "control-switch-track").height, Material.control.switchTrackHeight);
+                compare(slider.implicitHeight, Material.control.target);
+                compare(slider.padding, Material.control.sliderPadding);
+                firstControl.detail = "Details";
+                compare(firstControl.implicitHeight, Material.control.listTwoLine);
+                firstControl.detail = "";
+                firstControl.compact = true;
+                compare(firstControl.implicitHeight, Material.control.target);
+                compare(firstControl.implicitWidth, Material.control.compactButtonWidth);
+                firstControl.compact = false;
+            }
             function test_control_navigation() {
                 controls.visible = true;
                 firstControl.forceActiveFocus();

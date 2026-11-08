@@ -36,6 +36,20 @@ QtObject {
             largeIncreased: 20,
             extraLarge: 28
         })
+    // Shared control geometry. Keep visual and interactive sizes distinct.
+    readonly property var control: ({
+            target: 48,
+            compactButtonWidth: 128,
+            listWidth: 240,
+            listOneLine: 56,
+            listTwoLine: 72,
+            switchWidth: 64,
+            switchTrackWidth: 52,
+            switchTrackHeight: 32,
+            sliderPadding: 6,
+            sliderTrackHeight: 24,
+            sliderHandleHeight: 44
+        })
     readonly property var motion: ({
             fastSpatial: Theme.reducedMotion ? 0 : 350,
             fastEffects: Theme.reducedMotion ? 0 : 150

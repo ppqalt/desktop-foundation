@@ -11,8 +11,8 @@ AbstractButton {
     property bool selected: false
     property bool pending: false
     signal pointerMoved(real x, real y)
-    implicitWidth: 64
-    implicitHeight: 48
+    implicitWidth: Material.control.switchWidth
+    implicitHeight: Material.control.target
     activeFocusOnTab: true
     checkable: false
     Keys.onPressed: event => {
@@ -43,8 +43,8 @@ AbstractButton {
             id: track
             objectName: "control-switch-track"
             anchors.centerIn: parent
-            width: 52
-            height: 32
+            width: Material.control.switchTrackWidth
+            height: Material.control.switchTrackHeight
             radius: height / 2
             color: root.marked ? Material.colors.primary : Material.colors.surface_container_highest
             border.width: root.marked ? 0 : 2
