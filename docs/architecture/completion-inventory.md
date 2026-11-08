@@ -1,0 +1,28 @@
+# Desktop completion inventory
+
+Inspection: 2026-11-08, isolated branch based on `28cd074`. This is an
+engineering backlog, not a release checklist marked complete by documentation.
+The active Lucky38 owner was `c549bf3`; its deployment manifest points to the
+owner checkout, not this worktree. Its local untracked font backup and the
+uncommitted Transparency work are preserved. The live Niri package was stock
+26.04 and the Foundation shell and wallpaper services were active at inspection.
+Reinspect host state before any later deployment.
+
+| Area | Evidence and present state | Completion boundary |
+| --- | --- | --- |
+| Tokens and controls | `theme/Theme.qml` and `Material.qml` are split authorities; shared action, choice, switch, slider and scrollbar exist. Gallery covers a subset. | Establish one coherent token contract, migrate real consumers, cover all implemented variants, contrast, text scaling, light/dark palettes and keyboard/accessibility. Do not mistake an offscreen render for accessibility acceptance. |
+| Interfaces | [Design-system inventory](design-system-inventory.md) lists actual surfaces and provider boundaries. Control Center already shares controls; launcher, clipboard, Bluetooth, power and wallpapers retain domain-specific interaction. Mako and Kitty/btop render outside QML. | Audit and migrate each interface incrementally without replacing providers or regressing routing, focus or compact layouts; measure latency and memory rather than assume improvements. |
+| Motion | Current shared tokens use duration and Bezier approximations, including reduced motion. [Google's motion physics guidance](https://m3.material.io/styles/motion) uses spring-based schemes. | Evaluate interruptible springs on representative surfaces with reduced-motion and performance tests; preserve established compact desktop motion rather than applying bounce globally. |
+| Transparency | Uncommitted transaction changes attempt to retain application identity across stream recreation; legacy journals lacked identity. Initial fixture tests exercise both. Restoration after a stream is absent while mode turns off is not implemented. | Complete persistent, unambiguous restoration across off/restart/stream recreation; retain external volume changes and monitoring independence. Validate isolated PipeWire fixtures and hardware separately; do not deploy partial changes. |
+| Recording | `config/recording.toml` specifies 135 seconds, MKV and Opus. Existing replay service shares a recorder with ordinary capture; desktop-only recording pauses and clears replay. | Design and validate configurable five-minute buffering, resource limits, no-audio option, errors and capture/file behavior. Preserve existing configuration and shortcuts; no automatic capture. |
+| Wallpapers | Image inventory and lazy previews support many formats, with optional FFmpeg decoding for JXL/HEIC. Picker has four columns. | Video playback, animated previews, per-output assignments, audio, fullscreen suspension, hotplug and transactional recovery need investigation and actual runtime proof. Do not infer playback from a probe. |
+| Niri | A patched package and signed stock rollback archive were prepared separately; the live machine still uses stock Niri. Ctrl+wheel behavior was not physically verified. | Complete package ownership, automatic fresh-install and updater integration, rollback, protected session transition, fresh login and physical input checks. Never claim package preparation is activation. |
+| Nautilus | `application_roles.rs` contains XDG default handling; wallpaper theme propagates a supported GNOME accent. Existing user GTK4 CSS is outside Foundation's managed targets. | Preserve MIME preferences and user's CSS; establish a safe, maintainable color integration and test actual file opening/theme behavior without globally breaking GTK applications. |
+| Installer and updater | Minimal, standard and explicit extras exist; isolated-branch bootstrap and recording-extra fixes are committed. The patched Niri package is not wired into the normal installation/update transaction. | Test clean install, ownership conflict, optional selections, interrupted upgrade, exact versions and rollback in isolated hosts, then verify protected live paths only with authentication. |
+| Settings, notifications, search and diagnostics | Control Center and launcher exist; notifications are provided by Mako, with no Foundation-owned QML history center established by this inventory. A broad validated TOML settings editor is not established. | Examine existing CLI/config owners before implementing useful incremental integrations. Provide bounded actions, validation, recovery and accessibility; do not add a parallel settings database or persistent process by default. |
+| Acceptance | Component and isolated Rust/QML fixtures exist. Current live desktop has not received these branch changes. | Verify hardware, compositor focus, displays, accessibility, fresh login, rollback and real capture separately. Publish neither a release nor a complete-success claim until acceptance evidence exists. |
+
+Protect the single owning deployment manifest, user configuration and recovery
+journals. Keep incomplete audio changes out of live deployment. The user has
+authorized administrator authentication when a reviewed protected operation is
+ready; never request or handle their password in chat.
