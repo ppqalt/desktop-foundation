@@ -56,8 +56,9 @@ Wallpaper and recording have separate fixtures. These checks do not prove real
 compositor focus, physical audio, live palette changes in every application,
 light themes, screenshot equivalence, or memory/performance budgets.
 
-An initial [component gallery](../component-gallery.md) previews a subset of
-production controls. Next: make geometry/state-layer/typography tokens
+The [component gallery](../component-gallery.md) previews a subset of
+production controls, example desktop compositions and sample light/dark Matugen
+palettes. Next: make geometry/state-layer/typography tokens
 authoritative without changing existing sizes; extend the gallery to cover all
 components and variants;
 then migrate one surface at a time with interaction, accessibility, palette and

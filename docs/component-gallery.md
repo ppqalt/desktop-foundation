@@ -7,12 +7,22 @@ update, power or other system commands. The shell directory is deployed as a
 unit, so the gallery source and its component imports accompany the installed
 shell. The launcher script remains in the owning checkout.
 
-The initial gallery covers action variants, switch states, the shared slider,
-choice, search input and status text. It is not yet a complete gallery: popup,
-row, wallpaper and additional controls and light/multiple-palette test cases
-still need examples and verification. `tests/test-component-gallery` checks that
-this gallery loads in an isolated offscreen Quickshell host; it is not a visual
-or accessibility audit.
+The gallery previews shared action variants, switches, slider, choice, search,
+status messages, launcher and clipboard rows, and the replay row. Its recording
+example uses local simulated state and cannot start or save a recording. The
+palette selector offers the current wallpaper and two sample Matugen palettes
+in light and dark variants; changes affect only the gallery process. Reduced
+motion can also be toggled locally. The samples in `shell/gallery-palettes.json`
+were generated with Matugen's tonal-spot scheme from `#6750a4` and `#006b60`,
+at standard contrast; they do not change the desktop or its wallpaper.
+
+It is not yet a complete gallery: popup lifecycle, wallpaper tiles, all control
+states, text scaling, density, right-to-left layouts and comprehensive visual
+and accessibility comparisons still need examples and verification.
+`tests/test-component-gallery` checks palette selection and representative
+control interactions in an isolated offscreen Quickshell host. Set
+`DF_GALLERY_CAPTURE=/absolute/path.png` when running that test to save a
+screenshot. These checks do not certify compositor behavior or accessibility.
 
 ## Building an interface
 

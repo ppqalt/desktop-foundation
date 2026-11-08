@@ -4,14 +4,16 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 log=$(mktemp)
 state=$(mktemp -d)
 trap 'rm -f -- "$log"; rmdir -- "$state"' EXIT
-if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
-	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software XDG_STATE_HOME="$state" \
-	DF_GALLERY_TEST=1 timeout 10s "$root/scripts/component-gallery" >"$log" 2>&1; then
-	cat "$log" >&2
-	exit 1
-fi
-if ! rg -q GALLERY_TEST_OK "$log" || rg -q 'GALLERY_TEST_FAILED|ERROR|QML (Warning|Error)|TypeError|ReferenceError' "$log"; then
-	cat "$log" >&2
-	exit 1
-fi
-printf '%s\n' 'PASS component gallery loads production controls offscreen'
+for gallery_width in "${DF_GALLERY_WIDTH:-760}" 360; do
+	if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
+		QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software XDG_STATE_HOME="$state" \
+		DF_GALLERY_TEST=1 DF_GALLERY_WIDTH="$gallery_width" timeout 10s "$root/scripts/component-gallery" >"$log" 2>&1; then
+		cat "$log" >&2
+		exit 1
+	fi
+	if ! rg -q GALLERY_TEST_OK "$log" || rg -q 'GALLERY_TEST_FAILED|ERROR|QML (Warning|Error)|TypeError|ReferenceError' "$log"; then
+		cat "$log" >&2
+		exit 1
+	fi
+done
+printf '%s\n' 'PASS component gallery interactions, palettes, reduced motion and wide/narrow layouts'
