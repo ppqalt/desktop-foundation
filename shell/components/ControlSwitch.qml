@@ -49,7 +49,7 @@ AbstractButton {
             color: root.marked ? Material.colors.primary : Material.colors.surface_container_highest
             border.width: root.marked ? 0 : 2
             border.color: Material.colors.outline
-            opacity: root.enabled ? 1 : 0.38
+            opacity: root.enabled ? 1 : Material.state.disabledContent
             Rectangle {
                 id: thumb
                 objectName: "control-switch-thumb"

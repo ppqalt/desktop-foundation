@@ -217,7 +217,7 @@ cancelled. Never launch duplicate device operations on rapid activation.
 
 ## Tokens and layout
 
-Use `Material.colors`, `Material.type`, `Material.shape`, `Material.control`, `Material.motion` and
+Use `Material.colors`, `Material.type`, `Material.shape`, `Material.control`, `Material.state`, `Material.motion` and
 `Theme.typography`, `Theme.spacing`, `Theme.timing` rather than local constants.
 Rust generates palette roles; QML must not independently tint wallpaper colors.
 `theme/current/semantic.json` is the runtime palette, with a static fallback.

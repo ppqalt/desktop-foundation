@@ -48,7 +48,7 @@ AbstractButton {
             anchors.bottomMargin: root.compact ? 4 : 0
             radius: root.compact ? root.down ? 8 : root.toggle && root.marked ? 12 : height / 2 : 12
             color: !root.enabled ? Material.colors.on_surface : root.compact ? root.marked ? Material.colors.primary : root.toggle ? Material.colors.surface_container : Material.colors.secondary_container : root.marked ? Material.colors.secondary_container : "transparent"
-            opacity: root.enabled ? 1 : 0.12
+            opacity: root.enabled ? 1 : Material.state.disabledContainer
             Behavior on radius {
                 SurfaceAnimation {
                     duration: Material.motion.fastSpatial
@@ -60,7 +60,7 @@ AbstractButton {
                 anchors.fill: parent
                 radius: parent.radius
                 color: root.ink
-                opacity: !root.enabled ? 0 : root.down ? 0.10 : root.activeFocus ? 0.10 : root.hovered ? 0.08 : 0
+                opacity: !root.enabled ? 0 : root.down ? Material.state.pressed : root.activeFocus ? Material.state.focus : root.hovered ? Material.state.hover : 0
                 Behavior on opacity {
                     SurfaceAnimation {
                         duration: Material.motion.fastEffects
@@ -77,7 +77,7 @@ AbstractButton {
         }
     }
     contentItem: Item {
-        opacity: root.enabled ? 1 : 0.38
+        opacity: root.enabled ? 1 : Material.state.disabledContent
         ControlIcon {
             id: glyph
             anchors.left: parent.left

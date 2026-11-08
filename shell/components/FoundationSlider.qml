@@ -57,7 +57,7 @@ Slider {
         y: (root.height - height) / 2
         width: root.availableWidth
         height: Material.control.sliderTrackHeight
-        opacity: root.enabled ? 1 : 0.12
+        opacity: root.enabled ? 1 : Material.state.disabledContainer
         Rectangle {
             width: Math.max(0, root.handleCenter - root.leftPadding - 8)
             height: parent.height
@@ -89,7 +89,7 @@ Slider {
         height: Material.control.sliderHandleHeight
         radius: 2
         color: root.activeColor
-        opacity: root.enabled ? 1 : 0.38
+        opacity: root.enabled ? 1 : Material.state.disabledContent
         FocusIndicator {
             cornerRadius: parent.radius
             visible: root.activeFocus

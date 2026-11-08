@@ -725,6 +725,9 @@ ShellRoot {
                 const thumb = find(radio, "control-switch-thumb");
                 compare(track.width, 52);
                 compare(track.height, 32);
+                radio.enabled = false;
+                compare(track.opacity, Material.state.disabledContent);
+                radio.enabled = true;
                 compare(thumb.width, 16);
                 radio.forceActiveFocus();
                 keyClick(Qt.Key_Return);

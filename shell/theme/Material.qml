@@ -50,6 +50,13 @@ QtObject {
             sliderTrackHeight: 24,
             sliderHandleHeight: 44
         })
+    readonly property var state: ({
+            hover: 0.08,
+            pressed: 0.10,
+            focus: 0.10,
+            disabledContainer: 0.12,
+            disabledContent: 0.38
+        })
     readonly property var motion: ({
             fastSpatial: Theme.reducedMotion ? 0 : 350,
             fastEffects: Theme.reducedMotion ? 0 : 150
