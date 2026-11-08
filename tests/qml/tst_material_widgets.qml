@@ -768,6 +768,9 @@ ShellRoot {
                 checks.test_wheel_ownership();
                 checks.test_reduced_motion();
                 checks.test_shared_roles();
+                checks.test_palette_propagation();
+                checks.test_control_geometry_tokens();
+                checks.test_slider_request_semantics();
                 checks.test_minimal_footer();
                 checks.test_setting_feedback();
                 checks.test_search_keyboard();
