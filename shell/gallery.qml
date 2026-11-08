@@ -376,6 +376,11 @@ ShellRoot {
                             save_status: "saving"
                         }
                     }
+                    WallpaperGrid {
+                        Layout.fillWidth: true
+                        backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/component-gallery-fixture"
+                        onFailed: message => console.warn("Gallery wallpaper example: " + message)
+                    }
                     ControlAction {
                         id: openPopup
                         Layout.fillWidth: true

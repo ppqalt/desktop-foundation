@@ -9,7 +9,9 @@ shell. The launcher script remains in the owning checkout.
 
 The gallery previews shared action variants, switches, slider, choice, search,
 status messages, launcher and clipboard rows, device and network examples, a
-shared popup and the replay row. A section selector provides quick navigation.
+shared popup, the four-column wallpaper grid and the replay row. Wallpaper
+inventory, previews and selection use a sample-only helper: choosing a tile does
+not change the desktop. A section selector provides quick navigation.
 Preview zoom and right-to-left layout are local to the gallery; zoom scales the
 whole preview rather than changing native text sizing. Its recording
 example uses local simulated state and cannot start or save a recording. The
@@ -19,8 +21,7 @@ motion can also be toggled locally. The samples in `shell/gallery-palettes.json`
 were generated with Matugen's tonal-spot scheme from `#6750a4` and `#006b60`,
 at standard contrast; they do not change the desktop or its wallpaper.
 
-It is not yet a complete gallery: production wallpaper tiles, all control
-states, native text scaling, density variants and comprehensive visual and
+It is not yet a complete gallery: all control states, native text scaling, density variants and comprehensive visual and
 accessibility comparisons still need examples and verification. The mirrored
 preview helps inspect layout but does not establish full right-to-left support.
 `tests/test-component-gallery` checks palette selection and representative
