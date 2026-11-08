@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import "theme"
@@ -19,6 +20,7 @@ ShellRoot {
             contentWidth: width
             contentHeight: content.implicitHeight + 48
             clip: true
+            ScrollBar.vertical: FoundationScrollbar {}
             ColumnLayout {
                 id: content
                 x: 24

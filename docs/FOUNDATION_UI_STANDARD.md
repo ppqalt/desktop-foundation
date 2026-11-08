@@ -281,6 +281,7 @@ primitive when multiple callers need the same change.
 | `ControlChoice` | Keyboard dropdown: `model/textRole/currentIndex`, `activated`; private `menuIndex` until committed |
 | `FoundationSlider` | Shared slider rendering and directional input; `previewRequested(value)` on movement, `commitRequested(value)` once on drag release or per keyboard step; external value updates emit neither. Caller supplies accessible name and owns backend callbacks |
 | `ControlVolume` | Audio-specific slider extension with a default accessible name; backend callbacks own actual volume |
+| `FoundationScrollbar` | Compact shared scrollbar presentation; view owns scrolling and visibility |
 | `ControlGroup` | Common group surface and layout |
 | `ApplicationRow` | Shared menu/device setting row, explicit selected/pending/confirmed/setting states, activation signal |
 | `ClipboardRow` | Clipboard representation and pin action; no independent storage or content parsing |

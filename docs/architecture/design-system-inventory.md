@@ -8,7 +8,7 @@ component boundaries and outstanding design-system work.
 
 | Interface | Current implementation | Reuse and remaining work |
 | --- | --- | --- |
-| Control Center, audio and Transparency | `surfaces/ControlCenter.qml`, Rust snapshots and actions | `ControlAction`, `ControlChoice`, `ControlVolume`, `ControlGroup`; application streams also use `ControlVolume`. Pending and confirmed state remain with the page. The page still has local layout, scrollbar and visible-only snapshot polling. Transparency's audio transaction is a separate backend concern. |
+| Control Center, audio and Transparency | `surfaces/ControlCenter.qml`, Rust snapshots and actions | `ControlAction`, `ControlChoice`, `ControlVolume`, `ControlGroup`; application streams also use `ControlVolume`. Pending and confirmed state remain with the page. The page still has local layout, visible-only snapshot polling. Transparency's audio transaction is a separate backend concern. |
 | Recording and Instant Replay | `components/ReplayControl.qml`, `services/RecordingState.qml` | Uses `ControlAction` and `ControlSwitch`; state comes from the recorder service. No replay-duration slider or five-minute default exists. Preserve the existing recording configuration until that feature is explicitly implemented and verified. |
 | Wallpaper picker | `components/WallpaperGrid.qml` | Four columns, asynchronous previews and backend-owned apply state. Tile is a specialized `AbstractButton` with its own focus, keyboard, selected and image presentation; it is not yet an extension of a general tile primitive. |
 | Launcher and Clipboard | `surfaces/Launcher.qml`, `surfaces/Clipboard.qml`; `ApplicationRow`, `ClipboardRow` | `PopupWindow`, `PopupCard`, `SearchInput` and routing are shared. Rows and clipboard confirmation/actions still have specialized pointer and visual implementations. Search must retain editing semantics. |
@@ -32,7 +32,7 @@ that every external renderer changes live.
 
 Actual reusable controls include `ControlAction` (list, compact, toggle and icon
 variants), `ControlSwitch` (backend-owned marked/pending state), `ControlChoice`,
-`FoundationSlider`, `ControlVolume` (its audio extension), `SearchInput`, `ControlGroup`, `SurfaceCard`, `PopupCard`,
+`FoundationSlider`, `ControlVolume` (its audio extension), `FoundationScrollbar`, `SearchInput`, `ControlGroup`, `SurfaceCard`, `PopupCard`,
 `PopupWindow`, `PopupLifecycle`, `FocusIndicator`, `WidgetStatus` and
 `SelectionWheel`. `ControlRequest`, `SurfaceRouter` and `ExternalSurface` are
 lifecycle/transport helpers rather than visual controls. Existing row components
@@ -40,7 +40,7 @@ serve specialized content. Reuse or extend these before introducing aliases or
 parallel implementations.
 
 The component library is incomplete: there are no general Foundation checkbox,
-radio, dialog, tooltip, progress, scrollbar or notification primitives with
+radio, dialog, tooltip, progress or notification primitives with
 verified common contracts. Some controls embed raw geometry, opacity and color
 literals; several surfaces still use `MouseArea`-based actions. A `MouseArea`
 alone is not evidence of a duplicate control: some handle outside dismissal,

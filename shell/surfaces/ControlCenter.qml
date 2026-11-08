@@ -402,16 +402,8 @@ PanelWindow {
                             event.accepted = true;
                         }
                     }
-                    ScrollBar.vertical: ScrollBar {
-                        policy: ScrollBar.AsNeeded
+                    ScrollBar.vertical: FoundationScrollbar {
                         visible: scroll.contentHeight > scroll.height
-                        padding: 0
-                        contentItem: Rectangle {
-                            implicitWidth: 4
-                            radius: 2
-                            color: Material.colors.outline
-                        }
-                        background: null
                     }
                     ColumnLayout {
                         id: body
