@@ -217,7 +217,7 @@ cancelled. Never launch duplicate device operations on rapid activation.
 
 ## Tokens and layout
 
-Use `Material.colors`, `Material.type`, `Material.shape`, `Material.motion` and
+Use `Material.colors`, `Material.type`, `Material.shape`, `Material.control`, `Material.motion` and
 `Theme.typography`, `Theme.spacing`, `Theme.timing` rather than local constants.
 Rust generates palette roles; QML must not independently tint wallpaper colors.
 `theme/current/semantic.json` is the runtime palette, with a static fallback.
@@ -286,7 +286,7 @@ primitive when multiple callers need the same change.
 | `SearchInput` | Real text input with selection, caret and keyboard editing; never consume WASD/Space as global navigation |
 | `SelectionWheel` | A single selection-list wheel owner; accumulates steps within a gesture, discards residue when disabled/gesture ends |
 | `SurfaceFooter` | Hidden unless actionable/status content is necessary; not a permanent instruction legend |
-| `WallpaperGrid` | Three-column preview grid and keyboard selection; Rust supplies cached previews and apply results |
+| `WallpaperGrid` | Four-column preview grid and keyboard selection; Rust supplies cached previews and apply results |
 
 Shared dialog/menu/scroll/focus behavior must follow the sections below even
 where implemented using Qt Quick Controls and these existing primitives. Do not
