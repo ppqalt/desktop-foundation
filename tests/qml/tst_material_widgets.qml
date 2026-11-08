@@ -669,6 +669,22 @@ ShellRoot {
                 compare(search.font.family, "Google Sans Flex");
                 compare(search.selectedTextColor, Material.colors.on_secondary_container);
             }
+            function test_palette_propagation() {
+                const saved = Theme.generated;
+                const palette = Object.assign({}, Material.colors, {
+                    primary: "#123456"
+                });
+                try {
+                    Theme.generated = Object.assign({}, saved, {
+                        material: palette
+                    });
+                    radio.marked = true;
+                    compare(find(radio, "control-switch-track").color, Qt.rgba(18 / 255, 52 / 255, 86 / 255, 1));
+                } finally {
+                    radio.marked = false;
+                    Theme.generated = saved;
+                }
+            }
             function test_minimal_footer() {
                 compare(footer.hintsVisible, false);
                 compare(footer.visible, false);
