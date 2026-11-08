@@ -408,9 +408,8 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         }
         ["status"] => {
             let mut state = runtime::status()?;
-            if state["buffer_seconds"].is_null()
-                && let Ok((config, _)) = settings(root)
-            {
+            if state["buffer_seconds"].is_null() {
+                let (config, _) = settings(root)?;
                 state["buffer_seconds"] = config.replay_seconds.into();
             }
             println!("{state}");

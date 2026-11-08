@@ -758,3 +758,17 @@ fn desktop_only_pauses_replay_and_explicit_off_prevents_resume() {
     assert!(f.wait_exit());
     assert_eq!(f.state()["phase"], "idle");
 }
+
+#[test]
+fn status_rejects_invalid_settings_instead_of_inventing_a_buffer_duration() {
+    let f = Fixture::new(false);
+    fs::write(
+        f.root.join("config/recording.toml"),
+        "replay_seconds = -1\n",
+    )
+    .unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"));
+    cmd.arg("--root").arg(&f.root).args(["recording", "status"]);
+    f.configure(&mut cmd);
+    assert!(!cmd.status().unwrap().success());
+}

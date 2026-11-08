@@ -25,8 +25,8 @@ ShellRoot {
         property bool prepared: true
         property int bufferSeconds: 135
         property var state: ({
-            "phase": "idle"
-        })
+                "phase": "idle"
+            })
     }
 
     Component {
@@ -35,7 +35,6 @@ ShellRoot {
         ReplayControl {
             recording: mockRecording
         }
-
     }
 
     TestCase {
@@ -90,7 +89,7 @@ ShellRoot {
             compare(control.duration, "2:15");
             compare(control.statusText, "Off");
             let requested = "";
-            control.setEnabled.connect((enabled) => {
+            control.setEnabled.connect(enabled => {
                 return requested = enabled ? "on" : "off";
             });
             const toggle = findChild(control, "replayToggle");
@@ -142,6 +141,10 @@ ShellRoot {
             };
             compare(control.statusText, "Error");
             verify(!toggle.marked);
+            mockRecording.bufferSeconds = 0;
+            compare(control.duration, "");
+            compare(findChild(control, "replayStatus").text, "Error");
+            mockRecording.bufferSeconds = 135;
         }
 
         function cleanupTestCase() {
@@ -152,5 +155,4 @@ ShellRoot {
         name: "RecordingState"
         when: true
     }
-
 }

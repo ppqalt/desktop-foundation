@@ -28,8 +28,8 @@ ColumnLayout {
             return replayEnabled ? "Buffering" : "Off";
         }
     }
-    readonly property int seconds: recording?.bufferSeconds ?? 135
-    readonly property string duration: Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0")
+    readonly property int seconds: recording?.bufferSeconds ?? 0
+    readonly property string duration: seconds > 0 ? Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0") : ""
     signal setEnabled(bool enabled)
     signal saveRequested
     spacing: 0
@@ -60,7 +60,7 @@ ColumnLayout {
                 objectName: "replayStatus"
                 Layout.fillWidth: true
                 elide: Text.ElideRight
-                text: root.duration + " · " + root.statusText + (root.replayState.save_status === "saving" ? " · Saving" : root.replayState.save_status === "saved" ? " · Saved" : root.replayState.save_status === "error" ? " · Save failed" : "")
+                text: (root.duration ? root.duration + " · " : "") + root.statusText + (root.replayState.save_status === "saving" ? " · Saving" : root.replayState.save_status === "saved" ? " · Saved" : root.replayState.save_status === "error" ? " · Save failed" : "")
                 color: Material.colors.on_surface_variant
                 font.family: Theme.typography.family
                 font.pixelSize: Material.type.bodyMedium
