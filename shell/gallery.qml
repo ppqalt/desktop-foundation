@@ -82,7 +82,7 @@ ShellRoot {
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.titleMedium
                     }
-                    ControlVolume {
+                    FoundationSlider {
                         id: sampleSlider
                         Layout.fillWidth: true
                         value: 40

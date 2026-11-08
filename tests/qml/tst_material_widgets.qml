@@ -241,6 +241,8 @@ ShellRoot {
             height: 230
             z: 10
             property int activated: 0
+            property int previews: 0
+            property int commits: 0
             ControlAction {
                 id: firstControl
                 text: "First"
@@ -259,6 +261,8 @@ ShellRoot {
                 y: 70
                 width: 280
                 value: 30
+                onPreviewRequested: controls.previews++
+                onCommitRequested: controls.commits++
             }
             ControlChoice {
                 id: choice
@@ -503,6 +507,30 @@ ShellRoot {
                 compare(firstControl.implicitHeight, Material.control.target);
                 compare(firstControl.implicitWidth, Material.control.compactButtonWidth);
                 firstControl.compact = false;
+            }
+            function test_slider_request_semantics() {
+                controls.visible = true;
+                slider.value = 20;
+                controls.previews = 0;
+                controls.commits = 0;
+                slider.value = 21; // Backend readback is not an input request.
+                compare(controls.previews, 0);
+                compare(controls.commits, 0);
+                slider.forceActiveFocus();
+                keyClick(Qt.Key_Right);
+                compare(controls.previews, 1);
+                compare(controls.commits, 1);
+                controls.previews = 0;
+                controls.commits = 0;
+                mousePress(slider, 100, slider.height / 2);
+                mouseMove(slider, 150, slider.height / 2, 20);
+                mouseMove(slider, 200, slider.height / 2, 20);
+                verify(controls.previews > 0);
+                compare(controls.commits, 0);
+                mouseRelease(slider, 200, slider.height / 2);
+                compare(controls.commits, 1);
+                slider.value = 30;
+                controls.visible = false;
             }
             function test_control_navigation() {
                 controls.visible = true;

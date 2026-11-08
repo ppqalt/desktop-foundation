@@ -279,7 +279,8 @@ primitive when multiple callers need the same change.
 | `ControlAction` | Button/list action: `text/detail/badge/symbol`, `marked/toggle/compact/iconOnly`, `clicked`; checked state is backend-owned |
 | `ControlSwitch` | Backend-owned `marked`, `pending`, optional menu `selected`, `clicked` request and pointer movement; Material switch geometry, no optimistic checked-state mutation |
 | `ControlChoice` | Keyboard dropdown: `model/textRole/currentIndex`, `activated`; private `menuIndex` until committed |
-| `ControlVolume` | Shared audio slider/mute presentation and directional input; backend callbacks own actual volume |
+| `FoundationSlider` | Shared slider rendering and directional input; `previewRequested(value)` on movement, `commitRequested(value)` once on drag release or per keyboard step; external value updates emit neither. Caller supplies accessible name and owns backend callbacks |
+| `ControlVolume` | Audio-specific slider extension with a default accessible name; backend callbacks own actual volume |
 | `ControlGroup` | Common group surface and layout |
 | `ApplicationRow` | Shared menu/device setting row, explicit selected/pending/confirmed/setting states, activation signal |
 | `ClipboardRow` | Clipboard representation and pin action; no independent storage or content parsing |

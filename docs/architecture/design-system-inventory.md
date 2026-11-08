@@ -32,7 +32,7 @@ that every external renderer changes live.
 
 Actual reusable controls include `ControlAction` (list, compact, toggle and icon
 variants), `ControlSwitch` (backend-owned marked/pending state), `ControlChoice`,
-`ControlVolume`, `SearchInput`, `ControlGroup`, `SurfaceCard`, `PopupCard`,
+`FoundationSlider`, `ControlVolume` (its audio extension), `SearchInput`, `ControlGroup`, `SurfaceCard`, `PopupCard`,
 `PopupWindow`, `PopupLifecycle`, `FocusIndicator`, `WidgetStatus` and
 `SelectionWheel`. `ControlRequest`, `SurfaceRouter` and `ExternalSurface` are
 lifecycle/transport helpers rather than visual controls. Existing row components

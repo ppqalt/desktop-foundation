@@ -7,7 +7,7 @@ update, power or other system commands. The shell directory is deployed as a
 unit, so the gallery source and its component imports accompany the installed
 shell. The launcher script remains in the owning checkout.
 
-The initial gallery covers action variants, switch states, the volume slider,
+The initial gallery covers action variants, switch states, the shared slider,
 choice, search input and status text. It is not yet a complete gallery: popup,
 row, wallpaper and additional controls and light/multiple-palette test cases
 still need examples and verification. `tests/test-component-gallery` checks that
@@ -38,6 +38,12 @@ change; it does not claim the backend accepted one. For the existing API and
 keyboard, focus and visual contracts, see [the UI standard](FOUNDATION_UI_STANDARD.md)
 and [the current inventory](architecture/design-system-inventory.md). Avoid
 adding a second component with equivalent behavior; extend an existing control
-and test its callers instead. The shared `Material.control` measurements apply
+and test its callers instead. `FoundationSlider` emits preview requests during a drag and one commit on release;
+keyboard steps commit immediately. Changing its value from backend readback does
+not emit a request. Existing audio uses `ControlVolume`, which extends this
+slider and keeps its existing `moved` handler. Replay duration and cancellation
+handling are not implemented yet.
+
+The shared `Material.control` measurements apply
 to the migrated action, switch and volume slider; other dimensions and tokens
 are still being consolidated.

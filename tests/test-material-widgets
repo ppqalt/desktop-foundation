@@ -52,3 +52,4 @@ if ! rg -q 'Material widget checks finished' "$fixture_log" || rg -q 'FAIL!|ERRO
 fi
 printf 'PASS Material controls, modal handoff/reopen, wheel ownership, search editing, keyboard focus, reduced motion and instant volume feedback\n'
 "$root/tests/test-control-center"
+"$root/tests/test-component-gallery"
