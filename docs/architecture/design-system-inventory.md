@@ -56,8 +56,10 @@ Wallpaper and recording have separate fixtures. These checks do not prove real
 compositor focus, physical audio, live palette changes in every application,
 light themes, screenshot equivalence, or memory/performance budgets.
 
-Next: make geometry/state-layer/typography tokens authoritative without changing
-existing sizes; add a gallery that exercises actual components and variants;
+An initial [component gallery](../component-gallery.md) previews a subset of
+production controls. Next: make geometry/state-layer/typography tokens
+authoritative without changing existing sizes; extend the gallery to cover all
+components and variants;
 then migrate one surface at a time with interaction, accessibility, palette and
 visual checks. Keep popup/provider and native-process ownership intact. Add
 static checks only for specific verified conventions, avoiding blanket bans on

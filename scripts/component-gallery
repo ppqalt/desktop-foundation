@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Preview production controls without activating desktop services.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+export DF_FOUNDATION_ROOT="$root"
+exec quickshell --path "$root/shell/gallery.qml" "$@"
