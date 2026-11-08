@@ -18,6 +18,8 @@ ShellRoot {
         color: Material.colors.surface
         property string sliderEvent: "No changes yet"
         property int activationCount: 0
+        property bool mirroredPreview: false
+        property real previewZoom: 1.0
         property var previewPalettes: JSON.parse(paletteData.text())
         property FileView paletteData: FileView {
             path: Quickshell.env("DF_FOUNDATION_ROOT") + "/shell/gallery-palettes.json"
@@ -26,6 +28,7 @@ ShellRoot {
         function selectPalette(index: int): void {
             const keys = ["", "violet-dark", "violet-light", "teal-dark", "teal-light"];
             if (index === 0) {
+                Theme.generated = ({});
                 Theme.reload();
                 return;
             }
@@ -46,16 +49,21 @@ ShellRoot {
                 })
         }
         Flickable {
+            id: galleryScroll
             anchors.fill: parent
             contentWidth: width
-            contentHeight: content.implicitHeight + 48
+            contentHeight: content.implicitHeight * window.previewZoom + 48
             clip: true
             ScrollBar.vertical: FoundationScrollbar {}
             ColumnLayout {
                 id: content
                 x: 24
                 y: 24
-                width: parent.width - 48
+                width: Math.max(1, (parent.width - 48) / window.previewZoom)
+                scale: window.previewZoom
+                transformOrigin: Item.TopLeft
+                LayoutMirroring.enabled: window.mirroredPreview
+                LayoutMirroring.childrenInherit: true
                 spacing: 16
                 Text {
                     text: "Foundation components"
@@ -68,6 +76,30 @@ ShellRoot {
                     color: Material.colors.on_surface_variant
                     font.family: Theme.typography.family
                     font.pixelSize: Material.type.bodyMedium
+                }
+                ControlChoice {
+                    Layout.fillWidth: true
+                    Accessible.name: "Jump to gallery section"
+                    textRole: "name"
+                    model: [
+                        {
+                            name: "Jump to section"
+                        },
+                        {
+                            name: "Actions and state"
+                        },
+                        {
+                            name: "Input"
+                        },
+                        {
+                            name: "Desktop examples"
+                        }
+                    ]
+                    onActivated: index => {
+                        const items = [null, actionsGroup, inputGroup, desktopGroup];
+                        if (items[index])
+                            galleryScroll.contentY = Math.min(galleryScroll.contentHeight - galleryScroll.height, Math.max(0, items[index].y * window.previewZoom));
+                    }
                 }
                 ControlGroup {
                     Layout.fillWidth: true
@@ -120,6 +152,51 @@ ShellRoot {
                 ControlGroup {
                     Layout.fillWidth: true
                     Text {
+                        text: "Layout preview"
+                        color: Material.colors.on_surface
+                        font.family: Theme.typography.family
+                        font.pixelSize: Material.type.titleMedium
+                    }
+                    ControlChoice {
+                        Layout.fillWidth: true
+                        Accessible.name: "Preview zoom"
+                        textRole: "name"
+                        model: [
+                            {
+                                name: "100% preview zoom"
+                            },
+                            {
+                                name: "125% preview zoom"
+                            },
+                            {
+                                name: "150% preview zoom"
+                            }
+                        ]
+                        onActivated: index => window.previewZoom = [1.0, 1.25, 1.5][index]
+                    }
+                    RowLayout {
+                        Text {
+                            text: "Right-to-left layout preview"
+                            color: Material.colors.on_surface
+                            font.family: Theme.typography.family
+                            font.pixelSize: Material.type.bodyMedium
+                            Layout.fillWidth: true
+                        }
+                        ControlSwitch {
+                            text: "Right-to-left layout preview"
+                            marked: window.mirroredPreview
+                            onClicked: window.mirroredPreview = !window.mirroredPreview
+                        }
+                    }
+                    WidgetStatus {
+                        status: "loading"
+                        message: "Zoom scales the preview; it does not change system text size."
+                    }
+                }
+                ControlGroup {
+                    id: actionsGroup
+                    Layout.fillWidth: true
+                    Text {
                         text: "Actions and state"
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
@@ -164,6 +241,14 @@ ShellRoot {
                             text: "Example switch"
                             onClicked: marked = !marked
                         }
+                        ControlAction {
+                            text: "Icon action"
+                            symbol: "settings"
+                            compact: true
+                            iconOnly: true
+                            Accessible.name: "Example icon action"
+                            onClicked: window.activationCount++
+                        }
                         ControlSwitch {
                             text: "Pending switch"
                             marked: true
@@ -173,6 +258,7 @@ ShellRoot {
                     }
                 }
                 ControlGroup {
+                    id: inputGroup
                     Layout.fillWidth: true
                     Text {
                         text: "Input"
@@ -212,12 +298,22 @@ ShellRoot {
                         placeholderText: "Search example"
                         Accessible.name: "Search example"
                     }
+                    ControlVolume {
+                        Layout.fillWidth: true
+                        value: 65
+                        Accessible.name: "Example application volume"
+                    }
                     WidgetStatus {
                         status: "error"
                         message: "Example error state"
                     }
+                    WidgetStatus {
+                        status: "unavailable"
+                        message: "Device unavailable"
+                    }
                 }
                 ControlGroup {
+                    id: desktopGroup
                     Layout.fillWidth: true
                     Text {
                         text: "Desktop examples"
@@ -244,6 +340,20 @@ ShellRoot {
                             })
                         selected: false
                     }
+                    ControlAction {
+                        Layout.fillWidth: true
+                        text: "Wireless headphones"
+                        detail: "Connected · example device"
+                        symbol: "headphones"
+                        badge: "›"
+                    }
+                    ControlAction {
+                        Layout.fillWidth: true
+                        text: "Example Wi-Fi"
+                        detail: "Connected · example network"
+                        symbol: "wifi"
+                        badge: "›"
+                    }
                     ReplayControl {
                         id: exampleReplay
                         Layout.fillWidth: true
@@ -266,6 +376,13 @@ ShellRoot {
                             save_status: "saving"
                         }
                     }
+                    ControlAction {
+                        id: openPopup
+                        Layout.fillWidth: true
+                        text: "Open popup example"
+                        detail: "Escape or click outside to close"
+                        onClicked: examplePopup.open()
+                    }
                     WidgetStatus {
                         status: "loading"
                         message: "Loading example"
@@ -274,6 +391,50 @@ ShellRoot {
                         status: "empty"
                         message: "Nothing here yet"
                     }
+                }
+            }
+        }
+        Popup {
+            id: examplePopup
+            parent: Overlay.overlay
+            anchors.centerIn: parent
+            width: Math.min(420, window.width - 32)
+            height: 200
+            padding: 0
+            modal: true
+            focus: true
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+            onOpened: popupClose.forceActiveFocus()
+            onClosed: Material.restoreFocus(openPopup, Qt.PopupFocusReason)
+            background: PopupCard {
+                presented: examplePopup.opened
+                dismissing: false
+            }
+            contentItem: ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 24
+                Text {
+                    text: "Popup example"
+                    color: Material.colors.on_surface
+                    font.family: Theme.typography.family
+                    font.pixelSize: Material.type.titleMedium
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "A local preview of the shared popup surface."
+                    color: Material.colors.on_surface_variant
+                    font.family: Theme.typography.family
+                    font.pixelSize: Material.type.bodyMedium
+                    wrapMode: Text.WordWrap
+                }
+                Item {
+                    Layout.fillHeight: true
+                }
+                ControlAction {
+                    id: popupClose
+                    text: "Close"
+                    compact: true
+                    onClicked: examplePopup.close()
                 }
             }
         }
@@ -293,7 +454,10 @@ ShellRoot {
                 sampleSlider.value = 47;
                 sampleSlider.moved();
                 exampleReplay.setEnabled(true);
-                const good = lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
+                examplePopup.open();
+                const popupOpened = examplePopup.visible;
+                examplePopup.close();
+                const good = popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
                 if (!good) {
                     console.error("GALLERY_TEST_FAILED");
                     Qt.quit();

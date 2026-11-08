@@ -8,7 +8,10 @@ unit, so the gallery source and its component imports accompany the installed
 shell. The launcher script remains in the owning checkout.
 
 The gallery previews shared action variants, switches, slider, choice, search,
-status messages, launcher and clipboard rows, and the replay row. Its recording
+status messages, launcher and clipboard rows, device and network examples, a
+shared popup and the replay row. A section selector provides quick navigation.
+Preview zoom and right-to-left layout are local to the gallery; zoom scales the
+whole preview rather than changing native text sizing. Its recording
 example uses local simulated state and cannot start or save a recording. The
 palette selector offers the current wallpaper and two sample Matugen palettes
 in light and dark variants; changes affect only the gallery process. Reduced
@@ -16,9 +19,10 @@ motion can also be toggled locally. The samples in `shell/gallery-palettes.json`
 were generated with Matugen's tonal-spot scheme from `#6750a4` and `#006b60`,
 at standard contrast; they do not change the desktop or its wallpaper.
 
-It is not yet a complete gallery: popup lifecycle, wallpaper tiles, all control
-states, text scaling, density, right-to-left layouts and comprehensive visual
-and accessibility comparisons still need examples and verification.
+It is not yet a complete gallery: production wallpaper tiles, all control
+states, native text scaling, density variants and comprehensive visual and
+accessibility comparisons still need examples and verification. The mirrored
+preview helps inspect layout but does not establish full right-to-left support.
 `tests/test-component-gallery` checks palette selection and representative
 control interactions in an isolated offscreen Quickshell host. Set
 `DF_GALLERY_CAPTURE=/absolute/path.png` when running that test to save a
