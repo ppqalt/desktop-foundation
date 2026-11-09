@@ -127,6 +127,13 @@ if name in ['build-backend', 'build-nothing']:
         self.assertEqual((self.root / 'native/foundation/target/release/desktop-foundationctl').read_text(), 'old backend')
         self.assertNotIn('deploy', [call['name'] for call in self.calls()])
 
+    def test_update_help_describes_local_rebuild(self):
+        result = self.invoke('--help')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('--local', result.stdout)
+        self.assertIn('Usage: df-update', result.stdout)
+        self.assertEqual(self.calls(), [])
+
     def test_local_rebuild_ignores_unavailable_remote_and_preserves_all_edits(self):
         self.remote_change()
         self.git('remote', 'set-url', 'origin', '/unavailable/local-only')
