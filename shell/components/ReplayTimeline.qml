@@ -35,6 +35,9 @@ ColumnLayout {
             event.accepted = true;
         }
         Layout.fillWidth: true
+        // Match both trim-handle centres, including the shared slider padding.
+        Layout.leftMargin: selection.leftPadding + 2
+        Layout.rightMargin: selection.rightPadding + 2
         implicitHeight: 68
         clip: true
         Row {

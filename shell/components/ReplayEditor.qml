@@ -215,11 +215,12 @@ ColumnLayout {
         }
     }
     ControlAction {
-        Layout.fillWidth: true
+        Layout.alignment: Qt.AlignRight
         visible: !!root.session
         objectName: "saveReplayClip"
-        text: "Save clip"
-        detail: root.savedPath ? "Saved and validated" : "MKV · separate Opus tracks"
+        text: save.running ? "Saving…" : "Save clip"
+        compact: true
+        marked: true
         enabled: !root.busy && !preview.running && root.endTime - root.startTime >= 0.05
         onClicked: {
             root.error = "";

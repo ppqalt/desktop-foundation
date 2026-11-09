@@ -67,6 +67,10 @@ stream-copy boundaries cannot be assumed.
 **Save Replay** captures the current buffer and opens the editor directly. Trim
 and choose **Save clip**; validated export removes its temporary editing source.
 There is no draft browser or second capture button in this normal flow.
+The thumbnail strip aligns with the trim-handle centres. Save clip uses the
+shared primary compact button. The sidebar disables capture when replay is Off,
+Starting, Paused or Error, and shows save/capture errors and the reason for a
+desktop-only pause beside the controls.
 Opening Save Replay again prepares fresh footage, then replaces the previous
 interactive workspace only after the new source and thumbnails are valid.
 Failed preparation or export preserves footage for recovery. Existing legacy

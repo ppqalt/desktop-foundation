@@ -6,9 +6,11 @@ import Quickshell
 import Quickshell.Io
 import "theme"
 import "components"
+import "surfaces"
 
 // Developer preview of production components. This has no system backends.
 ShellRoot {
+    ReloadNotice {}
     Window {
         id: window
         width: Number(Quickshell.env("DF_GALLERY_WIDTH")) || 760

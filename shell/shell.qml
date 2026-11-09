@@ -10,6 +10,7 @@ import "services" as Services
 
 ShellRoot {
     id: root
+    ReloadNotice {}
     Component.onCompleted: Quickshell.watchFiles = false
     Services.MediaControl {
         id: mediaControl

@@ -88,6 +88,7 @@ ShellRoot {
             verify(control !== null);
             compare(control.duration, "2:15");
             compare(control.statusText, "Off");
+            verify(!control.saveButton.enabled);
             let requested = "";
             control.setEnabled.connect(enabled => {
                 return requested = enabled ? "on" : "off";
@@ -103,6 +104,7 @@ ShellRoot {
                 "replay_status": "starting"
             };
             compare(control.statusText, "Starting");
+            verify(!save.enabled);
             verify(toggle.marked);
             mockRecording.state = {
                 "phase": "replay",
@@ -132,6 +134,7 @@ ShellRoot {
                 "replay_status": "paused"
             };
             compare(control.statusText, "Paused");
+            verify(findChild(control, "replayFeedback").text.includes("empty buffer"));
             verify(!save.enabled);
             toggle.clicked();
             compare(requested, "off");
@@ -140,8 +143,9 @@ ShellRoot {
                 "error": "failed"
             };
             compare(control.statusText, "Error");
+            compare(findChild(control, "replayFeedback").text, "failed");
             verify(!toggle.marked);
-            verify(save.enabled); // Retained footage remains accessible after capture failure.
+            verify(!save.enabled); // Direct editing needs an active buffer, not a draft browser.
             mockRecording.bufferSeconds = 0;
             compare(control.duration, "");
             compare(findChild(control, "replayStatus").text, "Error");

@@ -75,7 +75,7 @@ ColumnLayout {
             compact: true
             Layout.preferredWidth: 82
             Layout.maximumWidth: 82
-            enabled: !!root.recording?.prepared && root.replayState.save_status !== "saving" && !root.pending
+            enabled: !!root.recording?.prepared && root.replayState.replay === true && ["buffering", "ready"].includes(root.replayState.replay_status) && root.replayState.phase !== "error" && root.replayState.save_status !== "saving" && !root.pending
             onClicked: root.saveRequested()
         }
         ControlSwitch {
@@ -88,5 +88,13 @@ ColumnLayout {
             enabled: !!root.recording?.prepared && !root.pending && (root.replayEnabled || root.replayState.replay_paused === true || root.replayState.phase === "idle" || root.replayState.phase === "error")
             onClicked: root.setEnabled(!marked)
         }
+    }
+    WidgetStatus {
+        objectName: "replayFeedback"
+        Layout.fillWidth: true
+        Layout.topMargin: 8
+        status: root.replayState.phase === "error" || root.replayState.save_status === "error" ? "error" : "loading"
+        message: status === "error" ? root.replayState.save_error || root.replayState.error || "Replay failed. Turn Instant Replay on to retry." : root.replayState.replay_status === "paused" ? "Paused for desktop-only recording. Replay will restart with an empty buffer." : ""
+        font.pixelSize: Material.type.bodyMedium
     }
 }

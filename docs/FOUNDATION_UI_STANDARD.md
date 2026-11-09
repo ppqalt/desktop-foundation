@@ -67,6 +67,9 @@ verify measurements through Google's official implementation rather than guessin
   240ms/180ms reversible slide is a desktop adaptation, not a Google spring token.
 - Ordinary centered overlays use the common fade/scale presentation. Volume
   values and bar width update immediately; its only animation is a 100ms fade.
+- Successful Quickshell reloads are silent in both the shell and gallery. Reload
+  failures use an input-transparent black notice at the bottom right for eight
+  seconds; black is an explicit owner preference here. Details remain in logs.
 - The barless desktop and assigned shortcuts stay intact. No persistent toolbar
   or extra explanatory footer is needed to advertise standard keyboard behavior.
 - WASD aliases supplement arrows only outside text editing.

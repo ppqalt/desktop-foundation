@@ -59,6 +59,8 @@ ShellRoot {
                 compare(editor.startTime, 2.5);
                 compare(editor.endTime, 7.125);
                 editor.select(0, editor.session.duration);
+                verify(Math.abs(footage.mapToItem(range, 0, 0).x - range.firstCenter) < 0.5);
+                verify(Math.abs(footage.mapToItem(range, footage.width, 0).x - range.secondCenter) < 0.5);
                 compare(editor.startTime, 0);
                 compare(editor.endTime, editor.session.duration);
                 editor.select(1.25, 5.75);
