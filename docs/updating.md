@@ -1,8 +1,9 @@
 # Updating Desktop Foundation
 
 ```sh
-df-update --dry-run
-df-update
+df-update --dry-run  # local plan, no network or changes
+df-update --check    # read-only live GitHub check
+df-update            # fetch, build, validate and apply
 ```
 
 To select an existing release tag, use `df-update --version 0.3-3`. Version
@@ -16,8 +17,15 @@ Deployment installs `~/.local/bin/df-update`. You can also run
 `./scripts/df-update` from the owning checkout. Run it as your desktop user,
 without sudo. Keep `~/.local/bin` on your PATH.
 
+The updater accepts the named branch that owns the installation, including a
+Lucky38 customization branch; it does not switch it to `main`, reset local
+commits or touch other worktrees. A detached checkout receives a specific
+instruction to create a local branch first.
+
 The command fetches `main` from the checkout's `origin`, which must be the
-Desktop Foundation GitHub repository. It builds both Rust backends using the
+Desktop Foundation GitHub repository. If no `origin` is configured, it fetches
+directly from `https://github.com/ppqalt/desktop-foundation.git` without silently
+adding or rewriting remotes. A different existing origin is rejected. It builds both Rust backends using the
 existing pinned, locked build scripts in a temporary Git worktree, reuses cached
 build dependencies, and validates the compositor configuration before changing
 the live checkout or executables. Local settings and extra project files are
@@ -30,7 +38,8 @@ compositor and hardware profile. This regenerates configuration and session
 units, keeps the selected wallpaper and semantic palette, and retains original
 deployment backups. Update mode does not assign application defaults or global
 preferences. Clipboard capture is refreshed by deployment when its session is
-active; the updater reloads the current compositor configuration, active shell
+active; the updater reloads compositor configuration when its generated content
+changed (or cannot be compared), the active shell
 and active btop sidebar. It does not start inactive desktop components or restart
 the compositor, login manager or applications.
 
@@ -52,9 +61,13 @@ Untracked project files are copied into the isolated build and remain in place.
 
 Conflicting edits, untracked files that would be overwritten, an in-progress Git
 operation, or externally replaced deployment links stop the update before deployment.
-Changing project files during the build also stops publication, so newer edits
+Changing project files or switching the owning branch during the build also stops
+publication, even if the new branch points to the same commit, so newer edits
 are not silently replaced. The update log records the recovery ref when one is made;
-these local backup refs are not included in an ordinary push of `main`.
+these local backup refs are not included in an ordinary push of `main`. A separate
+`refs/desktop-foundation/update-before-*` ref retains the previous committed
+revision for every validated publication. Pending `update.json` also records the
+owning branch, upstream revision and recovery ref.
 
 The updater also retains writable Fish variables, btop preferences, application
 state and user overrides under `$XDG_CONFIG_HOME/desktop-foundation`. Changes to
@@ -71,13 +84,19 @@ Temporary build worktrees are removed on ordinary completion or failure. Forced
 termination can leave one under
 `$XDG_CACHE_HOME/desktop-foundation/update/source-*`; inspect it with
 `git worktree list` before removing it. Build caches remain there for later runs.
-`--dry-run` does not fetch, build, deploy or reload anything.
+`--dry-run` does not access the network, fetch, build, deploy or reload anything.
+`--check` queries GitHub with `git ls-remote` and reports the advertised revision;
+it does not fetch objects, create logs, build, deploy or alter the checkout.
+When the GitHub revision is already present locally, it distinguishes local
+commits from new upstream work rather than treating any different hash as an
+available upgrade.
 
 ## Output
 
 Normal updates print four short lines: fetching, building/checking, applying, and
-the resulting revision. Git, compiler, validation and deployment details go to
+the resulting branch and revision. Git, compiler, validation and deployment details go to
 `$XDG_STATE_HOME/desktop-foundation/update.log` (default
 `~/.local/state/desktop-foundation/update.log`). The file is private to your user
 (mode 0600) and replaced at the start of the next real update. Failures identify
-the phase and link to this log. `--dry-run` prints one line and creates no log.
+the phase and link to this log. `--dry-run` shows the owning checkout, source and plan and creates no log.
+`--check` reports live GitHub metadata separately. `--help` lists both modes.

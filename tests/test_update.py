@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARY = ROOT / 'native/foundation/target/debug/desktop-foundationctl'
+BINARY = Path(os.environ.get('DF_UPDATE_BINARY', str(ROOT / 'native/foundation/target/debug/desktop-foundationctl')))
 GIT = shutil.which('git')
 OFFICIAL = 'https://github.com/ppqalt/desktop-foundation.git'
 
@@ -84,6 +84,9 @@ name = Path(__file__).name
 with open(os.environ['DF_UPDATE_TEST_LOG'], 'a') as f:
     f.write(json.dumps({'name':name, 'root':str(root), 'args':sys.argv[1:], 'payload':(root/'payload.txt').read_text(), 'private':(root/'personal.txt').read_text() if (root/'personal.txt').exists() else None}) + '\\n')
 print('fixture build/deploy output: '+name)
+if name == 'build-backend' and os.environ.get('DF_TEST_SWITCH_BRANCH'):
+    import subprocess
+    subprocess.run(['git', '-C', os.environ['DF_TEST_LIVE_ROOT'], 'switch', os.environ['DF_TEST_SWITCH_BRANCH']], check=True, capture_output=True)
 if os.environ.get('DF_FAIL_STAGE') == name:
     print('fixture failure details',file=sys.stderr)
     sys.exit(7)
@@ -154,7 +157,7 @@ if name in ['build-backend', 'build-nothing']:
         self.assertEqual(self.git('rev-parse', 'HEAD').strip(), revision)
         self.assertEqual((self.root / 'payload.txt').read_text(), 'my edits')
         self.assertIn('payload.txt', self.git('diff', '--name-only'))
-        reference = self.git('for-each-ref', '--format=%(refname)', 'refs/desktop-foundation').strip()
+        reference = self.git('for-each-ref', '--format=%(refname)', 'refs/desktop-foundation/local-update-*').strip()
         self.assertEqual(self.git('show', reference + ':payload.txt'), 'my edits')
         build = next(call for call in self.calls() if call['name'] == 'build-backend')
         self.assertNotIn('Preserving local settings', result.stdout)
@@ -330,6 +333,98 @@ if name in ['build-backend', 'build-nothing']:
         result = self.invoke('--dry-run')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('niri profile default', result.stdout)
+
+    def test_named_installation_branch_fetches_and_preserves_local_work(self):
+        self.git('switch', '-c', 'lucky38/local')
+        (self.root / 'local.txt').write_text('local desktop'); self.commit('local desktop')
+        local = self.git('rev-parse', 'HEAD').strip()
+        other = self.git('rev-parse', 'main').strip()
+        upstream = self.remote_change()
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('symbolic-ref', '--short', 'HEAD').strip(), 'lucky38/local')
+        self.assertEqual(self.git('rev-parse', 'main').strip(), other)
+        parents = self.git('show', '-s', '--format=%P', 'HEAD').split()
+        self.assertIn(local, parents); self.assertIn(upstream, parents)
+        self.assertEqual((self.root / 'local.txt').read_text(), 'local desktop')
+
+    def test_missing_origin_fetches_official_github_without_rewriting_remotes(self):
+        revision = self.remote_change()
+        self.git('remote', 'remove', 'origin')
+        plan = self.invoke('--dry-run')
+        self.assertEqual(plan.returncode, 0, plan.stderr)
+        self.assertIn('direct GitHub fallback', plan.stdout)
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('rev-parse', 'HEAD').strip(), revision)
+        self.assertEqual(self.git('remote'), '')
+
+    def test_live_check_queries_github_without_fetching_or_deploying(self):
+        revision = self.remote_change()
+        before = sorted(p.relative_to(self.base) for p in self.base.rglob('*'))
+        result = self.invoke('--check')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(revision[:12], result.stdout)
+        self.unchanged()
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(sorted(p.relative_to(self.base) for p in self.base.rglob('*')), before)
+        self.assertFalse((self.state / 'update.log').exists())
+
+    def test_check_reports_local_commits_already_containing_github_main(self):
+        (self.root / 'local.txt').write_text('mine'); self.commit('local')
+        result = self.invoke('--check')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('1 local commit(s)', result.stdout)
+        self.assertIn('already included', result.stdout)
+
+    def test_dry_run_on_custom_branch_keeps_branch_and_files(self):
+        self.git('switch', '-c', 'lucky38/desktop')
+        (self.root / 'payload.txt').write_text('private edits')
+        before = self.git('status', '--porcelain')
+        result = self.invoke('--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('lucky38/desktop', result.stdout)
+        self.assertEqual(self.git('status', '--porcelain'), before)
+        self.assertEqual(self.calls(), [])
+
+    def test_branch_switch_during_build_prevents_publication_even_at_same_revision(self):
+        self.git('branch', 'other-work')
+        result = self.invoke(DF_TEST_SWITCH_BRANCH='other-work', DF_TEST_LIVE_ROOT=str(self.root))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('changed during the build', result.stderr)
+        self.assertEqual(self.git('symbolic-ref', '--short', 'HEAD').strip(), 'other-work')
+        self.unchanged()
+
+    def test_recovery_ref_retains_previous_committed_source(self):
+        self.remote_change()
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reference = self.git('for-each-ref', '--format=%(refname)', 'refs/desktop-foundation/update-before-*').strip()
+        self.assertTrue(reference)
+        self.assertEqual(self.git('rev-parse', reference).strip(), self.before)
+
+    def test_foreign_origin_is_not_silently_replaced(self):
+        self.git('remote', 'set-url', 'origin', 'https://example.invalid/something-else.git')
+        result = self.invoke('--dry-run')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('different repository', result.stderr)
+        self.assertEqual(self.git('config', '--get', 'remote.origin.url').strip(), 'https://example.invalid/something-else.git')
+        self.unchanged()
+
+    def test_detached_installation_reports_specific_recovery_without_switching(self):
+        self.git('switch', '--detach', self.before)
+        result = self.invoke('--dry-run')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('detached HEAD', result.stderr)
+        self.unchanged()
+
+    def test_unchanged_compositor_config_does_not_request_a_redundant_reload(self):
+        config = self.state / 'theme/current/niri.kdl'
+        config.write_text('// same generated config')
+        result = self.invoke(DF_TEST_ACTIVE='1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('niri', [c['name'] for c in self.calls()])
+        self.assertIn('shell-reload', [c['name'] for c in self.calls()])
 
 
 if __name__ == '__main__': unittest.main()

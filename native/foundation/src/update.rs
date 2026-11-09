@@ -14,6 +14,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+const OFFICIAL: &str = "https://github.com/ppqalt/desktop-foundation.git";
 const SHORT: Duration = Duration::from_secs(30);
 const BUILD: Duration = Duration::from_secs(1800);
 const BINARIES: [&str; 4] = [
@@ -125,11 +126,7 @@ fn checkout_revision(root: &Path) -> Result<String> {
     if text(&git(root, &["rev-parse", "--show-toplevel"]))? != root.to_string_lossy() {
         return Err(invalid("df-update requires the owning Git checkout"));
     }
-    if text(&git(root, &["symbolic-ref", "--short", "HEAD"]))? != "main" {
-        return Err(invalid(
-            "Switch to main before running df-update; other branches are preserved",
-        ));
-    }
+    current_branch(root)?;
     for name in [
         "MERGE_HEAD",
         "CHERRY_PICK_HEAD",
@@ -150,20 +147,82 @@ fn checkout_revision(root: &Path) -> Result<String> {
             ));
         }
     }
-    let remote = text(&git(root, &["config", "--get", "remote.origin.url"]))?;
+    text(&git(root, &["rev-parse", "HEAD"]))
+}
+fn current_branch(root: &Path) -> Result<String> {
+    text(&git(root, &["symbolic-ref", "--quiet", "--short", "HEAD"]))
+        .map_err(|_| invalid("The installation checkout has detached HEAD. Create a local branch before updating; no files were changed."))
+}
+fn upstream_source(root: &Path) -> Result<String> {
+    let result = process::run(
+        &git(root, &["config", "--get", "remote.origin.url"]),
+        None,
+        SHORT,
+        true,
+    )?;
+    if result.status.code() == Some(1) {
+        return Ok(OFFICIAL.into());
+    }
+    if !result.status.success() {
+        return Err(invalid("Cannot read the checkout's origin configuration"));
+    }
+    let remote = std::str::from_utf8(&result.stdout)
+        .map_err(|_| invalid("Invalid origin URL"))?
+        .trim();
     if ![
         "https://github.com/ppqalt/desktop-foundation",
-        "https://github.com/ppqalt/desktop-foundation.git",
+        OFFICIAL,
         "git@github.com:ppqalt/desktop-foundation.git",
         "ssh://git@github.com/ppqalt/desktop-foundation.git",
     ]
-    .contains(&remote.as_str())
+    .contains(&remote)
     {
         return Err(invalid(
-            "origin must point to ppqalt/desktop-foundation on GitHub; no remote was changed",
+            "origin points to a different repository; no remote was changed. Desktop Foundation updates must use ppqalt/desktop-foundation on GitHub.",
         ));
     }
-    text(&git(root, &["rev-parse", "HEAD"]))
+    Ok("origin".into())
+}
+fn check_remote(root: &Path, source: &str, options: &Options, before: &str) -> Result<()> {
+    let candidates = options
+        .version
+        .as_deref()
+        .map(release_candidates)
+        .unwrap_or_else(|| vec!["refs/heads/main".into()]);
+    let mut args = vec!["ls-remote", "--refs", source];
+    args.extend(candidates.iter().map(String::as_str));
+    let output = process::checked_capture(&git(root, &args), Duration::from_secs(120), 16384)?;
+    let rows = std::str::from_utf8(&output.stdout)
+        .map_err(|_| invalid("GitHub returned invalid revision metadata"))?;
+    let (target, reference) = selected_release(rows, &candidates)
+        .ok_or_else(|| invalid("The requested branch or release was not found on GitHub"))?;
+    if ![40, 64].contains(&target.len()) || !target.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(invalid("GitHub returned an invalid revision"));
+    }
+    println!("GitHub {reference}: {}", &target[..12]);
+    println!("Installed {} on {}.", &before[..12], current_branch(root)?);
+    if options.version.is_none() {
+        let known = process::run(
+            &git(root, &["cat-file", "-e", &format!("{target}^{{commit}}")]),
+            None,
+            SHORT,
+            true,
+        )?
+        .status
+        .success();
+        if known && ancestor(root, target, before)? {
+            let count = text(&git(
+                root,
+                &["rev-list", "--count", &format!("{target}..{before}")],
+            ))?;
+            println!("GitHub main is already included; {count} local commit(s) will be retained.");
+        } else {
+            println!(
+                "Run df-update to fetch, combine and validate this GitHub revision with local work."
+            );
+        }
+    }
+    Ok(())
 }
 // Diffs include staged and unstaged edits separately; their bytes never go to
 // the terminal. Build helpers cannot silently race an edit in the live checkout.
@@ -342,6 +401,17 @@ fn copy_binary(source: &Path, target: &Path) -> Result<()> {
     }
     result
 }
+fn compositor_config_digest(home: &Path) -> Option<Vec<u8>> {
+    let file = File::open(home.join("theme/current/niri.kdl")).ok()?;
+    if !file.metadata().ok()?.is_file() || file.metadata().ok()?.len() > 4 * 1024 * 1024 {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    file.take(4 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    Some(Sha256::digest(bytes).to_vec())
+}
 fn active(unit: &str) -> bool {
     process::run(
         &[
@@ -361,18 +431,22 @@ fn active(unit: &str) -> bool {
 #[derive(Debug, PartialEq, Eq)]
 struct Options {
     dry: bool,
+    check: bool,
     version: Option<String>,
 }
 impl Options {
     fn parse(args: &[String]) -> Result<Self> {
         let mut options = Self {
             dry: false,
+            check: false,
             version: None,
         };
         let mut iter = args.iter();
         while let Some(arg) = iter.next() {
             if arg == "--dry-run" && !options.dry {
                 options.dry = true;
+            } else if arg == "--check" && !options.check {
+                options.check = true;
             } else if arg == "--version" && options.version.is_none() {
                 options.version = Some(
                     iter.next()
@@ -384,8 +458,15 @@ impl Options {
             {
                 options.version = Some(value.to_owned());
             } else {
-                return Err(invalid("Usage: df-update [--dry-run] [--version TAG]"));
+                return Err(invalid(
+                    "Usage: df-update [--dry-run|--check] [--version TAG]",
+                ));
             }
+        }
+        if options.dry && options.check {
+            return Err(invalid(
+                "Choose --dry-run for a local plan or --check for a read-only GitHub check",
+            ));
         }
         if let Some(version) = &options.version {
             if version.is_empty() || version.len() > 200 || version.chars().any(char::is_control) {
@@ -427,9 +508,9 @@ fn selected_release<'a>(rows: &'a str, candidates: &[String]) -> Option<(&'a str
             .map(|(hash, _)| (hash, candidate.clone()))
     })
 }
-fn fetch_release(root: &Path, version: &str, log: &File) -> Result<String> {
+fn fetch_release(root: &Path, source: &str, version: &str, log: &File) -> Result<String> {
     let candidates = release_candidates(version);
-    let mut args = vec!["ls-remote", "--refs", "origin"];
+    let mut args = vec!["ls-remote", "--refs", source];
     args.extend(candidates.iter().map(String::as_str));
     let output = process::checked_capture(&git(root, &args), Duration::from_secs(120), 16384)?;
     let rows =
@@ -449,7 +530,7 @@ fn fetch_release(root: &Path, version: &str, log: &File) -> Result<String> {
         step(
             log,
             "Fetching selected release…",
-            &git(root, &["fetch", "--no-tags", "origin", &refspec]),
+            &git(root, &["fetch", "--no-tags", source, &refspec]),
             Duration::from_secs(180),
         )?;
         if text(&git(root, &["rev-parse", &reference]))? != advertised {
@@ -467,6 +548,12 @@ fn fetch_release(root: &Path, version: &str, log: &File) -> Result<String> {
 }
 
 pub fn run(root: &Path, args: &[String]) -> Result<()> {
+    if matches!(args, [arg] if arg == "--help" || arg == "-h") {
+        println!(
+            "Usage: df-update [--dry-run|--check] [--version TAG]\n  --dry-run  Show the local plan without network access or changes\n  --check    Check GitHub without fetching, building or deploying\n  default    Fetch GitHub main, preserve the owning branch and local work, build and deploy"
+        );
+        return Ok(());
+    }
     let options = Options::parse(args)?;
     // SAFETY: geteuid has no pointer arguments or side effects.
     if unsafe { libc::geteuid() } == 0 {
@@ -478,16 +565,34 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let home = state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation");
     let selected = installation(&root, &home)?;
     let before = checkout_revision(&root)?;
+    let branch = current_branch(&root)?;
+    let source = upstream_source(&root)?;
+    if options.check {
+        return check_remote(&root, &source, &options, &before);
+    }
     if options.dry {
         println!(
             "Fetch, rebuild and redeploy {} profile {}; preserve settings.",
             selected.compositor, selected.profile
+        );
+        println!(
+            "Checkout: {} on {branch}; branch, local commits and edits are preserved.",
+            &before[..12]
+        );
+        println!(
+            "Source: {OFFICIAL} ({}); use --check for current GitHub metadata.",
+            if source == "origin" {
+                "origin"
+            } else {
+                "direct GitHub fallback; no origin configured"
+            }
         );
         if let Some(version) = &options.version {
             println!("Release: {version}");
         }
         return Ok(());
     }
+    let compositor_before = compositor_config_digest(&home);
     let _lock = state::lock(&home.join("update.lock"), Duration::from_secs(1))?;
     let log_path = home.join("update.log");
     state::atomic(&log_path, b"", 0o600)?;
@@ -499,7 +604,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let mut phase = "fetch";
     let result = (|| {
         let upstream = if let Some(version) = &options.version {
-            let target = fetch_release(&root, version, &log)?;
+            let target = fetch_release(&root, &source, version, &log)?;
             if !ancestor(&root, &before, &target)? {
                 return Err(invalid(
                     "Selected release is older than or divergent from this checkout; safe release rollback is not yet supported",
@@ -515,7 +620,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                     &[
                         "fetch",
                         "--no-tags",
-                        "origin",
+                        &source,
                         "+refs/heads/main:refs/remotes/origin/main",
                     ],
                 ),
@@ -670,6 +775,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             ));
         }
         if checkout_revision(&root)? != before
+            || current_branch(&root)? != branch
             || diff(&root, false)? != original_diff
             || diff(&root, true)? != original_index
             || untracked(&root)? != local_files
@@ -694,7 +800,13 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         } else {
             before.clone()
         };
-        let journal = json!({"previousRevision":previous, "revision":candidate, "compositor":selected.compositor, "profile":selected.profile,"localChangesRef":backup});
+        let recovery_ref = format!("refs/desktop-foundation/update-before-{nonce}");
+        text(&git(&root, &["update-ref", &recovery_ref, &previous]))?;
+        writeln!(
+            &log,
+            "Owning branch: {branch}; upstream: {upstream}; previous source retained at {recovery_ref}"
+        )?;
+        let journal = json!({"previousRevision":previous, "revision":candidate, "branch":branch, "upstreamRevision":upstream, "source":OFFICIAL, "recoveryRef":recovery_ref, "compositor":selected.compositor, "profile":selected.profile,"localChangesRef":backup});
         state::atomic(
             &home.join("update.json"),
             &serde_json::to_vec_pretty(&journal)?,
@@ -713,6 +825,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             // A rejected merge normally reapplies its autostash. Restore staging
             // only when both the old HEAD and all worktree bytes are unchanged.
             if checkout_revision(&root)? == before
+                && current_branch(&root)? == branch
                 && diff(&root, false)? == original_diff
                 && text(&git(&root, &["ls-files", "--unmerged"]))?.is_empty()
             {
@@ -750,7 +863,10 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             Duration::from_secs(300),
         )?;
         phase = "component reload";
-        if env::var_os("NIRI_SOCKET").is_some_and(|value| !value.is_empty()) {
+        let compositor_after = compositor_config_digest(&home);
+        let compositor_changed =
+            compositor_before.is_none() || compositor_after != compositor_before;
+        if compositor_changed && env::var_os("NIRI_SOCKET").is_some_and(|value| !value.is_empty()) {
             let command: Vec<String> = vec![
                 "niri".into(),
                 "msg".into(),
@@ -782,7 +898,10 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             )?;
         }
         fs::remove_file(home.join("update.json"))?;
-        println!("Updated to {}.", &candidate[..12]);
+        println!(
+            "Updated {branch} to {}; local work preserved.",
+            &candidate[..12]
+        );
         Ok(())
     })();
     result.map_err(|error| {
@@ -912,7 +1031,10 @@ mod release_tests {
             remote.to_str().unwrap(),
         ]);
         let log = File::create(base.join("update.log")).unwrap();
-        assert_eq!(fetch_release(&checkout, "0.3-3", &log).unwrap(), expected);
+        assert_eq!(
+            fetch_release(&checkout, "origin", "0.3-3", &log).unwrap(),
+            expected
+        );
         assert!(
             run(&[
                 "-C",
@@ -922,7 +1044,7 @@ mod release_tests {
             ])
             .is_empty()
         );
-        assert!(fetch_release(&checkout, "0.001.1", &log).is_err());
+        assert!(fetch_release(&checkout, "origin", "0.001.1", &log).is_err());
         fs::remove_dir_all(base).unwrap();
     }
 }
