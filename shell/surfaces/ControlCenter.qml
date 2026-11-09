@@ -580,7 +580,7 @@ PanelWindow {
                             pending: replayRequest.running
                             onSetEnabled: enabled => root.requestReplay(enabled ? "replay-on" : "replay-off")
                             onSaveRequested: {
-                                root.navigate("replay", replayControl);
+                                root.navigate("replay", replayControl.saveButton);
                                 replayEditor.open();
                             }
                         }

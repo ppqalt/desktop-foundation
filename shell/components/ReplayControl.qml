@@ -8,6 +8,7 @@ ColumnLayout {
     objectName: "replayControl"
     property var recording: null
     property bool pending: false
+    property alias saveButton: saveAction
     readonly property var replayState: recording?.state ?? ({})
     readonly property bool replayEnabled: replayState.replay === true && replayState.phase !== "error"
     readonly property string statusText: {
@@ -67,6 +68,7 @@ ColumnLayout {
             }
         }
         ControlAction {
+            id: saveAction
             objectName: "saveReplay"
             text: "Save"
             Accessible.name: "Open replay editor"

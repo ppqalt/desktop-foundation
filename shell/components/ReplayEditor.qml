@@ -6,6 +6,7 @@ import "../theme"
 
 ColumnLayout {
     id: root
+    objectName: "replayEditor"
     required property string backend
     property var session: null
     property real startTime: 0

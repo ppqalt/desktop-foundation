@@ -12,6 +12,7 @@ ShellRoot {
     property bool enabled: true
     property bool concurrentSent: false
     property bool updateCacheChecked: false
+    property bool editorChecked: false
     Process {
         id: updateWriter
         command: ["/bin/sh", "-c", "printf 'repo-three 1 -> 2\\n' >> \"$XDG_STATE_HOME/arch-update/last_updates_check_packages\""]
@@ -39,6 +40,15 @@ ShellRoot {
         id: loader
         active: fixture.enabled
         ControlCenterFixture {
+            recording: ({
+                    prepared: true,
+                    bufferSeconds: 300,
+                    state: {
+                        phase: "replay",
+                        replay: true,
+                        replay_status: "buffering"
+                    }
+                })
             width: 720
             height: 1000
             sidebarStyle: ({
@@ -105,6 +115,21 @@ ShellRoot {
                 }
                 if (updateStatus.text !== "Last check: 4 updates")
                     return;
+                if (!fixture.editorChecked) {
+                    find(panel.contentItem, "saveReplay").clicked();
+                    fixture.check(panel.page === "replay", "Save Replay did not open the editor");
+                    fixture.editorChecked = true;
+                    return;
+                }
+                if (panel.page === "replay") {
+                    if (panel.busy)
+                        return;
+                    const editor = find(panel.contentItem, "replayEditor");
+                    fixture.check(editor.session && editor.session.duration === 300, "editor did not load its protected source");
+                    fixture.check(editor.endTime - editor.startTime === 47, "editor selection changed buffer duration");
+                    find(panel.contentItem, "backAction").clicked();
+                    fixture.check(find(panel.contentItem, "saveReplay").activeFocus, "return from editor did not restore Save focus");
+                }
                 const savedState = panel.stateData;
                 fixture.check(!panel.acceptSnapshot({
                     audio: {},
