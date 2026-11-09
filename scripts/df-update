@@ -3,4 +3,52 @@ set -euo pipefail
 # Installed as a symlink in ~/.local/bin; resolve the owning checkout first.
 source_path=$(readlink -f -- "${BASH_SOURCE[0]}")
 root=$(cd -- "${source_path%/*}/.." && pwd)
-exec "$root/native/foundation/target/release/desktop-foundationctl" --root "$root" update "$@"
+binary="$root/native/foundation/target/release/desktop-foundationctl"
+if [[ ! -x $binary ]]; then
+	# Bootstrap only the updater, in private cache; never write unvalidated build
+	# outputs into the live installation. Rust owns fetching and deployment.
+	for arg in "$@"; do
+		case "$arg" in
+		--help | -h)
+			printf '%s\n' 'Usage: df-update [--dry-run|--check] [--version TAG]' \
+				'Run df-update to build the missing updater, fetch GitHub main, build and validate locally, then apply.'
+			exit 0
+			;;
+		--dry-run | --check)
+			printf '%s\n' 'Foundation updater is not built. Run df-update once to build it automatically; this read-only request changed nothing.' >&2
+			exit 1
+			;;
+		esac
+	done
+	if ((EUID == 0)); then
+		printf '%s\n' 'Run df-update as your desktop user, without sudo.' >&2
+		exit 1
+	fi
+	if ! command -v cargo >/dev/null || ! command -v flock >/dev/null; then
+		printf '%s\n' 'Building the updater requires Cargo/Rust and flock (util-linux). Install the missing build tools, then retry df-update.' >&2
+		exit 1
+	fi
+	cache="${XDG_CACHE_HOME:-$HOME/.cache}/desktop-foundation/update/bootstrap"
+	umask 077
+	mkdir -p -- "$cache"
+	if [[ -L $cache || ! -O $cache ]]; then
+		printf '%s\n' 'Foundation updater cache must be your own directory, not a symlink.' >&2
+		exit 1
+	fi
+	chmod 700 -- "$cache"
+	exec 9>"$cache/build.lock"
+	flock -w 1800 9
+	printf '%s\n' 'Building the missing Foundation updater locally…'
+	if ! CARGO_TARGET_DIR="$cache/target" "$root/scripts/build-backend"; then
+		printf '%s\n' 'Updater bootstrap failed; no desktop files were deployed. Fix the reported build dependency and retry df-update.' >&2
+		exit 1
+	fi
+	binary="$cache/target/release/desktop-foundationctl"
+	if [[ ! -x $binary ]]; then
+		printf '%s\n' 'Updater build did not produce an executable; no desktop files were deployed.' >&2
+		exit 1
+	fi
+	flock -u 9
+	exec 9>&-
+fi
+exec "$binary" --root "$root" update "$@"

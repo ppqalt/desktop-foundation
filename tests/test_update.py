@@ -317,6 +317,35 @@ if name in ['build-backend', 'build-nothing']:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.git('rev-parse', 'HEAD').strip(), revision)
 
+    def test_missing_updater_bootstraps_then_builds_fetched_source(self):
+        self.remote_change()
+        shutil.copy(ROOT / 'scripts/df-update', self.root / 'scripts/df-update')
+        build = self.root / 'scripts/build-backend'
+        source = build.read_text()
+        source = source.replace("if name in ['build-backend', 'build-nothing']:", """if name == 'build-backend' and os.environ.get('CARGO_TARGET_DIR'):
+    import shutil
+    target = Path(os.environ['CARGO_TARGET_DIR']) / 'release/desktop-foundationctl'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(os.environ['DF_TEST_BOOTSTRAP_NATIVE'], target)
+    target.chmod(0o700)
+    sys.exit(0)
+if name in ['build-backend', 'build-nothing']:""")
+        build.write_text(source)
+        binary = self.root / 'native/foundation/target/release/desktop-foundationctl'
+        binary.unlink()  # Isolated fixture only; never remove the live backend.
+        result = subprocess.run([str(self.root / 'scripts/df-update')],
+                                env={**self.env, 'DF_TEST_BOOTSTRAP_NATIVE':str(BINARY)},
+                                text=True, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        self.assertEqual(calls[0]['root'], str(self.root))
+        staged_build = [c for c in calls if c['name']=='build-backend' and c['root']!=str(self.root)]
+        self.assertEqual(len(staged_build), 1)
+        self.assertEqual(staged_build[0]['payload'], 'updated\n')
+        self.assertEqual((self.root/'payload.txt').read_text(), 'updated\n')
+        self.assertIn('new backend', binary.read_text())
+        for path in self.sentinels: self.assertEqual(path.read_text(), 'user settings\n')
+
     def test_installed_symlink_resolves_the_owning_checkout(self):
         shutil.copy(ROOT / 'scripts/df-update', self.root / 'scripts/df-update')
         binary = self.root / 'native/foundation/target/release/desktop-foundationctl'
@@ -425,6 +454,74 @@ if name in ['build-backend', 'build-nothing']:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('niri', [c['name'] for c in self.calls()])
         self.assertIn('shell-reload', [c['name'] for c in self.calls()])
+
+
+@unittest.skipIf(os.geteuid() == 0, 'Updater runs as the desktop user')
+class Bootstrap(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.root = self.base / 'owning checkout'
+        (self.root / 'scripts').mkdir(parents=True)
+        self.bin = self.base / 'bin'; self.bin.mkdir()
+        for name in ['df-update', 'build-backend']:
+            shutil.copy(ROOT / 'scripts' / name, self.root / 'scripts' / name)
+        self.entry = self.bin / 'df-update'; self.entry.symlink_to(self.root / 'scripts/df-update')
+        self.cache = self.base / 'cache'
+        self.log = self.base / 'cargo.json'
+        self.env = {**os.environ, 'HOME':str(self.base), 'XDG_CACHE_HOME':str(self.cache),
+                    'PATH':str(self.bin)+os.pathsep+os.environ['PATH'], 'BOOTSTRAP_LOG':str(self.log)}
+        cargo = self.bin / 'cargo'
+        cargo.write_text('''#!/usr/bin/env python3
+import json,os,sys
+from pathlib import Path
+Path(os.environ['BOOTSTRAP_LOG']).write_text(json.dumps(sys.argv[1:]))
+if os.environ.get('FAIL_BOOTSTRAP'): sys.exit(17)
+if os.environ.get('NO_BOOTSTRAP_OUTPUT'): sys.exit(0)
+p=Path(os.environ['CARGO_TARGET_DIR'])/'release/desktop-foundationctl'
+p.parent.mkdir(parents=True,exist_ok=True)
+p.write_text('#!/usr/bin/env python3\\nimport json,sys\\nprint(json.dumps(sys.argv[1:]))\\n')
+p.chmod(0o700)
+'''); cargo.chmod(0o700)
+
+    def invoke(self, *args, **env):
+        return subprocess.run([str(self.entry), *args], env={**self.env, **env},
+                              text=True, capture_output=True, timeout=10)
+
+    def test_missing_binary_bootstraps_in_cache_then_runs_updater(self):
+        result = self.invoke('--version', 'v0.3.2')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout.splitlines()[-1]),
+                         ['--root',str(self.root),'update','--version','v0.3.2'])
+        args=json.loads(self.log.read_text())
+        self.assertEqual(args[:4], ['+1.98.1','build','--locked','--release'])
+        self.assertFalse((self.root/'native/foundation/target').exists())
+        self.assertEqual((self.cache/'desktop-foundation/update/bootstrap').stat().st_mode & 0o777, 0o700)
+
+    def test_read_only_modes_do_not_bootstrap(self):
+        for flag in ['--dry-run','--check','--help']:
+            result=self.invoke(flag)
+            self.assertEqual(result.returncode, 0 if flag=='--help' else 1, result.stderr)
+            self.assertFalse(self.cache.exists()); self.assertFalse(self.log.exists())
+
+    def test_failed_bootstrap_never_runs_or_publishes(self):
+        result=self.invoke(FAIL_BOOTSTRAP='1')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('no desktop files were deployed',result.stderr)
+        self.assertFalse((self.root/'native').exists())
+
+    def test_success_without_binary_is_reported(self):
+        result=self.invoke(NO_BOOTSTRAP_OUTPUT='1')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('did not produce an executable',result.stderr)
+
+    def test_existing_binary_does_not_bootstrap(self):
+        target=self.root/'native/foundation/target/release/desktop-foundationctl'
+        target.parent.mkdir(parents=True); target.write_text('#!/bin/sh\necho existing\n'); target.chmod(0o700)
+        result=self.invoke()
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stdout.strip(),'existing')
+        self.assertFalse(self.cache.exists()); self.assertFalse(self.log.exists())
 
 
 if __name__ == '__main__': unittest.main()

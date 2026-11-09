@@ -17,6 +17,15 @@ Deployment installs `~/.local/bin/df-update`. You can also run
 `./scripts/df-update` from the owning checkout. Run it as your desktop user,
 without sudo. Keep `~/.local/bin` on your PATH.
 
+A normal run also works when the local updater binary is missing: it first builds
+an updater using the checkout's pinned build script in a private cache, then that
+updater fetches GitHub and performs the ordinary isolated build and validation.
+No separate `scripts/build-backend` command is needed. The bootstrap does not
+publish intermediate binaries to the desktop. Cargo/Rust, native build dependencies
+and `flock` must already be installed; system packages still require the installer.
+`--help` works without a binary; `--check` and `--dry-run` report a missing updater
+without bootstrapping, downloading or writing anything.
+
 The updater accepts the named branch that owns the installation, including a
 Lucky38 customization branch; it does not switch it to `main`, reset local
 commits or touch other worktrees. A detached checkout receives a specific
