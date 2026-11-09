@@ -6,3 +6,8 @@ Secondary HDMI-A-1 TV: 1920×1080 at 60 Hz, scale 1, origin (2560,360).
 The TV was disconnected during the October 3, 2026 audit; its live operation
 still requires a connected-display check. Shared v0.12 input and appearance
 remain portable; this profile contains only output settings.
+
+Keyring activation is also scoped to this profile under `session/keyring/`.
+These files preserve Lucky38's existing GNOME Keyring choice. The default profile
+uses the packaged oo7 Secret Service alias and hides redundant GNOME autostarts;
+Lucky38 settings must not become shared defaults for fresh installations.

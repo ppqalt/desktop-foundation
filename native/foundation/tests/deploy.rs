@@ -418,3 +418,27 @@ fn profile_keyring_sources_are_scoped_and_do_not_leak_into_default() {
         .is_err()
     );
 }
+
+#[test]
+fn shipped_default_keyring_and_lucky38_provider_remain_distinct() {
+    let root = source();
+    let default =
+        fs::read_to_string(root.join("session/keyring/org.freedesktop.secrets.service")).unwrap();
+    assert!(default.contains("SystemdService=dbus-org.freedesktop.secrets.service"));
+    assert!(!default.contains("gnome-keyring-daemon"));
+    let lucky = fs::read_to_string(
+        root.join("profiles/lucky38/session/keyring/org.freedesktop.secrets.service"),
+    )
+    .unwrap();
+    assert!(lucky.contains("gnome-keyring-daemon"));
+    for name in [
+        "gnome-keyring-pkcs11.desktop",
+        "gnome-keyring-secrets.desktop",
+    ] {
+        assert!(
+            fs::read_to_string(root.join("session/keyring").join(name))
+                .unwrap()
+                .contains("Hidden=true")
+        );
+    }
+}

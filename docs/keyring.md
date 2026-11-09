@@ -74,3 +74,10 @@ Package and PAM references: [Arch oo7 files](https://archlinux.org/packages/extr
 and [oo7 Arch/greetd handoff issue](https://github.com/linux-credentials/oo7/issues/516).
 The upstream [socket cleanup correction](https://github.com/linux-credentials/oo7/commit/2eac1187db54ae9c37d19a6f50a5f59adeac3a53)
 documents the 0.6 warm-service issue.
+
+Host-specific activation files may live under
+`profiles/NAME/session/keyring/`; deployment uses those regular files only for the
+selected profile and otherwise uses `session/keyring/`. Lucky38 preserves its
+existing GNOME Keyring setup there. Fresh default installations retain oo7 and
+its packaged `dbus-org.freedesktop.secrets.service` alias. Profile changes retarget
+managed links through the existing ownership journal without rebasing originals.
