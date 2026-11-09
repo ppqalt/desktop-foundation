@@ -51,5 +51,18 @@ PY
 		exit 1
 	fi
 	"$root/scripts/build-backend"
+else
+	# A checkout can advance while its compiled installer is still an older
+	# version. Run the selected source's orchestrator, including new components.
+	# Inspection remains read-only and uses the existing executable.
+	inspect=false
+	for option in "$@"; do
+		case $option in
+		--dry-run | --plan | --check | --help | -h) inspect=true ;;
+		esac
+	done
+	if ! $inspect; then
+		"$root/scripts/build-backend"
+	fi
 fi
 exec "$root/scripts/foundation" install "$@"

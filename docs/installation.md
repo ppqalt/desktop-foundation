@@ -7,7 +7,9 @@ orchestration is native Rust; Python remains necessary for the not-yet-migrated
 privileged helpers.
 
 A normal installation bootstraps missing build dependencies and builds the release
-backend automatically. It verifies any existing deployment owner before running
+backend automatically. A normal rerun rebuilds the selected checkout before
+starting its installer, so an older executable cannot omit newly added components.
+Inspection reuses the existing executable without building. It verifies any existing deployment owner before running
 package setup. Inspection (`--dry-run`, `--plan`, `--check`) never installs packages
 or builds the backend; run `scripts/bootstrap` and `scripts/build-backend` first if
 you want to use those inspection options on a completely fresh checkout.

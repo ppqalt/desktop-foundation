@@ -25,6 +25,12 @@ chmod +x "$base/repo/scripts/"*
 export HOME="$base/home" XDG_STATE_HOME="$base/state" DF_TEST_LOG="$base/log"
 "$base/repo/scripts/install" --core
 [[ $(cat "$base/log") == $'bootstrap\nbuild\nfoundation install --core' ]]
+rm "$base/log"
+"$base/repo/scripts/install" --personal
+[[ $(cat "$base/log") == $'build\nfoundation install --personal' ]]
+rm "$base/log"
+"$base/repo/scripts/install" --dry-run
+[[ $(cat "$base/log") == 'foundation install --dry-run' ]]
 rm "$base/repo/native/foundation/target/release/desktop-foundationctl" "$base/log"
 "$base/repo/scripts/install" --core --no-packages
 [[ $(cat "$base/log") == $'build\nfoundation install --core --no-packages' ]]
