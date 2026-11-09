@@ -2,13 +2,18 @@
 use super::*;
 use std::io::{self, IsTerminal};
 
+pub(super) enum Choice {
+    Local,
+    Remote(String, Option<String>),
+}
+
 struct Metadata(PathBuf);
 impl Drop for Metadata {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
-fn menu(title: &str, subtitle: &str, entries: &[String]) -> Result<Option<usize>> {
+fn menu(title: &str, subtitle: &str, entries: &[String], local: bool) -> Result<Option<usize>> {
     let colored = io::stdout().is_terminal() && env::var_os("NO_COLOR").is_none();
     let accent = if colored { "\x1b[1;36m" } else { "" };
     let reset = if colored { "\x1b[0m" } else { "" };
@@ -16,6 +21,9 @@ fn menu(title: &str, subtitle: &str, entries: &[String]) -> Result<Option<usize>
     loop {
         println!("\n{accent}┌─ Desktop Foundation ─────────────────────────────────────┐{reset}");
         println!("  {title}\n  {subtitle}\n");
+        if local {
+            println!("    0  Rebuild from local files (no GitHub fetch)");
+        }
         for (index, entry) in entries.iter().enumerate().skip(page * 12).take(12) {
             let label: String = entry.chars().take(52).collect();
             println!("  {accent}{:>3}{reset}  {label}", index + 1);
@@ -23,7 +31,7 @@ fn menu(title: &str, subtitle: &str, entries: &[String]) -> Result<Option<usize>
         println!(
             "\n  Page {}/{} · n next · p previous · q cancel",
             page + 1,
-            entries.len().div_ceil(12)
+            entries.len().div_ceil(12).max(1)
         );
         print!("{accent}└─ Choose a number, then Enter: {reset}");
         io::stdout().flush()?;
@@ -32,6 +40,7 @@ fn menu(title: &str, subtitle: &str, entries: &[String]) -> Result<Option<usize>
             return Ok(None);
         }
         match line.trim() {
+            "0" if local => return Ok(Some(usize::MAX)),
             "q" | "Q" => return Ok(None),
             "n" if (page + 1) * 12 < entries.len() => page += 1,
             "p" if page > 0 => page -= 1,
@@ -47,7 +56,7 @@ fn menu(title: &str, subtitle: &str, entries: &[String]) -> Result<Option<usize>
         }
     }
 }
-pub(super) fn choose(root: &Path, source: &str) -> Result<Option<(String, Option<String>)>> {
+pub(super) fn choose(root: &Path, source: &str) -> Result<Option<Choice>> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(invalid(
             "Interactive selection needs a terminal; use --branch NAME [--version TAG] instead",
@@ -63,9 +72,18 @@ pub(super) fn choose(root: &Path, source: &str) -> Result<Option<(String, Option
         &git(root, &["ls-remote", "--heads", source]),
         Duration::from_secs(120),
         1024 * 1024,
-    )?;
-    let rows =
-        std::str::from_utf8(&output.stdout).map_err(|_| invalid("Invalid branch metadata"))?;
+    );
+    let rows = match &output {
+        Ok(output) => {
+            std::str::from_utf8(&output.stdout).map_err(|_| invalid("Invalid branch metadata"))?
+        }
+        Err(_) => {
+            println!(
+                "GitHub branches unavailable; local rebuild is still available (or use --local directly)."
+            );
+            ""
+        }
+    };
     let mut branches: Vec<String> = rows
         .lines()
         .filter_map(|line| {
@@ -77,17 +95,19 @@ pub(super) fn choose(root: &Path, source: &str) -> Result<Option<(String, Option
         .collect();
     branches.sort_by_key(|name| (name != "main", name.clone()));
     branches.dedup();
-    if branches.is_empty() {
-        return Err(invalid("GitHub returned no branches"));
-    }
     let Some(index) = menu(
         "1 / 2  Branch",
         "Choose the GitHub source branch. Local work stays protected.",
         &branches,
+        true,
     )?
     else {
         return Ok(None);
     };
+    if index == usize::MAX {
+        println!("Using local checkout including edits; GitHub source will not be fetched.");
+        return Ok(Some(Choice::Local));
+    }
     let branch = branches[index].clone();
     println!("Reading release history for {branch}…");
     let cache = state::xdg("XDG_CACHE_HOME", ".cache")?.join("desktop-foundation/update");
@@ -135,7 +155,7 @@ pub(super) fn choose(root: &Path, source: &str) -> Result<Option<(String, Option
     let mut entries = vec![format!("Latest source on {branch}")];
     entries.extend(releases.iter().map(|tag| format!("Release tag  {tag}")));
     let subtitle = format!("{branch} · tags in its history; older versions may require rollback.");
-    let Some(index) = menu("2 / 2  Version", &subtitle, &entries)? else {
+    let Some(index) = menu("2 / 2  Version", &subtitle, &entries, false)? else {
         return Ok(None);
     };
     let version = index.checked_sub(1).map(|i| releases[i].clone());
@@ -151,5 +171,5 @@ pub(super) fn choose(root: &Path, source: &str) -> Result<Option<(String, Option
     if !answer.trim().eq_ignore_ascii_case("y") {
         return Ok(None);
     }
-    Ok(Some((branch, version)))
+    Ok(Some(Choice::Remote(branch, version)))
 }

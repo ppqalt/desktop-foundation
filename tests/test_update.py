@@ -127,6 +127,47 @@ if name in ['build-backend', 'build-nothing']:
         self.assertEqual((self.root / 'native/foundation/target/release/desktop-foundationctl').read_text(), 'old backend')
         self.assertNotIn('deploy', [call['name'] for call in self.calls()])
 
+    def test_local_rebuild_ignores_unavailable_remote_and_preserves_all_edits(self):
+        self.remote_change()
+        self.git('remote', 'set-url', 'origin', '/unavailable/local-only')
+        (self.root / 'payload.txt').write_text('staged edits')
+        self.git('add', 'payload.txt')
+        (self.root / 'payload.txt').write_text('unstaged edits')
+        (self.root / 'personal.txt').write_text('private')
+        before_status = self.git('status', '--porcelain')
+        before_index = self.git('diff', '--cached')
+        result = self.invoke('--local')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('rev-parse', 'HEAD').strip(), self.before)
+        self.assertEqual(self.git('status', '--porcelain'), before_status)
+        self.assertEqual(self.git('diff', '--cached'), before_index)
+        calls = self.calls()
+        self.assertEqual([c['name'] for c in calls[:4]], ['build-backend', 'build-nothing', 'preflight', 'deploy'])
+        self.assertEqual(calls[0]['payload'], 'unstaged edits')
+        self.assertEqual(calls[0]['private'], 'private')
+        for path in self.sentinels: self.assertEqual(path.read_text(), 'user settings\n')
+        self.assertIn('no upstream fetch', (self.state / 'update.log').read_text())
+
+    def test_local_dry_run_is_read_only_without_a_remote(self):
+        self.git('remote', 'remove', 'origin')
+        result = self.invoke('--local', '--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Source: local checkout', result.stdout)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse((self.state / 'update.log').exists())
+        self.unchanged()
+
+    def test_local_rebuild_failure_never_deploys(self):
+        result = self.invoke('--local', DF_FAIL_STAGE='build-nothing')
+        self.assertNotEqual(result.returncode, 0)
+        self.unchanged()
+
+    def test_local_rejects_remote_options(self):
+        for args in [('--check',), ('--branch', 'main'), ('--version', 'v1'), ('--select',)]:
+            result = self.invoke('--local', *args)
+            self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls(), [])
+
     def test_update_builds_before_publication_and_preserves_settings(self):
         revision = self.remote_change()
         untracked = self.root / 'personal.txt'; untracked.write_text('private')
@@ -440,6 +481,35 @@ if name in ['build-backend', 'build-nothing']:""")
             self.assertIn('Release tag  v1',text); self.assertNotIn('Release tag  v9',text); self.assertIn('Update cancelled',text)
             self.unchanged(); self.assertFalse((self.state/'update.log').exists())
             self.assertFalse(list((self.base/'cache/desktop-foundation/update').glob('picker-*')))
+        finally:
+            os.close(primary)
+            if secondary>=0: os.close(secondary)
+
+    def test_terminal_zero_rebuilds_local_files_without_version_picker(self):
+        import pty, select, time
+        shutil.rmtree(self.remote)
+        primary, secondary = pty.openpty()
+        try:
+            child=subprocess.Popen([str(BINARY),'--root',str(self.root),'update','--select'],
+                                   env=self.env,stdin=secondary,stdout=secondary,stderr=secondary)
+            os.close(secondary); secondary=-1
+            os.write(primary,b'0\n')
+            output=b''; deadline=time.monotonic()+20
+            while time.monotonic()<deadline:
+                if select.select([primary],[],[],.1)[0]:
+                    try: data=os.read(primary,65536)
+                    except OSError: break
+                    if not data: break
+                    output+=data
+                if child.poll() is not None: break
+            if child.poll() is None:
+                child.kill(); child.wait(); self.fail('terminal picker timed out: '+output.decode(errors='replace'))
+            self.assertEqual(child.wait(),0,output.decode(errors='replace'))
+            text=output.decode(errors='replace')
+            self.assertIn('0  Rebuild from local files', text)
+            self.assertNotIn('2 / 2  Version', text)
+            self.assertEqual(self.git('rev-parse', 'HEAD').strip(), self.before)
+            self.assertIn('deploy', [call['name'] for call in self.calls()])
         finally:
             os.close(primary)
             if secondary>=0: os.close(secondary)

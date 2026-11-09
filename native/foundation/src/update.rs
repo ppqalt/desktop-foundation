@@ -444,6 +444,7 @@ struct Options {
     version: Option<String>,
     branch: Option<String>,
     select: bool,
+    local: bool,
 }
 impl Options {
     fn parse(args: &[String]) -> Result<Self> {
@@ -453,10 +454,13 @@ impl Options {
             version: None,
             branch: None,
             select: false,
+            local: false,
         };
         let mut iter = args.iter();
         while let Some(arg) = iter.next() {
-            if arg == "--select" && !options.select {
+            if arg == "--local" && !options.local {
+                options.local = true;
+            } else if arg == "--select" && !options.select {
                 options.select = true;
             } else if arg == "--dry-run" && !options.dry {
                 options.dry = true;
@@ -484,9 +488,19 @@ impl Options {
                 options.version = Some(value.to_owned());
             } else {
                 return Err(invalid(
-                    "Usage: df-update [--dry-run|--check] [--branch NAME] [--version TAG] [--select]",
+                    "Usage: df-update [--dry-run|--check] [--branch NAME] [--version TAG] [--select|--local]",
                 ));
             }
+        }
+        if options.local
+            && (options.check
+                || options.branch.is_some()
+                || options.version.is_some()
+                || options.select)
+        {
+            return Err(invalid(
+                "Use --local alone or with --dry-run; it cannot select GitHub source",
+            ));
         }
         if options.dry && options.check {
             return Err(invalid(
@@ -605,7 +619,7 @@ fn fetch_release(root: &Path, source: &str, version: &str, log: &File) -> Result
 pub fn run(root: &Path, args: &[String]) -> Result<()> {
     if matches!(args, [arg] if arg == "--help" || arg == "-h") {
         println!(
-            "Usage: df-update [--dry-run|--check] [--branch NAME] [--version TAG] [--select]\n  --dry-run  Show the local plan without network access or changes\n  --check    Check GitHub without fetching, building or deploying\n  --branch   Select the GitHub source branch (scripted default: main)\n  --select   Terminal branch then release picker\n  default    Open the picker in a terminal; otherwise update from main"
+            "Usage: df-update [--dry-run|--check] [--branch NAME] [--version TAG] [--select|--local]\n  --dry-run  Show the local plan without network access or changes\n  --check    Check GitHub without fetching, building or deploying\n  --branch   Select the GitHub source branch (scripted default: main)\n  --local    Rebuild this checkout and edits without fetching GitHub source\n  --select   Terminal branch then release picker\n  default    Open the picker in a terminal; otherwise update from main"
         );
         return Ok(());
     }
@@ -621,37 +635,58 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let selected = installation(&root, &home)?;
     let before = checkout_revision(&root)?;
     let branch = current_branch(&root)?;
-    let source = upstream_source(&root)?;
+    let source = if options.local {
+        String::new()
+    } else {
+        upstream_source(&root)?
+    };
     if options.select
         || (args.is_empty() && std::io::stdin().is_terminal() && std::io::stdout().is_terminal())
     {
-        let Some((selected_branch, version)) = picker::choose(&root, &source)? else {
+        let Some(choice) = picker::choose(&root, &source)? else {
             println!("Update cancelled; desktop unchanged.");
             return Ok(());
         };
-        options.branch = Some(selected_branch);
-        options.version = version;
+        match choice {
+            picker::Choice::Local => options.local = true,
+            picker::Choice::Remote(selected_branch, version) => {
+                options.branch = Some(selected_branch);
+                options.version = version;
+            }
+        }
     }
     if options.check {
         return check_remote(&root, &source, &options, &before);
     }
     if options.dry {
         println!(
-            "Fetch, rebuild and redeploy {} profile {}; preserve settings.",
-            selected.compositor, selected.profile
+            "{}, rebuild and redeploy {} profile {}; preserve settings.",
+            if options.local {
+                "Use local files"
+            } else {
+                "Fetch"
+            },
+            selected.compositor,
+            selected.profile
         );
         println!(
             "Checkout: {} on {branch}; branch, local commits and edits are preserved.",
             &before[..12]
         );
-        println!(
-            "Source: {OFFICIAL} ({}); use --check for current GitHub metadata.",
-            if source == "origin" {
-                "origin"
-            } else {
-                "direct GitHub fallback; no origin configured"
-            }
-        );
+        if options.local {
+            println!(
+                "Source: local checkout including edits; no GitHub fetch. Cargo may download missing dependencies."
+            );
+        } else {
+            println!(
+                "Source: {OFFICIAL} ({}); use --check for current GitHub metadata.",
+                if source == "origin" {
+                    "origin"
+                } else {
+                    "direct GitHub fallback; no origin configured"
+                }
+            );
+        }
         if let Some(upstream_branch) = &options.branch {
             println!("GitHub branch: {upstream_branch}");
         }
@@ -668,10 +703,20 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         .append(true)
         .custom_flags(libc::O_NOFOLLOW)
         .open(&log_path)?;
-    println!("Fetching Desktop Foundation…");
+    println!(
+        "{}",
+        if options.local {
+            "Rebuilding local Desktop Foundation…"
+        } else {
+            "Fetching Desktop Foundation…"
+        }
+    );
     let mut phase = "fetch";
     let result = (|| {
-        let upstream = if let Some(version) = &options.version {
+        let upstream = if options.local {
+            writeln!(&log, "Source: local checkout, no upstream fetch")?;
+            before.clone()
+        } else if let Some(version) = &options.version {
             let target = fetch_release(&root, &source, version, &log)?;
             if let Some(selected_branch) = &options.branch {
                 let reference = format!("refs/remotes/origin/{selected_branch}");
@@ -889,7 +934,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             &log,
             "Owning branch: {branch}; upstream: {upstream}; previous source retained at {recovery_ref}"
         )?;
-        let journal = json!({"previousRevision":previous, "revision":candidate, "branch":branch, "upstreamRevision":upstream, "upstreamBranch":options.branch.as_deref().unwrap_or("main"), "source":OFFICIAL, "recoveryRef":recovery_ref, "compositor":selected.compositor, "profile":selected.profile,"localChangesRef":backup});
+        let journal = json!({"previousRevision":previous, "revision":candidate, "branch":branch, "upstreamRevision":upstream, "upstreamBranch":if options.local { None } else { Some(options.branch.as_deref().unwrap_or("main")) }, "source":if options.local { "local" } else { OFFICIAL }, "recoveryRef":recovery_ref, "compositor":selected.compositor, "profile":selected.profile,"localChangesRef":backup});
         state::atomic(
             &home.join("update.json"),
             &serde_json::to_vec_pretty(&journal)?,

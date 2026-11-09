@@ -3,12 +3,20 @@
 ```sh
 df-update --dry-run  # local plan, no network or changes
 df-update --check    # read-only live GitHub check
+df-update --local --dry-run # preview rebuilding local files
+df-update --local    # rebuild local checkout and edits, no GitHub fetch
 df-update            # terminal picker: branch, then version
 df-update --branch main  # scripted latest-source update, no picker
 ```
 
 In a terminal, plain `df-update` presents a compact two-stage numbered menu with
-pagination and cancellation. First choose the branch; then choose its latest
+pagination and cancellation. Choose **0 — Rebuild from local files** to build
+the owning checkout, including staged, unstaged and untracked source files,
+without fetching or merging GitHub source. It uses the same isolated builds,
+preflight validation, backup and deployment safeguards. Cargo can still download
+missing dependencies. `--local` bypasses the picker and `--local --dry-run`
+previews this operation. Local mode cannot be combined with branch, version or
+GitHub-check options. Otherwise, first choose the branch; then choose its latest
 source or a tag reachable in that branch's history. A final summary asks before
 building/deploying. The menu uses terminal colors (`NO_COLOR` disables them),
 normal line input and no raw terminal mode. `--select` explicitly opens it.

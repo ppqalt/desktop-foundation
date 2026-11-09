@@ -10,7 +10,7 @@ if [[ ! -x $binary ]]; then
 	for arg in "$@"; do
 		case "$arg" in
 		--help | -h)
-			printf '%s\n' 'Usage: df-update [--dry-run|--check] [--branch NAME] [--version TAG] [--select]' \
+			printf '%s\n' 'Usage: df-update [--dry-run|--check] [--branch NAME] [--version TAG] [--select|--local]' \
 				'Run df-update to build the missing updater, then choose a branch and version in the terminal.'
 			exit 0
 			;;
