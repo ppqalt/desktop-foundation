@@ -19,6 +19,7 @@ QtObject {
     property var keyboardLayouts: ({})
     property var pending: []
     property var currentRequest: null
+    property int requestEpoch: 0
     property bool outputRefreshPending: false
     property int retryDelay: 1000
     // Strict single-window policy. Niri's built-in option counts columns.
@@ -133,14 +134,19 @@ QtObject {
         // qmllint disable signal-handler-parameters
         onError: {
             root.lastError = "Niri event socket failed";
-            connected = false;
-            retry.start();
+            // Socket emits error before its own cleanup. Disconnecting inside
+            // that signal can invalidate Quickshell's QLocalSocket mid-handler.
+            Qt.callLater(root.recoverStream);
         }
         // qmllint enable signal-handler-parameters
         parser: SplitParser {
             splitMarker: "\n"
             onRead: data => root.consume(data)
         }
+    }
+    function recoverStream(): void {
+        stream.connected = false;
+        retry.start();
     }
     // Only disconnection triggers retry; no periodic state refresh.
     property var retry: Timer {
@@ -164,8 +170,11 @@ QtObject {
         // qmllint disable signal-handler-parameters
         // Installed metadata omits QLocalSocket::LocalSocketError.
         onError: {
-            if (root.currentRequest)
-                root.finishRequest("Niri request socket failed");
+            const failedEpoch = root.requestEpoch;
+            Qt.callLater(() => {
+                if (root.currentRequest && root.requestEpoch === failedEpoch)
+                    root.finishRequest("Niri request socket failed");
+            });
         }
         // qmllint enable signal-handler-parameters
         parser: SplitParser {
@@ -227,6 +236,7 @@ QtObject {
     function nextRequest(): void {
         if (currentRequest || !pending.length || !stream.connected)
             return;
+        requestEpoch++;
         currentRequest = pending[0];
         pending = pending.slice(1);
         requestDeadline.restart();

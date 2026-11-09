@@ -23,6 +23,7 @@ class NiriAdapter(unittest.TestCase):
             if stall_outputs[0]:stall_outputs[0]=False;stop.wait(5)
             else:send(conn,{'Ok':{'Outputs':{'fixture-output':{'name':'fixture-output','make':'fixture','model':'output','logical':{'x':0,'y':0,'width':1920,'height':1080,'scale':1}}}}})
            elif value=={'Action':{'FocusWindow':{'id':777}}}:stop.wait(5)
+           elif value=={'Action':{'FocusWindow':{'id':888}}}:pass  # Peer closes without a reply.
            else:send(conn,{'Ok':'Handled'})
           except (OSError,ValueError):pass
           finally:
@@ -60,7 +61,8 @@ class NiriAdapter(unittest.TestCase):
            s=state()
            if s and predicate(s):return s
            time.sleep(.05)
-          raise RuntimeError('Timed out: '+str(state()))
+          log.flush()
+          raise RuntimeError('Timed out: '+str(state())+'; process='+str(proc.poll())+'; log='+ (P/'adapter.log').read_text())
          try:
           wait(lambda s:s['ready'] and s['focused']['id']=='1' and s['timeouts']==1);c=streams[-1]
           time.sleep(.2)
@@ -86,6 +88,9 @@ class NiriAdapter(unittest.TestCase):
           before=shots();ipc('focus','777');ipc('screenshot')
           wait(lambda s:s['ready'] and s['timeouts']==2 and shots()==before+1)
           assert seen.count({'Action':{'FocusWindow':{'id':777}}})==1, 'Unknown-outcome actions must never be retried'
+          ipc('focus','888');wait(lambda s:s['ready'] and 'request socket failed' in s['error'])
+          before=shots();ipc('screenshot');wait(lambda s:s['ready'] and shots()==before+1)
+          assert seen.count({'Action':{'FocusWindow':{'id':888}}})==1, 'Peer-closed actions must not be replayed'
           c.shutdown(socket.SHUT_RDWR);c.close();wait(lambda s:not s['ready'] and not s['windows']);generation[0]=2;wait(lambda s:s['ready'] and s['focused']['id']=='2');assert len(streams)>=2
           print('PASS: event snapshots, centering, unknown/null/cross-resource events, action routing, stalled-output recovery, stalled-action queue recovery without replay and disconnect/reconnect')
          finally:
