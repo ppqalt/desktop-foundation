@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Production editor with a real, private encoded source; no screen or audio capture.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+base=$(mktemp -d /tmp/foundation-editor.XXXXXX)
+trap 'rm -r -- "$base"' EXIT
+for leaf in config user state runtime shell; do mkdir -m 700 "$base/$leaf"; done
+mkdir -p "$base/state/desktop-foundation/replay-editor/0123456789abcdef00000001"
+chmod 700 "$base/state/desktop-foundation/replay-editor/0123456789abcdef00000001"
+for module in components theme; do ln -s "$root/shell/$module" "$base/shell/$module"; done
+cp "$root/tests/qml/replay-editor.qml" "$base/shell/shell.qml"
+ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i 'testsrc2=size=640x360:rate=60:duration=8' \
+	-f lavfi -i 'sine=frequency=440:duration=8' -f lavfi -i 'sine=frequency=880:duration=8' \
+	-map 0:v -map 1:a -map 2:a -c:v libx264 -preset ultrafast -threads 1 -c:a libopus \
+	"$base/state/desktop-foundation/replay-editor/0123456789abcdef00000001/source.mkv"
+chmod 600 "$base/state/desktop-foundation/replay-editor/0123456789abcdef00000001/source.mkv"
+if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u DBUS_SESSION_BUS_ADDRESS \
+	HOME="$base" XDG_STATE_HOME="$base/state" XDG_CONFIG_HOME="$base/user" XDG_RUNTIME_DIR="$base/runtime" \
+	DF_FOUNDATION_ROOT="$root" DF_EDITOR_BINARY="${DF_EDITOR_BINARY:-$root/native/foundation/target/release/desktop-foundationctl}" \
+	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software timeout 35s quickshell --path "$base/shell" >"$base/log" 2>&1; then
+	cat "$base/log" >&2
+	exit 1
+fi
+if ! rg -q EDITOR_QML_OK "$base/log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|TypeError|ReferenceError|EDITOR_CAPTURE_FAILED' "$base/log"; then
+	cat "$base/log" >&2
+	exit 1
+fi
+printf '%s\n' 'PASS real replay thumbnails, range input, scrub requests and source selection'

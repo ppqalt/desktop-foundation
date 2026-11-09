@@ -34,7 +34,7 @@ PanelWindow {
     property int pendingInput: -1
     property bool applicationsExpanded: false
     property var pendingApplications: ({})
-    readonly property bool busy: deviceRequest.running || audioAction.running || replayRequest.running || wallpapers.busy
+    readonly property bool busy: deviceRequest.running || audioAction.running || replayRequest.running || replayEditor.busy || wallpapers.busy
     readonly property var audio: stateData.audio ?? ({})
     readonly property var network: stateData.network ?? ({})
     readonly property bool wifiAvailable: (network.devices ?? []).some(d => d.kind === "wifi")
@@ -42,6 +42,9 @@ PanelWindow {
     readonly property var inputs: audio.inputs ?? []
     readonly property var output: outputs.find(d => d.name === audio.output) ?? ({})
     readonly property var input: inputs.find(d => d.name === audio.input) ?? ({})
+    readonly property var outputMute: outputLevel.muteButton
+    readonly property var outputVolume: outputLevel.slider
+    readonly property var inputVolume: inputLevel.slider
     readonly property string backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl"
     signal dismissed(string nextSurface)
     screen: targetScreen
@@ -362,7 +365,8 @@ PanelWindow {
                         text: ({
                                 overview: "",
                                 audio: "Audio",
-                                network: "Network"
+                                network: "Network",
+                                replay: "Save Replay"
                             })[root.page]
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
@@ -470,44 +474,21 @@ PanelWindow {
                                     displayText: currentIndex < 0 ? "No audio output" : currentText
                                     onActivated: index => root.enqueue(["select", "output", root.outputs[index].name])
                                 }
-                                RowLayout {
+                                ControlVolumeRow {
+                                    id: outputLevel
                                     Layout.fillWidth: true
-                                    ControlAction {
-                                        id: outputMute
-                                        objectName: "outputMute"
-                                        text: root.output.muted ? "Unmute" : "Mute"
-                                        symbol: root.output.muted ? "volume_off" : "volume_up"
-                                        compact: true
-                                        toggle: true
-                                        marked: root.output.muted ?? false
-                                        enabled: root.outputs.length > 0
-                                        Layout.preferredWidth: 48
-                                        iconOnly: true
-                                        Accessible.name: "Volume mute"
-                                        onClicked: root.enqueue(["mute", "output", root.output.muted ? "off" : "on"])
-                                    }
-                                    ControlVolume {
-                                        id: outputVolume
-                                        objectName: "outputVolume"
-                                        Layout.fillWidth: true
-                                        enabled: root.outputs.length > 0
-                                        value: root.pendingOutput >= 0 ? root.pendingOutput : root.output.volume ?? 0
-                                        Accessible.name: "Output volume"
-                                        onMoved: {
-                                            root.pendingOutput = Math.round(value);
-                                            root.enqueue(["volume", "output", String(root.pendingOutput)]);
-                                        }
-                                    }
-                                    Text {
-                                        Layout.preferredWidth: 48
-                                        horizontalAlignment: Text.AlignRight
-                                        text: Math.round(outputVolume.value) + "%"
-                                        color: Material.colors.on_surface
-                                        font.family: Theme.typography.family
-                                        font.pixelSize: Material.type.bodyMedium
-                                        font.features: {
-                                            "tnum": 1
-                                        }
+                                    showMute: true
+                                    muteName: "outputMute"
+                                    sliderName: "outputVolume"
+                                    accessibleLabel: "Output"
+                                    muteAccessibleLabel: "Volume"
+                                    enabled: root.outputs.length > 0
+                                    muted: root.output.muted ?? false
+                                    volume: root.pendingOutput >= 0 ? root.pendingOutput : root.output.volume ?? 0
+                                    onMuteRequested: root.enqueue(["mute", "output", root.output.muted ? "off" : "on"])
+                                    onVolumeRequested: value => {
+                                        root.pendingOutput = Math.round(value);
+                                        root.enqueue(["volume", "output", String(root.pendingOutput)]);
                                     }
                                 }
                             }
@@ -537,42 +518,21 @@ PanelWindow {
                                     Accessible.name: "Microphone device"
                                     onActivated: index => root.enqueue(["select", "input", root.inputs[index].name])
                                 }
-                                RowLayout {
+                                ControlVolumeRow {
+                                    id: inputLevel
                                     Layout.fillWidth: true
-                                    ControlAction {
-                                        text: root.input.muted ? "Unmute" : "Mute"
-                                        symbol: root.input.muted ? "mic_off" : "mic"
-                                        compact: true
-                                        toggle: true
-                                        marked: root.input.muted ?? false
-                                        enabled: root.inputs.length > 0
-                                        Layout.preferredWidth: 48
-                                        iconOnly: true
-                                        Accessible.name: "Microphone mute"
-                                        onClicked: root.enqueue(["mute", "input", root.input.muted ? "off" : "on"])
-                                    }
-                                    ControlVolume {
-                                        id: inputVolume
-                                        objectName: "inputVolume"
-                                        Layout.fillWidth: true
-                                        enabled: root.inputs.length > 0
-                                        value: root.pendingInput >= 0 ? root.pendingInput : root.input.volume ?? 0
-                                        Accessible.name: "Microphone volume"
-                                        onMoved: {
-                                            root.pendingInput = Math.round(value);
-                                            root.enqueue(["volume", "input", String(root.pendingInput)]);
-                                        }
-                                    }
-                                    Text {
-                                        Layout.preferredWidth: 48
-                                        horizontalAlignment: Text.AlignRight
-                                        text: Math.round(inputVolume.value) + "%"
-                                        color: Material.colors.on_surface
-                                        font.family: Theme.typography.family
-                                        font.pixelSize: Material.type.bodyMedium
-                                        font.features: {
-                                            "tnum": 1
-                                        }
+                                    showMute: true
+                                    sliderName: "inputVolume"
+                                    accessibleLabel: "Microphone"
+                                    muteSymbol: "mic"
+                                    mutedSymbol: "mic_off"
+                                    enabled: root.inputs.length > 0
+                                    muted: root.input.muted ?? false
+                                    volume: root.pendingInput >= 0 ? root.pendingInput : root.input.volume ?? 0
+                                    onMuteRequested: root.enqueue(["mute", "input", root.input.muted ? "off" : "on"])
+                                    onVolumeRequested: value => {
+                                        root.pendingInput = Math.round(value);
+                                        root.enqueue(["volume", "input", String(root.pendingInput)]);
                                     }
                                 }
                             }
@@ -595,39 +555,18 @@ PanelWindow {
                             }
                             Repeater {
                                 model: root.applicationsExpanded ? root.audio.applications ?? [] : []
-                                delegate: RowLayout {
+                                delegate: ControlVolumeRow {
                                     required property var modelData
                                     Layout.fillWidth: true
-                                    Text {
-                                        Layout.preferredWidth: 160
-                                        Layout.maximumWidth: 200
-                                        Layout.fillWidth: true
-                                        text: parent.modelData.label || parent.modelData.name
-                                        elide: Text.ElideRight
-                                        color: Material.colors.on_surface
-                                        font.family: Theme.typography.family
-                                        font.pixelSize: Material.type.bodyMedium
-                                    }
-                                    ControlVolume {
-                                        objectName: "applicationVolume-" + parent.modelData.serial
-                                        Layout.fillWidth: true
-                                        Accessible.name: parent.modelData.name + " volume"
-                                        value: root.pendingApplications[parent.modelData.serial] ?? parent.modelData.volume
-                                        onMoved: {
-                                            const stream = parent.modelData;
-                                            const values = Object.assign({}, root.pendingApplications);
-                                            values[stream.serial] = Math.round(value);
-                                            root.pendingApplications = values;
-                                            root.enqueue(["stream-volume", String(stream.id), stream.serial, String(values[stream.serial])]);
-                                        }
-                                    }
-                                    Text {
-                                        Layout.preferredWidth: 45
-                                        horizontalAlignment: Text.AlignRight
-                                        text: (root.pendingApplications[parent.modelData.serial] ?? parent.modelData.volume) + "%"
-                                        color: Material.colors.on_surface_variant
-                                        font.family: Theme.typography.family
-                                        font.pixelSize: Material.type.bodyMedium
+                                    label: modelData.label || modelData.name
+                                    accessibleLabel: modelData.name
+                                    sliderName: "applicationVolume-" + modelData.serial
+                                    volume: root.pendingApplications[modelData.serial] ?? modelData.volume
+                                    onVolumeRequested: value => {
+                                        const values = Object.assign({}, root.pendingApplications);
+                                        values[modelData.serial] = Math.round(value);
+                                        root.pendingApplications = values;
+                                        root.enqueue(["stream-volume", String(modelData.id), modelData.serial, String(values[modelData.serial])]);
                                     }
                                 }
                             }
@@ -640,7 +579,17 @@ PanelWindow {
                             recording: root.recording
                             pending: replayRequest.running
                             onSetEnabled: enabled => root.requestReplay(enabled ? "replay-on" : "replay-off")
-                            onSaveRequested: root.requestReplay("replay-save")
+                            onSaveRequested: {
+                                root.navigate("replay", replayControl);
+                                replayEditor.open();
+                            }
+                        }
+                        ReplayEditor {
+                            id: replayEditor
+                            Layout.fillWidth: true
+                            visible: root.page === "replay"
+                            backend: root.backend
+                            onSettled: root.finishClose()
                         }
                         CachyUpdateRow {
                             visible: root.page === "overview"

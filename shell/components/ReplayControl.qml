@@ -69,10 +69,11 @@ ColumnLayout {
         ControlAction {
             objectName: "saveReplay"
             text: "Save"
+            Accessible.name: "Open replay editor"
             compact: true
             Layout.preferredWidth: 82
             Layout.maximumWidth: 82
-            enabled: root.replayEnabled && ["starting", "buffering", "ready"].includes(root.replayState.replay_status) && root.replayState.save_status !== "saving" && !root.pending
+            enabled: root.replayEnabled && ["buffering", "ready"].includes(root.replayState.replay_status) && root.replayState.save_status !== "saving" && !root.pending
             onClicked: root.saveRequested()
         }
         ControlSwitch {

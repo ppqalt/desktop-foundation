@@ -10,16 +10,72 @@ Recorder handles capture, encoding and instant replay in one process.
 - **Ctrl+Shift+F11:** save the buffered replay. If replay is off, this starts the
   buffer and saves whatever is available after the first frames arrive.
 
-Replay keeps a 135-second rolling buffer in RAM, including separate desktop and
-microphone tracks. A saved clip can be slightly longer because it starts at an
-earlier video keyframe. A 16 Mbps video limit and 512 kbps per audio track make the nominal encoded
-buffer about 287 MB at full length, plus recorder overhead. Early saves contain
-only the available history. Replay is opt-in and does not start at login. During
-replay, the normal recording shortcut uses the same capture process. Desktop-only
-recording pauses and clears replay, then restarts it after the recording stops;
-this ensures the desktop-only recording never captures microphone audio. The buffer
-must refill afterward. The replay-save and replay-toggle shortcuts are configurable
-through `replay_shortcut` and `replay_toggle_shortcut`.
+Replay defaults to a continuous **five-minute (300-second) RAM buffer** with
+separate desktop and microphone tracks. With the recording extra installed,
+`desktop-foundation-replay-start.service` requests replay from the same socket
+owner at session startup. Set `replay_auto_start = false` in the user recording
+TOML to disable automatic startup; the existing toggle still stops or starts it
+for the current session. Existing explicit duration overrides remain effective.
+The portal may require screen-sharing approval before capture can start.
+
+A 16 Mbps video limit plus two 512 kbps audio tracks is approximately 638 MB of
+encoded five-minute history, plus encoder/recorder overhead. Actual RAM use is
+higher and depends on the GPU and source: the reference-host run measured about
+1.03 GiB for the recorder with a full buffer. See the
+[validation report](research/replay-editor-validation.md). Early saves contain only available
+history; the first video keyframe may precede the nominal buffer boundary.
+During replay, ordinary recording uses the same capture process. Desktop-only
+recording pauses and clears replay, then restores buffering after it stops.
+There is never a second continuous recorder for the editor or thumbnails.
+
+## Save Replay editor
+
+The Control Center's **Save** action opens a compact editor. It first asks the
+existing recorder for a snapshot using `save-replay` with `restart-replay=false`.
+The snapshot is pinned into a private session before being exposed to the editor.
+The RAM buffer and any simultaneous ordinary recording continue unchanged.
+**Ctrl+Shift+F11 remains a one-key save of the full available buffer.** Neither
+save path clears the rolling buffer.
+
+The timeline shows real frames extracted from that immutable snapshot. Drag the
+range handles or edit Start/End as `minutes:seconds.milliseconds`; the separate
+scrubber requests an actual frame preview. The selected duration is displayed.
+The range selects **which footage to export**, never how long the rolling buffer
+is. The editor initially selects up to the last 47 seconds.
+
+Thumbnail and scrub jobs run asynchronously outside QML, one job per snapshot.
+Ten small timeline frames are generated with bounded single-thread FFmpeg jobs.
+Scrub requests coalesce while dragging and cache at most 128 larger preview
+images. There is no thumbnail daemon or additional capture pipeline.
+
+Saving the whole snapshot copies its MKV packets without re-encoding. Arbitrary
+precise cuts use NVENC rather than silently snapping the start to an earlier
+keyframe. Each Opus track is independently trimmed and encoded, with its original
+channel count; bitrate is capped to libopus's supported per-channel limit.
+The output retains native dimensions. Export validates MKV, video/audio packets,
+two Opus tracks, duration, dimensions and track start-time alignment before
+publishing a collision-resistant `Clip-LOCAL_TIMESTAMP.mkv`. A failed encode or
+validation leaves an error and retains the source and any partial output.
+See [FFmpeg accurate seeking](https://www.ffmpeg.org/ffmpeg.html): exact arbitrary
+stream-copy boundaries cannot be assumed.
+
+Snapshots survive shell restarts under
+`$XDG_STATE_HOME/desktop-foundation/replay-editor/`. **Retained replays** resumes
+one; **Discard** removes only that private snapshot, never an exported recording.
+At most three snapshots and 2 GiB per snapshot are accepted. Incomplete sessions
+can be discarded from the retained list. A failed or interrupted job never
+reports a successful export. Saved and partial files are never overwritten.
+
+Finite diagnostic commands use the same backend:
+
+```sh
+scripts/record editor list
+scripts/record editor open
+scripts/record editor resume SESSION_ID
+scripts/record editor preview SESSION_ID 253.250
+scripts/record editor save SESSION_ID 253.000 300.000
+scripts/record editor discard SESSION_ID
+```
 
 The clock appears automatically during capture. Its red indicator starts only
 after GPU Screen Recorder reports its first captured frame. It remains visible
@@ -105,8 +161,26 @@ If capture format changes while replay is active, replay stops safely; any activ
 normal recording is finalized first. Restart replay to capture the new mode. A
 recorder crash leaves partial files in its private staging directory for recovery.
 The Quickshell clock watches the atomically published runtime JSON without a polling
-timer. No service is enabled to record at login.
+timer. Automatic replay startup uses the same recorder owner and respects `replay_auto_start`.
 
 Source references: [GPU Screen Recorder](https://git.dec05eba.com/gpu-screen-recorder/about/),
 [upstream packaged CLI manual](https://man.archlinux.org/man/extra/gpu-screen-recorder/gpu-screen-recorder.1.en),
 [Niri screencasting](https://github.com/niri-wm/niri/blob/main/docs/wiki/Screencasting.md).
+
+
+## Verification
+
+`cargo test --test recording` checks lifecycle, early saves, desktop-only
+interruptions, non-clearing editor snapshots, continued ordinary recording and
+clean shutdown using an inert recorder. `cargo test --test replay_editor` uses
+real encoded media for thumbnail images, scrubbing, full-copy integrity,
+validation, collision resistance and invalid-input protection. Run
+`DF_TEST_NVENC=1 cargo test --test replay_editor` on the NVIDIA reference host to
+require the exact-cut test, including video frame count, stereo/mono channel
+preservation and independently timed audio markers. The NVENC test is explicitly
+hardware-dependent; portable tests do not claim it ran.
+
+`tests/test-replay-editor` loads the production editor and real thumbnails in an
+offscreen Quickshell host, including range edits and keyboard scrubbing. It
+requires a built backend, FFmpeg and Quickshell. These finite tests do not by
+themselves prove a live five-minute capture or physical audio routing.

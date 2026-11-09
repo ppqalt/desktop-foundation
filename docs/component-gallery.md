@@ -9,7 +9,8 @@ shell. The launcher script remains in the owning checkout.
 
 The gallery previews shared action variants, switches, slider, choice, search,
 status messages, launcher and clipboard rows, device and network examples, a
-shared popup, the four-column wallpaper grid and the replay row. Wallpaper
+shared popup, the four-column wallpaper grid, the replay row, unified volume
+rows, range selection, precise time fields and a sample clip timeline. Wallpaper
 inventory, previews and selection use a sample-only helper: choosing a tile does
 not change the desktop. A section selector provides quick navigation.
 Preview zoom and right-to-left layout are local to the gallery; zoom scales the

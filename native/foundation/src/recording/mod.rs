@@ -1,4 +1,5 @@
 //! On-demand recording, discovered hardware, and an event-driven clock contract.
+mod editor;
 mod runtime;
 use crate::{Result, apps, invalid, process, state};
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,7 @@ pub struct Config {
     replay_shortcut: String,
     replay_toggle_shortcut: String,
     replay_seconds: u32,
+    replay_auto_start: bool,
     replay_bitrate_kbps: u32,
     capture: String,
     resolution: String,
@@ -48,7 +50,8 @@ impl Default for Config {
             silent_shortcut: "Ctrl+Shift+Alt+F12".into(),
             replay_shortcut: "Ctrl+Shift+F11".into(),
             replay_toggle_shortcut: "Ctrl+Shift+Alt+F11".into(),
-            replay_seconds: 135,
+            replay_seconds: 300,
+            replay_auto_start: true,
             replay_bitrate_kbps: 16000,
             capture: "portal".into(),
             resolution: "auto".into(),
@@ -396,6 +399,16 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         ["replay-save"] => runtime::replay_request(true),
         ["replay-toggle"] => runtime::replay_request(false),
         ["serve"] => runtime::serve(root),
+        ["autostart"] => {
+            if settings(root)?.0.replay_auto_start && apps::executable("gpu-screen-recorder") {
+                runtime::replay_set(true)?;
+            }
+            Ok(())
+        }
+        ["editor", rest @ ..] => editor::run(
+            root,
+            &rest.iter().map(|s| (*s).to_string()).collect::<Vec<_>>(),
+        ),
         ["cleanup"] => runtime::cleanup(),
         ["acknowledge"] => runtime::acknowledge(),
         ["plan"] => {
@@ -416,7 +429,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             Ok(())
         }
         _ => Err(invalid(
-            "Expected recording toggle|silent|stop|replay-on|replay-off|replay-save|replay-toggle|plan [--silent]|status",
+            "Expected recording toggle|silent|stop|replay-on|replay-off|replay-save|replay-toggle|editor ...|autostart|plan [--silent]|status",
         )),
     }
 }

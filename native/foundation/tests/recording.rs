@@ -398,6 +398,7 @@ while True:
   data=b''
   while b'\n' not in data: data+=c.recv(4096)
   req=json.loads(data); action=req['name']; answer={'id':1,'result':'ok'}
+  with open(root+'/ipc-requests','a') as log: log.write(json.dumps(req)+'\n')
   if action in ('save-replay','stop-replay-recording'):
    counter+=1;name=('Replay_' if action=='save-replay' else 'Video_')+str(counter)+'.mkv'
    file=os.path.join(out,name);open(file,'wb').write(b'fixture media');answer['data']=file
@@ -437,7 +438,7 @@ fn replay_and_regular_recording_share_one_owned_process() {
     f.launch_owner();
     f.wait_phase("replay");
     let arguments = fs::read_to_string(f.root.join("arguments")).unwrap();
-    assert!(arguments.contains("-r\n135\n"));
+    assert!(arguments.contains("-r\n300\n"));
     assert!(arguments.contains("-bm\ncbr\n"));
     assert_eq!(arguments.lines().filter(|s| *s == "-a").count(), 2);
     fs::remove_file(f.root.join("block-finalization")).unwrap();
@@ -771,4 +772,93 @@ fn status_rejects_invalid_settings_instead_of_inventing_a_buffer_duration() {
     cmd.arg("--root").arg(&f.root).args(["recording", "status"]);
     f.configure(&mut cmd);
     assert!(!cmd.status().unwrap().success());
+}
+
+#[test]
+fn editor_snapshot_pins_footage_without_interrupting_or_restarting_capture() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.client("replay-on");
+    f.launch_owner();
+    f.wait_phase("replay");
+    f.client("toggle");
+    f.wait_phase("replay-recording");
+    let pid = fs::read_to_string(f.root.join("replay-pid")).unwrap();
+    let id = "0123456789abcdef00000001";
+    let session = f
+        .root
+        .join("state/desktop-foundation/replay-editor")
+        .join(id);
+    fs::create_dir_all(&session).unwrap();
+    fs::set_permissions(&session, fs::Permissions::from_mode(0o700)).unwrap();
+    f.socket
+        .send_to(
+            format!("edit:{id}").as_bytes(),
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    let until = Instant::now() + Duration::from_secs(5);
+    while !session.join("capture.json").exists() && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(session.join("source.mkv").is_file());
+    assert_eq!(
+        fs::read(session.join("source.mkv")).unwrap(),
+        b"fixture media"
+    );
+    assert_eq!(f.state()["phase"], "replay-recording");
+    assert_eq!(fs::read_to_string(f.root.join("replay-pid")).unwrap(), pid);
+    let requests = fs::read_to_string(f.root.join("ipc-requests")).unwrap();
+    assert!(
+        requests
+            .lines()
+            .map(|l| serde_json::from_str::<Value>(l).unwrap())
+            .any(|r| r["name"] == "save-replay" && r["data"]["restart-replay"] == false)
+    );
+    f.client("toggle");
+    f.wait_phase("replay");
+    f.client("replay-save");
+    wait_files(&f.root.join("videos"), 2);
+    assert_eq!(fs::read_to_string(f.root.join("replay-pid")).unwrap(), pid);
+    assert!(session.join("source.mkv").exists());
+    f.client("replay-off");
+    assert!(f.wait_exit());
+}
+#[test]
+fn automatic_replay_can_be_explicitly_disabled_without_starting_capture() {
+    let f = Fixture::new(false);
+    let path = f.root.join("config/recording.toml");
+    let config = fs::read_to_string(&path).unwrap();
+    fs::write(&path, format!("{config}replay_auto_start = false\n")).unwrap();
+    f.client("autostart");
+    assert!(!f.root.join("arguments").exists());
+}
+
+#[test]
+fn a_discarded_editor_session_does_not_stop_the_recorder() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    f.client("replay-on");
+    f.launch_owner();
+    f.wait_phase("replay");
+    let pid = fs::read_to_string(f.root.join("replay-pid")).unwrap();
+    f.socket
+        .send_to(
+            b"edit:0123456789abcdef00000001",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    let until = Instant::now() + Duration::from_secs(3);
+    while !f.root.join("ipc-requests").exists() && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(f.root.join("ipc-requests").exists());
+    assert!(f.owner.as_mut().unwrap().try_wait().unwrap().is_none());
+    assert_eq!(f.state()["phase"], "replay");
+    assert_eq!(fs::read_to_string(f.root.join("replay-pid")).unwrap(), pid);
+    f.client("replay-off");
+    assert!(f.wait_exit());
 }

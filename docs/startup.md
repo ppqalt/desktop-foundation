@@ -60,3 +60,11 @@ scripts/doctor --startup --benchmark
 This command opens and closes the launcher, clipboard, Bluetooth and power
 surfaces. See [performance](performance.md) for process measurements and QML
 profiling, and [recovery](recovery.md) for service recovery.
+
+
+When GPU Screen Recorder is installed, the session target also runs the finite
+`desktop-foundation-replay-start.service` request. Recording TOML controls this
+through `replay_auto_start` (default true). It starts the existing replay owner
+with a five-minute buffer; it does not create a second recorder. Disable it in
+`~/.config/desktop-foundation/recording.toml` with `replay_auto_start = false`.
+Portal screen-sharing approval may still be required.

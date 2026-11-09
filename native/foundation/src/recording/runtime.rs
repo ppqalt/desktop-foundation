@@ -138,6 +138,18 @@ pub fn replay_set(enabled: bool) -> Result<()> {
     }
     result
 }
+pub(super) fn editor_request(id: &str) -> Result<()> {
+    if !editor::valid_id(id) {
+        return Err(invalid("Invalid editor request"));
+    }
+    replay_request_inner(format!("edit:{id}").as_bytes())
+}
+fn editor_id(request: &[u8]) -> Option<&str> {
+    std::str::from_utf8(request)
+        .ok()?
+        .strip_prefix("edit:")
+        .filter(|id| editor::valid_id(id))
+}
 fn replay_request_inner(action: &[u8]) -> Result<()> {
     if !apps::executable("gpu-screen-recorder") {
         return Err(invalid("Install gpu-screen-recorder to enable replay"));
@@ -378,7 +390,8 @@ fn queued(socket: &UnixDatagram) -> Result<Option<Vec<u8>>> {
                 b"replay-on".as_slice(),
                 b"replay-off".as_slice(),
             ]
-            .contains(&&buf[..n]) =>
+            .contains(&&buf[..n])
+                || editor_id(&buf[..n]).is_some() =>
         {
             Ok(Some(buf[..n].to_vec()))
         }
@@ -399,6 +412,13 @@ fn capture_replay_request(
     resume: &mut bool,
     state: &mut Value,
 ) -> Result<bool> {
+    if let Some(id) = editor_id(request) {
+        let _ = editor::fail(
+            id,
+            "Replay editing is unavailable during ordinary or desktop-only capture",
+        );
+        return Ok(true);
+    }
     if paused
         && [
             b"replay-toggle".as_slice(),
@@ -528,6 +548,10 @@ pub fn serve(root: &Path) -> Result<()> {
         publish(&json!({"phase":"idle"}))?;
         return Ok(());
     }
+    if let Some(id) = editor_id(&initial) {
+        editor::fail(id, "Replay stopped before the snapshot could be captured")?;
+        return Ok(());
+    }
     let silent = initial == b"silent";
     let dir = directory()?;
     let _owner = state::lock(&dir.join("owner.lock"), Duration::from_millis(100))?;
@@ -562,7 +586,7 @@ pub fn serve(root: &Path) -> Result<()> {
     }
     result
 }
-fn readable_name(kind: &str) -> Result<String> {
+pub(super) fn readable_name(kind: &str) -> Result<String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| invalid("Invalid system clock"))?;

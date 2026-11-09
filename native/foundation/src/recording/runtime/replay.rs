@@ -10,10 +10,13 @@ use std::{
 };
 
 fn ipc(path: &Path, name: &str, timeout: Duration) -> Result<Value> {
+    ipc_data(path, name, Value::Null, timeout)
+}
+fn ipc_data(path: &Path, name: &str, data: Value, timeout: Duration) -> Result<Value> {
     let mut socket = UnixStream::connect(path)?;
     socket.set_read_timeout(Some(timeout))?;
     socket.set_write_timeout(Some(timeout))?;
-    writeln!(socket, "{}", json!({"id": 1, "name": name}))?;
+    writeln!(socket, "{}", json!({"id": 1, "name": name, "data": data}))?;
     let mut response = String::new();
     BufReader::new(socket)
         .take(65537)
@@ -94,7 +97,14 @@ fn save_replay(
         .remove("save_error");
     publish(state)?;
     let result = no_retained_output(staging, "Replay_")
-        .and_then(|()| ipc(ipc_path, "save-replay", timeout))
+        .and_then(|()| {
+            ipc_data(
+                ipc_path,
+                "save-replay",
+                json!({"restart-replay":false}),
+                timeout,
+            )
+        })
         .and_then(|v| publish_saved(&v, staging, output, "Replay"));
     match result {
         Ok(path) => {
@@ -113,6 +123,33 @@ fn save_replay(
     Ok(())
 }
 
+fn snapshot(id: &str, ipc_path: &Path, staging: &Path, timeout: Duration) -> Result<()> {
+    let result = (|| {
+        no_retained_output(staging, "Replay_")?;
+        let value = ipc_data(
+            ipc_path,
+            "save-replay",
+            json!({"restart-replay":false}),
+            timeout,
+        )?;
+        let source = PathBuf::from(
+            value
+                .as_str()
+                .ok_or_else(|| invalid("Missing replay snapshot"))?,
+        );
+        if source.parent() != Some(staging) || source.extension().is_none_or(|e| e != "mkv") {
+            return Err(invalid("Snapshot is outside the recorder session"));
+        }
+        editor::pin(id, &source)
+    })();
+    if let Err(error) = result {
+        eprintln!("Replay snapshot failed: {error}");
+        // An editor can disappear or be discarded while a snapshot is being
+        // written. Its failure must never terminate the continuous recorder.
+        let _ = editor::fail(id, &error.to_string());
+    }
+    Ok(())
+}
 pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Result<bool> {
     capabilities()?;
     let help = process::run(
@@ -182,6 +219,8 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
         c.replay_seconds.to_string(),
         "-replay-storage".into(),
         "ram".into(),
+        "-restart-replay-on-save".into(),
+        "no".into(),
         "-ro".into(),
         staging.to_string_lossy().into_owned(),
         "-ipc".into(),
@@ -363,6 +402,22 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
             break;
         }
         if let Some(request) = request {
+            if let Some(id) = editor_id(&request) {
+                if ready {
+                    snapshot(
+                        id,
+                        &ipc_path,
+                        &staging,
+                        Duration::from_secs(c.stop_timeout_seconds),
+                    )?;
+                } else {
+                    let _ = editor::fail(
+                        id,
+                        "Replay is starting; try again after the first captured frames",
+                    );
+                }
+                continue;
+            }
             match request.as_slice() {
                 b"replay-save" if !ready => {
                     pending_save = true;

@@ -18,6 +18,11 @@ ShellRoot {
         color: Material.colors.surface
         property string sliderEvent: "No changes yet"
         property int activationCount: 0
+        property real sampleVolume: 65
+        property bool sampleMuted: false
+        property real sampleStart: 253
+        property real sampleEnd: 300
+        property real samplePlayhead: 253
         property bool mirroredPreview: false
         property real previewZoom: 1.0
         property var previewPalettes: JSON.parse(paletteData.text())
@@ -41,7 +46,7 @@ ShellRoot {
         property QtObject exampleRecording: QtObject {
             id: recordingExample
             property bool prepared: true
-            property int bufferSeconds: 135
+            property int bufferSeconds: 300
             property var state: ({
                     phase: "idle",
                     replay: false,
@@ -298,10 +303,15 @@ ShellRoot {
                         placeholderText: "Search example"
                         Accessible.name: "Search example"
                     }
-                    ControlVolume {
+                    ControlVolumeRow {
                         Layout.fillWidth: true
-                        value: 65
-                        Accessible.name: "Example application volume"
+                        label: "Example application"
+                        accessibleLabel: "Example application"
+                        showMute: true
+                        volume: window.sampleVolume
+                        muted: window.sampleMuted
+                        onVolumeRequested: value => window.sampleVolume = value
+                        onMuteRequested: window.sampleMuted = !window.sampleMuted
                     }
                     WidgetStatus {
                         status: "error"
@@ -369,12 +379,54 @@ ShellRoot {
                                 replay_status: "off"
                             };
                         }
-                        onSaveRequested: recordingExample.state = {
-                            phase: "replay",
-                            replay: true,
-                            replay_status: "buffering",
-                            save_status: "saving"
+                        onSaveRequested: window.samplePlayhead = window.sampleStart
+                    }
+                    Text {
+                        text: "Clip selection · sample frames · fixed 5:00 buffer"
+                        color: Material.colors.on_surface_variant
+                        font.family: Theme.typography.family
+                        font.pixelSize: Material.type.bodyMedium
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                    ReplayTimeline {
+                        Layout.fillWidth: true
+                        duration: 300
+                        startTime: window.sampleStart
+                        endTime: window.sampleEnd
+                        playhead: window.samplePlayhead
+                        thumbnails: Array.from({
+                            length: 10
+                        }, (_, i) => ({
+                                    url: "file://" + Quickshell.env("DF_FOUNDATION_ROOT") + "/wallpapers/wallhaven-135w7w.png",
+                                    seconds: i * 30
+                                }))
+                        onSelectionRequested: (start, end) => {
+                            window.sampleStart = Math.min(start, end - 0.05);
+                            window.sampleEnd = end;
                         }
+                        onScrubRequested: seconds => window.samplePlayhead = seconds
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ControlTimeField {
+                            Layout.fillWidth: true
+                            label: "Clip start"
+                            seconds: window.sampleStart
+                            onRequested: seconds => window.sampleStart = Math.max(0, Math.min(seconds, window.sampleEnd - 0.05))
+                        }
+                        ControlTimeField {
+                            Layout.fillWidth: true
+                            label: "Clip end"
+                            seconds: window.sampleEnd
+                            onRequested: seconds => window.sampleEnd = Math.min(300, Math.max(seconds, window.sampleStart + 0.05))
+                        }
+                    }
+                    Text {
+                        text: (window.sampleEnd - window.sampleStart).toFixed(3) + " seconds selected"
+                        color: Material.colors.on_surface
+                        font.family: Theme.typography.family
+                        font.pixelSize: Material.type.bodyMedium
                     }
                     WallpaperGrid {
                         Layout.fillWidth: true

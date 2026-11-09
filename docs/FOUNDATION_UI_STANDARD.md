@@ -281,6 +281,11 @@ primitive when multiple callers need the same change.
 | `ControlChoice` | Keyboard dropdown: `model/textRole/currentIndex`, `activated`; private `menuIndex` until committed |
 | `FoundationSlider` | Shared slider rendering and directional input; `previewRequested(value)` on movement, `commitRequested(value)` once on drag release or per keyboard step; external value updates emit neither. Caller supplies accessible name and owns backend callbacks |
 | `ControlVolume` | Audio-specific slider extension with a default accessible name; backend callbacks own actual volume |
+| `ControlVolumeRow` | Canonical device/application volume layout; optional label and mute, shared slider/value width, `volumeRequested`/`muteRequested`; caller owns confirmed state |
+| `FoundationRangeSlider` | Native two-handle range input with shared slider roles and geometry; preview and commit signals never change recording configuration |
+| `ControlTimeField` | Accessible minutes/seconds/milliseconds editor with input validation; owner clamps source bounds |
+| `ReplayTimeline` | Thumbnail strip, visual selected range, range handles and scrubber for an immutable media snapshot; selection never changes buffer length |
+| `ReplayEditor` | Finite protected-snapshot, preview and export requests; source retained on failure; reports saved only after backend validation |
 | `FoundationScrollbar` | Compact shared scrollbar presentation; view owns scrolling and visibility |
 | `ControlGroup` | Common group surface and layout |
 | `ApplicationRow` | Shared menu/device setting row, explicit selected/pending/confirmed/setting states, activation signal |
