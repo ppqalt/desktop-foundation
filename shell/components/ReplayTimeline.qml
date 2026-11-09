@@ -16,6 +16,24 @@ ColumnLayout {
     signal scrubRequested(real seconds)
     spacing: 0
     Item {
+        id: footage
+        objectName: "replayFootage"
+        activeFocusOnTab: root.duration > 0
+        Accessible.role: Accessible.Slider
+        Accessible.name: "Scrub replay preview"
+        Accessible.description: "Click or drag the thumbnails to preview footage. Left and Right move one frame."
+        Keys.onPressed: event => {
+            if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+                return;
+            const direction = Material.direction(event.key);
+            if (!direction)
+                return;
+            if (direction[0])
+                root.scrubRequested(Math.max(0, Math.min(root.duration, root.playhead + direction[0] * root.frameStep)));
+            else
+                Material.moveFocus(footage, direction[0], direction[1]);
+            event.accepted = true;
+        }
         Layout.fillWidth: true
         implicitHeight: 68
         clip: true
@@ -68,10 +86,17 @@ ColumnLayout {
             height: parent.height
             color: Material.colors.on_surface
         }
+        FocusIndicator {
+            anchors.fill: parent
+            visible: footage.activeFocus
+        }
         MouseArea {
             anchors.fill: parent
             enabled: root.duration > 0
-            onPressed: mouse => root.scrubRequested(Math.max(0, Math.min(root.duration, mouse.x / width * root.duration)))
+            onPressed: mouse => {
+                footage.forceActiveFocus(Qt.MouseFocusReason);
+                root.scrubRequested(Math.max(0, Math.min(root.duration, mouse.x / width * root.duration)));
+            }
             onPositionChanged: mouse => {
                 if (pressed)
                     root.scrubRequested(Math.max(0, Math.min(root.duration, mouse.x / width * root.duration)));
@@ -96,16 +121,5 @@ ColumnLayout {
             first.value = Qt.binding(() => root.startTime);
             second.value = Qt.binding(() => root.endTime);
         }
-    }
-    FoundationSlider {
-        objectName: "replayPlayhead"
-        Layout.fillWidth: true
-        Accessible.name: "Scrub replay"
-        enabled: root.duration > 0
-        from: 0
-        to: Math.max(0.05, root.duration)
-        stepSize: root.frameStep
-        value: root.playhead
-        onPreviewRequested: seconds => root.scrubRequested(seconds)
     }
 }

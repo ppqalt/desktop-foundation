@@ -43,6 +43,11 @@ scrubber requests an actual frame preview. The selected duration is displayed.
 The range selects **which footage to export**, never how long the rolling buffer
 is. The editor initially selects up to the last 47 seconds.
 
+The editor has one trim range control, shared with the component gallery.
+Click or drag the thumbnail strip to scrub the preview without changing the
+selected clip. Tab to the strip and use Left/Right for frame steps; the two
+trim handles retain the shared slider keyboard and focus behavior.
+
 Thumbnail and scrub jobs run asynchronously outside QML, one job per snapshot.
 Ten small timeline frames are generated with bounded single-thread FFmpeg jobs.
 Scrub requests coalesce while dragging and cache at most 128 larger preview

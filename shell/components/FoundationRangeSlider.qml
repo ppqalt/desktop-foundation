@@ -63,29 +63,55 @@ RangeSlider {
     second.onMoved: root.requestPreview()
     first.onPressedChanged: root.released()
     second.onPressedChanged: root.released()
-    background: Rectangle {
+    readonly property real firstCenter: leftPadding + 2 + first.visualPosition * (availableWidth - 4)
+    readonly property real secondCenter: leftPadding + 2 + second.visualPosition * (availableWidth - 4)
+    readonly property color activeColor: enabled ? Material.colors.primary : Material.colors.on_surface
+    background: Item {
         x: root.leftPadding
         y: (root.height - height) / 2
         width: root.availableWidth
         height: Material.control.sliderTrackHeight
-        radius: Material.shape.small
-        color: Material.colors.secondary_container
         opacity: root.enabled ? 1 : Material.state.disabledContainer
+        readonly property real low: Math.min(root.firstCenter, root.secondCenter) - root.leftPadding
+        readonly property real high: Math.max(root.firstCenter, root.secondCenter) - root.leftPadding
         Rectangle {
-            x: Math.min(root.first.visualPosition, root.second.visualPosition) * parent.width
-            width: Math.max(0, Math.abs(root.second.visualPosition - root.first.visualPosition) * parent.width)
+            width: Math.max(0, parent.low - 8)
             height: parent.height
-            radius: parent.radius
-            color: Material.colors.primary
+            radius: 8
+            color: Material.colors.secondary_container
+        }
+        Rectangle {
+            x: parent.low + 8
+            width: Math.max(0, parent.high - 8 - x)
+            height: parent.height
+            radius: 8
+            color: root.activeColor
+        }
+        Rectangle {
+            x: parent.high + 8
+            width: Math.max(0, parent.width - x)
+            height: parent.height
+            radius: 8
+            color: Material.colors.secondary_container
+            Rectangle {
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                width: 4
+                height: 4
+                radius: 2
+                visible: parent.width > 12
+                color: Material.colors.on_secondary_container
+            }
         }
     }
     first.handle: Rectangle {
-        x: root.leftPadding + root.first.visualPosition * (root.availableWidth - width)
+        x: root.firstCenter - width / 2
         y: (root.height - height) / 2
-        width: 4
+        width: root.first.pressed ? 2 : 4
         height: Material.control.sliderHandleHeight
         radius: 2
-        color: Material.colors.primary
+        color: root.activeColor
         opacity: root.enabled ? 1 : Material.state.disabledContent
         Keys.onPressed: event => root.handleKey(event, root.first, root.first.handle)
         Accessible.name: root.startLabel
@@ -96,12 +122,12 @@ RangeSlider {
         }
     }
     second.handle: Rectangle {
-        x: root.leftPadding + root.second.visualPosition * (root.availableWidth - width)
+        x: root.secondCenter - width / 2
         y: (root.height - height) / 2
-        width: 4
+        width: root.second.pressed ? 2 : 4
         height: Material.control.sliderHandleHeight
         radius: 2
-        color: Material.colors.primary
+        color: root.activeColor
         opacity: root.enabled ? 1 : Material.state.disabledContent
         Keys.onPressed: event => root.handleKey(event, root.second, root.second.handle)
         Accessible.name: root.endLabel
