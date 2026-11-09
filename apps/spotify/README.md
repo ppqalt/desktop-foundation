@@ -43,3 +43,8 @@ These application commands are separate from desktop configuration rollback.
 References: [Spotify for Linux](https://www.spotify.com/download/linux/),
 [Spicetify setup](https://spicetify.app/docs/getting-started),
 [Marketplace installation](https://github.com/spicetify/marketplace/wiki/Installation).
+
+Pinned Arch runtime libraries have explicit official Arch Linux Archive fallback
+URLs. Setup tries an archive only when the rolling mirror returns 404/410 and
+requires the same pinned SHA-256 before publishing the cached file. It does not
+substitute newer libraries or fall back after a checksum/authentication failure.

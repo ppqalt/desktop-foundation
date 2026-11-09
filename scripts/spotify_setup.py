@@ -14,6 +14,7 @@ import subprocess
 import tarfile
 import tempfile
 import urllib.request
+import urllib.error
 import zipfile
 
 from deploy import fingerprint, owned
@@ -31,9 +32,24 @@ def download(source):
     path = CACHE / source['url'].rsplit('/', 1)[-1]
     if not path.exists():
         temporary = path.with_suffix(path.suffix + '.part')
-        with urllib.request.urlopen(source['url'], timeout=60) as remote, temporary.open('wb') as local:
-            shutil.copyfileobj(remote, local)
-        temporary.replace(path)
+        urls = [source['url'], *source.get('fallback_urls', [])]
+        try:
+            for index, url in enumerate(urls):
+                try:
+                    with urllib.request.urlopen(url, timeout=60) as remote, temporary.open('wb') as local:
+                        shutil.copyfileobj(remote, local)
+                except urllib.error.HTTPError as error:
+                    if error.code in (404, 410) and index + 1 < len(urls):
+                        print(f'Pinned runtime download unavailable; trying verified archive: {path.name}')
+                        error.close()
+                        continue
+                    raise
+                if hashlib.sha256(temporary.read_bytes()).hexdigest() != source['sha256']:
+                    raise RuntimeError(f'Download checksum mismatch: {path.name}')
+                temporary.replace(path)
+                break
+        finally:
+            temporary.unlink(missing_ok=True)
     if hashlib.sha256(path.read_bytes()).hexdigest() != source['sha256']:
         raise RuntimeError(f'Download checksum mismatch: {path.name}')
     return path

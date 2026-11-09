@@ -18,27 +18,42 @@
     {
       "name": "libayatana-appindicator",
       "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/libayatana-appindicator-0.6.0-2-x86_64.pkg.tar.zst",
-      "sha256": "6fa93768d009176a8cf084f89c541967bdbc3b3af97c76290435b423436932f1"
+      "sha256": "6fa93768d009176a8cf084f89c541967bdbc3b3af97c76290435b423436932f1",
+      "fallback_urls": [
+        "https://archive.archlinux.org/packages/l/libayatana-appindicator/libayatana-appindicator-0.6.0-2-x86_64.pkg.tar.zst"
+      ]
     },
     {
       "name": "libayatana-indicator",
       "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/libayatana-indicator-0.9.5-1-x86_64.pkg.tar.zst",
-      "sha256": "33de4365b572e3ac03a9058019834110c7521bda2241b8e4574d34a7d20c2d8f"
+      "sha256": "33de4365b572e3ac03a9058019834110c7521bda2241b8e4574d34a7d20c2d8f",
+      "fallback_urls": [
+        "https://archive.archlinux.org/packages/l/libayatana-indicator/libayatana-indicator-0.9.5-1-x86_64.pkg.tar.zst"
+      ]
     },
     {
       "name": "ayatana-ido",
       "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/ayatana-ido-0.10.4-1-x86_64.pkg.tar.zst",
-      "sha256": "394bf0a6c90cfaaa8e1ea5b4545637a1c70765b8a0036f69224242206832b6c7"
+      "sha256": "394bf0a6c90cfaaa8e1ea5b4545637a1c70765b8a0036f69224242206832b6c7",
+      "fallback_urls": [
+        "https://archive.archlinux.org/packages/a/ayatana-ido/ayatana-ido-0.10.4-1-x86_64.pkg.tar.zst"
+      ]
     },
     {
       "name": "libdbusmenu-glib",
       "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/libdbusmenu-glib-18.10.20180917-2-x86_64.pkg.tar.zst",
-      "sha256": "cd95a3dd2ab7de4a1f0295bcdbe4db1ae7b35771e195faf2696bc94659c6bd60"
+      "sha256": "cd95a3dd2ab7de4a1f0295bcdbe4db1ae7b35771e195faf2696bc94659c6bd60",
+      "fallback_urls": [
+        "https://archive.archlinux.org/packages/l/libdbusmenu-glib/libdbusmenu-glib-18.10.20180917-2-x86_64.pkg.tar.zst"
+      ]
     },
     {
       "name": "libdbusmenu-gtk3",
       "url": "https://archlinux.cachyos.org/repo/extra/os/x86_64/libdbusmenu-gtk3-18.10.20180917-2-x86_64.pkg.tar.zst",
-      "sha256": "4b5ce5d42a2357ddc6924259df2579f4f231813fdf6fe42f00059bfe75d8b10d"
+      "sha256": "4b5ce5d42a2357ddc6924259df2579f4f231813fdf6fe42f00059bfe75d8b10d",
+      "fallback_urls": [
+        "https://archive.archlinux.org/packages/l/libdbusmenu-gtk3/libdbusmenu-gtk3-18.10.20180917-2-x86_64.pkg.tar.zst"
+      ]
     }
   ],
   "marketplace_color": {
