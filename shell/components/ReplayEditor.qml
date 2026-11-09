@@ -18,23 +18,27 @@ ColumnLayout {
     property string savedPath: ""
     property string operation: ""
     property var retained: []
+    property bool captureAfterList: false
     readonly property bool busy: job.running || save.running
     signal settled
     spacing: 12
     function command(args): var {
         return [backend, "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "recording", "editor", ...args];
     }
-    function run(args): void {
+    function run(args, preserveError): void {
         if (busy)
             return;
         operation = args[0];
-        error = "";
+        if (!preserveError)
+            error = "";
         job.command = command(args);
         job.running = true;
     }
     function open(): void {
-        if (!session && !busy)
-            run(captureAvailable ? ["open"] : ["list"]);
+        if (!session && !busy) {
+            captureAfterList = captureAvailable;
+            run(["list"]);
+        }
     }
     function select(start: real, end: real): void {
         if (!session)
@@ -58,10 +62,17 @@ ColumnLayout {
     ControlRequest {
         id: job
         onFinished: code => {
-            if (code !== 0)
+            if (code !== 0) {
                 root.error = failure || "Replay could not be opened.";
-            else if (root.operation === "list") {
+                if (root.operation === "open")
+                    Qt.callLater(() => root.run(["list"], true));
+                root.captureAfterList = false;
+            } else if (root.operation === "list") {
                 root.retained = response.sessions ?? [];
+                const capture = root.captureAfterList && root.captureAvailable && root.retained.length === 0;
+                root.captureAfterList = false;
+                if (capture)
+                    Qt.callLater(() => root.run(["open"]));
             } else if (root.operation === "discard") {
                 root.session = null;
                 root.previewUrl = "";
@@ -69,6 +80,13 @@ ColumnLayout {
                 Qt.callLater(() => root.run(["list"]));
             } else {
                 root.session = response;
+                if (!root.retained.some(draft => draft.id === response.id))
+                    root.retained = [...root.retained,
+                        {
+                            id: response.id,
+                            ready: true
+                        }
+                    ];
                 root.error = response.export_error || "";
                 root.startTime = Math.max(0, response.duration - 47);
                 root.endTime = response.duration;
@@ -114,7 +132,7 @@ ColumnLayout {
     }
     Text {
         Layout.fillWidth: true
-        text: root.session ? "Protected footage · " + Math.floor(root.session.duration / 60) + ":" + String(Math.floor(root.session.duration) % 60).padStart(2, "0") + " available" : "Select footage from the last five minutes"
+        text: root.session ? "Replay draft · " + Math.floor(root.session.duration / 60) + ":" + String(Math.floor(root.session.duration) % 60).padStart(2, "0") + " available" : "Select footage from the last five minutes"
         color: Material.colors.on_surface_variant
         font.family: Theme.typography.family
         font.pixelSize: Material.type.bodyMedium
@@ -124,53 +142,66 @@ ColumnLayout {
         Layout.fillWidth: true
         spacing: 4
         ControlAction {
-            text: "New replay"
+            objectName: "captureReplay"
+            text: "Capture replay"
             compact: true
-            enabled: root.captureAvailable && !root.busy
+            enabled: root.captureAvailable && !root.busy && root.retained.length < 3
             onClicked: root.run(["open"])
         }
         ControlAction {
-            text: "Discard"
+            objectName: "discardCurrentReplay"
+            text: "Remove draft"
             compact: true
-            enabled: !root.busy && !preview.running
+            enabled: !!root.session && !root.busy && !preview.running
             onClicked: root.run(["discard", root.session.id])
         }
         ControlAction {
-            text: "Retained replays"
-            implicitWidth: 160
+            objectName: "browseReplayDrafts"
+            text: "Replay drafts"
             compact: true
-            enabled: !!root.session && !root.busy && !preview.running
+            enabled: !root.busy && !preview.running
             onClicked: {
                 root.session = null;
                 root.previewUrl = "";
+                root.savedPath = "";
                 root.run(["list"]);
             }
         }
     }
+    Text {
+        Layout.fillWidth: true
+        visible: !root.session && root.retained.length > 0
+        text: root.retained.length + " of 3 replay drafts stored. Open one or remove a draft to free space. Saved clips are kept."
+        wrapMode: Text.WordWrap
+        color: Material.colors.on_surface_variant
+        font.family: Theme.typography.family
+        font.pixelSize: Material.type.bodyMedium
+    }
     ControlChoice {
         id: retainedChoice
+        objectName: "replayDraftChoice"
         Layout.fillWidth: true
         visible: root.retained.length > 0 && !root.session
         model: root.retained.map((s, i) => ({
-                    name: "Retained replay " + (i + 1) + (s.ready ? "" : " · incomplete"),
+                    name: "Replay draft " + (i + 1) + (s.ready ? "" : " · incomplete"),
                     id: s.id
                 }))
         textRole: "name"
-        Accessible.name: "Retained replays"
+        Accessible.name: "Replay drafts"
         enabled: !root.busy
         onActivated: index => root.run(["resume", root.retained[index].id])
     }
     ControlAction {
         Layout.fillWidth: true
         visible: root.retained.length > 0 && !root.session
-        text: "Open retained replay"
+        text: "Open draft"
         enabled: !root.busy
         onClicked: root.run(["resume", root.retained[Math.max(0, retainedChoice.currentIndex)].id])
     }
     ControlAction {
         Layout.fillWidth: true
         visible: root.retained.length > 0 && !root.session
-        text: "Discard retained replay"
+        text: "Remove selected draft"
         enabled: !root.busy
         onClicked: root.run(["discard", root.retained[Math.max(0, retainedChoice.currentIndex)].id])
     }

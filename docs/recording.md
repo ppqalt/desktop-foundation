@@ -65,9 +65,12 @@ See [FFmpeg accurate seeking](https://www.ffmpeg.org/ffmpeg.html): exact arbitra
 stream-copy boundaries cannot be assumed.
 
 Snapshots survive shell restarts under
-`$XDG_STATE_HOME/desktop-foundation/replay-editor/`. **Retained replays** resumes
-one even if capture is now Off or has failed; **Discard** removes only that private
+`$XDG_STATE_HOME/desktop-foundation/replay-editor/`. **Replay drafts** resumes
+one even if capture is now Off or has failed; **Remove draft** removes only that private
 snapshot, never an exported recording.
+The editor checks for existing drafts before capturing new footage. At capacity,
+it shows the draft picker and removal controls instead of an unusable capture
+error. Failed captures also refresh that recovery list without hiding the error.
 At most three snapshots and 2 GiB per snapshot are accepted. Incomplete sessions
 can be discarded from the retained list. A failed or interrupted job never
 reports a successful export. Saved and partial files are never overwritten.

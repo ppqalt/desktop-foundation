@@ -14,6 +14,9 @@ ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i 'testsrc2=size=640x360:
 	-map 0:v -map 1:a -map 2:a -c:v libx264 -preset ultrafast -threads 1 -c:a libopus \
 	"$base/state/desktop-foundation/replay-editor/0123456789abcdef00000001/source.mkv"
 chmod 600 "$base/state/desktop-foundation/replay-editor/0123456789abcdef00000001/source.mkv"
+# Two interrupted drafts exercise the full-capacity recovery path without capture.
+mkdir -m 700 "$base/state/desktop-foundation/replay-editor/0123456789abcdef00000002" \
+	"$base/state/desktop-foundation/replay-editor/0123456789abcdef00000003"
 if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u DBUS_SESSION_BUS_ADDRESS \
 	HOME="$base" XDG_STATE_HOME="$base/state" XDG_CONFIG_HOME="$base/user" XDG_RUNTIME_DIR="$base/runtime" \
 	DF_FOUNDATION_ROOT="$root" DF_EDITOR_BINARY="${DF_EDITOR_BINARY:-$root/native/foundation/target/release/desktop-foundationctl}" \
@@ -25,4 +28,4 @@ if ! rg -q EDITOR_QML_OK "$base/log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|T
 	cat "$base/log" >&2
 	exit 1
 fi
-printf '%s\n' 'PASS real replay thumbnails, range input, scrub requests and source selection'
+printf '%s\n' 'PASS real replay thumbnails, range input, scrubbing and full-capacity draft recovery'
