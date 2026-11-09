@@ -23,6 +23,7 @@ ShellRoot {
         property real sampleStart: 253
         property real sampleEnd: 300
         property real samplePlayhead: 253
+        property bool inputsDisabled: false
         property bool mirroredPreview: false
         property real previewZoom: 1.0
         property var previewPalettes: JSON.parse(paletteData.text())
@@ -218,6 +219,7 @@ ShellRoot {
                         Layout.fillWidth: true
                         text: "Selected action"
                         detail: "Confirmed state"
+                        onClicked: marked = !marked
                         symbol: "check"
                         marked: true
                         toggle: true
@@ -235,6 +237,7 @@ ShellRoot {
                         ControlAction {
                             text: "Compact"
                             compact: true
+                            onClicked: window.activationCount++
                         }
                         ControlAction {
                             text: "Disabled"
@@ -271,8 +274,17 @@ ShellRoot {
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.titleMedium
                     }
+                    ControlAction {
+                        Layout.fillWidth: true
+                        text: "Disable input examples"
+                        compact: true
+                        toggle: true
+                        marked: window.inputsDisabled
+                        onClicked: window.inputsDisabled = !window.inputsDisabled
+                    }
                     FoundationSlider {
                         id: sampleSlider
+                        enabled: !window.inputsDisabled
                         Layout.fillWidth: true
                         value: 40
                         Accessible.name: "Example slider"
@@ -284,6 +296,23 @@ ShellRoot {
                         color: Material.colors.on_surface_variant
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.bodyMedium
+                    }
+                    FoundationRangeSlider {
+                        id: sampleRange
+                        enabled: !window.inputsDisabled
+                        Layout.fillWidth: true
+                        first.value: 20
+                        second.value: 80
+                        startLabel: "Example range start"
+                        endLabel: "Example range end"
+                        onPreviewRequested: (start, end) => window.sliderEvent = "Preview: " + Math.round(start) + "–" + Math.round(end)
+                        onCommitRequested: (start, end) => window.sliderEvent = "Committed: " + Math.round(start) + "–" + Math.round(end)
+                    }
+                    FoundationSlider {
+                        Layout.fillWidth: true
+                        value: 40
+                        enabled: false
+                        Accessible.name: "Disabled example slider"
                     }
                     ControlChoice {
                         Layout.fillWidth: true
@@ -305,6 +334,7 @@ ShellRoot {
                     }
                     ControlVolumeRow {
                         Layout.fillWidth: true
+                        enabled: !window.inputsDisabled
                         label: "Example application"
                         accessibleLabel: "Example application"
                         showMute: true
@@ -509,12 +539,15 @@ ShellRoot {
                 const darkSurface = String(Material.colors.surface);
                 sampleSwitch.clicked();
                 sampleSlider.value = 47;
+                sampleRange.first.value = 25;
+                sampleRange.first.moved();
+                const rangeCommitted = window.sliderEvent === "Committed: 25–80";
                 sampleSlider.moved();
                 exampleReplay.setEnabled(true);
                 examplePopup.open();
                 const popupOpened = examplePopup.visible;
                 examplePopup.close();
-                const good = popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
+                const good = rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
                 if (!good) {
                     console.error("GALLERY_TEST_FAILED");
                     Qt.quit();
@@ -522,6 +555,10 @@ ShellRoot {
                 }
                 const capture = Quickshell.env("DF_GALLERY_CAPTURE");
                 if (capture) {
+                    const section = Quickshell.env("DF_GALLERY_CAPTURE_SECTION");
+                    const target = section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : null;
+                    if (target)
+                        galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.y * window.previewZoom));
                     window.contentItem.grabToImage(result => {
                         if (result.saveToFile(capture))
                             console.log("GALLERY_TEST_OK");

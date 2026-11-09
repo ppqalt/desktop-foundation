@@ -143,14 +143,13 @@ ColumnLayout {
         Repeater {
             id: tiles
             model: root.entries
-            delegate: AbstractButton {
+            delegate: ControlButton {
                 id: tile
                 required property var modelData
                 required property int index
                 objectName: "wallpaper-" + index
                 width: (grid.width - grid.spacing * (root.columnCount - 1)) / root.columnCount
                 height: width * 0.6
-                activeFocusOnTab: true
                 enabled: root.active && !root.busy
                 readonly property bool selected: root.currentPath === modelData.path
                 readonly property bool nearViewport: {
@@ -165,17 +164,9 @@ ColumnLayout {
                 Accessible.checkable: true
                 Accessible.checked: selected
                 onClicked: root.choose(modelData)
-                Keys.onReturnPressed: event => {
-                    if (!event.isAutoRepeat)
-                        root.choose(modelData);
-                    event.accepted = true;
-                }
-                Keys.onEnterPressed: event => {
-                    if (!event.isAutoRepeat)
-                        root.choose(modelData);
-                    event.accepted = true;
-                }
                 Keys.onPressed: event => {
+                    if (tile.activateKey(event))
+                        return;
                     if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
                         return;
                     const direction = Material.direction(event.key);

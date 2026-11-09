@@ -1,11 +1,10 @@
 import QtQuick
-import QtQuick.Controls
 import "../theme"
 
 // Geometry/roles: Google's Material Web switch tokens (v0_192).
 // https://github.com/material-components/material-web/blob/main/tokens/versions/v0_192/_md-comp-switch.scss
 // Marked is backend readback; clicking requests a change without toggling local truth.
-AbstractButton {
+ControlButton {
     id: root
     property bool marked: false
     property bool selected: false
@@ -13,31 +12,11 @@ AbstractButton {
     signal pointerMoved(real x, real y)
     implicitWidth: Material.control.switchWidth
     implicitHeight: Material.control.target
-    activeFocusOnTab: true
     checkable: false
-    Keys.onPressed: event => {
-        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
-            return;
-        const direction = Material.direction(event.key);
-        if (direction) {
-            Material.moveFocus(root, direction[0], direction[1]);
-            event.accepted = true;
-        }
-    }
     Accessible.role: Accessible.CheckBox
     Accessible.name: text
     Accessible.checkable: true
     Accessible.checked: marked
-    Keys.onReturnPressed: event => {
-        if (!event.isAutoRepeat)
-            root.clicked();
-        event.accepted = true;
-    }
-    Keys.onEnterPressed: event => {
-        if (!event.isAutoRepeat)
-            root.clicked();
-        event.accepted = true;
-    }
     background: Item {
         Rectangle {
             id: track

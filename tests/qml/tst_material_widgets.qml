@@ -243,6 +243,7 @@ ShellRoot {
             property int activated: 0
             property int previews: 0
             property int commits: 0
+            property bool mirroredInputs: false
             ControlAction {
                 id: firstControl
                 text: "First"
@@ -258,11 +259,28 @@ ShellRoot {
             }
             ControlVolume {
                 id: slider
+                LayoutMirroring.enabled: controls.mirroredInputs
                 y: 70
                 width: 280
                 value: 30
                 onPreviewRequested: controls.previews++
                 onCommitRequested: controls.commits++
+            }
+            FoundationRangeSlider {
+                id: rangeSlider
+                LayoutMirroring.enabled: controls.mirroredInputs
+                y: 210
+                width: 280
+                first.value: 20
+                second.value: 80
+                onPreviewRequested: controls.previews++
+                onCommitRequested: controls.commits++
+            }
+            ControlSwitch {
+                id: testSwitch
+                x: 300
+                y: 70
+                onClicked: controls.activated++
             }
             ControlChoice {
                 id: choice
@@ -532,6 +550,78 @@ ShellRoot {
                 slider.value = 30;
                 controls.visible = false;
             }
+            function test_range_keyboard_contract() {
+                controls.visible = true;
+                controls.previews = 0;
+                controls.commits = 0;
+                rangeSlider.first.value = 20;
+                rangeSlider.second.value = 80;
+                compare(controls.commits, 0);
+                rangeSlider.first.handle.forceActiveFocus();
+                keyClick(Qt.Key_D);
+                compare(rangeSlider.first.value, 21);
+                compare(controls.previews, 1);
+                compare(controls.commits, 1);
+                keyClick(Qt.Key_Left);
+                compare(rangeSlider.first.value, 20);
+                rangeSlider.second.handle.forceActiveFocus();
+                keyClick(Qt.Key_A);
+                compare(rangeSlider.second.value, 79);
+                rangeSlider.minimumSpan = 59;
+                keyClick(Qt.Key_A);
+                compare(rangeSlider.second.value, 79);
+                rangeSlider.minimumSpan = 0;
+                controls.visible = false;
+            }
+            function test_slider_rtl_and_disabled_parity() {
+                controls.visible = true;
+                controls.mirroredInputs = true;
+                slider.value = 50;
+                rangeSlider.first.value = 20;
+                rangeSlider.second.value = 80;
+                slider.forceActiveFocus();
+                keyClick(Qt.Key_Right);
+                compare(slider.value, 49);
+                rangeSlider.first.handle.forceActiveFocus();
+                keyClick(Qt.Key_D);
+                compare(rangeSlider.first.value, 19);
+                const commits = controls.commits;
+                keyClick(Qt.Key_D, Qt.ControlModifier);
+                compare(controls.commits, commits);
+                slider.enabled = false;
+                rangeSlider.enabled = false;
+                mouseClick(slider, 150, slider.height / 2);
+                mouseClick(rangeSlider, 150, rangeSlider.height / 2);
+                compare(controls.commits, commits);
+                slider.enabled = true;
+                rangeSlider.enabled = true;
+                controls.mirroredInputs = false;
+                slider.value = 30;
+                controls.visible = false;
+            }
+            function test_button_switch_activation_parity() {
+                controls.visible = true;
+                controls.activated = 0;
+                for (const control of [firstControl, testSwitch]) {
+                    control.forceActiveFocus();
+                    const before = controls.activated;
+                    keyClick(Qt.Key_Return);
+                    keyClick(Qt.Key_Enter);
+                    keyPress(Qt.Key_Space);
+                    compare(controls.activated, before + 2);
+                    keyRelease(Qt.Key_Space);
+                    compare(controls.activated, before + 3);
+                    const repeated = {key: Qt.Key_Return, modifiers: Qt.NoModifier, isAutoRepeat: true, accepted: false};
+                    verify(control.activateKey(repeated));
+                    compare(controls.activated, before + 3);
+                    control.enabled = false;
+                    mouseClick(control, control.width / 2, control.height / 2);
+                    compare(controls.activated, before + 3);
+                    control.enabled = true;
+                }
+                controls.activated = 0;
+                controls.visible = false;
+            }
             function test_control_navigation() {
                 controls.visible = true;
                 firstControl.forceActiveFocus();
@@ -771,6 +861,9 @@ ShellRoot {
                 checks.test_palette_propagation();
                 checks.test_control_geometry_tokens();
                 checks.test_slider_request_semantics();
+                checks.test_range_keyboard_contract();
+                checks.test_button_switch_activation_parity();
+                checks.test_slider_rtl_and_disabled_parity();
                 checks.test_minimal_footer();
                 checks.test_setting_feedback();
                 checks.test_search_keyboard();

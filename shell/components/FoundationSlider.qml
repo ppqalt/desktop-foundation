@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "../theme"
+import "SliderInput.js" as SliderInput
 
 // M3 Expressive small slider: 24dp track, 44x4dp handle, 8dp corners,
 // 6dp handle/track gap, 48dp minimum interactive height. No value animation.
@@ -40,7 +41,7 @@ Slider {
             return;
         if (direction[0]) {
             const previous = value;
-            if (direction[0] > 0)
+            if (SliderInput.direction(event, mirrored) > 0)
                 increase();
             else
                 decrease();

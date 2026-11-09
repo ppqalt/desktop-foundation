@@ -276,13 +276,14 @@ primitive when multiple callers need the same change.
 | `SidebarMotion` | Reversible position/velocity slide; `move(open)`, `position`, `settled(open)`; reduced motion settles immediately |
 | `SurfaceRouter` | `surfaces` adapters (`item/alive/open/dismiss/present`, optional `retiring`; `open(handoff)`), `request(name, showOnly)`; last intent wins; immediate visual handoff with retained backend ownership |
 | `ExternalSurface` | External-renderer lifecycle adapter using `ControlRequest`; serializes native requests, coalesces queued toggle pairs and prioritizes close; no mirrored native state or polling |
+| `ControlButton` | Shared AbstractButton input base: native Space press/release, single Enter/Return activation, no activation auto-repeat, arrows/WASD focus navigation; grid adapters reuse `activateKey` before their spatial navigation |
 | `ControlAction` | Button/list action: `text/detail/badge/symbol`, `marked/toggle/compact/iconOnly`, `clicked`; checked state is backend-owned |
 | `ControlSwitch` | Backend-owned `marked`, `pending`, optional menu `selected`, `clicked` request and pointer movement; Material switch geometry, no optimistic checked-state mutation |
 | `ControlChoice` | Keyboard dropdown: `model/textRole/currentIndex`, `activated`; private `menuIndex` until committed |
 | `FoundationSlider` | Shared slider rendering and directional input; `previewRequested(value)` on movement, `commitRequested(value)` once on drag release or per keyboard step; external value updates emit neither. Caller supplies accessible name and owns backend callbacks |
 | `ControlVolume` | Audio-specific slider extension with a default accessible name; backend callbacks own actual volume |
 | `ControlVolumeRow` | Canonical device/application volume layout; optional label and mute, shared slider/value width, `volumeRequested`/`muteRequested`; caller owns confirmed state |
-| `FoundationRangeSlider` | Native two-handle range input with shared slider roles and geometry; preview and commit signals never change recording configuration |
+| `FoundationRangeSlider` | Native two-handle range input with shared slider roles, geometry and RTL-aware Left/Right/A/D adjustment; W/S moves focus; preview and commit signals never change recording configuration |
 | `ControlTimeField` | Accessible minutes/seconds/milliseconds editor with input validation; owner clamps source bounds |
 | `ReplayTimeline` | Thumbnail strip, visual selected range, range handles and scrubber for an immutable media snapshot; selection never changes buffer length |
 | `ReplayEditor` | Finite protected-snapshot, preview and export requests; source retained on failure; reports saved only after backend validation |

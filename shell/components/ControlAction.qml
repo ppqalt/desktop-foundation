@@ -1,8 +1,7 @@
 import QtQuick
-import QtQuick.Controls
 import "../theme"
 
-AbstractButton {
+ControlButton {
     id: root
     property string detail: ""
     property string badge: ""
@@ -15,30 +14,10 @@ AbstractButton {
     // Otherwise use M3 one/two-line list items, 56/72dp.
     implicitHeight: compact ? Material.control.target : detail ? Material.control.listTwoLine : Material.control.listOneLine
     implicitWidth: compact ? iconOnly ? Material.control.target : Material.control.compactButtonWidth : Material.control.listWidth
-    activeFocusOnTab: true
     Accessible.name: text + (detail ? ", " + detail : "") + (badge ? ", " + badge : "")
     Accessible.role: toggle ? Accessible.CheckBox : Accessible.Button
     Accessible.checkable: toggle
     Accessible.checked: toggle && marked
-    Keys.onReturnPressed: event => {
-        if (!event.isAutoRepeat)
-            root.clicked();
-        event.accepted = true;
-    }
-    Keys.onEnterPressed: event => {
-        if (!event.isAutoRepeat)
-            root.clicked();
-        event.accepted = true;
-    }
-    Keys.onPressed: event => {
-        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
-            return;
-        const direction = Material.direction(event.key);
-        if (direction) {
-            Material.moveFocus(root, direction[0], direction[1]);
-            event.accepted = true;
-        }
-    }
     readonly property color ink: !enabled ? Material.colors.on_surface : compact ? marked ? Material.colors.on_primary : toggle ? Material.colors.on_surface_variant : Material.colors.on_secondary_container : marked ? Material.colors.on_secondary_container : Material.colors.on_surface
     background: Item {
         Rectangle {
