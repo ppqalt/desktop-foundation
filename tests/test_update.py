@@ -346,6 +346,104 @@ if name in ['build-backend', 'build-nothing']:""")
         self.assertIn('new backend', binary.read_text())
         for path in self.sentinels: self.assertEqual(path.read_text(), 'user settings\n')
 
+    def publish_branch(self, name='release/candidate'):
+        self.git('branch', name)
+        self.git('push', 'origin', name)
+        upstream = self.base / 'branch-source'
+        self.git('clone', '--branch', name, str(self.remote), str(upstream), cwd=self.base)
+        self.git('config', 'user.name', 'Fixture', cwd=upstream)
+        self.git('config', 'user.email', 'fixture@example.invalid', cwd=upstream)
+        (upstream/'branch-only.txt').write_text('selected source')
+        self.git('add', '.', cwd=upstream); self.git('commit', '-m', 'selected branch update', cwd=upstream)
+        self.git('push', 'origin', name, cwd=upstream)
+        return self.git('rev-parse','HEAD',cwd=upstream).strip()
+
+    def test_selected_branch_fetches_builds_and_keeps_installed_branch(self):
+        target = self.publish_branch()
+        result = self.invoke('--branch','release/candidate')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(self.git('rev-parse','HEAD').strip(),target)
+        self.assertEqual(self.git('branch','--show-current').strip(),'main')
+        self.assertEqual((self.root/'branch-only.txt').read_text(),'selected source')
+        self.assertEqual([c['name'] for c in self.calls()][:3],['build-backend','build-nothing','preflight'])
+
+    def test_selected_branch_check_does_not_fetch(self):
+        target = self.publish_branch()
+        result = self.invoke('--check','--branch=release/candidate')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn(target[:12],result.stdout)
+        self.assertIn('refs/heads/release/candidate',result.stdout)
+        self.assertFalse((self.state/'update.log').exists())
+        self.assertEqual(self.git('rev-parse','HEAD').strip(),self.before)
+
+    def test_selected_branch_dry_run_does_not_require_network(self):
+        result = self.invoke('--dry-run','--branch','not-published-yet')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('GitHub branch: not-published-yet',result.stdout)
+        self.assertFalse(self.calls())
+
+    def test_missing_selected_branch_stops_before_build(self):
+        result = self.invoke('--branch','missing-branch')
+        self.assertNotEqual(result.returncode,0)
+        self.unchanged()
+        self.assertFalse(self.calls())
+
+    def test_invalid_or_ambiguous_branch_selection_is_nonmutating(self):
+        for args in [('--branch','../bad'),('--branch','a:b'),('--branch','--upload-pack=evil'),
+                     ('--branch',''),('--select','--branch','main'),('--branch',)]:
+            result=self.invoke(*args)
+            self.assertNotEqual(result.returncode,0,args)
+            self.assertFalse((self.state/'update.log').exists())
+        self.unchanged()
+
+    def test_release_and_branch_combination_is_validated(self):
+        target = self.publish_branch()
+        self.git('tag', 'v2', target, cwd=self.base/'branch-source')
+        self.git('push','origin','refs/tags/v2',cwd=self.base/'branch-source')
+        result = self.invoke('--branch','release/candidate','--version','v2')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(self.git('rev-parse','HEAD').strip(),target)
+
+    def test_release_from_other_branch_is_not_deployed(self):
+        target = self.publish_branch()
+        self.git('tag','v2',target,cwd=self.base/'branch-source'); self.git('push','origin','refs/tags/v2',cwd=self.base/'branch-source')
+        result=self.invoke('--branch','main','--version','v2')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('does not belong',result.stderr)
+        self.unchanged()
+
+    def test_terminal_picker_lists_branch_releases_and_cancels_safely(self):
+        import pty, select, time
+        self.git('tag','-a','v1','-m','release'); self.git('push','origin','refs/tags/v1')
+        other = self.publish_branch()
+        self.git('tag','v9',other,cwd=self.base/'branch-source')
+        self.git('push','origin','refs/tags/v9',cwd=self.base/'branch-source')
+        primary, secondary = pty.openpty()
+        try:
+            child=subprocess.Popen([str(BINARY),'--root',str(self.root),'update','--select'],
+                                   env=self.env,stdin=secondary,stdout=secondary,stderr=secondary)
+            os.close(secondary); secondary=-1
+            os.write(primary,b'1\n1\nn\n')
+            output=b''; deadline=time.monotonic()+20
+            while time.monotonic()<deadline:
+                if select.select([primary],[],[],.1)[0]:
+                    try: data=os.read(primary,65536)
+                    except OSError: break
+                    if not data: break
+                    output+=data
+                if child.poll() is not None: break
+            if child.poll() is None:
+                child.kill(); child.wait(); self.fail('terminal picker timed out: '+output.decode(errors='replace'))
+            self.assertEqual(child.wait(),0,output.decode(errors='replace'))
+            text=output.decode(errors='replace')
+            self.assertIn('1 / 2  Branch',text); self.assertIn('2 / 2  Version',text)
+            self.assertIn('Release tag  v1',text); self.assertNotIn('Release tag  v9',text); self.assertIn('Update cancelled',text)
+            self.unchanged(); self.assertFalse((self.state/'update.log').exists())
+            self.assertFalse(list((self.base/'cache/desktop-foundation/update').glob('picker-*')))
+        finally:
+            os.close(primary)
+            if secondary>=0: os.close(secondary)
+
     def test_installed_symlink_resolves_the_owning_checkout(self):
         shutil.copy(ROOT / 'scripts/df-update', self.root / 'scripts/df-update')
         binary = self.root / 'native/foundation/target/release/desktop-foundationctl'

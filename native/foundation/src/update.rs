@@ -1,11 +1,12 @@
 //! Update only Desktop Foundation, using the installation's build/deploy helpers.
+mod picker;
 use crate::{Result, invalid, process, state};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     env,
     fs::{self, File},
-    io::{Read, Write},
+    io::{IsTerminal, Read, Write},
     os::unix::{
         ffi::OsStrExt,
         fs::{OpenOptionsExt, PermissionsExt, symlink},
@@ -188,7 +189,12 @@ fn check_remote(root: &Path, source: &str, options: &Options, before: &str) -> R
         .version
         .as_deref()
         .map(release_candidates)
-        .unwrap_or_else(|| vec!["refs/heads/main".into()]);
+        .unwrap_or_else(|| {
+            vec![format!(
+                "refs/heads/{}",
+                options.branch.as_deref().unwrap_or("main")
+            )]
+        });
     let mut args = vec!["ls-remote", "--refs", source];
     args.extend(candidates.iter().map(String::as_str));
     let output = process::checked_capture(&git(root, &args), Duration::from_secs(120), 16384)?;
@@ -215,7 +221,10 @@ fn check_remote(root: &Path, source: &str, options: &Options, before: &str) -> R
                 root,
                 &["rev-list", "--count", &format!("{target}..{before}")],
             ))?;
-            println!("GitHub main is already included; {count} local commit(s) will be retained.");
+            println!(
+                "GitHub {} is already included; {count} local commit(s) will be retained.",
+                options.branch.as_deref().unwrap_or("main")
+            );
         } else {
             println!(
                 "Run df-update to fetch, combine and validate this GitHub revision with local work."
@@ -433,6 +442,8 @@ struct Options {
     dry: bool,
     check: bool,
     version: Option<String>,
+    branch: Option<String>,
+    select: bool,
 }
 impl Options {
     fn parse(args: &[String]) -> Result<Self> {
@@ -440,13 +451,27 @@ impl Options {
             dry: false,
             check: false,
             version: None,
+            branch: None,
+            select: false,
         };
         let mut iter = args.iter();
         while let Some(arg) = iter.next() {
-            if arg == "--dry-run" && !options.dry {
+            if arg == "--select" && !options.select {
+                options.select = true;
+            } else if arg == "--dry-run" && !options.dry {
                 options.dry = true;
             } else if arg == "--check" && !options.check {
                 options.check = true;
+            } else if arg == "--branch" && options.branch.is_none() {
+                options.branch = Some(
+                    iter.next()
+                        .ok_or_else(|| invalid("Missing branch name"))?
+                        .to_owned(),
+                );
+            } else if let Some(value) = arg.strip_prefix("--branch=")
+                && options.branch.is_none()
+            {
+                options.branch = Some(value.to_owned());
             } else if arg == "--version" && options.version.is_none() {
                 options.version = Some(
                     iter.next()
@@ -459,7 +484,7 @@ impl Options {
                 options.version = Some(value.to_owned());
             } else {
                 return Err(invalid(
-                    "Usage: df-update [--dry-run|--check] [--version TAG]",
+                    "Usage: df-update [--dry-run|--check] [--branch NAME] [--version TAG] [--select]",
                 ));
             }
         }
@@ -467,6 +492,36 @@ impl Options {
             return Err(invalid(
                 "Choose --dry-run for a local plan or --check for a read-only GitHub check",
             ));
+        }
+        if options.select
+            && (options.branch.is_some()
+                || options.version.is_some()
+                || options.dry
+                || options.check)
+        {
+            return Err(invalid(
+                "Use --select alone, or supply --branch/--version for a scripted update",
+            ));
+        }
+        if let Some(branch) = &options.branch
+            && (branch.is_empty()
+                || branch.len() > 200
+                || branch.starts_with('-')
+                || branch.chars().any(char::is_control)
+                || !process::run(
+                    &[
+                        "git".into(),
+                        "check-ref-format".into(),
+                        format!("refs/heads/{branch}"),
+                    ],
+                    None,
+                    SHORT,
+                    true,
+                )?
+                .status
+                .success())
+        {
+            return Err(invalid("Invalid GitHub branch name"));
         }
         if let Some(version) = &options.version {
             if version.is_empty() || version.len() > 200 || version.chars().any(char::is_control) {
@@ -550,11 +605,11 @@ fn fetch_release(root: &Path, source: &str, version: &str, log: &File) -> Result
 pub fn run(root: &Path, args: &[String]) -> Result<()> {
     if matches!(args, [arg] if arg == "--help" || arg == "-h") {
         println!(
-            "Usage: df-update [--dry-run|--check] [--version TAG]\n  --dry-run  Show the local plan without network access or changes\n  --check    Check GitHub without fetching, building or deploying\n  default    Fetch GitHub main, preserve the owning branch and local work, build and deploy"
+            "Usage: df-update [--dry-run|--check] [--branch NAME] [--version TAG] [--select]\n  --dry-run  Show the local plan without network access or changes\n  --check    Check GitHub without fetching, building or deploying\n  --branch   Select the GitHub source branch (scripted default: main)\n  --select   Terminal branch then release picker\n  default    Open the picker in a terminal; otherwise update from main"
         );
         return Ok(());
     }
-    let options = Options::parse(args)?;
+    let mut options = Options::parse(args)?;
     // SAFETY: geteuid has no pointer arguments or side effects.
     if unsafe { libc::geteuid() } == 0 {
         return Err(invalid(
@@ -567,6 +622,16 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let before = checkout_revision(&root)?;
     let branch = current_branch(&root)?;
     let source = upstream_source(&root)?;
+    if options.select
+        || (args.is_empty() && std::io::stdin().is_terminal() && std::io::stdout().is_terminal())
+    {
+        let Some((selected_branch, version)) = picker::choose(&root, &source)? else {
+            println!("Update cancelled; desktop unchanged.");
+            return Ok(());
+        };
+        options.branch = Some(selected_branch);
+        options.version = version;
+    }
     if options.check {
         return check_remote(&root, &source, &options, &before);
     }
@@ -587,6 +652,9 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                 "direct GitHub fallback; no origin configured"
             }
         );
+        if let Some(upstream_branch) = &options.branch {
+            println!("GitHub branch: {upstream_branch}");
+        }
         if let Some(version) = &options.version {
             println!("Release: {version}");
         }
@@ -605,6 +673,25 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let result = (|| {
         let upstream = if let Some(version) = &options.version {
             let target = fetch_release(&root, &source, version, &log)?;
+            if let Some(selected_branch) = &options.branch {
+                let reference = format!("refs/remotes/origin/{selected_branch}");
+                let refspec = format!("+refs/heads/{selected_branch}:{reference}");
+                step(
+                    &log,
+                    "Checking release branch history…",
+                    &git(&root, &["fetch", "--no-tags", &source, &refspec]),
+                    Duration::from_secs(180),
+                )?;
+                if !ancestor(
+                    &root,
+                    &target,
+                    &text(&git(&root, &["rev-parse", &reference]))?,
+                )? {
+                    return Err(invalid(
+                        "Selected release does not belong to the selected branch",
+                    ));
+                }
+            }
             if !ancestor(&root, &before, &target)? {
                 return Err(invalid(
                     "Selected release is older than or divergent from this checkout; safe release rollback is not yet supported",
@@ -612,21 +699,17 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             }
             target
         } else {
+            let upstream_branch = options.branch.as_deref().unwrap_or("main");
+            let reference = format!("refs/remotes/origin/{upstream_branch}");
+            let refspec = format!("+refs/heads/{upstream_branch}:{reference}");
+            writeln!(&log, "Selected GitHub branch: {upstream_branch}")?;
             step(
                 &log,
                 "Fetching Desktop Foundation…",
-                &git(
-                    &root,
-                    &[
-                        "fetch",
-                        "--no-tags",
-                        &source,
-                        "+refs/heads/main:refs/remotes/origin/main",
-                    ],
-                ),
+                &git(&root, &["fetch", "--no-tags", &source, &refspec]),
                 Duration::from_secs(180),
             )?;
-            text(&git(&root, &["rev-parse", "refs/remotes/origin/main"]))?
+            text(&git(&root, &["rev-parse", &reference]))?
         };
         let diverged =
             !ancestor(&root, &before, &upstream)? && !ancestor(&root, &upstream, &before)?;
@@ -806,7 +889,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             &log,
             "Owning branch: {branch}; upstream: {upstream}; previous source retained at {recovery_ref}"
         )?;
-        let journal = json!({"previousRevision":previous, "revision":candidate, "branch":branch, "upstreamRevision":upstream, "source":OFFICIAL, "recoveryRef":recovery_ref, "compositor":selected.compositor, "profile":selected.profile,"localChangesRef":backup});
+        let journal = json!({"previousRevision":previous, "revision":candidate, "branch":branch, "upstreamRevision":upstream, "upstreamBranch":options.branch.as_deref().unwrap_or("main"), "source":OFFICIAL, "recoveryRef":recovery_ref, "compositor":selected.compositor, "profile":selected.profile,"localChangesRef":backup});
         state::atomic(
             &home.join("update.json"),
             &serde_json::to_vec_pretty(&journal)?,

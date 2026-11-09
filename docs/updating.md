@@ -3,8 +3,45 @@
 ```sh
 df-update --dry-run  # local plan, no network or changes
 df-update --check    # read-only live GitHub check
-df-update            # fetch, build, validate and apply
+df-update            # terminal picker: branch, then version
+df-update --branch main  # scripted latest-source update, no picker
 ```
+
+In a terminal, plain `df-update` presents a compact two-stage numbered menu with
+pagination and cancellation. First choose the branch; then choose its latest
+source or a tag reachable in that branch's history. A final summary asks before
+building/deploying. The menu uses terminal colors (`NO_COLOR` disables them),
+normal line input and no raw terminal mode. `--select` explicitly opens it.
+
+Release entries are Git tags, not downloaded release binaries. Branch/tag metadata
+is inspected in a temporary private bare repository, removed on cancellation or
+ordinary completion. Cancelling never builds or deploys the desktop. The existing
+no-downgrade protection still applies to older releases.
+
+To choose a GitHub branch for one update:
+
+```sh
+df-update --check --branch release/candidate
+df-update --branch release/candidate
+```
+
+Replace `release/candidate` with an existing branch on the official repository.
+`--branch=NAME` also works, including branch names containing `/`. Without this
+option, an interactive terminal opens the picker; a noninteractive run defaults
+to `main`. The selection is not saved. `--branch NAME --version TAG` selects a
+release and verifies it belongs to that branch. A missing branch stops before
+building/deployment.
+
+The selected GitHub branch supplies upstream source; it does **not** switch the
+installed local branch. Existing local commits and edits are combined with that
+source under the normal validation rules. This is an update, not an exact clean
+switch or rollback: changes already installed from another branch remain part
+of local history. Conflicts stop safely. Do not select unfinished experimental
+branches unless you intend to include their changes.
+
+`main` is a branch of the source repository, not a different kind of download.
+A source tree is the code at a particular commit, whether selected by a branch
+or release tag. `main` usually tracks current development; a tag names a release.
 
 To select an existing release tag, use `df-update --version 0.3-3`. Version
 strings are treated as tag names, not numbers; forms such as `0.33` and
@@ -31,7 +68,7 @@ Lucky38 customization branch; it does not switch it to `main`, reset local
 commits or touch other worktrees. A detached checkout receives a specific
 instruction to create a local branch first.
 
-The command fetches `main` from the checkout's `origin`, which must be the
+The command fetches the selected branch (default `main`) from the checkout's `origin`, which must be the
 Desktop Foundation GitHub repository. If no `origin` is configured, it fetches
 directly from `https://github.com/ppqalt/desktop-foundation.git` without silently
 adding or rewriting remotes. A different existing origin is rejected. It builds both Rust backends using the
