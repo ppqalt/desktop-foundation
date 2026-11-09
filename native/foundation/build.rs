@@ -65,6 +65,7 @@ fn main() {
             "--untracked-files=normal",
             "--",
             "native/foundation",
+            ":(exclude)native/foundation/target",
         ],
     )
     .map(|status| {
