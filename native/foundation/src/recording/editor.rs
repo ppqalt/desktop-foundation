@@ -274,6 +274,9 @@ fn describe(id: &str, dir: &Path, metadata: &Value) -> Result<Value> {
     let mut value = metadata.clone();
     value["id"] = id.into();
     value["source_url"] = state::file_uri(&dir.join("source.mkv"))?.into();
+    if dir.join("export-error.json").try_exists()? {
+        value["export_error"] = read_json(&dir.join("export-error.json"))?["error"].clone();
+    }
     Ok(value)
 }
 fn initialize(id: &str) -> Result<Value> {
@@ -521,12 +524,35 @@ pub(super) fn run(root: &Path, args: &[String]) -> Result<()> {
                 true,
             )?
         }
-        ["save", id, start, end] => export(
-            root,
-            id,
-            start.parse().map_err(|_| invalid("Invalid clip start"))?,
-            end.parse().map_err(|_| invalid("Invalid clip end"))?,
-        )?,
+        ["save", id, start, end] => {
+            let result = export(
+                root,
+                id,
+                start.parse().map_err(|_| invalid("Invalid clip start"))?,
+                end.parse().map_err(|_| invalid("Invalid clip end"))?,
+            );
+            match result {
+                Ok(value) => {
+                    let _ = fs::remove_file(session(id)?.join("export-error.json"));
+                    runtime::notify(&format!(
+                        "Saved {}",
+                        value["path"].as_str().unwrap_or("replay clip")
+                    ));
+                    value
+                }
+                Err(error) => {
+                    if let Ok(dir) = session(id) {
+                        let _ = state::atomic(
+                            &dir.join("export-error.json"),
+                            &serde_json::to_vec(&json!({"error":error.to_string()}))?,
+                            0o600,
+                        );
+                    }
+                    runtime::notify(&format!("Replay clip not saved: {error}"));
+                    return Err(error);
+                }
+            }
+        }
         ["list"] => {
             let mut sessions = Vec::new();
             for entry in fs::read_dir(base()?)? {

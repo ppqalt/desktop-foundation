@@ -586,6 +586,7 @@ PanelWindow {
                         }
                         ReplayEditor {
                             id: replayEditor
+                            captureAvailable: root.recording?.state.replay === true && ["buffering", "ready"].includes(root.recording?.state.replay_status) && root.recording?.state.phase !== "error"
                             Layout.fillWidth: true
                             visible: root.page === "replay"
                             backend: root.backend

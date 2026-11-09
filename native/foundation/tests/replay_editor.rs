@@ -185,6 +185,12 @@ fn invalid_ranges_ids_and_symlink_sources_never_publish_a_clip() {
     ] {
         assert!(!f.command(&args).status.success());
     }
+    let resumed = f.run(&["resume", ID]);
+    assert!(
+        resumed["export_error"]
+            .as_str()
+            .is_some_and(|s| s.contains("Select at least"))
+    );
     assert!(!f.command(&["discard", "../../outside"]).status.success());
     let original = f.root.join("outside.mkv");
     fs::rename(&f.source, &original).unwrap();

@@ -179,7 +179,7 @@ fn replay_request_inner(action: &[u8]) -> Result<()> {
     socket.send_to(action, dir.join("requests.sock"))?;
     Ok(())
 }
-fn notify(message: &str) {
+pub(super) fn notify(message: &str) {
     let _ = process::checked(
         &[
             "notify-send".into(),

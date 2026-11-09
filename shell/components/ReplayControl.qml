@@ -75,7 +75,7 @@ ColumnLayout {
             compact: true
             Layout.preferredWidth: 82
             Layout.maximumWidth: 82
-            enabled: root.replayEnabled && ["buffering", "ready"].includes(root.replayState.replay_status) && root.replayState.save_status !== "saving" && !root.pending
+            enabled: !!root.recording?.prepared && root.replayState.save_status !== "saving" && !root.pending
             onClicked: root.saveRequested()
         }
         ControlSwitch {

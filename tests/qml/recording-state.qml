@@ -141,6 +141,7 @@ ShellRoot {
             };
             compare(control.statusText, "Error");
             verify(!toggle.marked);
+            verify(save.enabled); // Retained footage remains accessible after capture failure.
             mockRecording.bufferSeconds = 0;
             compare(control.duration, "");
             compare(findChild(control, "replayStatus").text, "Error");

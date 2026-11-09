@@ -8,6 +8,7 @@ ColumnLayout {
     id: root
     objectName: "replayEditor"
     required property string backend
+    property bool captureAvailable: true
     property var session: null
     property real startTime: 0
     property real endTime: 0
@@ -33,7 +34,7 @@ ColumnLayout {
     }
     function open(): void {
         if (!session && !busy)
-            run(["open"]);
+            run(captureAvailable ? ["open"] : ["list"]);
     }
     function select(start: real, end: real): void {
         if (!session)
@@ -68,6 +69,7 @@ ColumnLayout {
                 Qt.callLater(() => root.run(["list"]));
             } else {
                 root.session = response;
+                root.error = response.export_error || "";
                 root.startTime = Math.max(0, response.duration - 47);
                 root.endTime = response.duration;
                 root.playhead = root.startTime;
@@ -124,7 +126,7 @@ ColumnLayout {
         ControlAction {
             text: "New replay"
             compact: true
-            enabled: !root.busy
+            enabled: root.captureAvailable && !root.busy
             onClicked: root.run(["open"])
         }
         ControlAction {
@@ -175,7 +177,7 @@ ColumnLayout {
     WidgetStatus {
         Layout.fillWidth: true
         status: root.error ? "error" : "loading"
-        message: root.error || (job.running ? "Protecting footage and preparing previews…" : save.running ? "Saving and validating clip…" : "")
+        message: root.error || (job.running ? "Protecting footage and preparing previews…" : save.running ? "Saving and validating clip…" : !root.session && !root.retained.length && !root.captureAvailable ? "No captured replay is available. Enable Instant Replay to collect footage." : "")
     }
     Rectangle {
         Layout.fillWidth: true

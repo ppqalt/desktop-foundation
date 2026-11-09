@@ -61,7 +61,8 @@ stream-copy boundaries cannot be assumed.
 
 Snapshots survive shell restarts under
 `$XDG_STATE_HOME/desktop-foundation/replay-editor/`. **Retained replays** resumes
-one; **Discard** removes only that private snapshot, never an exported recording.
+one even if capture is now Off or has failed; **Discard** removes only that private
+snapshot, never an exported recording.
 At most three snapshots and 2 GiB per snapshot are accepted. Incomplete sessions
 can be discarded from the retained list. A failed or interrupted job never
 reports a successful export. Saved and partial files are never overwritten.
