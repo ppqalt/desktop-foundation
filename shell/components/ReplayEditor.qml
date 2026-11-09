@@ -16,28 +16,23 @@ ColumnLayout {
     property string previewUrl: ""
     property string error: ""
     property string savedPath: ""
-    property string operation: ""
-    property var retained: []
-    property bool captureAfterList: false
-    readonly property bool busy: job.running || save.running
+    readonly property bool busy: job.running || save.running || cleanup.running
     signal settled
     spacing: 12
     function command(args): var {
         return [backend, "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "recording", "editor", ...args];
     }
-    function run(args, preserveError): void {
+    function run(args): void {
         if (busy)
             return;
-        operation = args[0];
-        if (!preserveError)
-            error = "";
+        error = "";
         job.command = command(args);
         job.running = true;
     }
     function open(): void {
-        if (!session && !busy) {
-            captureAfterList = captureAvailable;
-            run(["list"]);
+        if (!busy) {
+            savedPath = "";
+            run(["capture"]);
         }
     }
     function select(start: real, end: real): void {
@@ -62,31 +57,10 @@ ColumnLayout {
     ControlRequest {
         id: job
         onFinished: code => {
-            if (code !== 0) {
+            if (code !== 0)
                 root.error = failure || "Replay could not be opened.";
-                if (root.operation === "open")
-                    Qt.callLater(() => root.run(["list"], true));
-                root.captureAfterList = false;
-            } else if (root.operation === "list") {
-                root.retained = response.sessions ?? [];
-                const capture = root.captureAfterList && root.captureAvailable && root.retained.length === 0;
-                root.captureAfterList = false;
-                if (capture)
-                    Qt.callLater(() => root.run(["open"]));
-            } else if (root.operation === "discard") {
-                root.session = null;
-                root.previewUrl = "";
-                root.savedPath = "";
-                Qt.callLater(() => root.run(["list"]));
-            } else {
+            else {
                 root.session = response;
-                if (!root.retained.some(draft => draft.id === response.id))
-                    root.retained = [...root.retained,
-                        {
-                            id: response.id,
-                            ready: true
-                        }
-                    ];
                 root.error = response.export_error || "";
                 root.startTime = Math.max(0, response.duration - 47);
                 root.endTime = response.duration;
@@ -123,92 +97,37 @@ ColumnLayout {
     ControlRequest {
         id: save
         onFinished: code => {
-            if (code === 0 && response.saved === true)
+            if (code === 0 && response.saved === true) {
                 root.savedPath = response.path;
-            else
-                root.error = failure || "Clip validation failed. The source is retained.";
+                cleanup.command = root.command(["discard", root.session.id]);
+                cleanup.running = true;
+            } else
+                root.error = failure || "Clip validation failed. Your footage is still available.";
+            root.settled();
+        }
+    }
+    ControlRequest {
+        id: cleanup
+        onFinished: code => {
+            if (code !== 0)
+                root.error = "Clip saved, but temporary footage could not be cleaned up.";
+            root.session = null;
+            root.previewUrl = "";
             root.settled();
         }
     }
     Text {
         Layout.fillWidth: true
-        text: root.session ? "Replay draft · " + Math.floor(root.session.duration / 60) + ":" + String(Math.floor(root.session.duration) % 60).padStart(2, "0") + " available" : "Select footage from the last five minutes"
+        text: root.savedPath ? "Clip saved." : root.session ? "Footage · " + Math.floor(root.session.duration / 60) + ":" + String(Math.floor(root.session.duration) % 60).padStart(2, "0") + " available" : "Select footage from the last five minutes"
         color: Material.colors.on_surface_variant
         font.family: Theme.typography.family
         font.pixelSize: Material.type.bodyMedium
         wrapMode: Text.WordWrap
-    }
-    Flow {
-        Layout.fillWidth: true
-        spacing: 4
-        ControlAction {
-            objectName: "captureReplay"
-            text: "Capture replay"
-            compact: true
-            enabled: root.captureAvailable && !root.busy && root.retained.length < 3
-            onClicked: root.run(["open"])
-        }
-        ControlAction {
-            objectName: "discardCurrentReplay"
-            text: "Remove draft"
-            compact: true
-            enabled: !!root.session && !root.busy && !preview.running
-            onClicked: root.run(["discard", root.session.id])
-        }
-        ControlAction {
-            objectName: "browseReplayDrafts"
-            text: "Replay drafts"
-            compact: true
-            enabled: !root.busy && !preview.running
-            onClicked: {
-                root.session = null;
-                root.previewUrl = "";
-                root.savedPath = "";
-                root.run(["list"]);
-            }
-        }
-    }
-    Text {
-        Layout.fillWidth: true
-        visible: !root.session && root.retained.length > 0
-        text: root.retained.length + " of 3 replay drafts stored. Open one or remove a draft to free space. Saved clips are kept."
-        wrapMode: Text.WordWrap
-        color: Material.colors.on_surface_variant
-        font.family: Theme.typography.family
-        font.pixelSize: Material.type.bodyMedium
-    }
-    ControlChoice {
-        id: retainedChoice
-        objectName: "replayDraftChoice"
-        Layout.fillWidth: true
-        visible: root.retained.length > 0 && !root.session
-        model: root.retained.map((s, i) => ({
-                    name: "Replay draft " + (i + 1) + (s.ready ? "" : " · incomplete"),
-                    id: s.id
-                }))
-        textRole: "name"
-        Accessible.name: "Replay drafts"
-        enabled: !root.busy
-        onActivated: index => root.run(["resume", root.retained[index].id])
-    }
-    ControlAction {
-        Layout.fillWidth: true
-        visible: root.retained.length > 0 && !root.session
-        text: "Open draft"
-        enabled: !root.busy
-        onClicked: root.run(["resume", root.retained[Math.max(0, retainedChoice.currentIndex)].id])
-    }
-    ControlAction {
-        Layout.fillWidth: true
-        visible: root.retained.length > 0 && !root.session
-        text: "Remove selected draft"
-        enabled: !root.busy
-        onClicked: root.run(["discard", root.retained[Math.max(0, retainedChoice.currentIndex)].id])
     }
     WidgetStatus {
         Layout.fillWidth: true
         status: root.error ? "error" : "loading"
-        message: root.error || (job.running ? "Protecting footage and preparing previews…" : save.running ? "Saving and validating clip…" : !root.session && !root.retained.length && !root.captureAvailable ? "No captured replay is available. Enable Instant Replay to collect footage." : "")
+        message: root.error || (job.running ? "Preparing replay…" : save.running ? "Saving and validating clip…" : !root.session && !root.savedPath && !root.captureAvailable ? "No captured replay is available. Enable Instant Replay to collect footage." : "")
     }
     Rectangle {
         Layout.fillWidth: true
@@ -298,7 +217,8 @@ ColumnLayout {
     ControlAction {
         Layout.fillWidth: true
         visible: !!root.session
-        text: "Save selected clip"
+        objectName: "saveReplayClip"
+        text: "Save clip"
         detail: root.savedPath ? "Saved and validated" : "MKV · separate Opus tracks"
         enabled: !root.busy && !preview.running && root.endTime - root.startTime >= 0.05
         onClicked: {

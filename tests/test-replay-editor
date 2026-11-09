@@ -28,4 +28,4 @@ if ! rg -q EDITOR_QML_OK "$base/log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|T
 	cat "$base/log" >&2
 	exit 1
 fi
-printf '%s\n' 'PASS real replay thumbnails, range input, scrubbing and full-capacity draft recovery'
+printf '%s\n' 'PASS direct replay editor, real thumbnails, range input and scrubbing'

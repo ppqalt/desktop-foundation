@@ -62,22 +62,17 @@ ShellRoot {
                 compare(editor.startTime, 0);
                 compare(editor.endTime, editor.session.duration);
                 editor.select(1.25, 5.75);
-                tryVerify(() => !editor.busy, 10000);
-                editor.session = null;
-                editor.open();
-                tryVerify(() => editor.retained.length === 3 && !editor.busy, 10000);
-                verify(findChild(editor, "browseReplayDrafts").enabled);
-                verify(!findChild(editor, "discardCurrentReplay").enabled);
-                verify(!findChild(editor, "captureReplay").enabled);
-                verify(findChild(editor, "replayDraftChoice").visible);
-                // A failed capture must reveal the recovery list, keeping its error.
-                editor.retained = [];
-                editor.run(["open"]);
-                tryVerify(() => editor.retained.length === 3 && !editor.busy && editor.error.length > 0, 10000);
-                verify(findChild(editor, "browseReplayDrafts").enabled);
-                editor.run(["resume", "0123456789abcdef00000001"]);
-                tryVerify(() => editor.session !== null && !editor.busy, 10000);
-                editor.select(1.25, 5.75);
+            }
+            function test_save_finishes_without_draft_management() {
+                verify(findChild(editor, "browseReplayDrafts") === null);
+                verify(findChild(editor, "captureReplay") === null);
+                editor.select(0, editor.session.duration);
+                const saveButton = findChild(editor, "saveReplayClip");
+                tryVerify(() => saveButton.enabled, 10000);
+                saveButton.clicked();
+                tryVerify(() => editor.savedPath.length > 0 && !editor.busy, 10000);
+                compare(editor.error, "");
+                compare(editor.session, null);
             }
             function cleanupTestCase() {
                 const capture = Quickshell.env("DF_EDITOR_CAPTURE");
@@ -99,6 +94,7 @@ ShellRoot {
             running: true
             onTriggered: {
                 checks.test_real_snapshot_and_range_selection();
+                checks.test_save_finishes_without_draft_management();
                 checks.cleanupTestCase();
             }
         }

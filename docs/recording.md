@@ -64,16 +64,20 @@ validation leaves an error and retains the source and any partial output.
 See [FFmpeg accurate seeking](https://www.ffmpeg.org/ffmpeg.html): exact arbitrary
 stream-copy boundaries cannot be assumed.
 
-Snapshots survive shell restarts under
-`$XDG_STATE_HOME/desktop-foundation/replay-editor/`. **Replay drafts** resumes
-one even if capture is now Off or has failed; **Remove draft** removes only that private
-snapshot, never an exported recording.
-The editor checks for existing drafts before capturing new footage. At capacity,
-it shows the draft picker and removal controls instead of an unusable capture
-error. Failed captures also refresh that recovery list without hiding the error.
-At most three snapshots and 2 GiB per snapshot are accepted. Incomplete sessions
-can be discarded from the retained list. A failed or interrupted job never
-reports a successful export. Saved and partial files are never overwritten.
+**Save Replay** captures the current buffer and opens the editor directly. Trim
+and choose **Save clip**; validated export removes its temporary editing source.
+There is no draft browser or second capture button in this normal flow.
+Opening Save Replay again prepares fresh footage, then replaces the previous
+interactive workspace only after the new source and thumbnails are valid.
+Failed preparation or export preserves footage for recovery. Existing legacy
+recovery drafts are untouched and do not block the interactive editor.
+
+Temporary sources live under
+`$XDG_STATE_HOME/desktop-foundation/replay-editor/`. Each source is limited to
+2 GiB. Three consecutive incomplete interactive workspaces stop preparation
+rather than allowing failed captures to consume unbounded disk space. Recovery
+commands `editor list`, `resume ID` and `discard ID` remain available; discarding
+never deletes exported recordings. Saved and partial exports are not overwritten.
 
 Finite diagnostic commands use the same backend:
 

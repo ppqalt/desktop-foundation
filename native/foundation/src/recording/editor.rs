@@ -318,6 +318,9 @@ fn initialize(id: &str) -> Result<Value> {
     describe(id, &dir, &value)
 }
 pub(super) fn open() -> Result<Value> {
+    open_mode(false)
+}
+fn open_mode(interactive: bool) -> Result<Value> {
     let current = runtime::status()?;
     if current["replay"] != true
         || current["replay_status"] == "paused"
@@ -335,10 +338,30 @@ pub(super) fn open() -> Result<Value> {
             valid_id(&e.file_name().to_string_lossy()) && e.file_type().is_ok_and(|t| t.is_dir())
         })
         .collect();
-    if sessions.len() >= 3 {
+    if !interactive && sessions.len() >= 3 {
         return Err(invalid(
             "Three protected replays are retained; resume or discard one before capturing another",
         ));
+    }
+    // One replaceable editing workspace, separate from legacy recovery drafts.
+    // Hold old job locks until the new source is protected; failed capture never
+    // destroys the footage the user was editing. Old recorder processes still
+    // resolve these IDs in the original directory layout.
+    let mut previous = Vec::new();
+    if interactive {
+        for entry in &sessions {
+            if entry.path().join("interactive.json").is_file() {
+                let id = entry.file_name().to_string_lossy().into_owned();
+                let dir = session(&id)?;
+                let lock = state::lock(&dir.join("job.lock"), Duration::from_millis(100))?;
+                previous.push((dir, lock));
+            }
+        }
+        if previous.len() >= 3 {
+            return Err(invalid(
+                "Replay preparation repeatedly failed; existing footage is preserved for recovery",
+            ));
+        }
     }
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -347,8 +370,16 @@ pub(super) fn open() -> Result<Value> {
     let id = format!("{:016x}{:08x}", nanos as u64, std::process::id());
     let dir = base.join(&id);
     fs::DirBuilder::new().mode(0o700).create(&dir)?;
+    if interactive {
+        state::atomic(&dir.join("interactive.json"), b"{}", 0o600)?;
+    }
     wait_for_capture(&dir, || runtime::editor_request(&id))?;
-    initialize(&id)
+    let result = initialize(&id)?;
+    for (old, _lock) in previous {
+        // Only previous interactive workspaces, never legacy drafts or exports.
+        fs::remove_dir_all(old)?;
+    }
+    Ok(result)
 }
 fn export(root: &Path, id: &str, start: f64, end: f64) -> Result<Value> {
     let dir = session(id)?;
@@ -512,6 +543,7 @@ pub(super) fn run(root: &Path, args: &[String]) -> Result<()> {
         .as_slice()
     {
         ["open"] => open()?,
+        ["capture"] => open_mode(true)?,
         ["resume", id] => initialize(id)?,
         ["preview", id, seconds] => {
             let dir = session(id)?;
@@ -575,7 +607,7 @@ pub(super) fn run(root: &Path, args: &[String]) -> Result<()> {
         }
         _ => {
             return Err(invalid(
-                "Expected recording editor open|resume ID|preview ID SECONDS|save ID START END|list|discard ID",
+                "Expected recording editor capture|open|resume ID|preview ID SECONDS|save ID START END|list|discard ID",
             ));
         }
     };

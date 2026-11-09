@@ -862,3 +862,86 @@ fn a_discarded_editor_session_does_not_stop_the_recorder() {
     f.client("replay-off");
     assert!(f.wait_exit());
 }
+
+#[test]
+fn direct_editor_capture_bypasses_legacy_drafts_and_replaces_only_its_workspace() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    let probe_path = f.root.join("probe.json");
+    let mut probe: Value = serde_json::from_slice(&fs::read(&probe_path).unwrap()).unwrap();
+    probe["format"]["format_name"] = "matroska,webm".into();
+    fs::write(probe_path, serde_json::to_vec(&probe).unwrap()).unwrap();
+    f.script(
+        "ffmpeg",
+        "#!/bin/sh\nfor last do :; done\nprintf thumbnail > \"$last\"\n",
+    );
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    let base = f.root.join("state/desktop-foundation/replay-editor");
+    for id in [
+        "0123456789abcdef00000001",
+        "0123456789abcdef00000002",
+        "0123456789abcdef00000003",
+    ] {
+        fs::create_dir_all(base.join(id)).unwrap();
+        fs::set_permissions(base.join(id), fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(base.join(id).join("legacy-note"), "keep").unwrap();
+    }
+    f.client("replay-on");
+    f.launch_owner();
+    f.wait_phase("replay");
+    let pid = fs::read_to_string(f.root.join("replay-pid")).unwrap();
+    let capture = || {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"));
+        cmd.arg("--root")
+            .arg(&f.root)
+            .args(["recording", "editor", "capture"]);
+        f.configure(&mut cmd);
+        let output = cmd
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let first = capture();
+    assert!(base.join(&first).join("source.mkv").exists());
+    f.script("ffmpeg", "#!/bin/sh\nexit 1\n");
+    let mut failed = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"));
+    failed
+        .arg("--root")
+        .arg(&f.root)
+        .args(["recording", "editor", "capture"]);
+    f.configure(&mut failed);
+    assert!(!failed.status().unwrap().success());
+    assert!(base.join(&first).join("source.mkv").exists());
+    f.script(
+        "ffmpeg",
+        "#!/bin/sh\nfor last do :; done\nprintf thumbnail > \"$last\"\n",
+    );
+    let second = capture();
+    assert_ne!(first, second);
+    assert!(!base.join(&first).exists());
+    assert!(base.join(&second).join("source.mkv").exists());
+    for id in [
+        "0123456789abcdef00000001",
+        "0123456789abcdef00000002",
+        "0123456789abcdef00000003",
+    ] {
+        assert_eq!(
+            fs::read_to_string(base.join(id).join("legacy-note")).unwrap(),
+            "keep"
+        );
+    }
+    assert_eq!(fs::read_to_string(f.root.join("replay-pid")).unwrap(), pid);
+    assert_eq!(f.state()["phase"], "replay");
+    f.client("replay-off");
+    assert!(f.wait_exit());
+}
