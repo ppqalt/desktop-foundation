@@ -659,10 +659,10 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
         );
     }
     if !o.no_greeter {
-        let v = query(r, &["tuigreet", "--background", "matrix", "--dump-config"]);
+        let v = query(r, &["tuigreet", "--background", "none", "--dump-config"]);
         out.check(
-            v.ok() && v.text.contains("kind = \"matrix\""),
-            "Matrix-capable tuigreet",
+            v.ok() && v.text.contains("kind = \"none\""),
+            "tuigreet with plain background",
             false,
         );
     }

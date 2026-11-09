@@ -21,8 +21,8 @@ scripts/install-core
 
 The default installation provides the Niri desktop, Quickshell and terminal
 configuration. It builds both Rust backends, deploys configuration and enables
-Bluetooth and AppArmor. Existing application associations are left alone. The default greeter is greetd with a
-Matrix-capable tuigreet. The keyring uses oo7 with PAM password unlocking through
+Bluetooth and AppArmor. Existing application associations are left alone. The default greeter is greetd with tuigreet and a
+plain, non-animated background. The keyring uses oo7 with PAM password unlocking through
 greetd. Choose Niri at login, then run `scripts/doctor`. See [keyring setup](keyring.md).
 
 Use Standard to add Brave Origin Nightly, paru, ChatGPT and Vesktop without
@@ -73,7 +73,7 @@ profile and includes the recording package. See [personal applications](personal
 
 The installed Niri must accept the generated KDL, including its blur and
 background effects. The installer checks that configuration before deployment.
-Greeter setup checks tuigreet's Matrix support before writing login files. A
+Greeter setup checks tuigreet's None background before writing login files. A
 system with another display manager should use `--no-greeter`.
 
 The default profile uses automatic outputs and Finnish input. Shared input lives

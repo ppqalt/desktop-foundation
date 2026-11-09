@@ -243,16 +243,16 @@ impl Host for Native {
             &[
                 "/usr/bin/tuigreet".into(),
                 "--background".into(),
-                "matrix".into(),
+                "none".into(),
                 "--dump-config".into(),
             ],
             None,
             Duration::from_secs(20),
             true,
         )?;
-        if !String::from_utf8_lossy(&output.stdout).contains("kind = \"matrix\"") {
+        if !String::from_utf8_lossy(&output.stdout).contains("kind = \"none\"") {
             return Err(invalid(
-                "Installed tuigreet lacks Matrix support; login files unchanged",
+                "Installed tuigreet cannot select a plain background; login files unchanged",
             ));
         }
         let manager = store.path("/etc/systemd/system/display-manager.service");
