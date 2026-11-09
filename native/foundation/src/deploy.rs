@@ -191,6 +191,21 @@ pub fn targets(
     manifest: &Manifest,
     write: bool,
 ) -> Result<Vec<deploy_units::Target>> {
+    targets_for_profile(
+        root,
+        paths,
+        manifest,
+        write,
+        manifest.profile.as_deref().unwrap_or("default"),
+    )
+}
+fn targets_for_profile(
+    root: &Path,
+    paths: &Paths,
+    manifest: &Manifest,
+    write: bool,
+    profile: &str,
+) -> Result<Vec<deploy_units::Target>> {
     let mut targets = vec![
         (
             paths.config.join("niri/config.kdl"),
@@ -213,6 +228,7 @@ pub fn targets(
         &paths.data,
         &recorded,
         write,
+        profile,
     )?);
     targets.extend(common(root, paths));
     Ok(targets)
@@ -492,7 +508,7 @@ pub fn run_command(root: &Path, args: &[String]) -> Result<()> {
     let paths = Paths::environment()?;
     if dry {
         let manifest = read(&paths)?.unwrap_or_else(|| initial(&root));
-        for (path, source) in targets(&root, &paths, &manifest, false)? {
+        for (path, source) in targets_for_profile(&root, &paths, &manifest, false, profile)? {
             println!(
                 "Deploy with backup: {} <- {}",
                 path.display(),
@@ -556,7 +572,7 @@ pub fn run_command(root: &Path, args: &[String]) -> Result<()> {
     ]);
     let _ = fs::remove_file(candidate);
     validation?;
-    let targets = targets(&root, &paths, &manifest, true)?;
+    let targets = targets_for_profile(&root, &paths, &manifest, true, profile)?;
     fish(&root, &paths)?;
     crate::theme_render::write(&paths.state.join("niri.kdl"), &wrapper)?;
     let operation = (|| {

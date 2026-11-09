@@ -1,5 +1,5 @@
 //! Deployment-time session definitions. Login never generates these files.
-use crate::{Result, local_ai, state as durable, theme_render};
+use crate::{Result, invalid, local_ai, state as durable, theme_render};
 use std::{
     collections::HashSet,
     env, fs,
@@ -47,6 +47,28 @@ pub fn definitions(root: &Path, state: &Path) -> Vec<(String, String)> {
     }
     units
 }
+fn keyring_source(root: &Path, profile: &str, name: &str) -> Result<PathBuf> {
+    if profile.is_empty()
+        || !profile
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
+    {
+        return Err(invalid("Invalid keyring profile name"));
+    }
+    let candidate = root
+        .join("profiles")
+        .join(profile)
+        .join("session/keyring")
+        .join(name);
+    match fs::symlink_metadata(&candidate) {
+        Ok(info) if info.is_file() => Ok(candidate),
+        Ok(_) => Err(invalid("Profile keyring override must be a regular file")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(root.join("session/keyring").join(name))
+        }
+        Err(error) => Err(error.into()),
+    }
+}
 pub fn targets(
     root: &Path,
     config: &Path,
@@ -54,6 +76,7 @@ pub fn targets(
     data: &Path,
     recorded: &HashSet<PathBuf>,
     write: bool,
+    profile: &str,
 ) -> Result<Vec<Target>> {
     let generated = state.join("session-units");
     if write {
@@ -87,7 +110,7 @@ pub fn targets(
     ] {
         targets.push((
             config.join("autostart").join(name),
-            root.join("session/keyring").join(name),
+            keyring_source(root, profile, name)?,
         ));
     }
     for (name, source) in [
@@ -120,7 +143,7 @@ pub fn targets(
         ),
         (
             data.join("dbus-1/services/org.freedesktop.secrets.service"),
-            root.join("session/keyring/org.freedesktop.secrets.service"),
+            keyring_source(root, profile, "org.freedesktop.secrets.service")?,
         ),
     ]);
     let path = data.join("applications/desktop-foundation-odysseus.desktop");

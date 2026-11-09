@@ -188,6 +188,7 @@ fn existing_oo7_links_and_gnome_masks_are_not_adopted() {
         &f.paths.data,
         &Default::default(),
         false,
+        "default",
     )
     .unwrap();
     assert!(
@@ -361,5 +362,59 @@ fn unsupported_screenshot_backend_fails_without_loading_configuration() {
             .unwrap_err()
             .to_string()
             .contains("Niri screenshots only")
+    );
+}
+
+#[test]
+fn profile_keyring_sources_are_scoped_and_do_not_leak_into_default() {
+    let f = Fixture::new();
+    theme_render::copy_tree(&source().join("config"), &f.root.join("config")).unwrap();
+    let directory = f.root.join("profiles/lucky38/session/keyring");
+    fs::create_dir_all(&directory).unwrap();
+    for name in [
+        "gnome-keyring-pkcs11.desktop",
+        "gnome-keyring-secrets.desktop",
+        "org.freedesktop.secrets.service",
+    ] {
+        fs::write(directory.join(name), "host-specific keyring").unwrap();
+    }
+    for profile in ["default", "lucky38"] {
+        let targets = deploy_units::targets(
+            &f.root,
+            &f.paths.config,
+            &f.paths.state,
+            &f.paths.data,
+            &Default::default(),
+            false,
+            profile,
+        )
+        .unwrap();
+        let sources: Vec<_> = targets
+            .iter()
+            .filter(|(_, s)| s.to_string_lossy().contains("session/keyring"))
+            .map(|(_, s)| s)
+            .collect();
+        assert_eq!(sources.len(), 3);
+        for source in sources {
+            assert_eq!(source.starts_with(&directory), profile == "lucky38");
+        }
+    }
+    fs::remove_file(directory.join("org.freedesktop.secrets.service")).unwrap();
+    symlink(
+        "/etc/passwd",
+        directory.join("org.freedesktop.secrets.service"),
+    )
+    .unwrap();
+    assert!(
+        deploy_units::targets(
+            &f.root,
+            &f.paths.config,
+            &f.paths.state,
+            &f.paths.data,
+            &Default::default(),
+            false,
+            "lucky38"
+        )
+        .is_err()
     );
 }
