@@ -259,14 +259,18 @@ def validate_policy_journal():
     return value, current, mode
 
 
-def ensure_dirs(journal, paths):
+def ensure_dirs(journal, paths, journal_name="setup.json"):
     for path in paths:
         parents(path / 'file')
         if not path.exists():
             if str(path) not in journal['created_directories']:
                 journal['created_directories'].append(str(path))
-            save(STATE / 'setup.json', journal)
+            save(STATE / journal_name, journal)
             path.mkdir(mode=0o755)
+        if str(path) in journal['created_directories']:
+            # The native installer deliberately inherits umask 077. Public
+            # helper/config directories must still be traversable by its user.
+            path.chmod(0o755)
 
 
 def install(name):
@@ -292,9 +296,7 @@ def install(name):
                   'original_mode': previous_mode, 'managed': list(previous) if previous is not None else None,
                   'pending': None, 'created_directories': created}
         save(STATE / 'policy.json', policy)
-    for directory in [Path('/etc/brave'), Path('/etc/brave/policies'), Path('/etc/brave/policies/managed')]:
-        parents(directory / 'file')
-        directory.mkdir(exist_ok=True, mode=0o755)
+    ensure_dirs(policy, [Path('/etc/brave'), Path('/etc/brave/policies'), Path('/etc/brave/policies/managed')], 'policy.json')
     for path in TARGETS:
         content, mode = optional(path)
         name = str(path)

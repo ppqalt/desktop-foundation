@@ -7,7 +7,7 @@ use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
     io::Read,
-    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
+    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -116,10 +116,26 @@ impl Store {
     }
     fn atomic(&self, path: &Path, bytes: &[u8], mode: u32) -> Result<()> {
         self.parents(path)?;
-        fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o755)
-            .create(path.parent().ok_or_else(|| invalid("Missing parent"))?)?;
+        // main sets umask 077. Only newly created public parents get an
+        // explicit mode; existing directories and private journals stay intact.
+        let mut missing = Vec::new();
+        let mut parent = path.parent().ok_or_else(|| invalid("Missing parent"))?;
+        while !parent.exists() {
+            missing.push(parent.to_path_buf());
+            parent = parent.parent().ok_or_else(|| invalid("Missing parent"))?;
+        }
+        for directory in missing.iter().rev() {
+            self.parents(&directory.join(".check"))?;
+            fs::create_dir(directory)?;
+            let handle = OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                .open(directory)?;
+            if handle.metadata()?.uid() != self.uid {
+                return Err(invalid("New protected directory owner changed"));
+            }
+            handle.set_permissions(fs::Permissions::from_mode(0o755))?;
+        }
         self.parents(path)?;
         state::atomic(path, bytes, mode)
     }
@@ -626,6 +642,48 @@ mod tests {
         assert!(!f.store.journal_path().exists());
         f.install();
         assert_eq!(f.entry(PAM).original, original.original);
+    }
+    #[test]
+    fn restrictive_installer_umask_preserves_public_parents_and_private_journal() {
+        const CHILD: &str = "DF_TEST_LOGIN_UMASK_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "system_setup::tests::restrictive_installer_umask_preserves_public_parents_and_private_journal", "--nocapture"])
+                .env(CHILD, "1").output().unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                format!(
+                    "{}{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                )
+            );
+            return;
+        }
+        // SAFETY: this isolated child runs only this test, never parallel tests.
+        unsafe {
+            libc::umask(0o077);
+        }
+        let f = Fixture::new();
+        let _lock = f.store.lock().unwrap();
+        f.install();
+        for name in [HELPER, PAM, CONFIG] {
+            assert_eq!(
+                fs::metadata(f.store.path(name).parent().unwrap())
+                    .unwrap()
+                    .mode()
+                    & 0o777,
+                0o755
+            );
+        }
+        assert_eq!(
+            fs::metadata(f.store.journal_path().parent().unwrap())
+                .unwrap()
+                .mode()
+                & 0o777,
+            0o700
+        );
     }
     #[test]
     fn source_upgrade_does_not_rebase_rollback_backups() {
