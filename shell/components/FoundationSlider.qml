@@ -12,6 +12,8 @@ Slider {
     stepSize: 1
     padding: Material.control.sliderPadding
     activeFocusOnTab: true
+    // A wheel over any slider scrolls its containing view, never changes audio.
+    wheelEnabled: false
     // Preview during a drag; commit once on release. Keyboard steps commit
     // immediately. External value updates never emit either signal.
     signal previewRequested(real nextValue)
@@ -34,24 +36,26 @@ Slider {
     }
     implicitHeight: Material.control.target
     Keys.onPressed: event => {
-        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) {
+            event.accepted = !!Material.direction(event.key) || [Qt.Key_Home, Qt.Key_End].includes(event.key);
             return;
-        const direction = Material.direction(event.key);
-        if (!direction)
-            return;
-        if (direction[0]) {
-            const previous = value;
-            if (SliderInput.direction(event, mirrored) > 0)
-                increase();
-            else
-                decrease();
+        }
+        const previous = value;
+        if (SliderInput.adjust(event, root, from, to, mirrored)) {
             if (value !== previous)
                 moved();
-        } else
+            event.accepted = true;
+            return;
+        }
+        const direction = Material.direction(event.key);
+        if (direction && direction[1]) {
             Material.moveFocus(root, direction[0], direction[1]);
-        event.accepted = true;
+            event.accepted = true;
+        }
     }
-    readonly property real handleCenter: leftPadding + 2 + visualPosition * (availableWidth - 4)
+
+    readonly property real handleCenter: leftPadding + Material.control.sliderHandleWidth / 2 + visualPosition * (availableWidth - Material.control.sliderHandleWidth)
+    readonly property real trackClearance: Material.control.sliderGap + Material.control.sliderHandleWidth / 2
     readonly property color activeColor: enabled ? Material.colors.primary : Material.colors.on_surface
     background: Item {
         x: root.leftPadding
@@ -60,16 +64,16 @@ Slider {
         height: Material.control.sliderTrackHeight
         opacity: root.enabled ? 1 : Material.state.disabledContainer
         Rectangle {
-            width: Math.max(0, root.handleCenter - root.leftPadding - 8)
+            width: Math.max(0, root.handleCenter - root.leftPadding - root.trackClearance)
             height: parent.height
-            radius: 8
+            radius: Material.control.sliderTrackRadius
             color: root.activeColor
         }
         Rectangle {
-            x: root.handleCenter - root.leftPadding + 8
+            x: root.handleCenter - root.leftPadding + root.trackClearance
             width: Math.max(0, parent.width - x)
             height: parent.height
-            radius: 8
+            radius: Material.control.sliderTrackRadius
             color: Material.colors.secondary_container
             Rectangle {
                 anchors.right: parent.right
@@ -86,9 +90,9 @@ Slider {
     handle: Rectangle {
         x: root.handleCenter - width / 2
         y: (root.height - height) / 2
-        width: root.pressed ? 2 : 4
+        width: root.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
         height: Material.control.sliderHandleHeight
-        radius: 2
+        radius: Material.control.sliderHandleRadius
         color: root.activeColor
         opacity: root.enabled ? 1 : Material.state.disabledContent
         FocusIndicator {

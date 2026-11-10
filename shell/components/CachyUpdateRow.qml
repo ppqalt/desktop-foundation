@@ -8,6 +8,7 @@ import "../theme"
 ColumnLayout {
     id: root
     objectName: "cachyUpdateRow"
+    Layout.maximumWidth: Infinity
     readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/arch-update/"
     property var packages: null
     property var aur: null
@@ -18,13 +19,23 @@ ColumnLayout {
     readonly property string status: check.running ? "Checking…" : !checkedAt || packages === null ? "No completed update check" : aur === null || flatpak === null ? "Last check: " + packages.length + " repository updates" : "Last check: " + total + (total === 1 ? " update" : " updates")
     required property string backend
     property string checkError: ""
-    readonly property bool busy: check.running
+    readonly property bool busy: check.running || updater.running
     signal settled
     spacing: 0
     ControlRequest {
         id: check
         onFinished: code => {
             root.checkError = code === 0 ? "" : failure || "Update check failed. Try again.";
+            root.settled();
+        }
+    }
+    ControlRequest {
+        id: updater
+        // Existing terminal launcher exits after handing Kitty the command;
+        // it deliberately has no JSON response body.
+        expectJson: false
+        onFinished: code => {
+            root.checkError = code === 0 ? "" : failure || "Could not open Cachy Update.";
             root.settled();
         }
     }
@@ -66,13 +77,16 @@ ColumnLayout {
         }
         onLoadFailed: root.checkedAt = ""
     }
-    RowLayout {
+    GridLayout {
         Layout.fillWidth: true
-        Layout.minimumWidth: root.width
-        spacing: 4
+        Layout.maximumWidth: Infinity
+        columns: root.width >= 560 ? 4 : 3
+        columnSpacing: 4
+        rowSpacing: 0
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.minimumWidth: Math.max(0, root.width - 200)
+            Layout.minimumWidth: 0
+            Layout.columnSpan: root.width >= 560 ? 1 : 3
             spacing: 0
             Text {
                 Layout.fillWidth: true
@@ -108,11 +122,25 @@ ColumnLayout {
             Accessible.name: "Check available updates"
             Layout.preferredWidth: 96
             Layout.maximumWidth: 96
-            enabled: !check.running
+            enabled: !root.busy
             onClicked: {
                 root.checkError = "";
                 check.command = [root.backend, "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "control-center", "check-updates"];
                 check.running = true;
+            }
+        }
+        ControlAction {
+            objectName: "cachyUpdateLaunch"
+            compact: true
+            text: "Update"
+            Accessible.name: "Open Cachy Update"
+            Layout.preferredWidth: 96
+            Layout.maximumWidth: 96
+            enabled: !root.busy
+            onClicked: {
+                root.checkError = "";
+                updater.command = [root.backend, "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "control-center", "cachy-update"];
+                updater.running = true;
             }
         }
     }

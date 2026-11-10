@@ -594,6 +594,69 @@ ShellRoot {
                 rangeSlider.minimumSpan = 0;
                 controls.visible = false;
             }
+            function test_range_pointer_commit_contract() {
+                controls.visible = true;
+                rangeSlider.first.value = 20;
+                rangeSlider.second.value = 80;
+                controls.previews = 0;
+                controls.commits = 0;
+                mousePress(rangeSlider, rangeSlider.firstCenter, rangeSlider.height / 2);
+                mouseMove(rangeSlider, 90, rangeSlider.height / 2, 20);
+                mouseMove(rangeSlider, 110, rangeSlider.height / 2, 20);
+                verify(controls.previews > 0);
+                compare(controls.commits, 0);
+                mouseRelease(rangeSlider, 110, rangeSlider.height / 2);
+                compare(controls.commits, 1);
+                const previewCount = controls.previews;
+                rangeSlider.first.value = 20; // Readback must not issue requests.
+                rangeSlider.second.value = 80;
+                compare(controls.previews, previewCount);
+                compare(controls.commits, 1);
+                controls.visible = false;
+            }
+            function test_slider_endpoint_and_wheel_parity() {
+                controls.visible = true;
+                controls.previews = 0;
+                controls.commits = 0;
+                slider.value = 50;
+                slider.forceActiveFocus();
+                keyClick(Qt.Key_Right, Qt.ControlModifier);
+                compare(slider.value, 50);
+                keyClick(Qt.Key_Home);
+                compare(slider.value, slider.from);
+                keyClick(Qt.Key_End);
+                compare(slider.value, slider.to);
+                const committed = controls.commits;
+                keyClick(Qt.Key_End);
+                compare(controls.commits, committed); // No request at the bound.
+                slider.value = 50;
+                mouseWheel(slider, 100, 20, 0, 120);
+                compare(slider.value, 50);
+                compare(controls.commits, committed);
+                rangeSlider.first.value = 20;
+                rangeSlider.second.value = 80;
+                rangeSlider.minimumSpan = 10;
+                rangeSlider.first.handle.forceActiveFocus();
+                keyClick(Qt.Key_Right, Qt.ControlModifier);
+                compare(rangeSlider.first.value, 20);
+                keyClick(Qt.Key_Home);
+                compare(rangeSlider.first.value, rangeSlider.from);
+                keyClick(Qt.Key_End);
+                compare(rangeSlider.first.value, 70);
+                rangeSlider.second.handle.forceActiveFocus();
+                keyClick(Qt.Key_Home);
+                compare(rangeSlider.second.value, 80);
+                keyClick(Qt.Key_End);
+                compare(rangeSlider.second.value, rangeSlider.to);
+                const afterKeys = controls.commits;
+                rangeSlider.second.value = 80;
+                mouseWheel(rangeSlider, 150, 20, 0, 120);
+                compare(controls.commits, afterKeys);
+                compare(rangeSlider.second.value, 80);
+                rangeSlider.minimumSpan = 0;
+                slider.value = 30;
+                controls.visible = false;
+            }
             function test_slider_rtl_and_disabled_parity() {
                 controls.visible = true;
                 controls.mirroredInputs = true;
@@ -889,6 +952,8 @@ ShellRoot {
                 checks.test_large_text_control_geometry();
                 checks.test_slider_request_semantics();
                 checks.test_range_keyboard_contract();
+                checks.test_range_pointer_commit_contract();
+                checks.test_slider_endpoint_and_wheel_parity();
                 checks.test_button_switch_activation_parity();
                 checks.test_slider_rtl_and_disabled_parity();
                 checks.test_minimal_footer();

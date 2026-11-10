@@ -35,6 +35,38 @@ PanelWindow {
     property var pendingApplications: ({})
     readonly property bool busy: deviceRequest.running || audioAction.running || replayRequest.running || replayEditor.busy || wallpapers.busy || cachyUpdate.busy
     readonly property var audio: stateData.audio ?? ({})
+    // Keep delegates keyed by stream serial. Replacing a JS array model on
+    // every audio response destroys the pressed slider and its pointer grab.
+    ListModel {
+        id: applicationModel
+    }
+    onAudioChanged: Qt.callLater(root.syncApplications)
+    function syncApplications(): void {
+        const rows = root.audio.applications ?? [];
+        for (let index = 0; index < rows.length; index++) {
+            const stream = rows[index];
+            const serial = String(stream.serial);
+            let existing = index;
+            while (existing < applicationModel.count && applicationModel.get(existing).streamSerial !== serial)
+                existing++;
+            const row = {
+                streamSerial: serial,
+                streamId: Number(stream.id),
+                streamName: String(stream.name),
+                streamLabel: String(stream.label || stream.name),
+                streamVolume: Number(stream.volume)
+            };
+            if (existing === applicationModel.count)
+                applicationModel.insert(index, row);
+            else {
+                if (existing !== index)
+                    applicationModel.move(existing, index, 1);
+                applicationModel.set(index, row);
+            }
+        }
+        if (applicationModel.count > rows.length)
+            applicationModel.remove(rows.length, applicationModel.count - rows.length);
+    }
     readonly property var network: stateData.network ?? ({})
     readonly property bool wifiAvailable: (network.devices ?? []).some(d => d.kind === "wifi")
     readonly property var outputs: audio.outputs ?? []
@@ -573,19 +605,23 @@ PanelWindow {
                                 font.pixelSize: Material.type.titleMedium
                             }
                             Repeater {
-                                model: root.page === "audio" ? root.audio.applications ?? [] : []
+                                model: root.page === "audio" ? applicationModel : null
                                 delegate: ControlVolumeRow {
-                                    required property var modelData
+                                    required property string streamSerial
+                                    required property int streamId
+                                    required property string streamName
+                                    required property string streamLabel
+                                    required property real streamVolume
                                     Layout.fillWidth: true
-                                    label: modelData.label || modelData.name
-                                    accessibleLabel: modelData.name
-                                    sliderName: "applicationVolume-" + modelData.serial
-                                    volume: root.pendingApplications[modelData.serial] ?? modelData.volume
+                                    label: streamLabel
+                                    accessibleLabel: streamName
+                                    sliderName: "applicationVolume-" + streamSerial
+                                    volume: root.pendingApplications[streamSerial] ?? streamVolume
                                     onVolumeRequested: value => {
                                         const values = Object.assign({}, root.pendingApplications);
-                                        values[modelData.serial] = Math.round(value);
+                                        values[streamSerial] = Math.round(value);
                                         root.pendingApplications = values;
-                                        root.enqueue(["stream-volume", String(modelData.id), modelData.serial, String(values[modelData.serial])]);
+                                        root.enqueue(["stream-volume", String(streamId), streamSerial, String(values[streamSerial])]);
                                     }
                                 }
                             }
@@ -704,15 +740,6 @@ PanelWindow {
                             }
                         }
                     }
-                }
-                Text {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 12
-                    visible: root.busy
-                    text: "Applying changes…"
-                    color: Material.colors.on_surface_variant
-                    font.family: Theme.typography.family
-                    font.pixelSize: Material.type.labelSmall
                 }
             }
         }

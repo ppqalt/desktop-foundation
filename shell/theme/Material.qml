@@ -51,7 +51,12 @@ QtObject {
             switchTrackHeight: 32,
             sliderPadding: 6,
             sliderTrackHeight: 24,
-            sliderHandleHeight: 44
+            sliderHandleHeight: 44,
+            sliderHandleWidth: 4,
+            sliderPressedHandleWidth: 2,
+            sliderHandleRadius: 2,
+            sliderTrackRadius: 8,
+            sliderGap: 6
         })
     readonly property var state: ({
             hover: 0.08,

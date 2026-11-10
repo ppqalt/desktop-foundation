@@ -52,8 +52,14 @@ ColumnLayout {
             objectName: root.sliderName
             Layout.fillWidth: true
             Accessible.name: root.accessibleLabel + " volume"
-            value: root.volume
-            onMoved: root.volumeRequested(value)
+            Binding {
+                target: slider
+                property: "value"
+                value: root.volume
+                when: !slider.pressed
+                restoreMode: Binding.RestoreNone
+            }
+            onPreviewRequested: value => root.volumeRequested(value)
         }
         Text {
             Layout.preferredWidth: 48

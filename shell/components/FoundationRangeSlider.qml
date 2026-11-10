@@ -9,6 +9,7 @@ RangeSlider {
     from: 0
     to: 100
     stepSize: 1
+    wheelEnabled: false
     padding: Material.control.sliderPadding
     implicitHeight: Material.control.target
     property bool interactionDirty: false
@@ -37,34 +38,34 @@ RangeSlider {
         }
     }
     function handleKey(event, node, handle): void {
-        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) {
+            event.accepted = !!Material.direction(event.key) || [Qt.Key_Home, Qt.Key_End].includes(event.key);
             return;
-        const direction = Material.direction(event.key);
-        if (!direction)
-            return;
-        if (direction[0]) {
-            const previous = node.value;
-            if (SliderInput.direction(event, mirrored) > 0)
-                node.increase();
-            else
-                node.decrease();
-            const span = Math.max(0, Math.min(to - from, minimumSpan));
-            if (node === root.first)
-                node.value = Math.min(node.value, second.value - span);
-            else
-                node.value = Math.max(node.value, first.value + span);
+        }
+        const span = Math.max(0, Math.min(to - from, minimumSpan));
+        const minimum = node === root.first ? from : Math.min(to, first.value + span);
+        const maximum = node === root.first ? Math.max(from, second.value - span) : to;
+        const previous = node.value;
+        if (SliderInput.adjust(event, node, minimum, maximum, mirrored)) {
             if (node.value !== previous)
                 node.moved();
-        } else
+            event.accepted = true;
+            return;
+        }
+        const direction = Material.direction(event.key);
+        if (direction && direction[1]) {
             Material.moveFocus(handle, direction[0], direction[1]);
-        event.accepted = true;
+            event.accepted = true;
+        }
     }
+
     first.onMoved: root.requestPreview()
     second.onMoved: root.requestPreview()
     first.onPressedChanged: root.released()
     second.onPressedChanged: root.released()
-    readonly property real firstCenter: leftPadding + 2 + first.visualPosition * (availableWidth - 4)
-    readonly property real secondCenter: leftPadding + 2 + second.visualPosition * (availableWidth - 4)
+    readonly property real firstCenter: leftPadding + Material.control.sliderHandleWidth / 2 + first.visualPosition * (availableWidth - Material.control.sliderHandleWidth)
+    readonly property real secondCenter: leftPadding + Material.control.sliderHandleWidth / 2 + second.visualPosition * (availableWidth - Material.control.sliderHandleWidth)
+    readonly property real trackClearance: Material.control.sliderGap + Material.control.sliderHandleWidth / 2
     readonly property color activeColor: enabled ? Material.colors.primary : Material.colors.on_surface
     background: Item {
         x: root.leftPadding
@@ -75,23 +76,23 @@ RangeSlider {
         readonly property real low: Math.min(root.firstCenter, root.secondCenter) - root.leftPadding
         readonly property real high: Math.max(root.firstCenter, root.secondCenter) - root.leftPadding
         Rectangle {
-            width: Math.max(0, parent.low - 8)
+            width: Math.max(0, parent.low - root.trackClearance)
             height: parent.height
-            radius: 8
+            radius: Material.control.sliderTrackRadius
             color: Material.colors.secondary_container
         }
         Rectangle {
-            x: parent.low + 8
-            width: Math.max(0, parent.high - 8 - x)
+            x: parent.low + root.trackClearance
+            width: Math.max(0, parent.high - root.trackClearance - x)
             height: parent.height
-            radius: 8
+            radius: Material.control.sliderTrackRadius
             color: root.activeColor
         }
         Rectangle {
-            x: parent.high + 8
+            x: parent.high + root.trackClearance
             width: Math.max(0, parent.width - x)
             height: parent.height
-            radius: 8
+            radius: Material.control.sliderTrackRadius
             color: Material.colors.secondary_container
             Rectangle {
                 anchors.right: parent.right
@@ -108,9 +109,9 @@ RangeSlider {
     first.handle: Rectangle {
         x: root.firstCenter - width / 2
         y: (root.height - height) / 2
-        width: root.first.pressed ? 2 : 4
+        width: root.first.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
         height: Material.control.sliderHandleHeight
-        radius: 2
+        radius: Material.control.sliderHandleRadius
         color: root.activeColor
         opacity: root.enabled ? 1 : Material.state.disabledContent
         Keys.onPressed: event => root.handleKey(event, root.first, root.first.handle)
@@ -118,15 +119,15 @@ RangeSlider {
         FocusIndicator {
             anchors.fill: parent
             visible: root.first.handle.activeFocus
-            cornerRadius: 2
+            cornerRadius: Material.control.sliderHandleRadius
         }
     }
     second.handle: Rectangle {
         x: root.secondCenter - width / 2
         y: (root.height - height) / 2
-        width: root.second.pressed ? 2 : 4
+        width: root.second.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
         height: Material.control.sliderHandleHeight
-        radius: 2
+        radius: Material.control.sliderHandleRadius
         color: root.activeColor
         opacity: root.enabled ? 1 : Material.state.disabledContent
         Keys.onPressed: event => root.handleKey(event, root.second, root.second.handle)
@@ -134,7 +135,7 @@ RangeSlider {
         FocusIndicator {
             anchors.fill: parent
             visible: root.second.handle.activeFocus
-            cornerRadius: 2
+            cornerRadius: Material.control.sliderHandleRadius
         }
     }
 }

@@ -480,3 +480,19 @@ the scaled line heights; icon-only actions keep their established target size.
 Gallery containers must bound their children and wrap descriptive text at narrow
 widths. Elision in constrained single-line actions remains intentional, with
 complete accessible names. This does not certify native/system-wide text scaling.
+
+### Shared slider input
+
+Single-value, volume and range controls share `SliderInput.adjust` for horizontal
+arrows/A/D and Home/End. Up/Down/W/S navigate focus. Range endpoints use the same
+operations within their noncrossing/minimum-span bounds. A changed keyboard step
+previews and commits immediately; a pointer drag previews continuously and commits
+once on release. External readback emits neither request. Wheel input scrolls the
+containing view rather than changing values. Modified adjustment keys must not
+fall through into native value changes. Audio can apply preview requests live;
+this domain policy does not replace the shared gesture or commit contract.
+
+Application stream models must retain delegates by serial during readback and
+reordering. Never replace their entire array model while a slider can be pressed.
+Device/application volume readback must not override a pointer-owned value until
+release. Track/handle geometry comes from the same Material control roles.

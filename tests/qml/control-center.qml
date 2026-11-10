@@ -12,6 +12,7 @@ ShellRoot {
     property bool enabled: true
     property bool concurrentSent: false
     property bool updateCacheChecked: false
+    property bool updateLaunchChecked: false
     property bool editorChecked: false
     Process {
         id: updateWriter
@@ -66,6 +67,36 @@ ShellRoot {
                 optional: true
                 when: false
             }
+            function testApplicationDrag(application) {
+                keys.wait(50); // Allow the newly opened Audio page to lay out.
+                fixture.check(application.width > 100, "application drag fixture has no usable width");
+                keys.mousePress(application, application.width * .4, application.height / 2);
+                fixture.check(application.pressed, "application slider did not retain initial press");
+                const updated = JSON.parse(JSON.stringify(panel.stateData));
+                updated.audio.applications[0].volume = 5;
+                panel.stateData = updated;
+                panel.syncApplications();
+                fixture.check(find(panel.contentItem, "applicationVolume-100") === application, "audio readback recreated the held application slider");
+                fixture.check(application.pressed, "audio readback cancelled the drag");
+                const reordered = JSON.parse(JSON.stringify(updated));
+                reordered.audio.applications.unshift({
+                    id: 43,
+                    serial: "101",
+                    name: "Other player",
+                    volume: 25
+                });
+                panel.stateData = reordered;
+                panel.syncApplications();
+                fixture.check(find(panel.contentItem, "applicationVolume-100") === application && application.pressed, "stream insertion replaced the held slider");
+                const heldValue = application.value;
+                fixture.check(heldValue !== 5, "audio readback replaced the held pointer value");
+                keys.mouseMove(application, application.width * .7, application.height / 2, 20);
+                fixture.check(application.value > heldValue, "held application slider stopped following the pointer");
+                keys.mouseRelease(application, application.width * .7, application.height / 2);
+                fixture.check(!application.pressed, "application slider did not release");
+                panel.stateData = updated;
+                panel.syncApplications();
+            }
             function key(key, modifiers) {
                 keys.keyClick(key, modifiers || Qt.NoModifier);
             }
@@ -93,7 +124,9 @@ ShellRoot {
                     const saveRight = save.mapToItem(panel.contentItem, 0, 0).x + save.width;
                     fixture.check(toggleX > panel.width - 120, "replay toggle is not right-aligned");
                     fixture.check(toggleX >= saveRight && toggleX - saveRight <= 8, "save is not immediately left of the toggle");
-                    const updateRight = updateAction.mapToItem(panel.contentItem, updateAction.width, 0).x;
+                    const launch = find(panel.contentItem, "cachyUpdateLaunch");
+                    const updateRight = launch.mapToItem(panel.contentItem, launch.width, 0).x;
+                    fixture.check(updateAction.mapToItem(panel.contentItem, 0, 0).x < launch.mapToItem(panel.contentItem, 0, 0).x, "Check is not before Update");
                     fixture.check(Math.abs(updateRight - (panel.width - panel.sidebarStyle.padding - 16)) <= 1, "update check is not aligned with the section inset");
                 } else {
                     fixture.check(false, "sidebar actions missing");
@@ -132,6 +165,17 @@ ShellRoot {
                     find(panel.contentItem, "backAction").clicked();
                     fixture.check(find(panel.contentItem, "saveReplay").activeFocus, "return from editor did not restore Save focus");
                 }
+                const updateRow = find(panel.contentItem, "cachyUpdateRow");
+                if (!fixture.updateLaunchChecked) {
+                    if (updateRow.busy)
+                        return;
+                    find(panel.contentItem, "cachyUpdateLaunch").clicked();
+                    fixture.updateLaunchChecked = true;
+                    return;
+                }
+                if (updateRow.busy)
+                    return;
+                fixture.check(updateRow.checkError === "", "empty terminal-launch response reported an update error");
                 const savedState = panel.stateData;
                 fixture.check(!panel.acceptSnapshot({
                     audio: {},
@@ -143,6 +187,9 @@ ShellRoot {
                 const application = find(panel.contentItem, "applicationVolume-100");
                 fixture.check(!!application, "application slider is missing");
                 if (application) {
+                    test.stop();
+                    panel.testApplicationDrag(application);
+                    test.start();
                     application.value = 37;
                     application.moved();
                 }
