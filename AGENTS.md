@@ -471,6 +471,13 @@ the accepted result, redeploys and reloads active Foundation components.
 Tracked changes receive a reachable backup under `refs/desktop-foundation/`;
 do not replace this workflow with `git reset --hard` or `git clean`.
 
+Completed changes requested for local updating MUST be reconciled into the
+manifest-owning checkout after validation, preserving its commits and edits.
+Option `0` / `--local` builds that checkout only; it does not discover commits
+in sibling worktrees. Do not call an isolated-branch commit ready to update until
+the owner contains it. This source handoff does not authorize a deployment,
+package operation or GitHub push by itself.
+
 `--dry-run` is an inspection path. Do not accidentally run `df-update` on the next
 line of a supposed dry-run example. Conflicts/failures must preserve the current
 checkout/settings and report a useful recovery route. Keep routine terminal output

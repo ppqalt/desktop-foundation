@@ -26,6 +26,12 @@ is inspected in a temporary private bare repository, removed on cancellation or
 ordinary completion. Cancelling never builds or deploys the desktop. The existing
 no-downgrade protection still applies to older releases.
 
+Local mode uses the checkout recorded as the deployment owner in
+`$XDG_STATE_HOME/desktop-foundation/manifest.json`. It includes that checkout's
+commits and edits, but cannot see new commits that exist only on another local
+worktree's branch. Completed development must first be reconciled into the owner;
+then `df-update --local --dry-run` shows its new commit before rebuilding.
+
 To choose a GitHub branch for one update:
 
 ```sh
