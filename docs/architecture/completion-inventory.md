@@ -50,3 +50,10 @@ The older table remains a backlog rather than a claim that video wallpapers,
 complete settings/notification interfaces, all gallery variants or patched Niri
 activation have been finished. Those require further implementation and their
 own acceptance evidence. Preserve the desktop and source ownership while doing so.
+
+Gallery follow-up: independent shared typography preview at 100/125/150/200%
+now complements composition zoom. Action/dropdown geometry adapts to larger line
+heights; gallery descriptions wrap and layout minimums allow narrow widths.
+Production-control tests verify the larger two-line/compact action heights,
+scale clamping and return to default geometry. This is a process-local gallery
+preview, not system-wide text scaling or completed accessibility acceptance.

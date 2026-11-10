@@ -6,7 +6,7 @@ import "../theme"
 // Exposed dropdown menu: M3 filled field (56dp), rounded top corners.
 ComboBox {
     id: root
-    implicitHeight: 56
+    implicitHeight: Math.max(56, Material.type.bodyLargeLine + 24)
     activeFocusOnTab: true
     property int menuIndex: 0
     function handleKey(event): void {
@@ -79,7 +79,7 @@ ComboBox {
         required property var modelData
         required property int index
         width: root.width
-        implicitHeight: 48
+        implicitHeight: Math.max(Material.control.target, Material.type.bodyLargeLine + 16)
         highlighted: root.menuIndex === index
         onHoveredChanged: {
             if (hovered)

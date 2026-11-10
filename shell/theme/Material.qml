@@ -13,21 +13,24 @@ QtObject {
     }
     readonly property var colors: Theme.generated.material ?? baseline
     readonly property bool ready: colors.on_surface !== undefined
+    // Process-local preview/accessibility multiplier; never scales hit targets down.
+    property real textScale: 1.0
+    readonly property real effectiveTextScale: Math.max(0.75, Math.min(2.0, textScale))
     readonly property var type: ({
-            headlineSmall: 24,
-            headlineLine: 32,
-            titleLarge: 22,
-            titleLine: 28,
-            titleMedium: 16,
-            titleMediumLine: 24,
-            bodyLarge: 16,
-            bodyLargeLine: 24,
-            bodyMedium: 14,
-            bodyMediumLine: 20,
-            labelLarge: 14,
-            labelLine: 20,
-            labelSmall: 11,
-            labelSmallLine: 16
+            headlineSmall: 24 * root.effectiveTextScale,
+            headlineLine: 32 * root.effectiveTextScale,
+            titleLarge: 22 * root.effectiveTextScale,
+            titleLine: 28 * root.effectiveTextScale,
+            titleMedium: 16 * root.effectiveTextScale,
+            titleMediumLine: 24 * root.effectiveTextScale,
+            bodyLarge: 16 * root.effectiveTextScale,
+            bodyLargeLine: 24 * root.effectiveTextScale,
+            bodyMedium: 14 * root.effectiveTextScale,
+            bodyMediumLine: 20 * root.effectiveTextScale,
+            labelLarge: 14 * root.effectiveTextScale,
+            labelLine: 20 * root.effectiveTextScale,
+            labelSmall: 11 * root.effectiveTextScale,
+            labelSmallLine: 16 * root.effectiveTextScale
         })
     readonly property var shape: ({
             small: 8,

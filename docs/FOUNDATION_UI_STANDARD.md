@@ -468,3 +468,15 @@ Run `tests/test-material-widgets`, relevant Rust tests, QML lint/format and chan
 script checks. `scripts/check` covers repository formatting/native validation.
 A component fixture does not certify all window-manager behavior. Report coverage
 and remaining gaps precisely; never document planned behavior as implemented.
+
+### Text-size preview and shared control geometry
+
+The gallery can change `Material.textScale` independently of composition zoom.
+The default remains 1; this process-local preview does not write user settings.
+Typography and line-height roles scale together, clamped to 75–200%. This range
+is a Foundation preview policy, not an official Material token. Minimum hit
+targets remain unchanged. Shared action and dropdown heights must accommodate
+the scaled line heights; icon-only actions keep their established target size.
+Gallery containers must bound their children and wrap descriptive text at narrow
+widths. Elision in constrained single-line actions remains intentional, with
+complete accessible names. This does not certify native/system-wide text scaling.

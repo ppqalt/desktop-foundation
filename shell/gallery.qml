@@ -74,12 +74,18 @@ ShellRoot {
                 LayoutMirroring.childrenInherit: true
                 spacing: 16
                 Text {
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     text: "Foundation components"
                     color: Material.colors.on_surface
                     font.family: Theme.typography.family
                     font.pixelSize: Material.type.headlineSmall
                 }
                 Text {
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     text: "Interactive examples use local sample state."
                     color: Material.colors.on_surface_variant
                     font.family: Theme.typography.family
@@ -87,6 +93,7 @@ ShellRoot {
                 }
                 ControlChoice {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Accessible.name: "Jump to gallery section"
                     textRole: "name"
                     model: [
@@ -111,7 +118,11 @@ ShellRoot {
                 }
                 ControlGroup {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Text {
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Preview settings"
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
@@ -120,6 +131,7 @@ ShellRoot {
                     ControlChoice {
                         id: paletteChoice
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         Accessible.name: "Preview palette"
                         textRole: "name"
                         model: [
@@ -142,12 +154,16 @@ ShellRoot {
                         onActivated: index => window.selectPalette(index)
                     }
                     RowLayout {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         Text {
+                            wrapMode: Text.WordWrap
                             text: "Reduced motion (preview only)"
                             color: Material.colors.on_surface
                             font.family: Theme.typography.family
                             font.pixelSize: Material.type.bodyMedium
                             Layout.fillWidth: true
+                            Layout.minimumWidth: 0
                         }
                         ControlSwitch {
                             id: reducedMotionSwitch
@@ -159,7 +175,11 @@ ShellRoot {
                 }
                 ControlGroup {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Text {
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Layout preview"
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
@@ -167,6 +187,7 @@ ShellRoot {
                     }
                     ControlChoice {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         Accessible.name: "Preview zoom"
                         textRole: "name"
                         model: [
@@ -182,13 +203,39 @@ ShellRoot {
                         ]
                         onActivated: index => window.previewZoom = [1.0, 1.25, 1.5][index]
                     }
+                    ControlChoice {
+                        id: textScaleChoice
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        Accessible.name: "Text size preview"
+                        textRole: "name"
+                        model: [
+                            {
+                                name: "100% text size"
+                            },
+                            {
+                                name: "125% text size"
+                            },
+                            {
+                                name: "150% text size"
+                            },
+                            {
+                                name: "200% text size"
+                            }
+                        ]
+                        onActivated: index => Material.textScale = [1.0, 1.25, 1.5, 2.0][index]
+                    }
                     RowLayout {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         Text {
+                            wrapMode: Text.WordWrap
                             text: "Right-to-left layout preview"
                             color: Material.colors.on_surface
                             font.family: Theme.typography.family
                             font.pixelSize: Material.type.bodyMedium
                             Layout.fillWidth: true
+                            Layout.minimumWidth: 0
                         }
                         ControlSwitch {
                             text: "Right-to-left layout preview"
@@ -197,21 +244,29 @@ ShellRoot {
                         }
                     }
                     WidgetStatus {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         status: "loading"
-                        message: "Zoom scales the preview; it does not change system text size."
+                        message: "Text size changes shared typography independently of preview zoom; neither changes system settings."
                     }
                 }
                 ControlGroup {
                     id: actionsGroup
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Text {
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Actions and state"
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.titleMedium
                     }
                     ControlAction {
+                        id: sampleListAction
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "List action"
                         detail: "Supporting text"
                         symbol: "settings"
@@ -219,6 +274,7 @@ ShellRoot {
                     }
                     ControlAction {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Selected action"
                         detail: "Confirmed state"
                         onClicked: marked = !marked
@@ -227,6 +283,9 @@ ShellRoot {
                         toggle: true
                     }
                     Text {
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Activations: " + window.activationCount
                         color: Material.colors.on_surface_variant
                         font.family: Theme.typography.family
@@ -235,6 +294,7 @@ ShellRoot {
                     Flow {
                         id: actionsFlow
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         spacing: 4
                         ControlAction {
                             text: "Compact"
@@ -270,7 +330,11 @@ ShellRoot {
                 ControlGroup {
                     id: inputGroup
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Text {
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Input"
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
@@ -278,6 +342,7 @@ ShellRoot {
                     }
                     ControlAction {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Disable input examples"
                         compact: true
                         toggle: true
@@ -288,12 +353,16 @@ ShellRoot {
                         id: sampleSlider
                         enabled: !window.inputsDisabled
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         value: 40
                         Accessible.name: "Example slider"
                         onPreviewRequested: nextValue => window.sliderEvent = "Preview: " + Math.round(nextValue)
                         onCommitRequested: nextValue => window.sliderEvent = "Committed: " + Math.round(nextValue)
                     }
                     Text {
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: window.sliderEvent
                         color: Material.colors.on_surface_variant
                         font.family: Theme.typography.family
@@ -303,6 +372,7 @@ ShellRoot {
                         id: sampleRange
                         enabled: !window.inputsDisabled
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         first.value: 20
                         second.value: 80
                         startLabel: "Example range start"
@@ -312,12 +382,14 @@ ShellRoot {
                     }
                     FoundationSlider {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         value: 40
                         enabled: false
                         Accessible.name: "Disabled example slider"
                     }
                     ControlChoice {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         textRole: "name"
                         model: [
                             {
@@ -330,12 +402,14 @@ ShellRoot {
                     }
                     SearchInput {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         Layout.preferredHeight: 48
                         placeholderText: "Search example"
                         Accessible.name: "Search example"
                     }
                     ControlVolumeRow {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         enabled: !window.inputsDisabled
                         label: "Example application"
                         accessibleLabel: "Example application"
@@ -346,10 +420,14 @@ ShellRoot {
                         onMuteRequested: window.sampleMuted = !window.sampleMuted
                     }
                     WidgetStatus {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         status: "error"
                         message: "Example error state"
                     }
                     WidgetStatus {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         status: "unavailable"
                         message: "Device unavailable"
                     }
@@ -357,7 +435,11 @@ ShellRoot {
                 ControlGroup {
                     id: desktopGroup
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Text {
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Desktop examples"
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
@@ -365,6 +447,7 @@ ShellRoot {
                     }
                     ApplicationRow {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         entry: ({
                                 name: "Example application",
                                 genericName: "Launcher result",
@@ -374,6 +457,7 @@ ShellRoot {
                     }
                     ClipboardRow {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         entry: ({
                                 label: "Example note",
                                 detail: "Text",
@@ -384,6 +468,7 @@ ShellRoot {
                     }
                     ControlAction {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Wireless headphones"
                         detail: "Connected · example device"
                         symbol: "headphones"
@@ -391,6 +476,7 @@ ShellRoot {
                     }
                     ControlAction {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Example Wi-Fi"
                         detail: "Connected · example network"
                         symbol: "wifi"
@@ -399,6 +485,7 @@ ShellRoot {
                     ReplayControl {
                         id: exampleReplay
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         recording: recordingExample
                         onSetEnabled: enabled => {
                             recordingExample.state = enabled ? {
@@ -420,9 +507,11 @@ ShellRoot {
                         font.pixelSize: Material.type.bodyMedium
                         wrapMode: Text.WordWrap
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                     }
                     ReplayTimeline {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         duration: 300
                         startTime: window.sampleStart
                         endTime: window.sampleEnd
@@ -441,20 +530,26 @@ ShellRoot {
                     }
                     RowLayout {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         ControlTimeField {
                             Layout.fillWidth: true
+                            Layout.minimumWidth: 0
                             label: "Clip start"
                             seconds: window.sampleStart
                             onRequested: seconds => window.sampleStart = Math.max(0, Math.min(seconds, window.sampleEnd - 0.05))
                         }
                         ControlTimeField {
                             Layout.fillWidth: true
+                            Layout.minimumWidth: 0
                             label: "Clip end"
                             seconds: window.sampleEnd
                             onRequested: seconds => window.sampleEnd = Math.min(300, Math.max(seconds, window.sampleStart + 0.05))
                         }
                     }
                     Text {
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: (window.sampleEnd - window.sampleStart).toFixed(3) + " seconds selected"
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
@@ -462,21 +557,27 @@ ShellRoot {
                     }
                     WallpaperGrid {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/component-gallery-fixture"
                         onFailed: message => console.warn("Gallery wallpaper example: " + message)
                     }
                     ControlAction {
                         id: openPopup
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: "Open popup example"
                         detail: "Escape or click outside to close"
                         onClicked: examplePopup.open()
                     }
                     WidgetStatus {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         status: "loading"
                         message: "Loading example"
                     }
                     WidgetStatus {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         status: "empty"
                         message: "Nothing here yet"
                     }
@@ -503,6 +604,9 @@ ShellRoot {
                 anchors.fill: parent
                 anchors.margins: 24
                 Text {
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     text: "Popup example"
                     color: Material.colors.on_surface
                     font.family: Theme.typography.family
@@ -510,6 +614,7 @@ ShellRoot {
                 }
                 Text {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     text: "A local preview of the shared popup surface."
                     color: Material.colors.on_surface_variant
                     font.family: Theme.typography.family
@@ -532,6 +637,10 @@ ShellRoot {
             interval: 100
             onTriggered: {
                 const initial = sampleSwitch.marked;
+                const normalText = Material.type.bodyLarge;
+                textScaleChoice.activated(3);
+                const textScaled = Material.type.bodyLarge === normalText * 2 && sampleListAction.implicitHeight >= Material.type.bodyLargeLine + Material.type.bodyMediumLine + 24;
+                textScaleChoice.activated(0);
                 const oldMotion = Theme.reducedMotion;
                 reducedMotionSwitch.clicked();
                 const motionChanged = Theme.reducedMotion !== oldMotion;
@@ -549,29 +658,40 @@ ShellRoot {
                 examplePopup.open();
                 const popupOpened = examplePopup.visible;
                 examplePopup.close();
-                const good = rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
+                const good = textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
                 if (!good) {
                     console.error("GALLERY_TEST_FAILED");
                     Qt.quit();
                     return;
                 }
+                const captureScale = Number(Quickshell.env("DF_GALLERY_TEXT_SCALE")) || 1;
+                textScaleChoice.currentIndex = [1, 1.25, 1.5, 2].indexOf(captureScale);
+                Material.textScale = captureScale;
                 const capture = Quickshell.env("DF_GALLERY_CAPTURE");
                 if (capture) {
-                    const section = Quickshell.env("DF_GALLERY_CAPTURE_SECTION");
-                    const target = section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : null;
-                    if (target)
-                        galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.y * window.previewZoom));
-                    window.contentItem.grabToImage(result => {
-                        if (result.saveToFile(capture))
-                            console.log("GALLERY_TEST_OK");
-                        else
-                            console.error("GALLERY_TEST_FAILED");
-                        Qt.quit();
-                    });
+                    captureTimer.start();
                 } else {
                     console.log("GALLERY_TEST_OK");
                     Qt.quit();
                 }
+            }
+        }
+        Timer {
+            id: captureTimer
+            interval: 100
+            onTriggered: {
+                const capture = Quickshell.env("DF_GALLERY_CAPTURE");
+                const section = Quickshell.env("DF_GALLERY_CAPTURE_SECTION");
+                const target = section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : null;
+                if (target)
+                    galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.y * window.previewZoom));
+                window.contentItem.grabToImage(result => {
+                    if (result.saveToFile(capture))
+                        console.log("GALLERY_TEST_OK");
+                    else
+                        console.error("GALLERY_TEST_FAILED");
+                    Qt.quit();
+                });
             }
         }
     }

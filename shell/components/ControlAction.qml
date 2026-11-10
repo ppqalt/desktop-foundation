@@ -12,8 +12,10 @@ ControlButton {
     property bool iconOnly: false
     // Compact = M3 small button, 40dp visual in a 48dp input target.
     // Otherwise use M3 one/two-line list items, 56/72dp.
-    implicitHeight: compact ? Material.control.target : detail ? Material.control.listTwoLine : Material.control.listOneLine
-    implicitWidth: compact ? iconOnly ? Material.control.target : Material.control.compactButtonWidth : Material.control.listWidth
+    readonly property real labelHeight: compact ? Material.type.labelLine : Material.type.bodyLargeLine
+    readonly property real textHeight: labelHeight + (detail ? Material.type.bodyMediumLine : 0)
+    implicitHeight: iconOnly ? Material.control.target : Math.max(compact ? Material.control.target : detail ? Material.control.listTwoLine : Material.control.listOneLine, textHeight + (compact ? 16 : 24))
+    implicitWidth: compact ? iconOnly ? Material.control.target : Math.max(Material.control.compactButtonWidth, Material.effectiveTextScale > 1 ? Math.ceil(actionLabel.implicitWidth) + 48 + (symbol ? 28 : 0) + indicator.implicitWidth : 0) : Material.control.listWidth
     Accessible.name: text + (detail ? ", " + detail : "") + (badge ? ", " + badge : "")
     Accessible.role: toggle ? Accessible.CheckBox : Accessible.Button
     Accessible.checkable: toggle
@@ -76,6 +78,7 @@ ControlButton {
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             Text {
+                id: actionLabel
                 width: parent.width
                 text: root.text
                 textFormat: Text.PlainText

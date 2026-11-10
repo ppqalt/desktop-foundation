@@ -13,8 +13,11 @@ shared popup, the four-column wallpaper grid, the replay row, unified volume
 rows, range selection, precise time fields and a sample clip timeline. Wallpaper
 inventory, previews and selection use a sample-only helper: choosing a tile does
 not change the desktop. A section selector provides quick navigation.
-Preview zoom and right-to-left layout are local to the gallery; zoom scales the
-whole preview rather than changing native text sizing. Its recording
+Preview zoom, text size and right-to-left layout are local to the gallery. Zoom
+scales the whole composition; the separate 100/125/150/200% text-size selector
+changes shared typography while preserving unscaled minimum hit targets. Shared
+buttons and dropdowns grow vertically to fit their larger labels. Narrow gallery
+labels wrap and controls remain within the available content width. Its recording
 example uses local simulated state and cannot start or save a recording. The
 palette selector offers the current wallpaper and two sample Matugen palettes
 in light and dark variants; changes affect only the gallery process. Reduced
@@ -22,7 +25,7 @@ motion can also be toggled locally. The samples in `shell/gallery-palettes.json`
 were generated with Matugen's tonal-spot scheme from `#6750a4` and `#006b60`,
 at standard contrast; they do not change the desktop or its wallpaper.
 
-It is not yet a complete gallery: all control states, native text scaling, density variants and comprehensive visual and
+It is not yet a complete gallery: all control states, density variants and comprehensive visual and
 accessibility comparisons still need examples and verification. The mirrored
 preview helps inspect layout but does not establish full right-to-left support.
 `tests/test-component-gallery` checks palette selection and representative

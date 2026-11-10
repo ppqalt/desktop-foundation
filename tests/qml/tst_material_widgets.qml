@@ -526,6 +526,27 @@ ShellRoot {
                 compare(firstControl.implicitWidth, Material.control.compactButtonWidth);
                 firstControl.compact = false;
             }
+            function test_large_text_control_geometry() {
+                const oldScale = Material.textScale;
+                const oldDetail = firstControl.detail;
+                const oldCompact = firstControl.compact;
+                try {
+                    Material.textScale = 2;
+                    compare(Material.type.bodyLarge, 32);
+                    firstControl.detail = "Supporting text";
+                    verify(firstControl.implicitHeight >= Material.type.bodyLargeLine + Material.type.bodyMediumLine + 24);
+                    firstControl.detail = "";
+                    firstControl.compact = true;
+                    verify(firstControl.implicitHeight >= Material.type.labelLine + 16);
+                    Material.textScale = 99;
+                    compare(Material.type.bodyLarge, 32);
+                } finally {
+                    Material.textScale = oldScale;
+                    firstControl.detail = oldDetail;
+                    firstControl.compact = oldCompact;
+                }
+                compare(firstControl.implicitHeight, Material.control.listOneLine);
+            }
             function test_slider_request_semantics() {
                 controls.visible = true;
                 slider.value = 20;
@@ -611,7 +632,12 @@ ShellRoot {
                     compare(controls.activated, before + 2);
                     keyRelease(Qt.Key_Space);
                     compare(controls.activated, before + 3);
-                    const repeated = {key: Qt.Key_Return, modifiers: Qt.NoModifier, isAutoRepeat: true, accepted: false};
+                    const repeated = {
+                        key: Qt.Key_Return,
+                        modifiers: Qt.NoModifier,
+                        isAutoRepeat: true,
+                        accepted: false
+                    };
                     verify(control.activateKey(repeated));
                     compare(controls.activated, before + 3);
                     control.enabled = false;
@@ -860,6 +886,7 @@ ShellRoot {
                 checks.test_shared_roles();
                 checks.test_palette_propagation();
                 checks.test_control_geometry_tokens();
+                checks.test_large_text_control_geometry();
                 checks.test_slider_request_semantics();
                 checks.test_range_keyboard_contract();
                 checks.test_button_switch_activation_parity();
