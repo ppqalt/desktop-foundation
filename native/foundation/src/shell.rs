@@ -6,6 +6,14 @@ use std::{
 };
 
 pub fn call(root: &Path, method: &[String]) -> Result<()> {
+    call_inner(root, method, true)
+}
+/// Interactive sidebar requests dispatch once immediately. An unavailable shell
+/// returns an error; an unknown toggle outcome is never retried.
+pub fn call_now(root: &Path, method: &[String]) -> Result<()> {
+    call_inner(root, method, false)
+}
+fn call_inner(root: &Path, method: &[String], wait_ready: bool) -> Result<()> {
     if method.is_empty() || method[0].is_empty() {
         return Err(invalid("Shell IPC method required"));
     }
@@ -21,27 +29,29 @@ pub fn call(root: &Path, method: &[String]) -> Result<()> {
     probe.push("status".into());
     let deadline = Instant::now() + Duration::from_secs(3);
     let mut diagnostic = String::new();
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return Err(invalid(format!(
-                "Desktop shell did not become ready within three seconds: {diagnostic}"
-            )));
+    if wait_ready {
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(invalid(format!(
+                    "Desktop shell did not become ready within three seconds: {diagnostic}"
+                )));
+            }
+            match process::checked(
+                &probe,
+                None,
+                remaining.min(Duration::from_millis(500)),
+                false,
+            ) {
+                Ok(_) => break,
+                Err(error) => diagnostic = error.to_string(),
+            }
+            std::thread::sleep(
+                deadline
+                    .saturating_duration_since(Instant::now())
+                    .min(Duration::from_millis(50)),
+            );
         }
-        match process::checked(
-            &probe,
-            None,
-            remaining.min(Duration::from_millis(500)),
-            false,
-        ) {
-            Ok(_) => break,
-            Err(error) => diagnostic = error.to_string(),
-        }
-        std::thread::sleep(
-            deadline
-                .saturating_duration_since(Instant::now())
-                .min(Duration::from_millis(50)),
-        );
     }
     args.extend_from_slice(method);
     // An unknown outcome must never be replayed: a toggle could undo itself.

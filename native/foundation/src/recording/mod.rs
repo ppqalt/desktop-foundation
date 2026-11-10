@@ -14,11 +14,76 @@ use std::{
 pub const UNIT: &str = "desktop-foundation-recording.service";
 const SOCKET: &str = "desktop-foundation-recording.socket";
 
+/// Audio routing belongs to the single recorder owner, never device volume.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum AudioMode {
+    DesktopMicrophone,
+    Desktop,
+    None,
+}
+impl From<bool> for AudioMode {
+    fn from(desktop_only: bool) -> Self {
+        if desktop_only {
+            Self::Desktop
+        } else {
+            Self::DesktopMicrophone
+        }
+    }
+}
+impl AudioMode {
+    fn tracks(self) -> usize {
+        match self {
+            Self::DesktopMicrophone => 2,
+            Self::Desktop => 1,
+            Self::None => 0,
+        }
+    }
+    fn request(self) -> &'static [u8] {
+        match self {
+            Self::DesktopMicrophone => b"toggle",
+            Self::Desktop => b"silent",
+            Self::None => b"no-audio",
+        }
+    }
+    fn start_request(self) -> &'static [u8] {
+        match self {
+            Self::DesktopMicrophone => b"start-mixed",
+            Self::Desktop => b"start-desktop",
+            Self::None => b"start-no-audio",
+        }
+    }
+    fn from_request(request: &[u8]) -> Self {
+        match request {
+            b"silent" | b"start-desktop" => Self::Desktop,
+            b"no-audio" | b"start-no-audio" => Self::None,
+            _ => Self::DesktopMicrophone,
+        }
+    }
+    fn filename(self) -> &'static str {
+        match self {
+            Self::DesktopMicrophone => "Recording",
+            Self::Desktop => "Desktop",
+            Self::None => "NoAudio",
+        }
+    }
+    fn policy(self) -> &'static str {
+        match self {
+            Self::DesktopMicrophone => {
+                "separate desktop and microphone tracks; no device volume changes"
+            }
+            Self::Desktop => "desktop output only; microphone is not captured",
+            Self::None => "no audio sources are captured",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     shortcut: String,
     silent_shortcut: String,
+    no_audio_shortcut: String,
     replay_shortcut: String,
     replay_toggle_shortcut: String,
     replay_seconds: u32,
@@ -48,6 +113,7 @@ impl Default for Config {
         Self {
             shortcut: "Ctrl+Shift+F12".into(),
             silent_shortcut: "Ctrl+Shift+Alt+F12".into(),
+            no_audio_shortcut: String::new(),
             replay_shortcut: "Ctrl+Shift+F11".into(),
             replay_toggle_shortcut: "Ctrl+Shift+Alt+F11".into(),
             replay_seconds: 300,
@@ -79,6 +145,7 @@ impl Config {
         for shortcut in [
             &self.shortcut,
             &self.silent_shortcut,
+            &self.no_audio_shortcut,
             &self.replay_shortcut,
             &self.replay_toggle_shortcut,
         ] {
@@ -95,6 +162,7 @@ impl Config {
         let shortcuts = [
             &self.shortcut,
             &self.silent_shortcut,
+            &self.no_audio_shortcut,
             &self.replay_shortcut,
             &self.replay_toggle_shortcut,
         ];
@@ -262,7 +330,10 @@ fn selected_fps(c: &Config, display: &Value) -> u32 {
         .unwrap_or(c.max_fps);
     refresh.clamp(60, c.max_fps)
 }
-fn audio_defaults(silent: bool) -> Value {
+fn audio_defaults(mode: AudioMode) -> Value {
+    if mode == AudioMode::None {
+        return json!({"default_output":null, "default_input":null});
+    }
     let result = process::checked(
         &["pactl".into(), "--format=json".into(), "info".into()],
         None,
@@ -271,7 +342,7 @@ fn audio_defaults(silent: bool) -> Value {
     );
     match result.and_then(|v| serde_json::from_slice::<Value>(&v.stdout).map_err(Into::into)) {
         Ok(info) => {
-            json!({"default_output":info["default_sink_name"], "default_input":if silent {Value::Null} else {info["default_source_name"].clone()},
+            json!({"default_output":info["default_sink_name"], "default_input":if mode == AudioMode::Desktop {Value::Null} else {info["default_source_name"].clone()},
             "server_sample_specification":info["default_sample_specification"]})
         }
         Err(e) => json!({"diagnostic":e.to_string()}),
@@ -280,10 +351,11 @@ fn audio_defaults(silent: bool) -> Value {
 fn command(
     c: &Config,
     display: &Value,
-    silent: bool,
+    mode: impl Into<AudioMode>,
     file: &Path,
     token: &Path,
 ) -> Result<Vec<String>> {
+    let mode = mode.into();
     let capture = if c.capture == "focused-output" {
         display["name"]
             .as_str()
@@ -330,20 +402,25 @@ fn command(
             token.to_string_lossy().into_owned(),
         ]);
     }
-    args.extend(["-a".into(), c.desktop_audio.clone()]);
-    if !silent {
-        args.extend(["-a".into(), c.microphone_audio.clone()]);
+    if mode != AudioMode::None {
+        args.extend(["-a".into(), c.desktop_audio.clone()]);
+        if mode == AudioMode::DesktopMicrophone {
+            args.extend(["-a".into(), c.microphone_audio.clone()]);
+        }
+        args.extend([
+            "-ac".into(),
+            c.audio_codec.clone(),
+            "-ab".into(),
+            c.audio_bitrate_kbps.to_string(),
+        ]);
     }
-    args.extend([
-        "-ac".into(),
-        c.audio_codec.clone(),
-        "-ab".into(),
-        c.audio_bitrate_kbps.to_string(),
-    ]);
     args.extend(["-o".into(), file.to_string_lossy().into_owned()]);
     Ok(args)
 }
 pub fn plan(root: &Path, silent: bool) -> Result<Value> {
+    plan_mode(root, silent.into())
+}
+fn plan_mode(root: &Path, mode: AudioMode) -> Result<Value> {
     let (c, sources) = settings(root)?;
     let display = output().unwrap_or(Value::Null);
     let directory = if c.directory.is_empty() {
@@ -354,13 +431,13 @@ pub fn plan(root: &Path, silent: bool) -> Result<Value> {
     let token = state::xdg("XDG_STATE_HOME", ".local/state")?
         .join("desktop-foundation/recording/portal-token");
     let file = directory.join(format!("Foundation-PREVIEW.{}", c.container));
-    let args = command(&c, &display, silent, &file, &token)?;
+    let args = command(&c, &display, mode, &file, &token)?;
     Ok(
         json!({"available": apps::executable("gpu-screen-recorder"), "settings": c, "sources": sources,
         "focused_display": display, "fps": selected_fps(&c, &display), "directory": directory,
-        "silent": silent, "tracks": if silent {1} else {2}, "command": args, "audio_defaults": audio_defaults(silent),
+        "silent": mode == AudioMode::Desktop, "audio_mode": mode, "tracks": mode.tracks(), "command": args, "audio_defaults": audio_defaults(mode),
         "resolution_policy": "auto preserves the actual captured source resolution; a portal selection may differ from the focused output",
-        "audio_policy": if silent {"desktop output only; microphone is not captured"} else {"separate default-output and default-input tracks; no device volume changes"}}),
+        "audio_policy": mode.policy()}),
     )
 }
 pub fn bindings(root: &Path) -> Result<String> {
@@ -369,6 +446,7 @@ pub fn bindings(root: &Path) -> Result<String> {
     for (key, action) in [
         (&c.shortcut, "toggle"),
         (&c.silent_shortcut, "silent"),
+        (&c.no_audio_shortcut, "no-audio"),
         (&c.replay_shortcut, "replay-save"),
         (&c.replay_toggle_shortcut, "replay-toggle"),
     ] {
@@ -393,7 +471,12 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     {
         [] | ["toggle"] => runtime::request(false, false),
         ["silent"] => runtime::request(true, false),
+        ["no-audio"] => runtime::request_mode(AudioMode::None, false),
         ["stop"] => runtime::request(false, true),
+        ["start"] => runtime::request_start(AudioMode::DesktopMicrophone),
+        ["start", "--desktop-only"] => runtime::request_start(AudioMode::Desktop),
+        ["start", "--no-audio"] => runtime::request_start(AudioMode::None),
+        ["stop-recording"] => runtime::stop_recording(),
         ["replay-on"] => runtime::replay_set(true),
         ["replay-off"] => runtime::replay_set(false),
         ["replay-save"] => runtime::replay_request(true),
@@ -419,6 +502,10 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             println!("{}", plan(root, true)?);
             Ok(())
         }
+        ["plan", "--no-audio"] => {
+            println!("{}", plan_mode(root, AudioMode::None)?);
+            Ok(())
+        }
         ["status"] => {
             let mut state = runtime::status()?;
             if state["buffer_seconds"].is_null() {
@@ -429,7 +516,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             Ok(())
         }
         _ => Err(invalid(
-            "Expected recording toggle|silent|stop|replay-on|replay-off|replay-save|replay-toggle|editor ...|autostart|plan [--silent]|status",
+            "Expected recording start [--desktop-only|--no-audio]|stop-recording|toggle|silent|no-audio|stop|replay-on|replay-off|replay-save|replay-toggle|editor ...|autostart|plan [--silent|--no-audio]|status",
         )),
     }
 }
@@ -437,6 +524,38 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn no_audio_mode_omits_sources_and_audio_encoder_options() {
+        let c = Config::default();
+        let command = command(
+            &c,
+            &json!({"name":"DP-1","refresh":144000}),
+            AudioMode::None,
+            Path::new("test.mkv"),
+            Path::new("token"),
+        )
+        .unwrap();
+        for forbidden in ["-a", "-ac", "-ab", "default_input", "default_output"] {
+            assert!(!command.iter().any(|argument| argument == forbidden));
+        }
+        assert!(command.windows(2).any(|pair| pair == ["-c", "mkv"]));
+        assert!(command.windows(2).any(|pair| pair == ["-encoder", "gpu"]));
+        assert_eq!(AudioMode::from_request(b"silent"), AudioMode::Desktop);
+        for mode in [
+            AudioMode::DesktopMicrophone,
+            AudioMode::Desktop,
+            AudioMode::None,
+        ] {
+            assert_eq!(AudioMode::from_request(mode.start_request()), mode);
+            assert_eq!(AudioMode::from_request(mode.request()), mode);
+        }
+        let mut configured = c;
+        configured.no_audio_shortcut = configured.silent_shortcut.clone();
+        assert!(configured.validate().is_err());
+        configured.no_audio_shortcut.clear();
+        configured.validate().unwrap();
+    }
+
     #[test]
     fn native_resolution_and_separate_audio_without_cpu_fallback() {
         let c = Config::default();

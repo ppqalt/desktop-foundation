@@ -46,6 +46,7 @@ ShellRoot {
                     bufferSeconds: 300,
                     state: {
                         phase: "replay",
+                        control_protocol: 2,
                         replay: true,
                         replay_status: "buffering"
                     }

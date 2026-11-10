@@ -125,3 +125,16 @@ The monitor also reads the existing shared reduced-motion preference on service
 startup and settles zero-duration motion safely. The copied interpolation,
 narrow-output geometry, focus timing and outer border differences above remain
 explicit gaps; this change does not claim to eliminate them.
+
+## Opening-path follow-up, 2026-11-10
+
+Control Center now uses `SidebarLoader` for asynchronous hidden preparation and
+retained view reuse. Router reads are guarded by loader readiness, and pending
+cold-open intent can be cancelled. The cached window is unmapped and quiescent
+when closed; backend actions already requested keep their original owner.
+Both public sidebar shortcut paths dispatch one IPC request, removing the
+preliminary shell status probe. No motion duration or easing was changed.
+The earlier comparison's Control Center destruction/closed-cost entries are
+historical: the current tradeoff is resident QML memory for faster opening.
+Kitty/btop is still constructed on demand; terminal cold startup is a remaining
+latency source, not established as eliminated by these changes.

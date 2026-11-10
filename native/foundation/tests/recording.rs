@@ -195,10 +195,14 @@ while [ -e "$DF_RECORDING_FIXTURE_ROOT/block-finalization" ]; do /bin/sleep 0.02
         self.owner = Some(command.spawn().unwrap());
     }
     fn client(&self, action: &str) {
+        self.client_args(&[action]);
+    }
+    fn client_args(&self, args: &[&str]) {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"));
         cmd.arg("--root")
             .arg(&self.root)
-            .args(["recording", action]);
+            .arg("recording")
+            .args(args);
         self.configure(&mut cmd);
         assert!(cmd.status().unwrap().success());
     }
@@ -944,4 +948,109 @@ fn direct_editor_capture_bypasses_legacy_drafts_and_replaces_only_its_workspace(
     assert_eq!(f.state()["phase"], "replay");
     f.client("replay-off");
     assert!(f.wait_exit());
+}
+
+#[test]
+fn video_only_capture_has_zero_audio_and_repeated_start_does_not_stop_it() {
+    let mut f = Fixture::new(false);
+    fs::write(f.root.join("probe.json"), json!({"format":{"duration":"1.5"},"streams":[{"codec_type":"video","codec_name":"h264","width":2560,"height":1440,"nb_read_packets":"10"}]}).to_string()).unwrap();
+    f.client_args(&["start", "--no-audio"]);
+    f.launch_owner();
+    f.wait_phase("recording");
+    assert_eq!(f.state()["audio_mode"], "none");
+    assert_eq!(f.state()["silent"], false); // Legacy silent still means desktop only.
+    let args = fs::read_to_string(f.root.join("arguments")).unwrap();
+    assert!(!args.lines().any(|arg| ["-a", "-ac", "-ab"].contains(&arg)));
+    f.client_args(&["start", "--no-audio"]);
+    std::thread::sleep(Duration::from_millis(50));
+    assert_eq!(f.state()["phase"], "recording");
+    assert!(!f.root.join("probe-started").exists());
+    f.client("stop-recording");
+    f.wait_phase("stopping");
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    assert!(f.wait_exit());
+    assert_eq!(f.state()["phase"], "idle");
+    assert!(
+        fs::read_dir(f.root.join("videos"))
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name().to_string_lossy().starts_with("NoAudio-"))
+    );
+}
+
+#[test]
+fn no_audio_capture_pauses_and_resumes_replay_without_an_extra_pipeline() {
+    let mut f = Fixture::new(false);
+    replay_fixture(&f);
+    fs::remove_file(f.root.join("block-finalization")).unwrap();
+    f.socket
+        .send_to(
+            b"replay-on",
+            f.root
+                .join("runtime/desktop-foundation-recording/requests.sock"),
+        )
+        .unwrap();
+    f.launch_owner();
+    f.wait_phase("replay");
+    let replay_pid = fs::read_to_string(f.root.join("replay-pid")).unwrap();
+    f.client("stop-recording"); // Idle recording control must not stop replay.
+    std::thread::sleep(Duration::from_millis(50));
+    assert_eq!(f.state()["phase"], "replay");
+    fs::write(f.root.join("probe.json"), json!({"format":{"duration":"1.5"},"streams":[{"codec_type":"video","codec_name":"h264","width":2560,"height":1440,"nb_read_packets":"10"}]}).to_string()).unwrap();
+    f.client_args(&["start", "--no-audio"]);
+    f.wait_phase("recording");
+    assert_eq!(f.state()["replay_status"], "paused");
+    assert_eq!(f.state()["audio_mode"], "none");
+    let args = fs::read_to_string(f.root.join("desktop-arguments")).unwrap();
+    assert!(!args.lines().any(|arg| arg == "-a"));
+    let pid: i32 = replay_pid.parse().unwrap();
+    // SAFETY: only checks liveness of the fixture's previous recorder process.
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+    f.client("stop-recording");
+    f.wait_phase("replay");
+    wait_files(&f.root.join("videos"), 1);
+    assert_ne!(
+        fs::read_to_string(f.root.join("replay-pid")).unwrap(),
+        replay_pid
+    );
+    assert_eq!(f.state()["audio_mode"], "desktop-microphone");
+    // The automatic restart restores the normal independent audio tracks.
+    let args = fs::read_to_string(f.root.join("arguments")).unwrap();
+    assert_eq!(args.lines().filter(|arg| *arg == "-a").count(), 2);
+    f.client("replay-off");
+    assert!(f.wait_exit());
+}
+
+#[test]
+fn extended_controls_never_send_unknown_requests_to_a_running_legacy_owner() {
+    let f = Fixture::new(false);
+    fs::write(
+        f.root
+            .join("runtime/desktop-foundation-recording/status.json"),
+        json!({"phase":"replay","replay":true}).to_string(),
+    )
+    .unwrap();
+    for args in [
+        vec!["start", "--no-audio"],
+        vec!["start"],
+        vec!["no-audio"],
+        vec!["stop-recording"],
+    ] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"));
+        command
+            .arg("--root")
+            .arg(&f.root)
+            .arg("recording")
+            .args(&args);
+        f.configure(&mut command);
+        command.stderr(Stdio::piped());
+        let output = command.output().unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("Recorder restart needed"));
+    }
+    f.socket
+        .set_read_timeout(Some(Duration::from_millis(10)))
+        .unwrap();
+    assert!(f.socket.recv(&mut [0; 32]).is_err());
+    assert_eq!(f.state()["phase"], "replay");
 }

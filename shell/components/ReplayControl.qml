@@ -8,6 +8,7 @@ ColumnLayout {
     objectName: "replayControl"
     property var recording: null
     property bool pending: false
+    property bool showHeading: true
     property alias saveButton: saveAction
     readonly property var replayState: recording?.state ?? ({})
     readonly property bool replayEnabled: replayState.replay === true && replayState.phase !== "error"
@@ -35,6 +36,7 @@ ColumnLayout {
     signal saveRequested
     spacing: 0
     Text {
+        visible: root.showHeading
         text: "Recording"
         color: Material.colors.on_surface
         font.family: Theme.typography.family
@@ -94,7 +96,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.topMargin: 8
         status: root.replayState.phase === "error" || root.replayState.save_status === "error" ? "error" : "loading"
-        message: status === "error" ? root.replayState.save_error || root.replayState.error || "Replay failed. Turn Instant Replay on to retry." : root.replayState.replay_status === "paused" ? "Paused for desktop-only recording. Replay will restart with an empty buffer." : ""
+        message: status === "error" ? root.replayState.save_error || root.replayState.error || "Recording failed. Retry recording or Instant Replay." : root.replayState.replay_status === "paused" ? "Paused for " + (root.replayState.audio_mode === "none" ? "video-only" : "desktop-only") + " recording. Replay will restart with an empty buffer." : ""
         font.pixelSize: Material.type.bodyMedium
     }
 }

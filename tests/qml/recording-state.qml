@@ -37,7 +37,82 @@ ShellRoot {
         }
     }
 
+    Component {
+        id: captureComponent
+        RecordingControl {
+            recording: mockRecording
+            width: 360
+        }
+    }
     TestCase {
+        function init() {
+            mockRecording.state = {
+                phase: "idle"
+            };
+            mockRecording.prepared = true;
+            mockRecording.bufferSeconds = 135;
+        }
+        function test_recording_controls_use_confirmed_mode_and_explicit_actions() {
+            const control = createTemporaryObject(captureComponent, null);
+            verify(control !== null);
+            let sent = [];
+            control.requested.connect(args => sent = args);
+            control.modeChoice.activated(2);
+            compare(control.selectedMode, 2);
+            control.actionButton.clicked();
+            compare(JSON.stringify(sent), JSON.stringify(["start", "--no-audio"]));
+            verify(!control.captureActive); // Request success is not recording confirmation.
+            mockRecording.state = {
+                phase: "starting",
+                control_protocol: 2,
+                audio_mode: "none"
+            };
+            compare(control.actionButton.text, "Cancel");
+            verify(!control.modeChoice.enabled);
+            control.actionButton.clicked();
+            compare(sent[0], "stop-recording");
+            mockRecording.state = {
+                phase: "recording",
+                control_protocol: 2,
+                audio_mode: "desktop"
+            };
+            compare(control.actionButton.text, "Stop");
+            compare(control.modeChoice.currentIndex, 1); // A shortcut may select another mode.
+            mockRecording.state = {
+                phase: "stopping",
+                control_protocol: 2,
+                audio_mode: "desktop"
+            };
+            compare(control.statusText, "Saving");
+            verify(!control.actionButton.enabled);
+            mockRecording.state = {
+                phase: "replay",
+                control_protocol: 2,
+                replay: true,
+                replay_status: "ready"
+            };
+            verify(!control.captureActive);
+            verify(control.actionButton.enabled);
+            compare(control.modeChoice.currentIndex, 2);
+            control.pending = true;
+            verify(!control.modeChoice.enabled);
+            verify(!control.actionButton.enabled);
+            control.pending = false;
+            mockRecording.state = {
+                phase: "starting",
+                replay: true
+            };
+            verify(!control.actionButton.enabled);
+            mockRecording.state = {
+                phase: "error",
+                error: "capture failed"
+            };
+            compare(control.statusText, "Error");
+            verify(control.actionButton.enabled);
+            mockRecording.prepared = false;
+            verify(!control.actionButton.enabled);
+        }
+
         function writePhase(phase) {
             writer.command = [Quickshell.shellDir + "/../scripts/record", "fixture-write", phase];
             writer.running = true;

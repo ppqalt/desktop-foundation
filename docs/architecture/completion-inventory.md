@@ -14,7 +14,7 @@ Reinspect host state before any later deployment.
 | Interfaces | [Design-system inventory](design-system-inventory.md) lists actual surfaces and provider boundaries. Control Center already shares controls; launcher, clipboard, Bluetooth, power and wallpapers retain domain-specific interaction. Mako and Kitty/btop render outside QML. | Audit and migrate each interface incrementally without replacing providers or regressing routing, focus or compact layouts; measure latency and memory rather than assume improvements. |
 | Motion | Current shared tokens use duration and Bezier approximations, including reduced motion. [Google's motion physics guidance](https://m3.material.io/styles/motion) uses spring-based schemes. | Evaluate interruptible springs on representative surfaces with reduced-motion and performance tests; preserve established compact desktop motion rather than applying bounce globally. |
 | Transparency | Uncommitted transaction changes attempt to retain application identity across stream recreation; legacy journals lacked identity. Initial fixture tests exercise both. Restoration after a stream is absent while mode turns off is not implemented. | Complete persistent, unambiguous restoration across off/restart/stream recreation; retain external volume changes and monitoring independence. Validate isolated PipeWire fixtures and hardware separately; do not deploy partial changes. |
-| Recording | The default is now 300 seconds with configurable automatic startup, MKV and Opus. The editor pins a non-clearing snapshot from the same recorder; shared range controls select the exported portion. | Real-media thumbnail/full-copy/NVENC tests cover exact cuts, channel counts and timed audio markers. Complete protected live acceptance and resource measurements before deployment; no-audio capture remains separate work. |
+| Recording | The default is now 300 seconds with configurable automatic startup, MKV and Opus. The editor pins a non-clearing snapshot from the same recorder; shared range controls select the exported portion. | Real-media thumbnail/full-copy/NVENC tests cover exact cuts, channel counts and timed audio markers. Complete protected live acceptance and resource measurements before deployment; no-audio capture and compact shared recording controls are now implemented (2026-11-10); physical GPU capture acceptance for that new mode remains separate. |
 | Wallpapers | Image inventory and lazy previews support many formats, with optional FFmpeg decoding for JXL/HEIC. Picker has four columns. | Video playback, animated previews, per-output assignments, audio, fullscreen suspension, hotplug and transactional recovery need investigation and actual runtime proof. Do not infer playback from a probe. |
 | Niri | 2026-11-10: journaled package installation, exact signed stock rollback, fresh-login capability gating and managed updater integration implemented. Patched package installed on Lucky38; existing stock process preserved. Private VM package install, Ctrl+wheel up/down with unchanged workspace, fresh patched login, rollback and fresh stock login passed. | Lucky38 must use a later normal login to run the new binary. Physical mouse, multiple monitors and the overlay hot-corner change still need host acceptance. Pinned upstream/security updates require reviewed recipe maintenance. |
 | Nautilus | `application_roles.rs` contains XDG default handling; wallpaper theme propagates a supported GNOME accent. Existing user GTK4 CSS is outside Foundation's managed targets. | Preserve MIME preferences and user's CSS; establish a safe, maintainable color integration and test actual file opening/theme behavior without globally breaking GTK applications. |
@@ -120,3 +120,15 @@ owner; lucky38/desktop-current 6bfca9a is 9 behind; lucky38/rust-quality 69e3feb
 is already incorporated. wip/transparency-pipewire d1fd897 has one unmerged
 experimental commit and remains separate. No remote branches were merged or
 pushed during this pass.
+
+## Sidebar opening follow-up, 2026-11-10
+
+Implemented asynchronous hidden Control Center preparation, persistent view reuse,
+readiness-guarded loader access and cancellation of a cold-open request. Closed
+views unmap and stop discovery/subscriptions; finite actions keep their owner.
+Both sidebar shortcuts now omit the preliminary shell readiness probe. Existing
+motion is unchanged. The private QML fixture exercises real production controls,
+cold cancellation, hidden inactivity and repeated reuse. Physical first-frame
+latency has not been measured on Lucky38, and cold Kitty/btop startup remains.
+The same source batch adds the compact production/gallery recording control and
+zero-audio capture with protocol-aware upgrade handling and replay handoff.

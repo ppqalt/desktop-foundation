@@ -8,6 +8,9 @@ the current wallpaper theme, with transparent rounded corners, a matching blur
 and no shadow. Inner padding keeps the terminal content away from the edges.
 
 Both sidebars and the centered widgets use the same shell surface router.
+Sidebar shortcuts now send one shell IPC call without a preliminary readiness
+probe; failures are reported without retrying a toggle. Native Kitty/btop
+startup remains on demand, with no hidden sampler retained.
 Sidebars stay open while other widgets open, and can coexist with each other.
 Their own toggle or explicit close action dismisses them. Requests are serialized while
 the terminal starts, and btop's native save sequence remains intact. The monitor

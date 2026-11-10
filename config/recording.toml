@@ -1,6 +1,7 @@
 # Capture at the selected source's native resolution.
 shortcut = "Ctrl+Shift+F12" # empty disables the binding
 silent_shortcut = "Ctrl+Shift+Alt+F12" # desktop audio only
+# no_audio_shortcut = "" # optional video-only shortcut; disabled by default
 replay_shortcut = "Ctrl+Shift+F11" # save buffered replay
 replay_toggle_shortcut = "Ctrl+Shift+Alt+F11" # start/stop replay buffer
 replay_seconds = 300

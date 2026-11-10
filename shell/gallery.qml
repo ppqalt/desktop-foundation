@@ -501,14 +501,36 @@ ShellRoot {
                         symbol: "wifi"
                         badge: "›"
                     }
+                    RecordingControl {
+                        id: exampleCapture
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        recording: recordingExample
+                        onRequested: requestArgs => {
+                            const stop = requestArgs[0] === "stop-recording";
+                            recordingExample.state = stop ? {
+                                phase: "idle",
+                                replay: false,
+                                replay_status: "off"
+                            } : {
+                                phase: "recording",
+                                control_protocol: 2,
+                                replay: false,
+                                replay_status: "off",
+                                audio_mode: requestArgs.includes("--no-audio") ? "none" : requestArgs.includes("--desktop-only") ? "desktop" : "desktop-microphone"
+                            };
+                        }
+                    }
                     ReplayControl {
                         id: exampleReplay
+                        showHeading: false
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         recording: recordingExample
                         onSetEnabled: enabled => {
                             recordingExample.state = enabled ? {
                                 phase: "replay",
+                                control_protocol: 2,
                                 replay: true,
                                 replay_status: "buffering"
                             } : {
@@ -679,11 +701,16 @@ ShellRoot {
                 sampleRange.first.moved();
                 const rangeCommitted = window.sliderEvent === "Committed: 25–80";
                 sampleSlider.moved();
+                exampleCapture.modeChoice.activated(2);
+                exampleCapture.actionButton.clicked();
+                const captureStarted = recordingExample.state.audio_mode === "none" && exampleCapture.actionButton.enabled && exampleCapture.actionButton.text === "Stop";
+                exampleCapture.actionButton.clicked();
+                const captureStopped = recordingExample.state.phase === "idle";
                 exampleReplay.setEnabled(true);
                 examplePopup.open();
                 const popupOpened = examplePopup.visible && Math.abs(examplePopup.background.width - examplePopup.width) <= 1 && Math.abs(examplePopup.background.height - examplePopup.height) <= 1 && examplePopup.background.border.width > 0;
                 examplePopup.close();
-                const good = disabledInputs && textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
+                const good = captureStarted && captureStopped && disabledInputs && textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
                 if (!good) {
                     console.error("GALLERY_TEST_FAILED");
                     Qt.quit();

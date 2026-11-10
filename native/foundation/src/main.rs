@@ -48,7 +48,9 @@ fn run() -> Result<()> {
     if args.first().map(String::as_str) == Some("recording")
         && args.iter().any(|s| s == "--help" || s == "-h")
     {
-        println!("usage: recording toggle|silent|stop|plan [--silent]|status|acknowledge");
+        println!(
+            "usage: recording start [--desktop-only|--no-audio]|stop-recording|toggle|silent|no-audio|stop|plan [--silent|--no-audio]|replay-on|replay-off|replay-save|replay-toggle|status|acknowledge"
+        );
         return Ok(());
     }
     if args.first().map(String::as_str) == Some("bench")
@@ -178,7 +180,7 @@ fn run() -> Result<()> {
         }
         Some("control-center") if args.as_slice() == ["control-center", "toggle"] => {
             let style = monitor::sidebar_style(&root)?;
-            shell::call(&root, &["toggleControlCenter".into(), style.to_string()])
+            shell::call_now(&root, &["toggleControlCenter".into(), style.to_string()])
         }
         Some("control-center") => print_json(&control_center::run(&args[1..])?),
         Some("update") => update::run(&root, &args[1..]),
@@ -198,7 +200,7 @@ fn run() -> Result<()> {
         Some("app-mods") => print_json(&app_mods::run(&root, &args[1..])?),
         Some("geode") => print_json(&geode::run(&root, &args[1..])?),
         Some("monitor") if args.len() == 2 => match args[1].as_str() {
-            "toggle" => shell::call(&root, &["toggleMonitor".into()]),
+            "toggle" => shell::call_now(&root, &["toggleMonitor".into()]),
             // ExternalSurface adapter only; public toggles must use the router.
             "toggle-native" => monitor::toggle(&root),
             "close" => monitor::close(&root),

@@ -150,7 +150,11 @@ fn snapshot(id: &str, ipc_path: &Path, staging: &Path, timeout: Duration) -> Res
     }
     Ok(())
 }
-pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Result<bool> {
+pub(super) fn run(
+    root: &Path,
+    socket: &UnixDatagram,
+    save_initial: bool,
+) -> Result<Option<AudioMode>> {
     capabilities()?;
     let help = process::run(
         &["gpu-screen-recorder".into(), "--help".into()],
@@ -281,12 +285,12 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
     let mut regular = false;
     let mut pending_save = save_initial;
     let mut pending_regular = false;
-    let mut state = json!({"phase":"starting", "replay":true, "replay_status":"starting", "buffer_seconds":c.replay_seconds, "save_status":if save_initial {"saving"} else {"idle"}, "fps": selected_fps(&c, &display), "focused_display":display["name"]});
+    let mut state = json!({"phase":"starting", "audio_mode":AudioMode::DesktopMicrophone, "replay":true, "replay_status":"starting", "buffer_seconds":c.replay_seconds, "save_status":if save_initial {"saving"} else {"idle"}, "fps": selected_fps(&c, &display), "focused_display":display["name"]});
     publish(&state)?;
     let started = Instant::now();
     let mut buffer_deadline: Option<Instant> = None;
     let mut failure = None;
-    let mut desktop_only = false;
+    let mut handoff = None;
     loop {
         if let Some(exit) = child.child.try_wait()? {
             child.reaped = true;
@@ -343,16 +347,29 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
         let (shutdown, child_changed) = signals.events()?;
         let startup_expired =
             !ready && started.elapsed() >= Duration::from_secs(c.startup_timeout_seconds);
-        let desktop_request = request.as_deref() == Some(b"silent") && !regular;
+        let alternate_request = request.as_deref().filter(|request| {
+            [
+                b"silent".as_slice(),
+                b"no-audio".as_slice(),
+                b"start-desktop".as_slice(),
+                b"start-no-audio".as_slice(),
+            ]
+            .contains(request)
+        });
+        let alternate_capture = alternate_request.is_some() && !regular;
         if shutdown
             || (request.as_deref() == Some(b"stop") && !regular)
             || request.as_deref() == Some(b"replay-toggle")
             || request.as_deref() == Some(b"replay-off")
             || startup_expired
             || display_changed
-            || desktop_request
+            || alternate_capture
         {
-            desktop_only = desktop_request;
+            handoff = if alternate_capture {
+                alternate_request.map(AudioMode::from_request)
+            } else {
+                None
+            };
             if regular && ready {
                 let value = ipc(
                     &ipc_path,
@@ -433,7 +450,11 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
                 )?,
                 b"replay-on" => {}
                 b"toggle" if !ready => pending_regular = !pending_regular,
-                b"toggle" | b"stop" | b"silent" if regular && ready => {
+                b"start-mixed" if !ready => pending_regular = true,
+                b"stop-recording" if !regular => pending_regular = false,
+                b"toggle" | b"stop" | b"stop-recording" | b"silent" | b"no-audio"
+                    if regular && ready =>
+                {
                     state["phase"] = "stopping".into();
                     publish(&state)?;
                     let result = ipc(
@@ -450,7 +471,7 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
                         Err(e) => notify(&format!("Recording not saved: {e}")),
                     }
                 }
-                b"toggle" if ready => {
+                b"toggle" | b"start-mixed" if ready && !regular => {
                     match no_retained_output(&staging, "Video_").and_then(|()| {
                         ipc(&ipc_path, "start-replay-recording", Duration::from_secs(5))
                     }) {
@@ -462,7 +483,7 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
                         Err(e) => notify(&format!("Recording not started: {e}")),
                     }
                 }
-                b"silent" => {}
+                b"silent" | b"no-audio" => {}
                 _ => {}
             }
         }
@@ -516,17 +537,19 @@ pub(super) fn run(root: &Path, socket: &UnixDatagram, save_initial: bool) -> Res
     }
     // Remove only our empty private staging directory; failed saves remain recoverable.
     let _ = fs::remove_dir(&staging);
-    if desktop_only {
+    if handoff.is_some() {
         publish(
-            &json!({"phase":"starting", "replay":true, "replay_paused":true, "replay_status":"paused", "buffer_seconds":c.replay_seconds}),
+            &json!({"phase":"starting", "replay":true, "audio_mode":handoff, "replay_paused":true, "replay_status":"paused", "buffer_seconds":c.replay_seconds}),
         )?;
     } else {
         publish(&json!({"phase":"idle", "replay":false, "replay_status":"off"}))?;
     }
-    if desktop_only {
-        notify("Replay buffer paused for desktop-only recording; it will restart afterward");
+    if handoff.is_some() {
+        notify(
+            "Replay buffer paused for recording with a different audio mode; it will restart afterward",
+        );
     } else {
         notify("Replay buffer stopped");
     }
-    Ok(desktop_only)
+    Ok(handoff)
 }

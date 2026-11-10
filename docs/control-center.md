@@ -88,20 +88,29 @@ Port descriptions provide concise overview labels while full device descriptions
 and stable identifiers remain available in the device picker. Selecting a device
 reroutes existing streams as well as future streams.
 
+The shell prepares the panel asynchronously between frames and retains its QML
+objects after closing. First use during preparation records the requested state
+without forcing synchronous construction; a second shortcut cancels that request.
+A ready panel opens using the same window and controls, avoiding repeated
+construction on the opening path. Cached QML uses additional resident memory;
+Kitty/btop remains a separate on-demand renderer.
+
 The panel samples state every two seconds only while open. Closing finishes the
-slide, stops sampling and unloads the QML component. Explicit in-flight requests
-finish before unloading. No additional daemon, permanent worker or background
-animation process is added. Passwords remain in the native network editor rather
+slide, unmaps the window, removes keyboard focus and stops sampling, audio-event
+subscription and wallpaper discovery. Explicit in-flight actions retain their
+owner and can finish while hidden. Preparation never maps the panel or starts
+device discovery. Escape is available immediately, before discovery completes.
+No additional daemon, sampler or background animation process is added. Passwords remain in the native network editor rather
 than the Control Center's arguments, logs or state files.
 
 Isolated checks use simulated device services and an offscreen Qt window. They
 cover arrows/WASD, Enter/Space, menu/back focus, immediate volume changes,
-independent request queues, animation reversal and unloading without exercising
+independent request queues, animation reversal, hidden preparation/reuse and safe disposal without exercising
 live device controls.
 
 ## Wallpaper selector
 
-The overview's three-column grid reads `Wallpapers` inside the XDG Pictures
+The overview's four-column grid reads `Wallpapers` inside the XDG Pictures
 directory (normally `~/Pictures/Wallpapers`). To choose another directory, set
 `directory = "~/My Wallpapers"` in `~/.config/desktop-foundation/wallpapers.toml`.
 Absolute paths are supported. Image names are
@@ -121,9 +130,20 @@ polling daemon.
 Selection uses the native wallpaper/theme transaction. The checkmark moves only
 after success; a failed change keeps the old theme and selection. Closing hides
 the panel immediately through its existing animation, while an explicit apply
-finishes before the panel instance is released. No worker remains afterward.
+finishes in the retained hidden instance. No apply worker remains afterward.
 
 `cargo test --locked --manifest-path native/foundation/Cargo.toml --test wallpapers`
 checks discovery, preview caching/visible pixels, three-column geometry, keyboard
 navigation, failure handling and closing during a fake application. It uses an
 offscreen QML host and never changes the running desktop's wallpaper.
+
+Both sidebar shortcut entry points now dispatch a single shell IPC call rather
+than probing readiness first. A missing shell reports failure immediately; an
+unknown toggle outcome is never retried. Other shell commands retain their
+bounded readiness path. This reduces launch-path work without changing the
+existing opening/closing animation durations. Native Kitty/btop startup still
+occurs on demand and is not claimed to be instantaneous.
+
+The preparation API follows [Quickshell LazyLoader](https://quickshell.org/docs/v0.2.1/types/Quickshell/LazyLoader/):
+access to `item` is guarded by readiness so it cannot force incubation on a
+shortcut or status query.

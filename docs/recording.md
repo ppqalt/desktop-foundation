@@ -6,9 +6,36 @@ Recorder handles capture, encoding and instant replay in one process.
 
 - **Ctrl+Shift+F12:** start or stop recording with separate desktop and microphone tracks.
 - **Ctrl+Shift+Alt+F12:** record desktop audio only, with no microphone track.
+- **No audio:** available in Control Center; an optional `no_audio_shortcut` is empty by default.
 - **Ctrl+Shift+Alt+F11:** start or stop the instant replay buffer.
 - **Ctrl+Shift+F11:** save the buffered replay. If replay is off, this starts the
   buffer and saves whatever is available after the first frames arrive.
+
+Control Center's Recording section now has the shared audio selector and Record,
+Cancel or Stop action, also demonstrated by the component gallery. It reflects
+confirmed backend state, including shortcut-started recordings; starting a request
+does not immediately claim capture is running. The selector is locked during a
+capture. A still-running older recorder must be stopped with the existing
+shortcuts before using the new controls; protocol detection disables unsupported
+actions while preserving that capture. Explicit Start/Stop actions are idempotent and never stop an otherwise
+idle replay buffer.
+
+The three audio modes are desktop + microphone (two independent Opus tracks),
+desktop only (one Opus track), and no audio (zero tracks, neither source opened).
+Video-only files use the minimal `NoAudio-LOCAL_TIMESTAMP.mkv` name. No-audio and
+desktop-only capture pause and clear replay through the same owner; the ordinary
+two-track buffer restarts afterward unless explicitly disabled. There is never
+a second continuous recorder. Validation requires exactly the selected number of
+audio tracks before reporting success. Native resolution, hardware encoding and
+existing shortcuts are unchanged.
+
+```sh
+scripts/record start                  # desktop + microphone, explicit start
+scripts/record start --desktop-only
+scripts/record start --no-audio
+scripts/record stop-recording         # preserves an idle replay buffer
+scripts/record plan --no-audio        # inspect without capturing
+```
 
 Replay defaults to a continuous **five-minute (300-second) RAM buffer** with
 separate desktop and microphone tracks. With the recording extra installed,

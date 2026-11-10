@@ -15,6 +15,8 @@ QtObject {
             const sidebar = target.item();
             if (target.external)
                 target.open(false);
+            else if (!sidebar && target.opening?.() && !showOnly)
+                target.dismiss();
             else if (sidebar && !sidebar.closing && !showOnly)
                 target.dismiss();
             else if (sidebar)

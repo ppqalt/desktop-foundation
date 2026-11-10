@@ -47,8 +47,8 @@ ShellRoot {
             replayActive: recordingState.replayActive
         }
     }
-    readonly property ControlCenter controlCenter: controlCenterLoader.item as ControlCenter
-    property bool controlCenterEnabled: false
+    readonly property ControlCenter controlCenter: controlCenterLoader.surface as ControlCenter
+    property alias controlCenterEnabled: controlCenterLoader.requestedOpen
     property var controlCenterStyle: ({
             width: 720,
             padding: 12,
@@ -57,10 +57,10 @@ ShellRoot {
             openingMs: 240,
             closingMs: 180
         })
-    LazyLoader {
+    SidebarLoader {
         id: controlCenterLoader
-        active: root.controlCenterEnabled
         ControlCenter {
+            startHidden: true
             recording: recordingState
             handoff: root.handoffSurface === "controlCenter"
             sidebarStyle: root.controlCenterStyle
@@ -203,14 +203,15 @@ ShellRoot {
                 },
                 controlCenter: {
                     independent: true,
-                    item: () => controlCenterLoader.item,
+                    item: () => controlCenterLoader.surface,
                     alive: () => root.controlCenterEnabled,
+                    opening: () => controlCenterLoader.requestedOpen,
                     open: handoff => {
                         root.handoffSurface = handoff ? "controlCenter" : "";
-                        root.controlCenterEnabled = true;
+                        controlCenterLoader.present();
                     },
-                    dismiss: () => controlCenterLoader.item?.dismiss(),
-                    present: () => controlCenterLoader.item?.present()
+                    dismiss: () => controlCenterLoader.dismiss(),
+                    present: () => controlCenterLoader.present()
                 }
             })
     }

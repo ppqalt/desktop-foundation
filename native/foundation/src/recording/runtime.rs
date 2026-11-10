@@ -40,9 +40,15 @@ fn directory() -> Result<PathBuf> {
     Ok(path)
 }
 fn publish(value: &Value) -> Result<()> {
+    let mut value = value.clone();
+    value["control_protocol"] = 2.into();
     let dir = directory()?;
     let _publication = state::lock(&dir.join("status.lock"), Duration::from_secs(2))?;
-    state::atomic(&dir.join("status.json"), &serde_json::to_vec(value)?, 0o600)
+    state::atomic(
+        &dir.join("status.json"),
+        &serde_json::to_vec(&value)?,
+        0o600,
+    )
 }
 pub fn status() -> Result<Value> {
     let dir = directory()?;
@@ -75,13 +81,44 @@ pub fn cleanup() -> Result<()> {
     Ok(())
 }
 pub fn request(silent: bool, stop: bool) -> Result<()> {
-    let result = request_inner(silent, stop);
+    request_mode(silent.into(), stop)
+}
+pub(super) fn request_mode(mode: AudioMode, stop: bool) -> Result<()> {
+    let result = request_inner(mode, stop, false);
     if let Err(error) = &result {
         notify(&error.to_string());
     }
     result
 }
-fn request_inner(silent: bool, stop: bool) -> Result<()> {
+pub(super) fn request_start(mode: AudioMode) -> Result<()> {
+    request_inner(mode, false, true)
+}
+pub(super) fn stop_recording() -> Result<()> {
+    require_extended_owner()?;
+    let dir = directory()?;
+    let socket = UnixDatagram::unbound()?;
+    socket.set_write_timeout(Some(Duration::from_secs(1)))?;
+    // Never socket-activate a recorder merely to stop it.
+    if dir.join("requests.sock").exists() {
+        socket.send_to(b"stop-recording", dir.join("requests.sock"))?;
+    }
+    Ok(())
+}
+fn require_extended_owner() -> Result<()> {
+    let current = status()?;
+    if !matches!(current["phase"].as_str(), Some("idle" | "error"))
+        && current["control_protocol"] != 2
+    {
+        return Err(invalid(
+            "Recorder restart needed for the new controls; finish recording and turn replay off with the existing shortcuts first",
+        ));
+    }
+    Ok(())
+}
+fn request_inner(mode: AudioMode, stop: bool, start_only: bool) -> Result<()> {
+    if start_only || mode == AudioMode::None {
+        require_extended_owner()?;
+    }
     if !stop && !apps::executable("gpu-screen-recorder") {
         return Err(invalid("Install gpu-screen-recorder to enable recording"));
     }
@@ -111,10 +148,10 @@ fn request_inner(silent: bool, stop: bool) -> Result<()> {
     socket.send_to(
         if stop {
             b"stop"
-        } else if silent {
-            b"silent"
+        } else if start_only {
+            mode.start_request()
         } else {
-            b"toggle"
+            mode.request()
         },
         dir.join("requests.sock"),
     )?;
@@ -203,7 +240,7 @@ pub fn acknowledge() -> Result<()> {
     }
     Ok(())
 }
-fn finalized(file: &Path, silent: bool) -> Result<()> {
+fn finalized(file: &Path, mode: impl Into<AudioMode>) -> Result<()> {
     if !fs::metadata(file).is_ok_and(|m| m.is_file() && m.len() > 0) {
         return Err(invalid("Recording output is missing or empty"));
     }
@@ -224,9 +261,10 @@ fn finalized(file: &Path, silent: bool) -> Result<()> {
         true,
     )?;
     let metadata: Value = serde_json::from_slice(&output.stdout)?;
-    validate_metadata(&metadata, silent)
+    validate_metadata(&metadata, mode)
 }
-fn validate_metadata(metadata: &Value, silent: bool) -> Result<()> {
+fn validate_metadata(metadata: &Value, mode: impl Into<AudioMode>) -> Result<()> {
+    let mode = mode.into();
     let streams = metadata["streams"]
         .as_array()
         .ok_or_else(|| invalid("Recording has no readable streams"))?;
@@ -260,7 +298,7 @@ fn validate_metadata(metadata: &Value, silent: bool) -> Result<()> {
         .filter(|v| v["codec_type"] == "audio")
         .all(|v| v["codec_name"] == "opus" && packets(v));
     if videos != 1
-        || audios != if silent { 1 } else { 2 }
+        || audios != mode.tracks()
         || !valid_video
         || !valid_audio
         || !metadata["format"]["duration"]
@@ -384,6 +422,11 @@ fn queued(socket: &UnixDatagram) -> Result<Option<Vec<u8>>> {
             if [
                 b"toggle".as_slice(),
                 b"silent".as_slice(),
+                b"no-audio".as_slice(),
+                b"start-mixed".as_slice(),
+                b"start-desktop".as_slice(),
+                b"start-no-audio".as_slice(),
+                b"stop-recording".as_slice(),
                 b"stop".as_slice(),
                 b"replay-save".as_slice(),
                 b"replay-toggle".as_slice(),
@@ -439,9 +482,9 @@ fn capture_replay_request(
     }
     if request == b"replay-save" && paused {
         state["save_status"] = "error".into();
-        state["save_error"] = "Replay is paused during desktop-only recording".into();
+        state["save_error"] = "Replay is paused while recording with a different audio mode".into();
         publish(state)?;
-        notify("Replay is paused during desktop-only recording");
+        notify("Replay is paused while recording with a different audio mode");
         return Ok(true);
     }
     Ok(false)
@@ -544,7 +587,7 @@ pub fn serve(root: &Path) -> Result<()> {
     let Some(initial) = initial else {
         return Ok(());
     };
-    if initial == b"stop" || initial == b"replay-off" {
+    if initial == b"stop" || initial == b"stop-recording" || initial == b"replay-off" {
         publish(&json!({"phase":"idle"}))?;
         return Ok(());
     }
@@ -552,29 +595,29 @@ pub fn serve(root: &Path) -> Result<()> {
         editor::fail(id, "Replay stopped before the snapshot could be captured")?;
         return Ok(());
     }
-    let silent = initial == b"silent";
+    let mode = AudioMode::from_request(&initial);
     let dir = directory()?;
     let _owner = state::lock(&dir.join("owner.lock"), Duration::from_millis(100))?;
     let starting_replay =
         initial == b"replay-save" || initial == b"replay-toggle" || initial == b"replay-on";
     publish(
-        &json!({"phase":"starting", "silent":silent, "replay":starting_replay, "replay_status":if starting_replay {"starting"} else {"off"}}),
+        &json!({"phase":"starting", "silent":mode == AudioMode::Desktop, "audio_mode":mode, "replay":starting_replay, "replay_status":if starting_replay {"starting"} else {"off"}}),
     )?;
     let result = if starting_replay {
         let mut save = initial == b"replay-save";
         loop {
             match replay::run(root, &socket, save) {
-                Ok(true) => match capture(root, &socket, true, true) {
+                Ok(Some(mode)) => match capture(root, &socket, mode, true) {
                     Ok((true, _)) | Ok((false, false)) => break Ok(()),
                     Ok((false, true)) => save = false,
                     Err(error) => break Err(error),
                 },
-                Ok(false) => break Ok(()),
+                Ok(None) => break Ok(()),
                 Err(error) => break Err(error),
             }
         }
     } else {
-        capture(root, &socket, silent, false).map(|_| ())
+        capture(root, &socket, mode, false).map(|_| ())
     };
     if let Err(e) = &result {
         let _ = drain_stop_requests(&socket);
@@ -612,7 +655,7 @@ pub(super) fn readable_name(kind: &str) -> Result<String> {
 fn capture(
     root: &Path,
     socket: &UnixDatagram,
-    silent: bool,
+    mode: AudioMode,
     replay_paused: bool,
 ) -> Result<(bool, bool)> {
     let mut resume_replay = replay_paused;
@@ -625,17 +668,19 @@ fn capture(
         PathBuf::from(&c.directory)
     };
     fs::create_dir_all(&output_dir)?;
-    let file = output_dir.join(readable_name(if silent { "Desktop" } else { "Recording" })?);
+    let file = output_dir.join(readable_name(mode.filename())?);
     let marker = PathBuf::from(format!("{}.ts", file.display()));
     let state_dir =
         state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation/recording");
     state::private_directory(&state_dir)?;
-    let args = command(&c, &display, silent, &file, &state_dir.join("portal-token"))?;
+    let args = command(&c, &display, mode, &file, &state_dir.join("portal-token"))?;
     // A second press during setup cancels, instead of unexpectedly starting capture later.
     if let Some(request) = queued(socket)? {
         if [
             b"toggle".as_slice(),
             b"silent".as_slice(),
+            b"no-audio".as_slice(),
+            b"stop-recording".as_slice(),
             b"stop".as_slice(),
         ]
         .contains(&request.as_slice())
@@ -644,7 +689,9 @@ fn capture(
             return Ok((false, resume_replay));
         }
         let mut pending = json!({"phase":"starting", "replay":resume_replay, "replay_paused":replay_paused, "replay_status":if resume_replay {"paused"} else {"off"}, "buffer_seconds":c.replay_seconds});
-        if !capture_replay_request(&request, replay_paused, &mut resume_replay, &mut pending)? {
+        if !request.starts_with(b"start-")
+            && !capture_replay_request(&request, replay_paused, &mut resume_replay, &mut pending)?
+        {
             notify("Stop the current recording before starting replay");
         }
     }
@@ -677,7 +724,7 @@ fn capture(
         child: cmd.spawn()?,
         reaped: false,
     };
-    let mut state = json!({"phase":"starting", "silent":silent, "output":file,
+    let mut state = json!({"phase":"starting", "silent":mode == AudioMode::Desktop, "audio_mode":mode, "output":file,
         "replay":resume_replay, "replay_paused":replay_paused, "replay_status":if resume_replay {"paused"} else {"off"}, "buffer_seconds":c.replay_seconds,
         "fps":selected_fps(&c, &display), "resolution":c.resolution, "focused_display":display["name"]});
     publish(&state)?;
@@ -712,7 +759,7 @@ fn capture(
             if captured || nonempty {
                 state["phase"] = "stopping".into();
                 publish(&state)?;
-                let finalization = finalized(&file, silent);
+                let finalization = finalized(&file, mode);
                 drain_capture_requests(socket, replay_paused, &mut resume_replay, &mut state)?;
                 finalization?;
             } else {
@@ -720,6 +767,10 @@ fn capture(
             }
             if shutdown_requested {
                 resume_replay = false;
+            }
+            state["replay_paused"] = false.into();
+            if resume_replay {
+                state["audio_mode"] = serde_json::to_value(AudioMode::DesktopMicrophone)?;
             }
             state["phase"] = if resume_replay { "starting" } else { "idle" }.into();
             state["replay_status"] = if resume_replay { "starting" } else { "off" }.into();
@@ -763,6 +814,7 @@ fn capture(
             ));
         }
         let requested = match queued(socket)? {
+            Some(request) if request.starts_with(b"start-") => false,
             Some(request)
                 if capture_replay_request(
                     &request,

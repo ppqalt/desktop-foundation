@@ -17,8 +17,10 @@ PanelWindow {
     property var targetScreen: null
     property bool handoff: false
     property bool superseded: false
-    visible: !superseded
-    property bool closing: false
+    property bool startHidden: false
+    property bool closeReported: false
+    visible: !superseded && (!closing || motion.position > 0)
+    property bool closing: startHidden
     property string nextSurface: ""
     property string page: "overview"
     property var returnFocus: null
@@ -94,9 +96,10 @@ PanelWindow {
     WlrLayershell.keyboardFocus: closing || superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.OnDemand
     color: "transparent"
     Component.onCompleted: Qt.callLater(() => {
-        root.present();
-        root.refresh();
-        outputMute.forceActiveFocus();
+        if (!root.startHidden) {
+            root.present();
+            outputMute.forceActiveFocus();
+        }
     })
     function navigate(destination, origin = null): void {
         if (destination !== "overview")
@@ -126,9 +129,20 @@ PanelWindow {
     }
     function present(): void {
         requestRevision++;
+        closeReported = false;
+        initialFocus = true;
         closing = false;
         nextSurface = "";
         motion.move(true);
+        // Keyboard dismissal must not wait for device discovery on first open.
+        Qt.callLater(() => {
+            if (!root.closing && !root.superseded) {
+                if (outputMute.enabled)
+                    Material.restoreFocus(outputMute);
+                else
+                    focusScope.forceActiveFocus();
+            }
+        });
         refresh();
     }
     function dismiss(next = ""): void {
@@ -146,8 +160,10 @@ PanelWindow {
             motion.sample(1); // Hidden exits must not depend on a mapped frame clock.
     }
     function finishClose(): void {
-        if (closing && !motion.running && !busy && queue.length === 0 && audioQueue.length === 0)
+        if (closing && !closeReported && !motion.running && !busy && queue.length === 0 && audioQueue.length === 0) {
+            closeReported = true;
             dismissed(nextSurface);
+        }
     }
     function refresh(): void {
         if (!closing && !busy && queue.length === 0 && audioQueue.length === 0 && !status.running && !outputChoice.popup.visible && !inputChoice.popup.visible)
@@ -294,7 +310,7 @@ PanelWindow {
         expectJson: false
         onFinished: code => {
             if (code !== 0)
-                root.error = failure || "Could not change Instant Replay.";
+                root.error = failure || "Could not change recording.";
             root.finishClose();
         }
     }
@@ -302,7 +318,7 @@ PanelWindow {
         if (closing || replayRequest.running)
             return;
         error = "";
-        replayRequest.command = [Quickshell.shellDir + "/../scripts/record", action];
+        replayRequest.command = [Quickshell.shellDir + "/../scripts/record"].concat(Array.isArray(action) ? action : [action]);
         replayRequest.running = true;
     }
     Rectangle {
@@ -611,8 +627,15 @@ PanelWindow {
                         ControlGroup {
                             Layout.fillWidth: true
                             visible: root.page === "overview"
+                            RecordingControl {
+                                Layout.fillWidth: true
+                                recording: root.recording
+                                pending: replayRequest.running
+                                onRequested: requestArgs => root.requestReplay(requestArgs)
+                            }
                             ReplayControl {
                                 id: replayControl
+                                showHeading: false
                                 Layout.fillWidth: true
                                 recording: root.recording
                                 pending: replayRequest.running
