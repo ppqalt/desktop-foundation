@@ -19,7 +19,10 @@ changes again. Control focus rings appear for keyboard navigation, not clicks;
 pressed/selected feedback and popup surface outlines remain visible. The popup
 example uses the same sized, outlined PopupCard as the desktop. The input-disable
 preview covers sliders, range, volume, dropdown
-and search controls. Shared editable inputs are Tab-focusable; time fields grow
+and search controls. Dropdown examples include long and empty lists. Their menus share desktop
+keyboard/pointer-origin feedback and the outlined popup surface; empty choices
+remain readable without opening a blank menu. Shared editable inputs are
+Tab-focusable; time fields grow
 with text size and use the same centisecond display as the replay editor.
 Preview zoom, text size and right-to-left layout are local to the gallery. Zoom
 scales the whole composition; the separate 100/125/150/200% text-size selector

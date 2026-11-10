@@ -275,6 +275,15 @@ ShellRoot {
             property int activated: 0
             property int previews: 0
             property int commits: 0
+            property int choiceActivations: 0
+            property var choiceOptions: [
+                {
+                    name: "One"
+                },
+                {
+                    name: "Two"
+                }
+            ]
             property bool mirroredInputs: false
             ControlAction {
                 id: firstControl
@@ -323,16 +332,10 @@ ShellRoot {
             }
             ControlChoice {
                 id: choice
+                onActivated: controls.choiceActivations++
                 y: 140
                 width: 280
-                model: [
-                    {
-                        name: "One"
-                    },
-                    {
-                        name: "Two"
-                    }
-                ]
+                model: controls.choiceOptions
                 textRole: "name"
                 currentIndex: 0
             }
@@ -824,8 +827,95 @@ ShellRoot {
                 controls.activated = 0;
                 controls.visible = false;
             }
+            function test_dropdown_shared_contract() {
+                controls.visible = true;
+                const originalY = choice.y;
+                controls.choiceActivations = 0;
+                choice.y = 0;
+                choice.currentIndex = 0;
+                try {
+                    Material.restoreFocus(choice, Qt.TabFocusReason);
+                    keyClick(Qt.Key_Space);
+                    verify(choice.popup.visible && choice.menuKeyboard);
+                    compare(choice.popup.background.border.width, 1);
+                    tryVerify(() => choice.popup.contentItem.itemAtIndex(1) !== null, 1000);
+                    const hoverFirst = choice.popup.contentItem.itemAtIndex(0);
+                    const hoverSecond = choice.popup.contentItem.itemAtIndex(1);
+                    mouseMove(hoverFirst, 8, 8, 20);
+                    mouseMove(hoverFirst, 20, 20, 20);
+                    mouseMove(hoverSecond, 20, 20, 20);
+                    compare(choice.menuIndex, 1);
+                    verify(!choice.menuKeyboard);
+                    keyClick(Qt.Key_Home);
+                    compare(choice.menuIndex, 0);
+                    verify(choice.menuKeyboard);
+                    wait(20);
+                    compare(choice.menuIndex, 0);
+                    keyClick(Qt.Key_End);
+                    compare(choice.menuIndex, 1);
+                    compare(choice.currentIndex, 0);
+                    keyClick(Qt.Key_Home);
+                    compare(choice.menuIndex, 0);
+                    keyClick(Qt.Key_Escape);
+                    verify(!choice.popup.visible && choice.activeFocus && choice.visualFocus);
+                    compare(controls.choiceActivations, 0);
+                    keyClick(Qt.Key_Space);
+                    keyClick(Qt.Key_End);
+                    keyClick(Qt.Key_Return);
+                    compare(choice.currentIndex, 1);
+                    compare(controls.choiceActivations, 1);
+                    keyClick(Qt.Key_Space);
+                    keyClick(Qt.Key_Home);
+                    keyClick(Qt.Key_Tab);
+                    verify(!choice.popup.visible && !choice.activeFocus);
+                    compare(choice.currentIndex, 1);
+                    compare(controls.choiceActivations, 1);
+                    mouseClick(choice, choice.width / 2, choice.height / 2);
+                    verify(choice.popup.visible && !choice.menuKeyboard);
+                    tryVerify(() => choice.popup.contentItem.itemAtIndex(0) !== null, 1000);
+                    const firstOption = choice.popup.contentItem.itemAtIndex(0);
+                    mouseClick(firstOption, firstOption.width / 2, firstOption.height / 2);
+                    compare(choice.currentIndex, 0);
+                    compare(controls.choiceActivations, 2);
+                    verify(!choice.popup.visible && !choice.visualFocus);
+                    Material.restoreFocus(choice, Qt.TabFocusReason);
+                    keyClick(Qt.Key_Space);
+                    choice.enabled = false;
+                    verify(!choice.popup.visible);
+                    choice.enabled = true;
+                    choice.model = [];
+                    tryCompare(choice, "count", 0, 1000);
+                    choice.forceActiveFocus();
+                    keyClick(Qt.Key_Space);
+                    verify(!choice.popup.visible);
+                    compare(choice.displayText, choice.emptyText);
+                    mouseClick(choice, choice.width / 2, choice.height / 2);
+                    verify(!choice.popup.visible);
+                    compare(controls.choiceActivations, 2);
+                    choice.model = Qt.binding(() => controls.choiceOptions);
+                    tryCompare(choice, "count", 2, 1000);
+                    Material.restoreFocus(choice, Qt.TabFocusReason);
+                    keyClick(Qt.Key_Space);
+                    verify(choice.popup.visible);
+                    choice.model = [];
+                    tryCompare(choice, "count", 0, 1000);
+                    verify(!choice.popup.visible);
+                    compare(controls.choiceActivations, 2);
+                } finally {
+                    choice.popup.close();
+                    choice.enabled = true;
+                    choice.model = Qt.binding(() => controls.choiceOptions);
+                    tryCompare(choice, "count", 2, 1000);
+                    choice.currentIndex = 0;
+                    choice.y = originalY;
+                    controls.visible = false;
+                }
+            }
             function test_control_navigation() {
                 controls.visible = true;
+                controls.activated = 0;
+                slider.value = 30;
+                choice.currentIndex = 0;
                 firstControl.forceActiveFocus();
                 keyClick(Qt.Key_D);
                 verify(secondControl.activeFocus);
@@ -1075,6 +1165,7 @@ ShellRoot {
                 checks.test_minimal_footer();
                 checks.test_setting_feedback();
                 checks.test_search_keyboard();
+                checks.test_dropdown_shared_contract();
                 checks.test_control_navigation();
                 checks.test_search_surface_focus();
                 checks.test_session_navigation();

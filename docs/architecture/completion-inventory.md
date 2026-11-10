@@ -73,3 +73,9 @@ scrubbing and keyboard direction. Control focus rings distinguish keyboard
 navigation from clicks without removing state feedback or popup borders. These
 paths have focused production interaction/real-media tests; wider component and
 physical accessibility acceptance remains open.
+
+Dropdown parity follow-up: ControlChoice now shares outlined menu surfaces,
+keyboard-versus-pointer focus feedback, Home/End and cancel/Tab semantics across
+gallery and desktop. Empty choices no longer open blank menus on click; disabling
+or removing all options closes an open menu without activation. Long/empty menu
+examples and production pointer/keyboard/model-lifecycle tests cover these paths.

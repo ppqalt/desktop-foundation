@@ -403,8 +403,19 @@ ShellRoot {
                             },
                             {
                                 name: "Second option"
+                            },
+                            {
+                                name: "A longer option for checking narrow layouts and text scaling"
                             }
                         ]
+                    }
+                    ControlChoice {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        Accessible.name: "Empty choice example"
+                        enabled: !window.inputsDisabled
+                        textRole: "name"
+                        model: []
                     }
                     SearchInput {
                         id: sampleSearch
@@ -698,9 +709,11 @@ ShellRoot {
                 const section = Quickshell.env("DF_GALLERY_CAPTURE_SECTION");
                 if (section === "popup")
                     examplePopup.open();
-                const target = section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : null;
+                const target = section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : section === "choice" ? sampleChoice : null;
                 if (target)
                     galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.mapToItem(content, 0, 0).y * window.previewZoom));
+                if (section === "choice")
+                    sampleChoice.popup.open();
                 window.contentItem.grabToImage(result => {
                     if (result.saveToFile(capture))
                         console.log("GALLERY_TEST_OK");

@@ -532,3 +532,17 @@ another pointer grab. Use `Material.restoreFocus` for explicit reason propagatio
 a plain forceActiveFocus call can leave the previous reason on an already
 focused control. Legacy Bluetooth selection marks its keyboard origin separately
 from pointer selection. Popup examples preserve the origin on open/return.
+
+### Shared dropdown contract
+
+ControlChoice owns one keyboard/pointer menu policy for the gallery and desktop.
+Up/Down/W/S and Home/End move the private menu highlight; Enter/Space commits
+once. Escape or Tab closes without committing; Tab continues focus traversal.
+Opening or closing preserves the current input origin, so pointer highlights do
+not acquire a keyboard ring. Real pointer motion can take over from the keyboard;
+stationary hover caused by scrolling/reflow must not steal its selection.
+
+Disabled or newly empty models close an open menu. Empty choices show a readable
+placeholder and accept neither keyboard nor pointer activation; their empty-only
+pointer guard leaves populated native selection untouched. Menu surfaces reuse
+SurfaceCard's palette-derived outline. Keep disabled states on shared roles.
