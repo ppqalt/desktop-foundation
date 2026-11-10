@@ -126,15 +126,19 @@ startup and settles zero-duration motion safely. The copied interpolation,
 narrow-output geometry, focus timing and outer border differences above remain
 explicit gaps; this change does not claim to eliminate them.
 
-## Opening-path follow-up, 2026-11-10
+## Opening-path correction, 2026-11-10
 
-Control Center now uses `SidebarLoader` for asynchronous hidden preparation and
-retained view reuse. Router reads are guarded by loader readiness, and pending
-cold-open intent can be cancelled. The cached window is unmapped and quiescent
-when closed; backend actions already requested keep their original owner.
-Both public sidebar shortcut paths dispatch one IPC request, removing the
-preliminary shell status probe. No motion duration or easing was changed.
-The earlier comparison's Control Center destruction/closed-cost entries are
-historical: the current tradeoff is resident QML memory for faster opening.
-Kitty/btop is still constructed on demand; terminal cold startup is a remaining
-latency source, not established as eliminated by these changes.
+The asynchronous retained Control Center experiment was removed after owner
+reports of delayed, stuttering and unreliable opening. Discovery is now gated by
+an explicit settled-open state. SidebarMotion waits for the surface's own first
+frame; cancellation before that frame settles closed immediately. Deferred
+initialization respects a close intent. The view returns to normal safe disposal.
+Both public sidebar shortcuts still dispatch one IPC request without a preliminary
+status probe, and existing duration/curve settings are unchanged.
+
+A full-shell comparison in a private Niri session reproduced a 241 ms opening
+frame gap with 500 wallpaper entries in the previous implementation. Deferring
+model discovery until after opening reduced the largest observed opening gap to
+17 ms in the same virtual/software-rendered scenario. This is not a Lucky38
+physical presentation measurement. Native Kitty/btop cold startup remains its
+own renderer boundary.

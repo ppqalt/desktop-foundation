@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Window
 import "../theme"
 
 // Same cubic Hermite position/velocity and reversal braking as monitor.rs.
 QtObject {
     id: root
+    property Item targetItem: null
+    property bool awaitingFrame: false
     property int openingMs: 240
     property int closingMs: 180
     property real position: 0
@@ -14,10 +17,21 @@ QtObject {
     property real seconds: 0.24
     property real elapsed: 0
     property bool opening: false
-    readonly property bool running: frames.running
+    readonly property bool running: frames.running || awaitingFrame
     signal settled(bool open)
     function move(open: bool): void {
+        if (awaitingFrame && !open) {
+            awaitingFrame = false;
+            frames.running = false;
+            position = 0;
+            velocity = 0;
+            opening = false;
+            settled(false);
+            return;
+        }
+        const firstOpening = open && position === 0 && !frames.running && !!targetItem;
         if (Theme.reducedMotion) {
+            awaitingFrame = false;
             frames.running = false;
             position = open ? 1 : 0;
             velocity = 0;
@@ -43,7 +57,8 @@ QtObject {
         }
         elapsed = 0;
         opening = open;
-        frames.running = true;
+        awaitingFrame = firstOpening;
+        frames.running = !awaitingFrame;
     }
     function sample(delta: real): void {
         elapsed += delta;
@@ -59,6 +74,14 @@ QtObject {
         const x = start + distance * (3 * t * t - 2 * t * t * t) + initialVelocity * seconds * (t - 2 * t * t + t * t * t);
         position = Math.max(0, Math.min(1, x));
         velocity = position === x ? distance * (6 * t - 6 * t * t) / seconds + initialVelocity * (1 - 4 * t + 3 * t * t) : 0;
+    }
+    property Connections presentation: Connections {
+        target: root.targetItem ? root.targetItem.Window.window : null
+        enabled: root.awaitingFrame
+        function onFrameSwapped(): void {
+            root.awaitingFrame = false;
+            root.frames.running = true;
+        }
     }
     property FrameAnimation frames: FrameAnimation {
         running: false

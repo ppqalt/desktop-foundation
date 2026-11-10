@@ -17,10 +17,10 @@ PanelWindow {
     property var targetScreen: null
     property bool handoff: false
     property bool superseded: false
-    property bool startHidden: false
     property bool closeReported: false
-    visible: !superseded && (!closing || motion.position > 0)
-    property bool closing: startHidden
+    property bool contentReady: false
+    visible: !superseded
+    property bool closing: false
     property string nextSurface: ""
     property string page: "overview"
     property var returnFocus: null
@@ -96,10 +96,10 @@ PanelWindow {
     WlrLayershell.keyboardFocus: closing || superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.OnDemand
     color: "transparent"
     Component.onCompleted: Qt.callLater(() => {
-        if (!root.startHidden) {
-            root.present();
-            outputMute.forceActiveFocus();
-        }
+        if (root.closing || root.superseded)
+            return;
+        root.present();
+        outputMute.forceActiveFocus();
     })
     function navigate(destination, origin = null): void {
         if (destination !== "overview")
@@ -117,6 +117,7 @@ PanelWindow {
             visible: !closing,
             closing: closing,
             progress: motion.position,
+            contentReady: contentReady,
             moving: motion.running,
             width: width,
             height: height,
@@ -132,6 +133,7 @@ PanelWindow {
         closeReported = false;
         initialFocus = true;
         closing = false;
+        contentReady = false;
         nextSurface = "";
         motion.move(true);
         // Keyboard dismissal must not wait for device discovery on first open.
@@ -154,6 +156,7 @@ PanelWindow {
         nextSurface = next;
         requestRevision++;
         closing = true;
+        contentReady = false;
         status.running = false;
         motion.move(false);
         if (superseded)
@@ -166,7 +169,7 @@ PanelWindow {
         }
     }
     function refresh(): void {
-        if (!closing && !busy && queue.length === 0 && audioQueue.length === 0 && !status.running && !outputChoice.popup.visible && !inputChoice.popup.visible)
+        if (!closing && contentReady && !motion.running && !busy && queue.length === 0 && audioQueue.length === 0 && !status.running && !outputChoice.popup.visible && !inputChoice.popup.visible)
             status.running = true;
     }
     function enqueue(args: list<string>): void {
@@ -228,11 +231,16 @@ PanelWindow {
     }
     SidebarMotion {
         id: motion
+        targetItem: root.contentItem
         openingMs: root.sidebarStyle.openingMs
         closingMs: root.sidebarStyle.closingMs
         onSettled: open => {
             if (!open)
                 root.finishClose();
+            else {
+                root.contentReady = true;
+                root.refresh();
+            }
         }
     }
     Timer {
@@ -670,7 +678,7 @@ PanelWindow {
                             WallpaperGrid {
                                 id: wallpapers
                                 Layout.fillWidth: true
-                                active: !root.closing && visible
+                                active: !root.closing && root.contentReady && !motion.running && visible
                                 backend: root.backend
                                 viewport: scroll
                                 onStarted: root.error = ""

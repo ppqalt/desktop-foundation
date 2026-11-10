@@ -262,14 +262,14 @@ fn update_check_only_queries_availability_and_reports_errors() {
 }
 
 #[test]
-fn sidebar_preparation_and_reopen_reuse_the_production_surface() {
+fn sidebar_entry_is_presented_before_discovery_and_can_be_cancelled() {
     if !desktop_foundationctl::apps::executable("quickshell") {
         eprintln!("Quickshell unavailable; cannot exercise private QML sidebar");
         return;
     }
     let output =
         Command::new(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/test-control-center"))
-            .env("DF_CONTROL_LOADER_TEST", "1")
+            .env("DF_CONTROL_OPENING_TEST", "1")
             .output()
             .unwrap();
     assert!(

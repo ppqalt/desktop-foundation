@@ -23,8 +23,8 @@ printf '%s\n' 'aur-one 1 -> 2' >"$base/state/arch-update/last_updates_check_aur"
 : >"$base/state/arch-update/last_updates_check_flatpak"
 printf '%s\n' '1000000000' '2026-11-08 00:00:00' >"$base/state/arch-update/last_updates_check_time"
 perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n    \}\n//; s/^    (?:screen:|implicitWidth:|margins.left:|exclusionMode:|WlrLayershell\.).*\n//mg' "$root/shell/surfaces/ControlCenter.qml" >"$base/shell/surfaces/ControlCenterFixture.qml"
-if [[ ${DF_CONTROL_LOADER_TEST:-0} == 1 ]]; then
-	cp "$root/tests/qml/sidebar-loader.qml" "$base/shell.qml"
+if [[ ${DF_CONTROL_OPENING_TEST:-0} == 1 ]]; then
+	cp "$root/tests/qml/sidebar-opening.qml" "$base/shell.qml"
 else
 	cp "$root/tests/qml/control-center.qml" "$base/shell.qml"
 fi
@@ -70,8 +70,8 @@ if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|
 	cat "$base/log" >&2
 	exit 1
 fi
-if [[ ${DF_CONTROL_LOADER_TEST:-0} == 1 ]]; then
-	printf '%s\n' 'PASS asynchronous sidebar preparation, cold-toggle cancellation and retained quiet reuse'
+if [[ ${DF_CONTROL_OPENING_TEST:-0} == 1 ]]; then
+	printf '%s\n' 'PASS first-frame sidebar entry, deferred discovery, early cancellation and quiet closure'
 	exit 0
 fi
 for call in 'volume output 51' 'networking off' 'select output headphones' 'stream-volume 42 100 37' 'check-updates' 'cachy-update'; do rg -Fx "$call" "$base/calls" >/dev/null; done

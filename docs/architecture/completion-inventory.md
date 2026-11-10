@@ -121,14 +121,18 @@ is already incorporated. wip/transparency-pipewire d1fd897 has one unmerged
 experimental commit and remains separate. No remote branches were merged or
 pushed during this pass.
 
-## Sidebar opening follow-up, 2026-11-10
+## Sidebar opening correction, 2026-11-10
 
-Implemented asynchronous hidden Control Center preparation, persistent view reuse,
-readiness-guarded loader access and cancellation of a cold-open request. Closed
-views unmap and stop discovery/subscriptions; finite actions keep their owner.
-Both sidebar shortcuts now omit the preliminary shell readiness probe. Existing
-motion is unchanged. The private QML fixture exercises real production controls,
-cold cancellation, hidden inactivity and repeated reuse. Physical first-frame
-latency has not been measured on Lucky38, and cold Kitty/btop startup remains.
-The same source batch adds the compact production/gallery recording control and
-zero-audio capture with protocol-aware upgrade handling and replay handoff.
+Removed the retained/asynchronous Control Center experiment after reported
+regressions. The current path waits for the first presented frame before moving,
+defers device/wallpaper discovery until entry settles and honors cancellation
+before mapping. A delayed initialization callback can no longer reopen a closed
+panel. Normal finite-owner disposal is restored. Single-IPC shortcut dispatch
+remains; existing motion durations/curves are unchanged.
+
+A private full-shell Niri comparison with 500 wallpaper entries reproduced an
+opening-frame stall of 241 ms before this correction; the largest observed gap
+in the corrected run was 17 ms. Real Wayland windows were used, with VM software
+rendering, so physical Lucky38 latency and GPU behavior remain separate checks.
+The old reduced-motion cache fixture is replaced by first-frame/discovery/early-
+cancellation coverage. Recording controls and zero-audio mode remain intact.
