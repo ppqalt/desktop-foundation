@@ -277,9 +277,33 @@ impl Audio for Native {
                         .ok_or_else(|| invalid("Invalid playback channel volume"))
                 })
                 .collect::<Result<_>>()?;
+            // Use WirePlumber's stream-state key precedence so a recreated
+            // node can be compared with the volume WirePlumber may restore.
+            let application = if props["media.role"].as_str() == Some("Notification") {
+                Some(format!("media.role:Notification|channels:{map}"))
+            } else {
+                [
+                    "application.id",
+                    "application.name",
+                    "media.name",
+                    "node.name",
+                ]
+                .into_iter()
+                .find_map(|key| {
+                    props[key]
+                        .as_str()
+                        .filter(|value| {
+                            !value.is_empty()
+                                && value.len() <= 512
+                                && !value.chars().any(char::is_control)
+                        })
+                        .map(|value| format!("{key}:{value}|channels:{map}"))
+                })
+            };
             streams.push(Stream {
                 id,
                 serial: serial.into(),
+                application,
                 volumes,
             });
         }
@@ -437,13 +461,14 @@ fn notice(root: &Path, message: &str) {
     ];
     let _ = process::checked_capture(&args, Duration::from_millis(300), 4096);
 }
-fn recover(a: &mut Native, fade: u64) -> Result<()> {
+fn recover(a: &mut Native, fade: u64) -> Result<Option<Journal>> {
     let path = a.directory.join("journal.json");
     if path.try_exists()? {
         let mut journal: Journal = serde_json::from_slice(&read(&path)?)?;
         restore(a, &mut journal, fade)?;
+        return Ok((!journal.streams.is_empty()).then_some(journal));
     }
-    Ok(())
+    Ok(None)
 }
 struct Subscription {
     child: Child,
@@ -506,7 +531,6 @@ fn serve(root: &Path) -> Result<()> {
         &audio.directory.join("owner.lock"),
         Duration::from_millis(100),
     )?;
-    recover(&mut audio, config.fade_ms)?;
     let mut subscription = Subscription {
         child: Command::new("pactl")
             .arg("subscribe")
@@ -523,7 +547,8 @@ fn serve(root: &Path) -> Result<()> {
     if unsafe { libc::fcntl(events.as_raw_fd(), libc::F_SETFL, libc::O_NONBLOCK) } < 0 {
         return Err(std::io::Error::last_os_error().into());
     }
-    let mut journal = None;
+    // Start the event subscription before taking the recovery snapshot.
+    let mut journal = recover(&mut audio, config.fade_ms)?;
     let mut active = None;
     let mut event_buffer = String::new();
     let result = (|| -> Result<()> {
@@ -541,10 +566,15 @@ fn serve(root: &Path) -> Result<()> {
                 if let Some(j) = &mut journal {
                     restore(&mut audio, j, config.fade_ms)?;
                 }
-                journal = None;
+                let pending = journal.take();
                 active = desired;
                 if let Some(mode) = active {
-                    journal = Some(activate_mode(&mut audio, &config, mode == Mode::Duck)?);
+                    journal = Some(activate_mode_with_history(
+                        &mut audio,
+                        &config,
+                        mode == Mode::Duck,
+                        pending.map(|j| j.streams).unwrap_or_default(),
+                    )?);
                     notice(
                         root,
                         if mode == Mode::Duck {
@@ -557,10 +587,12 @@ fn serve(root: &Path) -> Result<()> {
                     if let Some(mode) = previous {
                         notice(root, mode.off_notice());
                     }
-                    return Ok(());
+                    // Keep a dormant, event-driven owner only while absent
+                    // application volumes still need restoration.
+                    journal = pending.filter(|j| !j.streams.is_empty());
                 }
             }
-            if active.is_none() {
+            if active.is_none() && journal.is_none() {
                 return Ok(());
             }
             let mut fds = [
@@ -606,6 +638,13 @@ fn serve(root: &Path) -> Result<()> {
                         .any(|kind| line.contains(kind));
                 }
                 if relevant && let Some(j) = &mut journal {
+                    if active.is_none() {
+                        restore(&mut audio, j, 0)?;
+                        if j.streams.is_empty() {
+                            return Ok(());
+                        }
+                        continue;
+                    }
                     let devices = audio.devices(&config.microphone_match)?;
                     if devices != (j.microphone.clone(), j.output.clone()) {
                         return Err(invalid("Transparency audio device changed"));
@@ -657,11 +696,30 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             }
             result
         }
+        Some("resume") if args.len() == 1 => {
+            let audio = Native::new()?;
+            if !audio.directory.join("journal.json").try_exists()? {
+                return Ok(());
+            }
+            capture(&[
+                "systemctl",
+                "--user",
+                "start",
+                "desktop-foundation-transparency.socket",
+            ])?;
+            let socket = UnixDatagram::unbound()?;
+            socket.set_write_timeout(Some(Duration::from_secs(1)))?;
+            socket.connect(runtime()?.join("desktop-foundation-transparency.sock"))?;
+            // No mode change: recover persisted ownership, then wait only if
+            // an absent application's volume still needs restoration.
+            socket.send(b"resume")?;
+            Ok(())
+        }
         Some("recover") if args.len() == 1 => {
             let mut audio = Native::new()?;
             state::private_directory(&audio.directory)?;
             let _owner = state::lock(&audio.directory.join("owner.lock"), Duration::from_secs(3))?;
-            recover(&mut audio, 0)
+            recover(&mut audio, 0).map(|_| ())
         }
         Some("check") if args.len() == 1 => {
             let c = config(root)?;
@@ -675,7 +733,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             Ok(())
         }
         _ => Err(invalid(
-            "Expected transparency toggle|monitor|check|serve|recover",
+            "Expected transparency toggle|monitor|check|serve|recover|resume",
         )),
     }
 }

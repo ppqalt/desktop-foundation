@@ -1,6 +1,6 @@
 # Desktop completion inventory
 
-Inspection: 2026-11-08, isolated branch based on `28cd074`. This is an
+Historical baseline inspection: 2026-11-08, isolated branch based on `28cd074`. This is an
 engineering backlog, not a release checklist marked complete by documentation.
 The active Lucky38 owner was `c549bf3`; its deployment manifest points to the
 owner checkout, not this worktree. Its local untracked font backup and the
@@ -26,3 +26,27 @@ Protect the single owning deployment manifest, user configuration and recovery
 journals. Keep incomplete audio changes out of live deployment. The user has
 authorized administrator authentication when a reviewed protected operation is
 ready; never request or handle their password in chat.
+
+## Source reconciliation and follow-up, 2026-11-10
+
+The owning Lucky38 checkout now contains the validated UI changes through
+`1968d5c`, including the sidebar section/Audio navigation fixes, update Check
+action, replay centisecond fields and thumbnail focus frame, btop outline and
+nonintrusive reload notices. Local `df-update` option 0 now selects these commits;
+it does not search other worktrees. No updater installation was run as part of
+this source handoff.
+
+Transparency restoration now retains application identity/channel maps, safely
+rebinds recreated streams, keeps absent application histories after Off and
+reloads that journal after restart. Monitoring restoration is completed once;
+subsequent playback recovery does not require EasyEffects. An event-driven owner
+waits only while restoration is outstanding. Finite login recovery does nothing
+when no journal exists. Tests cover inherited/manual levels, legacy journals,
+ambiguous identities, restoration after Off and no-journal startup. Physical
+audibility, the device route and real service/session acceptance remain separate
+checks; fixture success does not establish them.
+
+The older table remains a backlog rather than a claim that video wallpapers,
+complete settings/notification interfaces, all gallery variants or patched Niri
+activation have been finished. Those require further implementation and their
+own acceptance evidence. Preserve the desktop and source ownership while doing so.

@@ -14,6 +14,8 @@ pub struct Monitor {
 pub struct Stream {
     pub id: u32,
     pub serial: String,
+    #[serde(default)]
+    pub application: Option<String>,
     pub volumes: Vec<u32>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -39,6 +41,8 @@ impl<T: Clone + PartialEq> Owned<T> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Journal {
     pub version: u32,
+    #[serde(default)]
+    pub monitor_restored: bool,
     pub monitor_instance: String,
     pub microphone: String,
     pub output: String,
@@ -135,25 +139,124 @@ fn enabled(a: &mut impl Audio, j: &mut Journal, target: bool) -> Result<()> {
     a.persist(Some(j))?;
     Ok(())
 }
+// A version-1 journal written before application metadata existed still owns
+// an exactly matching live node. Adopt metadata only for that same id/serial;
+// volume ownership is checked separately before any audio change.
+fn adopt_legacy_metadata(j: &mut Journal, current: &Stream) -> bool {
+    let Some(owned) = j.streams.get_mut(&identity(current)) else {
+        return false;
+    };
+    if owned.original.application.is_some()
+        || owned.managed.application.is_some()
+        || owned
+            .pending
+            .as_ref()
+            .is_some_and(|p| p.application.is_some())
+        || current.application.is_none()
+    {
+        return false;
+    }
+    owned.original.application.clone_from(&current.application);
+    owned.managed.application.clone_from(&current.application);
+    if let Some(pending) = &mut owned.pending {
+        pending.application.clone_from(&current.application);
+    }
+    true
+}
+fn rebind(
+    j: &mut Journal,
+    s: &Stream,
+    live: &std::collections::HashSet<String>,
+    current: &[Stream],
+) -> bool {
+    let key = identity(s);
+    if j.streams.contains_key(&key) || s.application.is_none() {
+        return false;
+    }
+    let candidates: Vec<_> = j
+        .streams
+        .iter()
+        .filter(|(old_key, owned)| {
+            !live.contains(*old_key)
+                && !owned.released
+                && owned.original.application == s.application
+                && (owned.managed.volumes == s.volumes
+                    || owned
+                        .pending
+                        .as_ref()
+                        .is_some_and(|p| p.volumes == s.volumes))
+        })
+        .map(|(old_key, _)| old_key.clone())
+        .collect();
+    let equivalent_live = current
+        .iter()
+        .filter(|other| other.application == s.application && other.volumes == s.volumes)
+        .count();
+    if !candidates.is_empty() && equivalent_live > 1 {
+        return true;
+    }
+    if candidates.len() == 1 {
+        let mut owned = j.streams.remove(&candidates[0]).expect("selected history");
+        owned.original.id = s.id;
+        owned.original.serial.clone_from(&s.serial);
+        owned.original.application.clone_from(&s.application);
+        owned.managed = s.clone();
+        owned.pending = None;
+        j.streams.insert(key, owned);
+        false
+    } else {
+        candidates.len() > 1
+    }
+}
 /// New streams get an independent original. A manual edit releases that stream for this activation.
 pub fn reconcile(a: &mut impl Audio, j: &mut Journal, c: &Config) -> Result<()> {
     let current = a.streams()?;
     if current.len() > 512 {
         return Err(invalid("Too many playback streams for safe restoration"));
     }
-    j.streams
-        .retain(|key, _| current.iter().any(|stream| identity(stream) == *key));
+    let live: std::collections::HashSet<_> = current.iter().map(identity).collect();
+    // Retain a bounded tombstone only for an identifiable stream whose last
+    // value was ours. WirePlumber may persist that attenuated value when the
+    // stream disappears and restore it to a new node with a different serial.
+    j.streams.retain(|key, owned| {
+        live.contains(key)
+            || (!owned.released
+                && owned.original.application.is_some()
+                && (owned.original.volumes != owned.managed.volumes
+                    || owned
+                        .pending
+                        .as_ref()
+                        .is_some_and(|pending| pending.volumes != owned.original.volumes)))
+    });
+    if j.streams.len().saturating_add(current.len()) > 1024 {
+        return Err(invalid(
+            "Too many playback stream histories for safe restoration",
+        ));
+    }
     a.persist(Some(j))?;
-    for s in current {
+    for s in &current {
         if s.volumes.is_empty() || s.volumes.len() > 64 {
             return Err(invalid("Invalid playback channel volumes"));
         }
-        let key = identity(&s);
+        let key = identity(s);
+        if adopt_legacy_metadata(j, s) {
+            a.persist(Some(j))?;
+        }
+        if rebind(j, s, &live, &current) {
+            // The inherited value matches multiple histories. Avoid guessing
+            // and avoid attenuating an already attenuated stream again.
+            let mut released = Owned::new(s.clone());
+            released.released = true;
+            j.streams.insert(key.clone(), released);
+            a.persist(Some(j))?;
+            continue;
+        }
+        a.persist(Some(j))?;
         let entry = j
             .streams
             .entry(key.clone())
             .or_insert_with(|| Owned::new(s.clone()));
-        if !entry.owns(&s) {
+        if !entry.owns(s) {
             entry.released = true;
             a.persist(Some(j))?;
             continue;
@@ -167,7 +270,7 @@ pub fn reconcile(a: &mut impl Audio, j: &mut Journal, c: &Config) -> Result<()> 
                 .collect(),
             ..s.clone()
         };
-        if s == target {
+        if *s == target {
             continue;
         }
         let start = s.volumes.clone();
@@ -216,6 +319,14 @@ pub fn activate(a: &mut impl Audio, c: &Config) -> Result<Journal> {
 }
 /// Start monitoring, optionally ducking application playback.
 pub fn activate_mode(a: &mut impl Audio, c: &Config, duck: bool) -> Result<Journal> {
+    activate_mode_with_history(a, c, duck, BTreeMap::new())
+}
+pub(super) fn activate_mode_with_history(
+    a: &mut impl Audio,
+    c: &Config,
+    duck: bool,
+    history: BTreeMap<String, Owned<Stream>>,
+) -> Result<Journal> {
     c.validate()?;
     let (microphone, output) = a.devices(&c.microphone_match)?;
     let monitor = a.monitor()?;
@@ -224,12 +335,13 @@ pub fn activate_mode(a: &mut impl Audio, c: &Config, duck: bool) -> Result<Journ
     }
     let mut j = Journal {
         version: 1,
+        monitor_restored: false,
         monitor_instance: monitor.instance,
         microphone,
         output,
         enabled: Owned::new(monitor.enabled),
         gain: Owned::new(monitor.gain),
-        streams: BTreeMap::new(),
+        streams: history,
     };
     a.persist(Some(&j))?;
     let result = (|| {
@@ -267,18 +379,48 @@ pub fn restore(a: &mut impl Audio, j: &mut Journal, fade_ms: u64) -> Result<()> 
         return Err(invalid("Unknown Transparency Mode journal version"));
     }
     let mut errors = Vec::new();
+    let mut remaining = std::collections::HashSet::new();
     match if j.streams.is_empty() {
         Ok(Vec::new())
     } else {
         a.streams()
     } {
         Ok(streams) => {
-            for current in streams {
-                let key = identity(&current);
+            let live = streams.iter().map(identity).collect();
+            // Keep only absent applications whose attenuated value could be
+            // inherited later. A returning app with a different level owns it.
+            for (key, owned) in &j.streams {
+                if !streams.iter().any(|s| identity(s) == *key)
+                    && !owned.released
+                    && owned.original.application.is_some()
+                    && !streams
+                        .iter()
+                        .any(|s| s.application == owned.original.application)
+                    && (owned.original.volumes != owned.managed.volumes
+                        || owned
+                            .pending
+                            .as_ref()
+                            .is_some_and(|pending| pending.volumes != owned.original.volumes))
+                {
+                    remaining.insert(key.clone());
+                }
+            }
+            for current in &streams {
+                let key = identity(current);
+                let adopted = adopt_legacy_metadata(j, current);
+                if rebind(j, current, &live, &streams) {
+                    continue;
+                }
+                if (adopted || j.streams.contains_key(&key))
+                    && let Err(error) = a.persist(Some(j))
+                {
+                    errors.push(error.to_string());
+                    continue;
+                }
                 let Some(owned) = j.streams.get(&key).cloned() else {
                     continue;
                 };
-                if !owned.owns(&current) {
+                if !owned.owns(current) {
                     continue;
                 }
                 let start = current.volumes.clone();
@@ -326,36 +468,47 @@ pub fn restore(a: &mut impl Audio, j: &mut Journal, fade_ms: u64) -> Result<()> 
         }
         Err(e) => errors.push(e.to_string()),
     }
-    match a.monitor() {
-        Ok(current) => {
-            // EE can restart and reload our temporary setting from its own autosave.
-            // Adopt only the new process identity; value ownership still decides restoration.
-            if current.instance != j.monitor_instance {
-                j.monitor_instance = current.instance.clone();
-                a.persist(Some(j))?;
-            }
-            // Disable first when it was originally off; restore gain afterward in silence.
-            if j.enabled.owns(&current.enabled)
-                && let Err(e) = enabled(a, j, j.enabled.original)
-            {
-                errors.push(e.to_string());
-            }
-            if j.gain.owns(&current.gain) {
-                let target = j.gain.original;
-                let start = current.gain;
-                for step in 1..=4 {
-                    if let Err(e) = gain(a, j, start + (target - start) * step as f64 / 4.0) {
-                        errors.push(e.to_string());
-                        break;
+    if !j.monitor_restored {
+        let before_monitor = errors.len();
+        match a.monitor() {
+            Ok(current) => {
+                // EE can restart and reload our temporary setting from its own autosave.
+                // Adopt only the new process identity; value ownership still decides restoration.
+                if current.instance != j.monitor_instance {
+                    j.monitor_instance = current.instance.clone();
+                    a.persist(Some(j))?;
+                }
+                // Disable first when it was originally off; restore gain afterward in silence.
+                if j.enabled.owns(&current.enabled)
+                    && let Err(e) = enabled(a, j, j.enabled.original)
+                {
+                    errors.push(e.to_string());
+                }
+                if j.gain.owns(&current.gain) {
+                    let target = j.gain.original;
+                    let start = current.gain;
+                    for step in 1..=4 {
+                        if let Err(e) = gain(a, j, start + (target - start) * step as f64 / 4.0) {
+                            errors.push(e.to_string());
+                            break;
+                        }
+                        a.wait(fade_ms / 4);
                     }
-                    a.wait(fade_ms / 4);
                 }
             }
+            Err(e) => errors.push(e.to_string()),
         }
-        Err(e) => errors.push(e.to_string()),
+        if errors.len() == before_monitor {
+            j.monitor_restored = true;
+        }
     }
     if errors.is_empty() {
-        a.persist(None)
+        j.streams.retain(|key, _| remaining.contains(key));
+        if j.streams.is_empty() {
+            a.persist(None)
+        } else {
+            a.persist(Some(j))
+        }
     } else {
         a.persist(Some(j))?;
         Err(invalid(errors.join("; ")))

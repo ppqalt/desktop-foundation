@@ -58,9 +58,19 @@ pre-existing value above 1) is restored rather than replaced with this default.
 
 ## Ownership and restoration
 
-- Each stream is identified by Pulse index **and PipeWire object serial**, with
-  its channel-map order retained. New streams are captured/ducked while active;
-  closed streams are dropped, and reused indexes cannot inherit old volumes.
+- Live streams are identified by Pulse index **and PipeWire object serial**.
+  While active, a closed stream's original volume is retained under its stable
+  application identity and channel map. A recreated stream inherits that original
+  only when its current volume exactly matches one unambiguous managed value;
+  ambiguous matches are left alone rather than attenuated again. Reused indexes
+  cannot inherit another application's volume.
+- Turning the mode off restores monitoring immediately and retains only absent
+  applications with owned attenuated volumes. Their original levels remain in
+  the private journal. A PipeWire event wakes the owner when playback returns;
+  restoration needs one unambiguous application/channel-map and volume match.
+  A different returning volume is preserved and its old history is retired.
+  Deferred playback restoration no longer requires EasyEffects after monitoring
+  has been restored.
 - A manual per-application volume change releases that stream for this activation.
   Its newer value is neither re-ducked nor overwritten on exit. Manually changed
   monitoring state/gain is also preserved by value comparison.
@@ -75,8 +85,11 @@ pre-existing value above 1) is restored rather than replaced with this default.
 
 A user systemd datagram socket queues monitoring requests during transitions, shutdown
 and startup. It activates one Rust owner. That owner and `pactl subscribe` exist
-only during the activation and exit after deactivation. Off leaves only a kernel
-socket, with no polling process/CPU cost. Active mode waits for socket/PipeWire
+while active or while absent application volumes still need restoration. They
+exit when restoration is complete. With no pending restoration, Off leaves only
+a kernel socket and no persistent user process. A finite login recovery command
+starts the owner only if a private journal exists; bounded service restart also
+recovers after a crash. Active mode waits for socket/PipeWire
 events; finite route-settle checks and transition steps are not idle polling.
 Client-only graph events are ignored so diagnostics do not create an event loop.
 The existing Control Center/volume lock protects stream writes.

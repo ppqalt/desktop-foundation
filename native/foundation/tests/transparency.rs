@@ -26,11 +26,13 @@ impl Fake {
                 Stream {
                     id: 1,
                     serial: "100".into(),
+                    application: Some("application.name:Player A".into()),
                     volumes: vec![41288, 30001],
                 },
                 Stream {
                     id: 2,
                     serial: "101".into(),
+                    application: Some("application.name:Player B".into()),
                     volumes: vec![10000],
                 },
             ],
@@ -128,6 +130,7 @@ fn monitoring_only_never_changes_playback_and_restores_monitor() {
         a.streams.push(Stream {
             id: 3,
             serial: "102".into(),
+            application: Some("application.name:Player C".into()),
             volumes: vec![55555],
         });
         transparency::restore(&mut a, &mut j, 0).unwrap();
@@ -183,6 +186,7 @@ fn stream_arrival_departure_and_reused_ids_have_independent_ownership() {
     a.streams.push(Stream {
         id: 1,
         serial: "200".into(),
+        application: Some("application.name:Different player".into()),
         volumes: vec![63000],
     });
     transparency::reconcile(&mut a, &mut j, &Config::default()).unwrap();
@@ -250,7 +254,7 @@ fn invalid_config_never_changes_audio() {
 }
 
 #[test]
-fn socket_owner_has_crash_recovery_and_no_login_process() {
+fn socket_owner_has_crash_recovery_and_only_conditional_login_recovery() {
     let definitions = desktop_foundationctl::deploy_units::definitions(
         std::path::Path::new("/fixture/repo with spaces"),
         std::path::Path::new("/fixture/state"),
@@ -270,5 +274,203 @@ fn socket_owner_has_crash_recovery_and_no_login_process() {
     assert!(
         service.contains("ExecStopPost=\"/fixture/repo with spaces/scripts/transparency\" recover")
     );
-    assert!(!unit("desktop-foundation-session.target").contains("transparency"));
+    let target = unit("desktop-foundation-session.target");
+    assert!(!target.contains("desktop-foundation-transparency.service"));
+    assert!(target.contains("desktop-foundation-transparency-resume.service"));
+    assert!(unit("desktop-foundation-transparency-resume.service").contains(" resume"));
+    assert!(unit("desktop-foundation-transparency.service").contains("StartLimitBurst=3"));
+}
+
+#[test]
+fn recreated_playback_keeps_its_original_level_while_transparency_is_on() {
+    let mut a = Fake::new(false);
+    let original = a.streams[0].volumes.clone();
+    let mut j = transparency::activate(&mut a, &Config::default()).unwrap();
+    let mut recreated = a.streams.remove(0);
+    transparency::reconcile(&mut a, &mut j, &Config::default()).unwrap();
+    recreated.id = 9;
+    recreated.serial = "900".into();
+    let attenuated = recreated.volumes.clone();
+    a.streams.push(recreated);
+    transparency::reconcile(&mut a, &mut j, &Config::default()).unwrap();
+    assert_eq!(
+        a.streams.last().unwrap().volumes,
+        attenuated,
+        "must not attenuate twice"
+    );
+    transparency::restore(&mut a, &mut j, 0).unwrap();
+    assert_eq!(a.streams.last().unwrap().volumes, original);
+}
+
+#[test]
+fn recreated_playback_with_a_different_volume_is_not_forced_to_the_old_level() {
+    let mut a = Fake::new(false);
+    let mut j = transparency::activate(&mut a, &Config::default()).unwrap();
+    let mut recreated = a.streams.remove(0);
+    transparency::reconcile(&mut a, &mut j, &Config::default()).unwrap();
+    recreated.id = 9;
+    recreated.serial = "900".into();
+    recreated.volumes = vec![20000, 30000];
+    a.streams.push(recreated);
+    transparency::reconcile(&mut a, &mut j, &Config::default()).unwrap();
+    assert_eq!(a.streams.last().unwrap().volumes, vec![5000, 7500]);
+    transparency::restore(&mut a, &mut j, 0).unwrap();
+    assert_eq!(a.streams.last().unwrap().volumes, vec![20000, 30000]);
+}
+
+#[test]
+fn ambiguous_recreated_stream_is_not_ducked_again() {
+    let mut a = Fake::new(false);
+    a.streams[1].application = a.streams[0].application.clone();
+    a.streams[1].volumes = a.streams[0].volumes.clone();
+    let mut j = transparency::activate(&mut a, &Config::default()).unwrap();
+    let mut recreated = a.streams.remove(0);
+    a.streams.clear();
+    transparency::reconcile(&mut a, &mut j, &Config::default()).unwrap();
+    recreated.id = 42;
+    recreated.serial = "420".into();
+    let attenuated = recreated.volumes.clone();
+    a.streams.push(recreated);
+    transparency::reconcile(&mut a, &mut j, &Config::default()).unwrap();
+    assert_eq!(a.streams[0].volumes, attenuated);
+}
+
+#[test]
+fn legacy_journal_restores_live_streams_with_new_application_metadata() {
+    let mut audio = Fake::new(false);
+    let before = audio.clone();
+    let journal = transparency::activate(&mut audio, &Config::default()).unwrap();
+    let mut legacy = serde_json::to_value(journal).unwrap();
+    for owned in legacy["streams"].as_object_mut().unwrap().values_mut() {
+        for name in ["original", "managed", "pending"] {
+            if let Some(stream) = owned[name].as_object_mut() {
+                stream.remove("application");
+            }
+        }
+    }
+    let mut recovered: Journal = serde_json::from_value(legacy).unwrap();
+    transparency::restore(&mut audio, &mut recovered, 0).unwrap();
+    assert_eq!(audio.streams, before.streams);
+    assert_eq!(audio.monitor, before.monitor);
+}
+
+#[test]
+fn simultaneous_recreated_streams_do_not_reuse_one_ambiguous_history() {
+    let mut audio = Fake::new(false);
+    let mut journal = transparency::activate(&mut audio, &Config::default()).unwrap();
+    let mut first = audio.streams.remove(0);
+    first.id = 10;
+    first.serial = "new-one".into();
+    let mut second = first.clone();
+    second.id = 11;
+    second.serial = "new-two".into();
+    let inherited = first.volumes.clone();
+    audio.streams.extend([first, second]);
+    transparency::reconcile(&mut audio, &mut journal, &Config::default()).unwrap();
+    assert_eq!(audio.streams[1].volumes, inherited);
+    assert_eq!(audio.streams[2].volumes, inherited);
+}
+
+#[test]
+fn legacy_journal_does_not_override_a_manual_volume_change() {
+    let mut audio = Fake::new(false);
+    let journal = transparency::activate(&mut audio, &Config::default()).unwrap();
+    let mut legacy = serde_json::to_value(journal).unwrap();
+    for owned in legacy["streams"].as_object_mut().unwrap().values_mut() {
+        for name in ["original", "managed", "pending"] {
+            if let Some(stream) = owned[name].as_object_mut() {
+                stream.remove("application");
+            }
+        }
+    }
+    audio.streams[0].volumes = vec![24000, 18000];
+    let mut recovered: Journal = serde_json::from_value(legacy).unwrap();
+    transparency::restore(&mut audio, &mut recovered, 0).unwrap();
+    assert_eq!(audio.streams[0].volumes, vec![24000, 18000]);
+    assert_eq!(audio.streams[1].volumes, vec![10000]);
+}
+
+#[test]
+fn restored_stream_recreated_before_shutdown_recovers_original_volume() {
+    let mut audio = Fake::new(false);
+    let before = audio.streams[0].volumes.clone();
+    let mut journal = transparency::activate(&mut audio, &Config::default()).unwrap();
+    audio.streams[0].id = 14;
+    audio.streams[0].serial = "recreated-before-shutdown".into();
+    transparency::restore(&mut audio, &mut journal, 0).unwrap();
+    assert_eq!(audio.streams[0].volumes, before);
+}
+
+#[test]
+fn absent_application_restores_after_mode_is_off_and_journal_is_reloaded() {
+    let mut audio = Fake::new(false);
+    let original_monitor = audio.monitor.clone();
+    let original_volume = audio.streams[0].volumes.clone();
+    let mut journal = transparency::activate(&mut audio, &Config::default()).unwrap();
+    let mut returning = audio.streams.remove(0);
+    transparency::restore(&mut audio, &mut journal, 0).unwrap();
+    assert_eq!(audio.monitor, original_monitor);
+    assert!(journal.monitor_restored);
+    let bytes = serde_json::to_vec(audio.journal.as_ref().unwrap()).unwrap();
+    let mut journal: Journal = serde_json::from_slice(&bytes).unwrap();
+    returning.id = 50;
+    returning.serial = "returned-after-off".into();
+    audio.streams.push(returning);
+    audio.api_down = true; // Restoring playback must no longer require EasyEffects.
+    transparency::restore(&mut audio, &mut journal, 0).unwrap();
+    assert_eq!(audio.streams.last().unwrap().volumes, original_volume);
+    assert!(audio.journal.is_none());
+}
+
+#[test]
+fn returning_application_keeps_a_new_volume_after_mode_is_off() {
+    let mut audio = Fake::new(false);
+    let mut journal = transparency::activate(&mut audio, &Config::default()).unwrap();
+    let mut returning = audio.streams.remove(0);
+    transparency::restore(&mut audio, &mut journal, 0).unwrap();
+    returning.id = 51;
+    returning.serial = "changed-after-off".into();
+    returning.volumes = vec![15000, 23000];
+    audio.streams.push(returning);
+    transparency::restore(&mut audio, &mut journal, 0).unwrap();
+    assert_eq!(audio.streams.last().unwrap().volumes, vec![15000, 23000]);
+    assert!(audio.journal.is_none());
+}
+
+#[test]
+fn login_recovery_without_a_journal_never_starts_an_audio_owner() {
+    let base =
+        std::env::temp_dir().join(format!("df-transparency-no-journal-{}", std::process::id()));
+    std::fs::create_dir_all(&base).unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
+        .args(["transparency", "resume"])
+        .env("XDG_STATE_HOME", &base)
+        .env("PATH", "/nonexistent")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(base).unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn interrupted_volume_write_survives_absence_during_recovery() {
+    let mut audio = Fake::new(false);
+    let original = audio.streams[0].volumes.clone();
+    let mut journal = transparency::activate(&mut audio, &Config::default()).unwrap();
+    let mut returning = audio.streams.remove(0);
+    let owned = journal.streams.get_mut("1:100").unwrap();
+    owned.pending = Some(returning.clone());
+    owned.managed = owned.original.clone();
+    transparency::restore(&mut audio, &mut journal, 0).unwrap();
+    assert!(audio.journal.is_some());
+    returning.id = 52;
+    returning.serial = "interrupted-return".into();
+    audio.streams.push(returning);
+    transparency::restore(&mut audio, &mut journal, 0).unwrap();
+    assert_eq!(audio.streams.last().unwrap().volumes, original);
+    assert!(audio.journal.is_none());
 }
