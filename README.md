@@ -7,11 +7,12 @@ A barless CachyOS and Niri desktop with Material-inspired widgets, wallpaper col
 ```sh
 git clone https://github.com/ppqalt/desktop-foundation.git
 cd desktop-foundation
-./scripts/install-core --dry-run
 ./scripts/install-core
 ```
 
-Use `./scripts/install-all` for the full application setup. See [installation](docs/installation.md) for requirements and options.
+Use `./scripts/install-all` for the full application setup. Both commands build
+and install the patched Niri compositor automatically; your running session stays
+open and the patch activates at the next login. Stock recovery is retained. See [installation](docs/installation.md) for requirements and options.
 
 ## Shortcuts
 

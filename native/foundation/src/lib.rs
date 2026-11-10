@@ -26,6 +26,7 @@ pub mod media;
 pub mod monitor;
 pub mod monitor_config;
 pub mod monitor_shader;
+pub mod niri_package;
 pub mod packages;
 pub mod preferences;
 pub mod preflight;

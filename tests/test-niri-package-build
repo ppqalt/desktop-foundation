@@ -11,6 +11,7 @@ trap 'rm -r -- "$base"' EXIT
 mkdir -m 700 "$base/bin" "$base/state" "$base/home"
 cat >"$base/bin/makepkg" <<'SH'
 #!/bin/sh
+if [ "${1:-}" = --printsrcinfo ]; then printf '\tpkgver = 26.04\n\tpkgrel = 1\n'; exit 0; fi
 [ "${FAIL_BUILD:-}" != 1 ] || exit 9
 [ -z "${CARGO_TARGET_DIR:-}" ] || exit 8
 printf 'fixture package' > "$PKGDEST/niri-foundation-26.04-1-x86_64.pkg.tar.zst"

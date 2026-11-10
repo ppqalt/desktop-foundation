@@ -77,3 +77,13 @@ The corner clock is click-through and shows hours/minutes.
 
 `Super+Z` toggles the left Control Center. `Super+Comma` remains reserved;
 `Super+X` continues to toggle the right btop sidebar.
+
+## Managed compositor capability
+
+A verified Foundation Niri installation supplies `overview_ctrl_scroll = true`
+as a default through `niri-package-input.toml` in the user Foundation config
+directory. Profile and user input settings can still turn it off. Stock recovery
+applies a false compatibility ceiling without rewriting those preferences.
+The capability is activated only when the Niri IPC peer is the verified patched
+executable, never merely because a package was installed. See
+[Niri integration and recovery](../patches/niri/README.md).

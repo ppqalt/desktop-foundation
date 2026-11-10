@@ -10,6 +10,7 @@ pub struct Options {
     pub standard: bool,
     pub extras: Vec<String>,
     pub greeter: bool,
+    pub patched_niri: bool,
     pub packages: bool,
     pub clean_boot: bool,
     pub profile: String,
@@ -23,6 +24,7 @@ impl Options {
             standard: false,
             extras: Vec::new(),
             greeter: true,
+            patched_niri: true,
             packages: true,
             clean_boot: false,
             profile: "default".into(),
@@ -64,6 +66,8 @@ impl Options {
                     }
                     o.extras.push(extra.clone());
                 }
+                "--patched-niri" => o.patched_niri = true,
+                "--stock-niri" => o.patched_niri = false,
                 "--greeter" => o.greeter = true,
                 "--no-greeter" => o.greeter = false,
                 "--no-packages" => o.packages = false,
@@ -410,6 +414,7 @@ pub fn execute(
     let mut packages = Vec::new();
     for group in [
         Some("core"),
+        (o.patched_niri && o.packages).then_some("niri-build"),
         o.greeter.then_some("greeter"),
         o.personal.then_some("personal"),
         (o.personal || o.clean_boot).then_some("firmware"),
@@ -444,6 +449,16 @@ pub fn execute(
                 }
             );
         }
+        println!(
+            "Niri: {}",
+            if !o.packages {
+                "preserve installed compositor (--no-packages)"
+            } else if o.patched_niri {
+                "build/verify niri-foundation, preserve signed stock rollback; activate on a fresh login"
+            } else {
+                "restore recorded stock package if Foundation owns a replacement"
+            }
+        );
         if o.standard {
             println!("Standard: Brave Origin Nightly, paru, ChatGPT, Vesktop");
         }
@@ -568,6 +583,14 @@ pub fn execute(
     }
     call(r, root, "build-nothing", &[])?;
     call(r, root, "build-backend", &[])?;
+    if o.packages {
+        if o.patched_niri {
+            missing_packages(r, &manifest(root, "niri-build")?)?;
+            call(r, root, "niri-package", &["install"])?;
+        } else {
+            call(r, root, "niri-package", &["restore"])?;
+        }
+    }
     call(r, root, "preflight", &["--profile", &o.profile])?;
     call(
         r,
@@ -665,6 +688,11 @@ struct SavedSelection {
     extras: Vec<String>,
     hardware_profile: String,
     greeter: bool,
+    #[serde(default = "patched_default")]
+    patched_niri: bool,
+}
+fn patched_default() -> bool {
+    true
 }
 
 fn selection(root: &Path, state_dir: &Path, args: &[String]) -> Result<Options> {
@@ -714,6 +742,13 @@ fn selection(root: &Path, state_dir: &Path, args: &[String]) -> Result<Options> 
             .into(),
         );
     }
+    if !args
+        .iter()
+        .any(|s| s == "--patched-niri" || s == "--stock-niri")
+        && !saved.patched_niri
+    {
+        effective.push("--stock-niri".into());
+    }
     effective.extend_from_slice(args);
     Options::parse(root, &effective)
 }
@@ -734,8 +769,8 @@ fn save_selection(dir: &Path, o: &Options) -> Result<()> {
         .collect::<Vec<_>>()
         .join(", ");
     let document = format!(
-        "version = 1\nlayer = \"{layer}\"\nextras = [{extras}]\nhardware_profile = \"{}\"\ngreeter = {}\n",
-        o.profile, o.greeter
+        "version = 1\nlayer = \"{layer}\"\nextras = [{extras}]\nhardware_profile = \"{}\"\ngreeter = {}\npatched_niri = {}\n",
+        o.profile, o.greeter, o.patched_niri
     );
     state::atomic(&dir.join("installation.toml"), document.as_bytes(), 0o600)
 }
@@ -819,6 +854,27 @@ mod selection_tests {
         assert!(!minimal.standard && minimal.extras.is_empty());
         fs::write(dir.join("state/installation.toml"), "version = 99\nlayer = 'minimal'\nextras = []\nhardware_profile = 'default'\ngreeter = true\n").unwrap();
         assert!(selection(&dir, &dir.join("state"), &[]).is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn compositor_selection_survives_reinstall_and_can_be_explicitly_changed() {
+        let dir =
+            std::env::temp_dir().join(format!("df-install-niri-choice-{}", std::process::id()));
+        fs::create_dir_all(dir.join("profiles/default")).unwrap();
+        fs::create_dir_all(dir.join("state")).unwrap();
+        let initial = Options::parse(&dir, &["--stock-niri".into()]).unwrap();
+        save_selection(&dir.join("state"), &initial).unwrap();
+        assert!(
+            !selection(&dir, &dir.join("state"), &[])
+                .unwrap()
+                .patched_niri
+        );
+        assert!(
+            selection(&dir, &dir.join("state"), &["--patched-niri".into()])
+                .unwrap()
+                .patched_niri
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 

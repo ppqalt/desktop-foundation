@@ -34,6 +34,14 @@ mkdir -p -- "$package_state"
 work=$(mktemp -d "$package_state/build.XXXXXXXX")
 trap 'rm -r -- "$work"' EXIT
 cp -- "$root/patches/niri/PKGBUILD" "$root/patches/niri/overview-ctrl-scroll.patch" "$work/"
+# Read the reviewed recipe's literal version through makepkg's own metadata;
+# do not duplicate its version in the installer/updater.
+metadata=$(cd -- "$work" && env -u CARGO_TARGET_DIR makepkg --printsrcinfo)
+expected_version=$(awk -F ' = ' '
+/^[[:space:]]pkgver = / {v=$2}
+/^[[:space:]]pkgrel = / {r=$2}
+/^[[:space:]]epoch = / {e=$2}
+END {if (v == "" || r == "") exit 1; print (e != "" && e != "0" ? e ":" : "") v "-" r}' <<<"$metadata")
 mkdir -m 700 "$work/packages"
 (
 	cd -- "$work"
@@ -49,7 +57,7 @@ if ((${#packages[@]} != 1)); then
 	exit 1
 fi
 name=$(pacman -Qp "${packages[0]}")
-[[ $name == 'niri-foundation 26.04-1' ]] || {
+[[ $name == "niri-foundation $expected_version" ]] || {
 	printf 'Unexpected package identity: %s\n' "$name" >&2
 	exit 1
 }

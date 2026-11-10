@@ -103,13 +103,23 @@ changed (or cannot be compared), the active shell
 and active btop sidebar. It does not start inactive desktop components or restart
 the compositor, login manager or applications.
 
-System/AUR packages, Spotify/Geode modifications and privileged
+Managed patched Niri is the scoped package exception: after source/build checks,
+the updater verifies the retained stock recovery signature and the installed
+package. It rebuilds only when the pinned recipe changes and requests real
+administrator authentication before replacing the package. An unrecognized
+replacement stops safely. The current compositor is never restarted; automatic
+capability activation waits for a matching compositor at the next login.
+If compiler prerequisites are missing, their authenticated installation uses a
+full pacman upgrade to avoid an unsupported partial upgrade. Review that package
+transaction before confirming. Unmanaged stock Niri is left alone. See [package recovery](../patches/niri/README.md).
+
+Other system/AUR packages, Spotify/Geode modifications and privileged
 boot/login integration are not installed or upgraded. Cargo may download the
 Rust dependencies recorded in the repository's lockfiles; builds use the pinned
 Rust toolchain from the build scripts. Missing build or deployment dependencies
 stop the update; install those separately, then retry. Optional runtime tools
 such as `playerctl` are reported without blocking a configuration update.
-The full installer remains the route for changing system integration or packages.
+The full installer remains the route for other system integration or package selections.
 
 ## Local settings and errors
 

@@ -90,7 +90,14 @@ impl Fixture {
         for path in ["profiles/default", "packages", "config", "apps"] {
             fs::create_dir_all(root.join(path)).unwrap();
         }
-        for group in ["core", "personal", "greeter", "firmware", "recording"] {
+        for group in [
+            "core",
+            "personal",
+            "greeter",
+            "firmware",
+            "recording",
+            "niri-build",
+        ] {
             fs::write(
                 root.join(format!("packages/{group}.toml")),
                 format!("packages = [\"{group}-package\"]\n"),
@@ -629,4 +636,58 @@ fn everything_without_packages_rejects_missing_recorder_before_mutation() {
     );
     assert!(result.is_err());
     assert!(r.commands.is_empty());
+}
+
+#[test]
+fn default_and_everything_install_patched_niri_before_configuration_deployment() {
+    for flags in [&["--minimal"][..], &["--personal"][..]] {
+        let f = Fixture::new();
+        let mut r = Fake {
+            available: true,
+            ..Fake::default()
+        };
+        install::execute(&f.root, &f.paths, &f.options(flags), &mut r).unwrap();
+        let package = r
+            .commands
+            .iter()
+            .position(|c| {
+                Path::new(&c[0])
+                    .file_name()
+                    .is_some_and(|n| n == "niri-package")
+            })
+            .unwrap();
+        let deploy = r
+            .commands
+            .iter()
+            .position(|c| Path::new(&c[0]).file_name().is_some_and(|n| n == "deploy"))
+            .unwrap();
+        assert!(package < deploy);
+        assert_eq!(r.commands[package][1], "install");
+    }
+}
+#[test]
+fn stock_selection_uses_recorded_recovery_and_no_packages_never_runs_package_component() {
+    let f = Fixture::new();
+    let mut r = Fake::default();
+    install::execute(&f.root, &f.paths, &f.options(&["--stock-niri"]), &mut r).unwrap();
+    assert!(r.commands.iter().any(|c| {
+        Path::new(&c[0])
+            .file_name()
+            .is_some_and(|n| n == "niri-package")
+            && c[1] == "restore"
+    }));
+    let mut r = Fake::default();
+    install::execute(&f.root, &f.paths, &f.options(&["--no-packages"]), &mut r).unwrap();
+    assert!(!r.named("niri-package"));
+}
+#[test]
+fn compositor_package_failure_stops_before_deploy() {
+    let f = Fixture::new();
+    let mut r = Fake {
+        failure: Some("niri-package".into()),
+        ..Fake::default()
+    };
+    assert!(install::execute(&f.root, &f.paths, &f.options(&[]), &mut r).is_err());
+    assert!(!r.named("deploy"));
+    assert!(!r.named("preflight"));
 }

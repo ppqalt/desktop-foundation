@@ -1,6 +1,82 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# Validate public CLI grammar before bootstrapping can install anything. Rust
+# remains authoritative for saved selections, ownership and installation effects.
+installer_args=("$@")
+layer=''
+extras=()
+dry=false
+check=false
+help=false
+for ((i = 0; i < ${#installer_args[@]}; i++)); do
+	option=${installer_args[i]}
+	case $option in
+	--core | --minimal | --standard | --personal)
+		selected=${option#--}
+		[[ $selected != core ]] || selected=minimal
+		if [[ -n $layer && $layer != "$selected" ]]; then
+			printf '%s\n' 'Choose one installation profile.' >&2
+			exit 2
+		fi
+		layer=$selected
+		;;
+	--extra)
+		((i += 1))
+		extra=${installer_args[i]:-}
+		case $extra in steam | spicetify | geode | recording) ;; *)
+			printf 'Invalid or missing extra: %s\n' "$extra" >&2
+			exit 2
+			;;
+		esac
+		for existing in "${extras[@]}"; do
+			if [[ $existing == "$extra" ]]; then
+				printf 'Duplicate extra: %s\n' "$extra" >&2
+				exit 2
+			fi
+		done
+		extras+=("$extra")
+		;;
+	--profile | --hardware-profile | --profile=* | --hardware-profile=*)
+		if [[ $option == *=* ]]; then selected=${option#*=}; else
+			((i += 1))
+			selected=${installer_args[i]:-}
+		fi
+		if [[ ! $selected =~ ^[a-zA-Z0-9_-]+$ || ! -d $root/profiles/$selected ]]; then
+			printf 'Invalid or missing hardware profile: %s\n' "$selected" >&2
+			exit 2
+		fi
+		;;
+	--no-packages | --clean-boot | --greeter | --no-greeter | --patched-niri | --stock-niri) ;;
+	--dry-run | --plan) dry=true ;;
+	--check) check=true ;;
+	--help | -h) help=true ;;
+	*)
+		printf 'Unknown installer option: %s\n' "$option" >&2
+		exit 2
+		;;
+	esac
+done
+if $dry && $check; then
+	printf '%s\n' 'Choose --dry-run or --check.' >&2
+	exit 2
+fi
+if [[ $layer == personal ]] && ((${#extras[@]})); then
+	printf '%s\n' '--personal already selects its application extras.' >&2
+	exit 2
+fi
+if $help; then
+	printf '%s\n' 'Usage: scripts/install [--minimal|--standard|--personal] [--extra NAME]' \
+		'  --profile NAME       Select a hardware profile' \
+		'  --patched-niri       Install managed patched Niri (default)' \
+		'  --stock-niri         Restore/preserve stock Niri instead' \
+		'  --no-packages        Preserve installed packages; deploy only' \
+		'  --no-greeter         Preserve the existing login manager' \
+		'  --clean-boot         Apply the selected supported boot cleanup' \
+		'  --dry-run|--check    Inspect without package or build changes' \
+		'Extras: steam, spicetify, geode, recording'
+	exit 0
+fi
 if [[ ! -x $root/native/foundation/target/release/desktop-foundationctl ]]; then
 	no_packages=false
 	for option in "$@"; do

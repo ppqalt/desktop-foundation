@@ -16,9 +16,9 @@ Reinspect host state before any later deployment.
 | Transparency | Uncommitted transaction changes attempt to retain application identity across stream recreation; legacy journals lacked identity. Initial fixture tests exercise both. Restoration after a stream is absent while mode turns off is not implemented. | Complete persistent, unambiguous restoration across off/restart/stream recreation; retain external volume changes and monitoring independence. Validate isolated PipeWire fixtures and hardware separately; do not deploy partial changes. |
 | Recording | The default is now 300 seconds with configurable automatic startup, MKV and Opus. The editor pins a non-clearing snapshot from the same recorder; shared range controls select the exported portion. | Real-media thumbnail/full-copy/NVENC tests cover exact cuts, channel counts and timed audio markers. Complete protected live acceptance and resource measurements before deployment; no-audio capture remains separate work. |
 | Wallpapers | Image inventory and lazy previews support many formats, with optional FFmpeg decoding for JXL/HEIC. Picker has four columns. | Video playback, animated previews, per-output assignments, audio, fullscreen suspension, hotplug and transactional recovery need investigation and actual runtime proof. Do not infer playback from a probe. |
-| Niri | A patched package and signed stock rollback archive were prepared separately; the live machine still uses stock Niri. Ctrl+wheel behavior was not physically verified. | Complete package ownership, automatic fresh-install and updater integration, rollback, protected session transition, fresh login and physical input checks. Never claim package preparation is activation. |
+| Niri | 2026-11-10: journaled package installation, exact signed stock rollback, fresh-login capability gating and managed updater integration implemented. Patched package installed on Lucky38; existing stock process preserved. Private VM package install, Ctrl+wheel up/down with unchanged workspace, fresh patched login, rollback and fresh stock login passed. | Lucky38 must use a later normal login to run the new binary. Physical mouse, multiple monitors and the overlay hot-corner change still need host acceptance. Pinned upstream/security updates require reviewed recipe maintenance. |
 | Nautilus | `application_roles.rs` contains XDG default handling; wallpaper theme propagates a supported GNOME accent. Existing user GTK4 CSS is outside Foundation's managed targets. | Preserve MIME preferences and user's CSS; establish a safe, maintainable color integration and test actual file opening/theme behavior without globally breaking GTK applications. |
-| Installer and updater | Minimal, standard and explicit extras exist; isolated-branch bootstrap and recording-extra fixes are committed. The patched Niri package is not wired into the normal installation/update transaction. | Test clean install, ownership conflict, optional selections, interrupted upgrade, exact versions and rollback in isolated hosts, then verify protected live paths only with authentication. |
+| Installer and updater | All package-enabled profiles now include patched Niri, with saved stock opt-out and source-only package preservation. CLI grammar is rejected before bootstrap. Fixture tests cover both defaults/opt-out, component failure, interrupted package replacement and recovery. | A whole fresh Everything install with these new hooks remains separate acceptance; component install/session/rollback was tested in the private VM. Package and deployment journals remain distinct. |
 | Settings, notifications, search and diagnostics | Control Center and launcher exist; notifications are provided by Mako, with no Foundation-owned QML history center established by this inventory. A broad validated TOML settings editor is not established. | Examine existing CLI/config owners before implementing useful incremental integrations. Provide bounded actions, validation, recovery and accessibility; do not add a parallel settings database or persistent process by default. |
 | Acceptance | Component and isolated Rust/QML fixtures exist. Current live desktop has not received these branch changes. | Verify hardware, compositor focus, displays, accessibility, fresh login, rollback and real capture separately. Publish neither a release nor a complete-success claim until acceptance evidence exists. |
 
@@ -79,3 +79,44 @@ keyboard-versus-pointer focus feedback, Home/End and cancel/Tab semantics across
 gallery and desktop. Empty choices no longer open blank menus on click; disabling
 or removing all options closes an open menu without activation. Long/empty menu
 examples and production pointer/keyboard/model-lifecycle tests cover these paths.
+
+## Niri integration acceptance, 2026-11-10
+
+The owning checkout contains the new package component and tests. Real package
+extraction revealed an output-limit defect that fixtures did not expose; the
+extraction now uses an explicitly bounded binary path and a real archive
+regression test covers an executable larger than 16 MiB.
+
+Full `scripts/check` passed after this correction (shell checks, QML formatting
+and lint, Rust formatting, Clippy and both crates' tests). Seventeen focused
+package tests cover signatures, bounds, ownership, interruption, recovery,
+capability defaults and real archive extraction. Installer bootstrap and package
+builder shell tests passed separately.
+
+Private VM evidence: stock Niri 26.04-1 remained running after patched package
+installation. Its old executable did not activate the option. A fresh login ran
+the verified candidate, automatically enabled the scoped option and started the
+shell. QEMU mouse-wheel input with Ctrl changed overview size in both directions
+without changing the active workspace. Exact signed stock recovery preserved
+the running patched process and a subsequent stock login started successfully.
+This is virtual input/session proof, not physical multi-monitor acceptance.
+
+Lucky38 installed niri-foundation 26.04-1 through real polkit authentication.
+The original niri 26.04-1.1 archive and signature are retained in the component
+journal. The current compositor PID/executable, configuration, manifest and
+wallpaper metadata were unchanged. The existing doctor still reports fourteen
+login/keyring policy issues (greetd/tuigreet/oo7 absent, GNOME Keyring present);
+these were not repaired by replacing the login manager or keyring. Niri IPC,
+configuration validation, shell and wallpaper checks pass.
+
+The installed candidate was built before packaging-only changes adding the
+wayland-compositor provider and explicit !debug option; source revision, patch
+and effective compiler configuration are unchanged. Future clean builds use
+those metadata changes. The candidate's session service, launcher and portal
+resources were compared with the signed CachyOS package and were identical.
+
+GitHub branch audit at local aed5aa0: main 0110a8b is 69 commits behind the
+owner; lucky38/desktop-current 6bfca9a is 9 behind; lucky38/rust-quality 69e3feb
+is already incorporated. wip/transparency-pipewire d1fd897 has one unmerged
+experimental commit and remains separate. No remote branches were merged or
+pushed during this pass.

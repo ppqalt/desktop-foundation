@@ -444,6 +444,15 @@ pub fn checked_capture(args: &[String], timeout: Duration, stdout_limit: u64) ->
     )
 }
 
+/// Package executables can exceed the snapshot ceiling. This explicit binary
+/// path stays bounded at 64 MiB, retaining stderr limits, timeout and cleanup.
+pub fn checked_binary_capture(args: &[String], timeout: Duration) -> Result<Output> {
+    ensure_success(
+        args,
+        run_with_limit(args, None, Some(timeout), true, 64 * 1024 * 1024, false)?,
+    )
+}
+
 /// Machine-readable native requests retain stable diagnostics without changing
 /// the locale of launched apps or the parent process. Both output streams are
 /// bounded; only snapshot callers opt into a larger stdout limit.

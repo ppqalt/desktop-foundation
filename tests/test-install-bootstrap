@@ -23,6 +23,23 @@ printf 'foundation %s\n' "$*" >> "$DF_TEST_LOG"
 SH
 chmod +x "$base/repo/scripts/"*
 export HOME="$base/home" XDG_STATE_HOME="$base/state" DF_TEST_LOG="$base/log"
+# Invalid commands must fail before either compiler or provisioner is touched.
+for mode in missing present; do
+	if [[ $mode == present ]]; then
+		"$base/repo/scripts/build-backend"
+		rm "$base/log"
+	fi
+	for invalid in --typo --extra '--extra recording --extra recording' '--core --standard' '--profile ../default' '--profile=' '--dry-run --check' '--personal --extra recording'; do
+		read -r -a options <<<"$invalid"
+		if "$base/repo/scripts/install" "${options[@]}" >"$base/error" 2>&1; then exit 1; fi
+		[[ ! -e $base/log ]]
+	done
+	"$base/repo/scripts/install" --help >"$base/help"
+	rg -q -- '--patched-niri' "$base/help"
+	[[ ! -e $base/log ]]
+	if [[ $mode == present ]]; then rm "$base/repo/native/foundation/target/release/desktop-foundationctl"; fi
+done
+
 "$base/repo/scripts/install" --core
 [[ $(cat "$base/log") == $'bootstrap\nbuild\nfoundation install --core' ]]
 rm "$base/log"

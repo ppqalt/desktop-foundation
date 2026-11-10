@@ -1,0 +1,7 @@
+packages = [
+    "base-devel",
+    "clang",
+    "git",
+    "rustup",
+    "pkgconf",
+]

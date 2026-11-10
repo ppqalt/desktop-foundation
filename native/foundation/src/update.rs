@@ -913,6 +913,18 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             ));
         }
         installation(&root, &home)?;
+        // Package mutation follows all build/source/configuration validation.
+        // Its own journal retains stock recovery and never restarts this session.
+        crate::niri_package::ensure_managed(&staging.path)?;
+        if checkout_revision(&root)? != before
+            || diff(&root, false)? != original_diff
+            || diff(&root, true)? != original_index
+            || untracked(&root)? != local_files
+        {
+            return Err(invalid(
+                "Checkout changed during compositor preparation; nothing deployed; package recovery journal retained",
+            ));
+        }
         phase = "publication";
         println!("Applying update…");
         let previous = if home.join("update.json").exists() {

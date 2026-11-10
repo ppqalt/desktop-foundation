@@ -80,6 +80,28 @@ pub fn load(
         settings,
         sources: vec![base_path.to_owned()],
     };
+    let capability_path = config.join("desktop-foundation/niri-package-input.toml");
+    let capability = match fs::File::open(&capability_path) {
+        Ok(file) => {
+            let mut contents = String::new();
+            file.take(4097).read_to_string(&mut contents)?;
+            if contents.len() > 4096 {
+                return Err(invalid("Managed Niri capability file exceeds 4 KiB"));
+            }
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Capability {
+                overview_ctrl_scroll: bool,
+            }
+            let value: Capability = toml::from_str(&contents)
+                .map_err(|e| invalid(format!("Invalid managed Niri capability: {e}")))?;
+            result.sources.push(capability_path.clone());
+            result.settings.overview_ctrl_scroll = value.overview_ctrl_scroll;
+            Some(value.overview_ctrl_scroll)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
     overlay(&profile.join("input.toml"), &mut result)?;
     let directory = config.join("desktop-foundation/input.d");
     match fs::read_dir(&directory) {
@@ -103,6 +125,13 @@ pub fn load(
         Err(error) => return Err(error.into()),
     }
     overlay(&config.join("desktop-foundation/input.toml"), &mut result)?;
+    // Stock recovery temporarily masks an unsupported option without deleting
+    // the user's preference. A patched capability remains an overridable default.
+    if capability == Some(false) {
+        result.sources.retain(|path| path != &capability_path);
+        result.sources.push(capability_path);
+        result.settings.overview_ctrl_scroll = false;
+    }
     if result.settings.layout.trim().is_empty()
         || result.settings.layout.chars().any(char::is_control)
     {

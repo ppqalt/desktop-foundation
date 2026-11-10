@@ -6,6 +6,8 @@ checkout in a permanent directory and run the installer as that user. Installer
 orchestration is native Rust; Python remains necessary for the not-yet-migrated
 privileged helpers.
 
+Malformed arguments and `--help` are handled before bootstrapping or building.
+
 A normal installation bootstraps missing build dependencies and builds the release
 backend automatically. A normal rerun rebuilds the selected checkout before
 starting its installer, so an older executable cannot omit newly added components.
@@ -20,7 +22,8 @@ scripts/install-core
 ```
 
 The default installation provides the Niri desktop, Quickshell and terminal
-configuration. It builds both Rust backends, deploys configuration and enables
+configuration. It builds both Rust backends and the pinned patched Niri package, retains a signed
+stock-compositor recovery package, deploys configuration and enables
 Bluetooth and AppArmor. Existing application associations are left alone. The default greeter is greetd with tuigreet and a
 plain, non-animated background. The keyring uses oo7 with PAM password unlocking through
 greetd. Choose Niri at login, then run `scripts/doctor`. See [keyring setup](keyring.md).
@@ -66,7 +69,9 @@ profile and includes the recording package. See [personal applications](personal
 | --- | --- |
 | `--dry-run` or `--plan` | Show packages, application roles, deployment paths and ownership conflicts |
 | `--check` | Inspect the selected installation layer |
-| `--no-packages` | Build and deploy using installed dependencies |
+| `--no-packages` | Build and deploy using installed dependencies; leave compositor packages alone |
+| `--stock-niri` | Save a stock-compositor preference; restore a managed patched installation to its signed original |
+| `--patched-niri` | Build/install patched Niri (default for every profile) |
 | `--no-greeter` | Use an existing display manager or TTY login |
 | `--hardware-profile NAME` or `--profile NAME` | Select a directory under `profiles/`; default is `default` |
 | `--clean-boot` | Apply the GRUB/mkinitcpio cleanup and boot optimization helpers |
@@ -80,10 +85,15 @@ The default profile uses automatic outputs and Finnish input. Shared input lives
 in `config/input.toml`; Niri output overrides belong in `profiles/NAME/niri.kdl`.
 The `dual-display-example` profile shows an explicit output layout.
 
+The running graphical session is never restarted to activate a package. The next
+normal login enables Ctrl+wheel overview zoom only after verifying the patched
+Niri IPC peer. See [Niri package integration and recovery](../patches/niri/README.md).
+
 ## Reinstall and update
 
-Use `df-update` for Desktop Foundation updates without package upgrades. It
-reuses the installed compositor and hardware profile and preserves the current
+Use `df-update` for Desktop Foundation updates. Managed patched Niri is checked
+and rebuilt when its pinned recipe changes, with authentication for package changes;
+unmanaged compositors and other system packages are left alone. It reuses the compositor session and hardware profile and preserves the current
 wallpaper, palette and user preferences. `df-update --dry-run` checks the local
 prerequisites without fetching or deploying. See [updating](updating.md).
 

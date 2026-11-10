@@ -11,4 +11,9 @@ vars=(WAYLAND_DISPLAY NIRI_SOCKET XDG_CURRENT_DESKTOP DF_COMPOSITOR DF_FOUNDATIO
 if [[ -n ${DISPLAY:-} ]]; then vars+=(DISPLAY); fi
 systemctl --user unset-environment HYPRLAND_INSTANCE_SIGNATURE
 dbus-update-activation-environment --systemd "${vars[@]}"
+# A package replacement never restarts this compositor. Only a new, verified
+# patched session may enable its scoped overview option.
+if ! "$DF_FOUNDATION_ROOT/scripts/niri-package" activate; then
+	printf '%s\n' 'Niri package activation deferred; journal and desktop settings preserved.' >&2
+fi
 exec systemctl --user start --no-block desktop-foundation-session.target

@@ -10,8 +10,8 @@ url='https://github.com/niri-wm/niri'
 license=('GPL-3.0-or-later')
 # GCC C LTO objects in libspa-sys are not readable by Rust's LLD linker.
 # Niri's own Cargo release profile still enables Rust thin LTO.
-options=('!lto')
-provides=("niri=$pkgver")
+options=('!lto' '!debug')
+provides=("niri=$pkgver" 'wayland-compositor')
 conflicts=('niri')
 depends=('cairo' 'glib2' 'glibc' 'libdisplay-info' 'libgcc' 'libinput'
          'libpipewire' 'libxkbcommon' 'mesa' 'pango' 'pixman' 'seatd'
