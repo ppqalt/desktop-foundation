@@ -19,6 +19,20 @@ use std::{
     time::{Duration, Instant},
 };
 
+// Invoke the same upstream panel entry inside Kitty, without loading the generic
+// interactive kitten runner/TUI. Keep PID ownership and every panel argument.
+// Import compatibility failure occurs before any panel is created; exec the
+// public CLI in that case. Never retry a failure after panel_main is entered.
+const PANEL_ENTRY: &str = r#"import os
+import sys
+try:
+    from kittens.panel.main import main as panel_main
+except ImportError:
+    os.execv(sys.executable, [sys.executable, "+kitten", "panel", *sys.argv[1:]])
+else:
+    panel_main(["panel", *sys.argv[1:]])
+"#;
+
 const UNIT: &str = "desktop-foundation-monitor.service";
 const FRAME: Duration = Duration::from_millis(8);
 const RPC_TIMEOUT: Duration = Duration::from_millis(250);
@@ -599,6 +613,33 @@ fn place(paths: &Paths, pid: u32, x: i32, interactive: bool) -> Result<()> {
     )
 }
 
+// A bound socket can precede listen()/the remote-control event loop. The
+// initial hidden placement is idempotent, so uncertain transport outcomes can
+// be retried until the existing startup deadline. Credential/protocol failures
+// remain fatal, and no second terminal is spawned.
+fn initial_place(paths: &Paths, pid: u32, x: i32) -> Result<bool> {
+    if !socket(&paths.kitty)? {
+        return Ok(false);
+    }
+    match place(paths, pid, x, false) {
+        Ok(()) => Ok(true),
+        Err(crate::Error::Io(error))
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::ConnectionRefused
+                    | std::io::ErrorKind::NotFound
+                    | std::io::ErrorKind::WouldBlock
+                    | std::io::ErrorKind::TimedOut
+                    | std::io::ErrorKind::Interrupted
+                    | std::io::ErrorKind::UnexpectedEof
+            ) =>
+        {
+            Ok(false)
+        }
+        Err(error) => Err(error),
+    }
+}
+
 struct Motion {
     x: f64,
     velocity: f64,
@@ -827,8 +868,8 @@ fn serve_once(root: &Path) -> Result<bool> {
     let mut panel = OwnedPanel {
         child: kitty
             .args([
-                "+kitten",
-                "panel",
+                "+runpy",
+                PANEL_ENTRY,
                 "--edge=none",
                 "--layer=overlay",
                 "--exclusive-zone=-1",
@@ -1018,8 +1059,7 @@ fn serve_once(root: &Path) -> Result<bool> {
             return Ok(panel.shutdown_started && lifecycle.opening);
         }
         if !ready {
-            if socket(&paths.kitty)? {
-                place(&paths, panel.child.id(), hidden, false)?;
+            if initial_place(&paths, panel.child.id(), hidden)? {
                 ready = true;
                 eprintln!(
                     "Monitor terminal ready in {} ms",
@@ -1067,6 +1107,140 @@ fn serve_once(root: &Path) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn startup_waits_for_listener_not_just_a_bound_socket() {
+        use std::os::unix::ffi::OsStrExt;
+        let directory =
+            std::env::temp_dir().join(format!("foundation-monitor-listen-{}", std::process::id()));
+        fs::create_dir(&directory).unwrap();
+        let paths = Paths {
+            control: directory.join("unused"),
+            kitty: directory.join("kitty.sock"),
+            directory: directory.clone(),
+        };
+        assert!(!initial_place(&paths, std::process::id(), 2000).unwrap());
+        // SAFETY: socket() returns an owned descriptor, checked before adoption.
+        let raw = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) };
+        assert!(raw >= 0);
+        // SAFETY: raw is a fresh, owned descriptor.
+        let fd = unsafe { OwnedFd::from_raw_fd(raw) };
+        // SAFETY: all-zero sockaddr_un is initialized before bind reads it.
+        let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+        address.sun_family = libc::AF_UNIX as libc::sa_family_t;
+        let name = paths.kitty.as_os_str().as_bytes();
+        assert!(name.len() < address.sun_path.len());
+        for (target, byte) in address.sun_path.iter_mut().zip(name) {
+            *target = *byte as libc::c_char;
+        }
+        // SAFETY: fd is live, and address is an initialized sockaddr_un buffer.
+        assert_eq!(
+            unsafe {
+                libc::bind(
+                    fd.as_raw_fd(),
+                    (&address as *const libc::sockaddr_un).cast(),
+                    std::mem::size_of_val(&address) as libc::socklen_t,
+                )
+            },
+            0
+        );
+        assert!(socket(&paths.kitty).unwrap());
+        assert!(!initial_place(&paths, std::process::id(), 2000).unwrap());
+        // SAFETY: fd refers to the bound stream socket above.
+        assert_eq!(unsafe { libc::listen(fd.as_raw_fd(), 1) }, 0);
+        assert!(initial_place(&paths, std::process::id() + 1, 2000).is_err());
+        let server = std::thread::spawn(move || {
+            let listener = UnixListener::from(fd);
+            // Rejecting a wrong peer closes without sending any command.
+            let (mut rejected, _) = listener.accept().unwrap();
+            let mut rejected_request = Vec::new();
+            rejected.read_to_end(&mut rejected_request).unwrap();
+            assert!(rejected_request.is_empty());
+            let (mut client, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            client.read_to_end(&mut request).unwrap();
+            client
+                .write_all(b"\x1bP@kitty-cmd{\"ok\":true}\x1b\\")
+                .unwrap();
+            request
+        });
+        assert!(initial_place(&paths, std::process::id(), 2000).unwrap());
+        let request = server.join().unwrap();
+        assert!(
+            request
+                .windows(b"margin-left=2000".len())
+                .any(|bytes| bytes == b"margin-left=2000")
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn panel_entry_preserves_arguments_pid_and_only_falls_back_before_launch() {
+        for mode in ["direct", "unsupported", "failed"] {
+            let directory = std::env::temp_dir().join(format!(
+                "foundation-panel-entry-{}-{mode}",
+                std::process::id()
+            ));
+            fs::create_dir_all(directory.join("kittens/panel")).unwrap();
+            fs::write(directory.join("kittens/__init__.py"), "").unwrap();
+            fs::write(directory.join("kittens/panel/__init__.py"), "").unwrap();
+            let result = directory.join("result.json");
+            let main = match mode {
+                "direct" => {
+                    "import os,json\ndef main(args):\n with open(os.environ['DF_PANEL_ENTRY_RESULT'],'w') as f:json.dump({'args':args,'pid':os.getpid()},f)\n"
+                }
+                "unsupported" => "raise ImportError('unsupported panel entry')\n",
+                _ => "def main(args):\n raise RuntimeError('failure after entry')\n",
+            };
+            fs::write(directory.join("kittens/panel/main.py"), main).unwrap();
+            let legacy = directory.join("legacy-kitty");
+            fs::write(&legacy, "#!/usr/bin/python3\nimport os,sys,json\nwith open(os.environ['DF_PANEL_ENTRY_RESULT'],'w') as f:json.dump({'args':sys.argv[1:],'pid':os.getpid()},f)\n").unwrap();
+            fs::set_permissions(&legacy, fs::Permissions::from_mode(0o700)).unwrap();
+            let prefix = format!(
+                "import sys; sys.executable = {};\n",
+                serde_json::to_string(&legacy).unwrap()
+            );
+            let mut child = Command::new("python3")
+                .arg("-c")
+                .arg(format!("{prefix}{PANEL_ENTRY}"))
+                .args([
+                    "--app-id=desktop-foundation:monitor",
+                    "--config",
+                    "/private/with spaces.conf",
+                    "btop",
+                ])
+                .env("PYTHONPATH", &directory)
+                .env("PYTHONNOUSERSITE", "1")
+                .env("DF_PANEL_ENTRY_RESULT", &result)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap();
+            let pid = child.id();
+            let status = child.wait().unwrap();
+            if mode == "failed" {
+                assert!(!status.success());
+                assert!(!result.exists());
+            } else {
+                assert!(status.success());
+                let value: Value = serde_json::from_slice(&fs::read(result).unwrap()).unwrap();
+                assert_eq!(value["pid"], pid);
+                let mut expected = vec![
+                    "--app-id=desktop-foundation:monitor",
+                    "--config",
+                    "/private/with spaces.conf",
+                    "btop",
+                ];
+                if mode == "direct" {
+                    expected.insert(0, "panel");
+                } else {
+                    expected.splice(0..0, ["+kitten", "panel"]);
+                }
+                assert_eq!(value["args"], json!(expected));
+            }
+            fs::remove_dir_all(directory).unwrap();
+        }
+    }
 
     #[test]
     fn reduced_motion_settles_at_each_endpoint_without_invalid_velocity() {

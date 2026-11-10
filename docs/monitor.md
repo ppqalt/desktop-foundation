@@ -40,6 +40,27 @@ effect. The shader has no animation step, so it only runs when the terminal
 redraws. Niri rounds the matching blur and shadow. Setting `corner_radius = 0`
 disables the shader; normal Kitty windows are unaffected.
 
+The panel invokes Kitty's own `kittens.panel.main` entry through `kitty +runpy`,
+retaining the same native Kitty process, layer-shell settings and btop command.
+This avoids loading the generic interactive kitten runner/TUI on each opening.
+If the entry cannot be imported, the adapter execs the public `kitty +kitten panel`
+command before creating any window; errors after entry are never retried. This
+embedded-Kitty adapter is covered by PID/argument/failure tests and private Niri
+acceptance, and should be reviewed with future Kitty changes. See the
+[upstream panel interface and source](https://sw.kovidgoyal.net/kitty/kittens/panel/).
+
+Eight alternating private-VM launches using matched debug builds and warm
+filesystem/shader caches measured a median terminal readiness of 293.5 ms before
+and 259.5 ms after this change (about 12% lower). These are native readiness logs,
+not physical input-to-first-frame latency on Lucky38. No hidden terminal or btop
+sampler is retained.
+
+Startup also waits for a responding Kitty control listener, not merely its socket
+file. The initial hidden placement can safely retry transient transport errors
+within the existing startup deadline. Incorrect socket ownership/PID and invalid
+protocol responses remain fatal. This neither starts another terminal nor replays
+unknown toggle outcomes.
+
 Deployment prepares the shader without opening a window. The panel has its own
 Kitty cache, so other terminal effects cannot evict it. A small Rust compiler
 proxy caches Slang's version query against the installed compiler and library
