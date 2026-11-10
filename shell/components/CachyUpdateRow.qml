@@ -15,9 +15,19 @@ ColumnLayout {
     property string checkedAt: ""
     property bool expanded: false
     readonly property int total: (packages?.length ?? 0) + (aur?.length ?? 0) + (flatpak?.length ?? 0)
-    readonly property string status: !checkedAt || packages === null ? "No completed update check" : aur === null || flatpak === null ? "Last check: " + packages.length + " repository updates" : "Last check: " + total + (total === 1 ? " update" : " updates")
-    signal launchRequested
+    readonly property string status: check.running ? "Checking…" : !checkedAt || packages === null ? "No completed update check" : aur === null || flatpak === null ? "Last check: " + packages.length + " repository updates" : "Last check: " + total + (total === 1 ? " update" : " updates")
+    required property string backend
+    property string checkError: ""
+    readonly property bool busy: check.running
+    signal settled
     spacing: 0
+    ControlRequest {
+        id: check
+        onFinished: code => {
+            root.checkError = code === 0 ? "" : failure || "Update check failed. Try again.";
+            root.settled();
+        }
+    }
     function lines(value): var {
         return value.split("\n").map(s => s.trim()).filter(s => s.length > 0);
     }
@@ -62,7 +72,7 @@ ColumnLayout {
         spacing: 4
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.minimumWidth: Math.max(0, root.width - 152)
+            Layout.minimumWidth: Math.max(0, root.width - 200)
             spacing: 0
             Text {
                 Layout.fillWidth: true
@@ -94,13 +104,22 @@ ColumnLayout {
         ControlAction {
             objectName: "cachyUpdateShortcut"
             compact: true
-            iconOnly: true
-            symbol: "system_update_alt"
-            text: "Open Cachy Update"
-            Layout.preferredWidth: 48
-            Layout.maximumWidth: 48
-            onClicked: root.launchRequested()
+            text: "Check"
+            Accessible.name: "Check available updates"
+            Layout.preferredWidth: 96
+            Layout.maximumWidth: 96
+            enabled: !check.running
+            onClicked: {
+                root.checkError = "";
+                check.command = [root.backend, "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "control-center", "check-updates"];
+                check.running = true;
+            }
         }
+    }
+    WidgetStatus {
+        Layout.fillWidth: true
+        message: root.checkError
+        font.pixelSize: Material.type.bodyMedium
     }
     ColumnLayout {
         visible: root.expanded

@@ -7,7 +7,9 @@ widget.
 The overview contains a network summary and two audio cards: output and
 microphone. Each audio card has a device-details action, mute button, short
 volume slider and percentage. Device selection opens an Audio view inside the
-same frame. The collapsible Applications section shows one slider per active playback stream, so multiple streams from one app remain independently adjustable. It subscribes to audio changes while expanded and verifies stream identity before setting volume. A compact Cachy Update row reads the last completed Arch Update cache without starting a new check; its expandable details show per-source counts and cached package names. The update action still opens the installed `cachy-update` in Kitty.
+same frame. **Application volumes** opens that same Audio view, with one slider per active playback stream. Multiple streams from one app remain independently adjustable. Audio changes are subscribed to while that view is open; stream identity is verified before setting volume. Networking, audio, application volumes, recording, updates and wallpapers use shared tonal section containers. The overview scrolls without a visible scrollbar.
+
+The compact Cachy Update section shows the last completed Arch Update cache. **Details** expands per-source counts and cached package names; **Check**, immediately to its right, runs `arch-update --check` asynchronously without installing updates. Pending state prevents duplicate checks; failures remain visible and cached details remain available. Closing the sidebar does not abandon a running check.
 Network details show device actions and saved connections, omitting
 active non-VPN profiles already represented by a device. Network settings opens
 NetworkManager's packaged `nmtui` in Kitty for adding networks or editing
@@ -17,7 +19,7 @@ The left panel retains its desktop frame from `config/monitor.toml`: 720 logical
 pixels, full output height, 14-pixel inner corners, 12-pixel outer padding and
 75% background opacity. Opening/closing use the existing 240/180 ms
 velocity-preserving slide. These are explicit desktop adaptations, not Google
-component tokens. The right btop sidebar is unchanged.
+component tokens. The right btop sidebar shares the palette-derived outline treatment.
 
 ## Material components
 

@@ -32,9 +32,8 @@ PanelWindow {
     property int requestRevision: 0
     property int pendingOutput: -1
     property int pendingInput: -1
-    property bool applicationsExpanded: false
     property var pendingApplications: ({})
-    readonly property bool busy: deviceRequest.running || audioAction.running || replayRequest.running || replayEditor.busy || wallpapers.busy
+    readonly property bool busy: deviceRequest.running || audioAction.running || replayRequest.running || replayEditor.busy || wallpapers.busy || cachyUpdate.busy
     readonly property var audio: stateData.audio ?? ({})
     readonly property var network: stateData.network ?? ({})
     readonly property bool wifiAvailable: (network.devices ?? []).some(d => d.kind === "wifi")
@@ -239,7 +238,7 @@ PanelWindow {
     Process {
         id: audioEvents
         command: ["pactl", "subscribe"]
-        running: !root.closing && root.applicationsExpanded
+        running: !root.closing && root.page === "audio"
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
@@ -388,6 +387,7 @@ PanelWindow {
                 }
                 Flickable {
                     id: scroll
+                    objectName: "controlCenterScroll"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
@@ -405,9 +405,6 @@ PanelWindow {
                             scroll.contentY = Math.max(0, Math.min(scroll.contentHeight - scroll.height, scroll.contentY - delta));
                             event.accepted = true;
                         }
-                    }
-                    ScrollBar.vertical: FoundationScrollbar {
-                        visible: scroll.contentHeight > scroll.height
                     }
                     ColumnLayout {
                         id: body
@@ -451,6 +448,13 @@ PanelWindow {
                             ControlGroup {
                                 Layout.fillWidth: true
                                 Layout.preferredWidth: 1
+                                Text {
+                                    visible: root.page === "audio"
+                                    text: "Output"
+                                    color: Material.colors.on_surface
+                                    font.family: Theme.typography.family
+                                    font.pixelSize: Material.type.titleMedium
+                                }
                                 ControlAction {
                                     Layout.fillWidth: true
                                     visible: root.page === "overview"
@@ -495,6 +499,13 @@ PanelWindow {
                             ControlGroup {
                                 Layout.fillWidth: true
                                 Layout.preferredWidth: 1
+                                Text {
+                                    visible: root.page === "audio"
+                                    text: "Microphone"
+                                    color: Material.colors.on_surface
+                                    font.family: Theme.typography.family
+                                    font.pixelSize: Material.type.titleMedium
+                                }
                                 ControlAction {
                                     Layout.fillWidth: true
                                     visible: root.page === "overview"
@@ -537,24 +548,32 @@ PanelWindow {
                                 }
                             }
                         }
-                        ColumnLayout {
+                        ControlGroup {
                             Layout.fillWidth: true
-                            visible: root.page === "overview" || root.page === "audio"
-                            spacing: 0
+                            visible: root.page === "overview"
                             ControlAction {
                                 objectName: "applicationsToggle"
                                 Layout.fillWidth: true
-                                text: "Applications"
-                                badge: root.applicationsExpanded ? "⌃" : "⌄"
+                                text: "Application volumes"
+                                badge: "›"
                                 detail: (root.audio.applications ?? []).length + ((root.audio.applications ?? []).length === 1 ? " audio stream" : " audio streams")
                                 onClicked: {
-                                    root.applicationsExpanded = !root.applicationsExpanded;
-                                    if (root.applicationsExpanded)
-                                        root.refresh();
+                                    root.navigate("audio", this);
+                                    root.refresh();
                                 }
                             }
+                        }
+                        ControlGroup {
+                            Layout.fillWidth: true
+                            visible: root.page === "audio"
+                            Text {
+                                text: "Application volumes"
+                                color: Material.colors.on_surface
+                                font.family: Theme.typography.family
+                                font.pixelSize: Material.type.titleMedium
+                            }
                             Repeater {
-                                model: root.applicationsExpanded ? root.audio.applications ?? [] : []
+                                model: root.page === "audio" ? root.audio.applications ?? [] : []
                                 delegate: ControlVolumeRow {
                                     required property var modelData
                                     Layout.fillWidth: true
@@ -571,17 +590,19 @@ PanelWindow {
                                 }
                             }
                         }
-                        ReplayControl {
-                            id: replayControl
+                        ControlGroup {
                             Layout.fillWidth: true
-                            Layout.minimumWidth: body.width
                             visible: root.page === "overview"
-                            recording: root.recording
-                            pending: replayRequest.running
-                            onSetEnabled: enabled => root.requestReplay(enabled ? "replay-on" : "replay-off")
-                            onSaveRequested: {
-                                root.navigate("replay", replayControl.saveButton);
-                                replayEditor.open();
+                            ReplayControl {
+                                id: replayControl
+                                Layout.fillWidth: true
+                                recording: root.recording
+                                pending: replayRequest.running
+                                onSetEnabled: enabled => root.requestReplay(enabled ? "replay-on" : "replay-off")
+                                onSaveRequested: {
+                                    root.navigate("replay", replayControl.saveButton);
+                                    replayEditor.open();
+                                }
                             }
                         }
                         ReplayEditor {
@@ -592,27 +613,31 @@ PanelWindow {
                             backend: root.backend
                             onSettled: root.finishClose()
                         }
-                        CachyUpdateRow {
-                            visible: root.page === "overview"
+                        ControlGroup {
                             Layout.fillWidth: true
-                            Layout.minimumWidth: body.width
-                            onLaunchRequested: {
-                                root.enqueue(["cachy-update"]);
-                                root.dismiss();
+                            visible: root.page === "overview"
+                            CachyUpdateRow {
+                                id: cachyUpdate
+                                onSettled: root.finishClose()
+                                backend: root.backend
+                                Layout.fillWidth: true
                             }
                         }
-                        WallpaperGrid {
-                            id: wallpapers
+                        ControlGroup {
                             Layout.fillWidth: true
                             visible: root.page === "overview"
-                            active: !root.closing && visible
-                            backend: root.backend
-                            viewport: scroll
-                            onStarted: root.error = ""
-                            onFailed: message => root.error = message
-                            onSettled: {
-                                root.finishClose();
-                                root.refresh();
+                            WallpaperGrid {
+                                id: wallpapers
+                                Layout.fillWidth: true
+                                active: !root.closing && visible
+                                backend: root.backend
+                                viewport: scroll
+                                onStarted: root.error = ""
+                                onFailed: message => root.error = message
+                                onSettled: {
+                                    root.finishClose();
+                                    root.refresh();
+                                }
                             }
                         }
                         ControlGroup {

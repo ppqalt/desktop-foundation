@@ -375,6 +375,10 @@ fn audio_action(args: &[String]) -> Result<()> {
 pub fn run(args: &[String]) -> Result<Value> {
     let parts: Vec<_> = args.iter().map(String::as_str).collect();
     match parts.as_slice() {
+        ["check-updates"] => {
+            request(&["arch-update", "--check"], Duration::from_secs(120))?;
+            return Ok(json!({"success":true}));
+        }
         ["snapshot"] => {
             let audio =
                 audio().unwrap_or_else(|e| json!({"available":false,"error":e.to_string()}));

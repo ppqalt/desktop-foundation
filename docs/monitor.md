@@ -31,7 +31,7 @@ rounded. btop's full layout needs at least
 Displays below 520×480 logical pixels are rejected. Older configurations without
 `closing_animation_ms`, `corner_radius` or `padding` use those defaults.
 
-Corners use a small Kitty custom shader on this panel alone. The packaged
+Corners and the subtle one-logical-pixel outline use a small Kitty custom shader on this panel alone. The outline uses the generated primary palette color and refreshes with the theme. The packaged
 `shader-slang` compiler is an installer dependency; Kitty caches the compiled
 effect. The shader has no animation step, so it only runs when the terminal
 redraws. Niri rounds the matching blur and shadow. Setting `corner_radius = 0`

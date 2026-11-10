@@ -93,7 +93,8 @@ ShellRoot {
                     const saveRight = save.mapToItem(panel.contentItem, 0, 0).x + save.width;
                     fixture.check(toggleX > panel.width - 120, "replay toggle is not right-aligned");
                     fixture.check(toggleX >= saveRight && toggleX - saveRight <= 8, "save is not immediately left of the toggle");
-                    fixture.check(updateAction.mapToItem(panel.contentItem, 0, 0).x > panel.width - 120, "update action is not right-aligned");
+                    const updateRight = updateAction.mapToItem(panel.contentItem, updateAction.width, 0).x;
+                    fixture.check(Math.abs(updateRight - (panel.width - panel.sidebarStyle.padding - 16)) <= 1, "update check is not aligned with the section inset");
                 } else {
                     fixture.check(false, "sidebar actions missing");
                 }
@@ -109,6 +110,7 @@ ShellRoot {
                     fixture.check(find(panel.contentItem, "updateList").text.includes("aur-one"), "cached update details missing");
                     updateDetails.clicked();
                     fixture.check(!find(panel.contentItem, "updateList").visible, "update details did not collapse");
+                    updateAction.clicked();
                     fixture.updateCacheChecked = true;
                     updateWriter.running = true;
                     return;
@@ -136,14 +138,16 @@ ShellRoot {
                     network: {}
                 }, panel.requestRevision - 1), "obsolete snapshot accepted");
                 fixture.check(panel.stateData === savedState, "obsolete snapshot changed state");
-                panel.applicationsExpanded = true;
+                find(panel.contentItem, "applicationsToggle").clicked();
+                fixture.check(panel.page === "audio", "application volumes did not open Audio settings");
                 const application = find(panel.contentItem, "applicationVolume-100");
                 fixture.check(!!application, "application slider is missing");
                 if (application) {
                     application.value = 37;
                     application.moved();
                 }
-                panel.applicationsExpanded = false;
+                find(panel.contentItem, "backAction").clicked();
+                fixture.check(find(panel.contentItem, "applicationsToggle").activeFocus, "return from Audio did not restore application volumes focus");
                 panel.requestActivate();
                 panel.navigate("audio");
                 find(panel.contentItem, "outputChoice").forceActiveFocus();

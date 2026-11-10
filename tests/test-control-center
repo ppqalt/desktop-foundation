@@ -64,6 +64,6 @@ if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|
 	cat "$base/log" >&2
 	exit 1
 fi
-for call in 'volume output 51' 'networking off' 'select output headphones' 'stream-volume 42 100 37'; do rg -Fx "$call" "$base/calls" >/dev/null; done
+for call in 'volume output 51' 'networking off' 'select output headphones' 'stream-volume 42 100 37' 'check-updates'; do rg -Fx "$call" "$base/calls" >/dev/null; done
 awk '$0=="volume output 52"{v=NR} $0=="done wifi on"{d=NR} END{exit !(v && d && v<d)}' "$base/calls"
 printf '%s\n' 'PASS production Control Center navigation, concurrent requests, reversal and disposal'

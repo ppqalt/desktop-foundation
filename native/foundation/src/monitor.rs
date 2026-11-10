@@ -327,6 +327,40 @@ fn write_changed(path: &Path, contents: &[u8]) -> Result<()> {
     state::atomic(path, contents, 0o600)
 }
 
+fn outline_rgb() -> Result<[f64; 3]> {
+    let path = state::xdg("XDG_STATE_HOME", ".local/state")?
+        .join("desktop-foundation/theme/current/semantic.json");
+    let generated = fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok());
+    let fallback: Value =
+        serde_json::from_str(include_str!("../../../theme/fallback/material.json"))?;
+    let hex = generated
+        .as_ref()
+        .and_then(|v| v["material"]["primary"].as_str())
+        .or_else(|| generated.as_ref().and_then(|v| v["accent"].as_str()))
+        .or_else(|| fallback["primary"].as_str())
+        .ok_or_else(|| invalid("Monitor outline has no primary color"))?;
+    let hex = hex.strip_prefix('#').unwrap_or(hex);
+    if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(invalid("Invalid monitor outline color"));
+    }
+    Ok([
+        f64::from(
+            u8::from_str_radix(&hex[0..2], 16)
+                .map_err(|_| invalid("Invalid monitor outline color"))?,
+        ) / 255.0,
+        f64::from(
+            u8::from_str_radix(&hex[2..4], 16)
+                .map_err(|_| invalid("Invalid monitor outline color"))?,
+        ) / 255.0,
+        f64::from(
+            u8::from_str_radix(&hex[4..6], 16)
+                .map_err(|_| invalid("Invalid monitor outline color"))?,
+        ) / 255.0,
+    ])
+}
+
 fn shader(paths: &Paths, settings: &Settings, scale: f64) -> Result<String> {
     let pipeline = paths.directory.join("rounding.pipeline");
     Ok(if settings.corner_radius == 0 {
@@ -341,11 +375,12 @@ fn shader(paths: &Paths, settings: &Settings, scale: f64) -> Result<String> {
             &paths.directory.join("monitor-rounding.slang"),
             include_bytes!("../../../terminal/monitor/monitor-rounding.slang"),
         )?;
+        let [red, green, blue] = outline_rgb()?;
         write_changed(
             &pipeline,
             format!(
-                "startgroup\n    animation_step 0\n    var float RADIUS = {}\n    shaders monitor-rounding\nendgroup\n",
-                f64::from(settings.corner_radius) * scale,
+                "startgroup\n    animation_step 0\n    var float RADIUS = {}\n    var float BORDER_WIDTH = {}\n    var float BORDER_R = {red}\n    var float BORDER_G = {green}\n    var float BORDER_B = {blue}\n    shaders monitor-rounding\nendgroup\n",
+                f64::from(settings.corner_radius) * scale, scale,
             ).as_bytes(),
         )?;
         // Unlike include, custom_shaders uses shell-style tokenization.
@@ -959,6 +994,7 @@ fn serve_once(root: &Path) -> Result<bool> {
                     }
                     Some("status") => true,
                     Some("refresh") if ready && !panel.shutdown_started && !child_exited => {
+                        shader(&paths, &settings, scale)?;
                         rpc(
                             &paths,
                             panel.child.id(),

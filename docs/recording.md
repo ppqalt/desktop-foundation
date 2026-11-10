@@ -38,8 +38,7 @@ The RAM buffer and any simultaneous ordinary recording continue unchanged.
 save path clears the rolling buffer.
 
 The timeline shows real frames extracted from that immutable snapshot. Drag the
-range handles or edit Start/End as `minutes:seconds.milliseconds`; the separate
-scrubber requests an actual frame preview. The selected duration is displayed.
+range handles or edit the equally sized Start/End fields as `minutes:seconds.centiseconds`; clicking the thumbnail strip requests an actual frame preview. The fields display two decimal places but retain the underlying frame precision unless edited. The selected duration is displayed.
 The range selects **which footage to export**, never how long the rolling buffer
 is. The editor initially selects up to the last 47 seconds.
 

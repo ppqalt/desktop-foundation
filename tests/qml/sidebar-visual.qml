@@ -48,20 +48,54 @@ ShellRoot {
                 panel.navigate("replay");
                 root.find(panel.contentItem, "replayEditor").open();
             } else if (root.page === "audio") {
-                panel.navigate("audio");
-                panel.applicationsExpanded = true;
+                root.find(panel.contentItem, "applicationsToggle").clicked();
             }
         }
     }
     Timer {
+        interval: 1800
+        running: true
+        onTriggered: {
+            let target = null;
+            let action = "click";
+            if (root.page === "replay") {
+                const editor = root.find(panel.contentItem, "replayEditor");
+                if (editor.session) {
+                    editor.select(editor.session.duration * .25, editor.session.duration * .8);
+                    target = root.find(editor, "replayFootage");
+                }
+            } else if (root.page === "check" || root.page === "check-error")
+                target = root.find(panel.contentItem, "cachyUpdateShortcut");
+            else if (root.page === "scroll") {
+                target = root.find(panel.contentItem, "controlCenterScroll");
+                action = "wheel";
+            }
+            if (target) {
+                const point = target.mapToGlobal(target.width / 2, target.height / 2);
+                console.log("PRIVATE_INPUT " + JSON.stringify({
+                    action: action,
+                    x: point.x,
+                    y: point.y
+                }));
+            }
+        }
+    }
+
+    Timer {
         interval: 3500
         running: true
-        onTriggered: panel.contentItem.children[0].grabToImage(result => {
-            if (!result.saveToFile(Quickshell.env("DF_VISUAL_CAPTURE")))
-                console.error("VISUAL_CAPTURE_FAILED");
-            console.log("VISUAL_READY");
-            Qt.quit();
-        })
+        onTriggered: {
+            if (root.page === "scroll" && root.find(panel.contentItem, "controlCenterScroll").contentY <= 0)
+                console.error("VISUAL_SCROLL_FAILED");
+            if (root.page === "replay" && !root.find(panel.contentItem, "replayFootage").activeFocus)
+                console.error("VISUAL_TIMELINE_FOCUS_FAILED");
+            panel.contentItem.children[0].grabToImage(result => {
+                if (!result.saveToFile(Quickshell.env("DF_VISUAL_CAPTURE")))
+                    console.error("VISUAL_CAPTURE_FAILED");
+                console.log("VISUAL_READY");
+                Qt.quit();
+            });
+        }
     }
     Timer {
         interval: 15000

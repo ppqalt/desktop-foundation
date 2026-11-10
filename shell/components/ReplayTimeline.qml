@@ -89,8 +89,13 @@ ColumnLayout {
             height: parent.height
             color: Material.colors.on_surface
         }
-        FocusIndicator {
+        // Keep keyboard focus inside this clipped strip, with square corners
+        // matching the footage instead of a clipped rounded outer focus ring.
+        Rectangle {
             anchors.fill: parent
+            color: "transparent"
+            border.width: 2
+            border.color: Material.colors.primary
             visible: footage.activeFocus
         }
         MouseArea {

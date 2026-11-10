@@ -192,6 +192,8 @@ ColumnLayout {
             id: startField
             objectName: "clipStart"
             Layout.fillWidth: true
+            Layout.preferredWidth: 1
+            Layout.minimumWidth: 0
             label: "Start"
             seconds: root.startTime
             onRequested: seconds => root.select(Math.min(seconds, root.endTime - 0.05), root.endTime)
@@ -199,6 +201,8 @@ ColumnLayout {
         ControlTimeField {
             Layout.fillWidth: true
             objectName: "clipEnd"
+            Layout.preferredWidth: 1
+            Layout.minimumWidth: 0
             label: "End"
             seconds: root.endTime
             onRequested: seconds => root.select(root.startTime, Math.max(seconds, root.startTime + 0.05))
@@ -206,7 +210,7 @@ ColumnLayout {
     }
     Text {
         visible: !!root.session
-        text: (root.endTime - root.startTime).toFixed(3) + " s selected · desktop + microphone"
+        text: (root.endTime - root.startTime).toFixed(2) + " s selected · desktop + microphone"
         color: Material.colors.on_surface
         font.family: Theme.typography.family
         font.pixelSize: Material.type.bodyMedium

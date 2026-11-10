@@ -41,7 +41,7 @@ impl Fixture {
         fs::create_dir_all(&bin).unwrap();
         fs::create_dir(&runtime).unwrap();
         fs::set_permissions(&runtime, fs::Permissions::from_mode(0o700)).unwrap();
-        for name in ["pactl", "nmcli", "quickshell"] {
+        for name in ["pactl", "nmcli", "quickshell", "arch-update"] {
             let file = bin.join(name);
             fs::write(&file, FAKE).unwrap();
             fs::set_permissions(file, fs::Permissions::from_mode(0o700)).unwrap();
@@ -241,5 +241,22 @@ fn toggle_sends_shared_style_without_starting_monitor() {
     assert_eq!(
         style,
         serde_json::json!({"width":720,"padding":12,"radius":14,"opacity":0.75,"openingMs":240,"closingMs":180})
+    );
+}
+
+#[test]
+fn update_check_only_queries_availability_and_reports_errors() {
+    let f = Fixture::new();
+    let output = f.call(&["check-updates"], None);
+    assert!(output.status.success());
+    assert!(
+        fs::read_to_string(&f.log)
+            .unwrap()
+            .contains("arch-update\t--check")
+    );
+    assert!(
+        !f.call(&["check-updates"], Some("arch-update"))
+            .status
+            .success()
     );
 }
