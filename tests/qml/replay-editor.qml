@@ -8,11 +8,14 @@ import "components"
 ShellRoot {
     Window {
         id: window
+        property bool mirroredTimeline: false
         visible: true
         width: 720
         height: 1100
         ReplayEditor {
             id: editor
+            LayoutMirroring.enabled: window.mirroredTimeline
+            LayoutMirroring.childrenInherit: true
             anchors.fill: parent
             backend: Quickshell.env("DF_EDITOR_BINARY")
             Component.onCompleted: run(["resume", "0123456789abcdef00000001"])
@@ -73,6 +76,22 @@ ShellRoot {
                 compare(editor.startTime, 0);
                 compare(editor.endTime, editor.session.duration);
                 editor.select(1.25, 5.75);
+                const timeline = findChild(editor, "replayTimeline");
+                const frame = findChild(editor, "replaySelectionFrame");
+                tryVerify(() => Math.abs(frame.mapToItem(range, 0, 0).x - range.firstCenter) < 0.5, 1000);
+                verify(Math.abs(frame.mapToItem(range, frame.width, 0).x - range.secondCenter) < 0.5);
+                window.mirroredTimeline = true;
+                tryVerify(() => range.mirrored, 1000);
+                verify(Math.abs(frame.mapToItem(range, 0, 0).x - range.secondCenter) < 0.5);
+                verify(Math.abs(frame.mapToItem(range, frame.width, 0).x - range.firstCenter) < 0.5);
+                footage.forceActiveFocus();
+                const rtlBefore = editor.playhead;
+                keyClick(Qt.Key_Right);
+                verify(editor.playhead < rtlBefore);
+                mouseClick(footage, footage.width / 4, footage.height / 2);
+                verify(Math.abs(editor.playhead - editor.session.duration * .75) < .05);
+                window.mirroredTimeline = false;
+                tryVerify(() => !range.mirrored, 1000);
             }
             function test_save_finishes_without_draft_management() {
                 verify(findChild(editor, "browseReplayDrafts") === null);

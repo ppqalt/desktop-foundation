@@ -88,8 +88,11 @@ QtObject {
         return event.isAutoRepeat && (event.key === Qt.Key_Escape || isActivation(event, editing));
     }
     function restoreFocus(item, reason = Qt.OtherFocusReason): void {
-        if (item && item.visible && item.enabled)
+        if (item && item.visible && item.enabled) {
             item.forceActiveFocus(reason);
+            if (typeof item.focusReason !== "undefined")
+                item.focusReason = reason;
+        }
     }
     // Presentation-only spatial focus navigation. Do not wrap at panel edges.
     function moveFocus(origin, dx, dy): void {

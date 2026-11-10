@@ -47,6 +47,7 @@ RangeSlider {
         const maximum = node === root.first ? Math.max(from, second.value - span) : to;
         const previous = node.value;
         if (SliderInput.adjust(event, node, minimum, maximum, mirrored)) {
+            Material.restoreFocus(handle, Qt.TabFocusReason);
             if (node.value !== previous)
                 node.moved();
             event.accepted = true;
@@ -61,8 +62,16 @@ RangeSlider {
 
     first.onMoved: root.requestPreview()
     second.onMoved: root.requestPreview()
-    first.onPressedChanged: root.released()
-    second.onPressedChanged: root.released()
+    first.onPressedChanged: {
+        if (first.pressed)
+            first.handle.focusReason = Qt.MouseFocusReason;
+        root.released();
+    }
+    second.onPressedChanged: {
+        if (second.pressed)
+            second.handle.focusReason = Qt.MouseFocusReason;
+        root.released();
+    }
     readonly property real firstCenter: leftPadding + Material.control.sliderHandleWidth / 2 + first.visualPosition * (availableWidth - Material.control.sliderHandleWidth)
     readonly property real secondCenter: leftPadding + Material.control.sliderHandleWidth / 2 + second.visualPosition * (availableWidth - Material.control.sliderHandleWidth)
     readonly property real trackClearance: Material.control.sliderGap + Material.control.sliderHandleWidth / 2
@@ -107,6 +116,8 @@ RangeSlider {
         }
     }
     first.handle: Rectangle {
+        property int focusReason: Qt.OtherFocusReason
+        readonly property bool visualFocus: activeFocus && (focusReason === Qt.TabFocusReason || focusReason === Qt.BacktabFocusReason)
         x: root.firstCenter - width / 2
         y: (root.height - height) / 2
         width: root.first.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
@@ -114,15 +125,25 @@ RangeSlider {
         radius: Material.control.sliderHandleRadius
         color: root.activeColor
         opacity: root.enabled ? 1 : Material.state.disabledContent
+        activeFocusOnTab: true
         Keys.onPressed: event => root.handleKey(event, root.first, root.first.handle)
+        Keys.onReleased: event => {
+            if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+                focusReason = event.modifiers & Qt.ShiftModifier ? Qt.BacktabFocusReason : Qt.TabFocusReason;
+        }
+        onActiveFocusChanged: {
+            if (!activeFocus)
+                focusReason = Qt.OtherFocusReason;
+        }
         Accessible.name: root.startLabel
         FocusIndicator {
-            anchors.fill: parent
-            visible: root.first.handle.activeFocus
+            visible: root.first.handle.visualFocus
             cornerRadius: Material.control.sliderHandleRadius
         }
     }
     second.handle: Rectangle {
+        property int focusReason: Qt.OtherFocusReason
+        readonly property bool visualFocus: activeFocus && (focusReason === Qt.TabFocusReason || focusReason === Qt.BacktabFocusReason)
         x: root.secondCenter - width / 2
         y: (root.height - height) / 2
         width: root.second.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
@@ -130,11 +151,19 @@ RangeSlider {
         radius: Material.control.sliderHandleRadius
         color: root.activeColor
         opacity: root.enabled ? 1 : Material.state.disabledContent
+        activeFocusOnTab: true
         Keys.onPressed: event => root.handleKey(event, root.second, root.second.handle)
+        Keys.onReleased: event => {
+            if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)
+                focusReason = event.modifiers & Qt.ShiftModifier ? Qt.BacktabFocusReason : Qt.TabFocusReason;
+        }
+        onActiveFocusChanged: {
+            if (!activeFocus)
+                focusReason = Qt.OtherFocusReason;
+        }
         Accessible.name: root.endLabel
         FocusIndicator {
-            anchors.fill: parent
-            visible: root.second.handle.activeFocus
+            visible: root.second.handle.visualFocus
             cornerRadius: Material.control.sliderHandleRadius
         }
     }

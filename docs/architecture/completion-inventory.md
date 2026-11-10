@@ -57,3 +57,19 @@ heights; gallery descriptions wrap and layout minimums allow narrow widths.
 Production-control tests verify the larger two-line/compact action heights,
 scale clamping and return to default geometry. This is a process-local gallery
 preview, not system-wide text scaling or completed accessibility acceptance.
+
+Component parity follow-up: gallery and Control Center now share `FocusViewport`
+for scaled/resized focus reveal and manual-scroll precedence. Search and replay
+time inputs share Tab focus, disabled treatment and text-size-aware field height.
+The gallery's disabled-input mode includes dropdown and search, and its replay
+selection caption now matches the production centisecond precision. Focus/input
+fixtures cover these shared implementations; this does not establish full parity
+for every remaining specialized desktop surface or physical accessibility tools.
+
+Popup/timeline/focus follow-up: the shared PopupCard now fills a background parent
+when no explicit size is supplied, restoring its surface and outline in the
+gallery. Replay selection frames use actual handle centers, including mirrored
+scrubbing and keyboard direction. Control focus rings distinguish keyboard
+navigation from clicks without removing state feedback or popup borders. These
+paths have focused production interaction/real-media tests; wider component and
+physical accessibility acceptance remains open.

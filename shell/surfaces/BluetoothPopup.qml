@@ -106,11 +106,13 @@ PopupWindow {
             root.error = code === 0 && response.success ? "" : response.error || failure || "Bluetooth radio request failed. Try again.";
         }
     }
+    property bool keyboardNavigation: false
     function navigate(delta: int): void {
         // Reading order: radio toggle, devices, then Manage.
         selectIndex(selected + delta);
     }
     function selectIndex(index: int): void {
+        keyboardNavigation = true;
         defaultSelectionPending = false;
         hoverNavigationEnabled = false;
         selected = Material.listIndex(index, devices.length + 2, -1);
@@ -138,6 +140,7 @@ PopupWindow {
         if (moved && !closing && !controlDevice) {
             defaultSelectionPending = false;
             hoverNavigationEnabled = true;
+            keyboardNavigation = false;
             selected = index;
         }
     }
@@ -463,6 +466,8 @@ PopupWindow {
             marked: root.adapterAvailable
             pending: root.radioBusy
             selected: root.selected === -1
+            keyboardSelection: root.keyboardNavigation
+            onPointerFocused: root.keyboardNavigation = false
             activeFocusOnTab: false
             enabled: !root.busy && !root.radioBusy && !root.controlsOpening && Bluetooth.adapters.values.length > 0
             onClicked: root.activate(-1)

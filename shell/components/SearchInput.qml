@@ -4,6 +4,7 @@ import "../theme"
 TextInput {
     id: root
     property string placeholderText: "Search…"
+    opacity: enabled ? 1 : Material.state.disabledContent
     color: Material.colors.on_surface
     selectionColor: Material.colors.secondary_container
     selectedTextColor: Material.colors.on_secondary_container
@@ -12,6 +13,8 @@ TextInput {
     clip: true
     selectByMouse: true
     activeFocusOnPress: true
+    activeFocusOnTab: true
+    readonly property real preferredFieldHeight: Math.max(Material.control.target, Material.type.bodyLargeLine + 16)
     verticalAlignment: TextInput.AlignVCenter
     Text {
         anchors.fill: parent

@@ -207,26 +207,8 @@ PanelWindow {
             root.refresh();
         });
     }
-    function revealFocus(): void {
-        const item = root.contentItem.Window.window?.activeFocusItem;
-        if (!item)
-            return;
-        let parentItem = item;
-        while (parentItem && parentItem !== body)
-            parentItem = parentItem.parent;
-        if (!parentItem)
-            return;
-        const y = item.mapToItem(body, 0, 0).y;
-        if (y < scroll.contentY)
-            scroll.contentY = y;
-        else if (y + item.height > scroll.contentY + scroll.height)
-            scroll.contentY = Math.min(scroll.contentHeight - scroll.height, y + item.height - scroll.height);
-    }
-    Connections {
-        target: root.contentItem.Window.window
-        function onActiveFocusItemChanged(): void {
-            root.revealFocus();
-        }
+    FocusViewport {
+        viewport: scroll
     }
     SidebarMotion {
         id: motion

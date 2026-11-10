@@ -41,7 +41,7 @@ ControlButton {
                 anchors.fill: parent
                 radius: parent.radius
                 color: root.ink
-                opacity: !root.enabled ? 0 : root.down ? Material.state.pressed : root.activeFocus ? Material.state.focus : root.hovered ? Material.state.hover : 0
+                opacity: !root.enabled ? 0 : root.down ? Material.state.pressed : root.visualFocus ? Material.state.focus : root.hovered ? Material.state.hover : 0
                 Behavior on opacity {
                     SurfaceAnimation {
                         duration: Material.motion.fastEffects
@@ -54,7 +54,7 @@ ControlButton {
         FocusIndicator {
             anchors.fill: fill
             cornerRadius: fill.radius
-            visible: root.activeFocus
+            visible: root.visualFocus
         }
     }
     contentItem: Item {

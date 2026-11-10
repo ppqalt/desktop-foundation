@@ -8,6 +8,7 @@ ControlButton {
     id: root
     property bool marked: false
     property bool selected: false
+    property bool keyboardSelection: false
     property bool pending: false
     signal pointerMoved(real x, real y)
     implicitWidth: Material.control.switchWidth
@@ -61,7 +62,7 @@ ControlButton {
         FocusIndicator {
             anchors.fill: parent
             cornerRadius: height / 2
-            visible: root.selected || root.activeFocus
+            visible: (root.selected && root.keyboardSelection) || root.visualFocus
         }
     }
     contentItem: Item {}

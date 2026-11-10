@@ -12,7 +12,15 @@ status messages, launcher and clipboard rows, device and network examples, a
 shared popup, the four-column wallpaper grid, the replay row, unified volume
 rows, range selection, precise time fields and a sample clip timeline. Wallpaper
 inventory, previews and selection use a sample-only helper: choosing a tile does
-not change the desktop. A section selector provides quick navigation.
+not change the desktop. A section selector provides quick navigation. Keyboard
+focus is revealed by the same `FocusViewport` used in Control Center, including
+scaled content and resized views. Manual scrolling takes priority until focus
+changes again. Control focus rings appear for keyboard navigation, not clicks;
+pressed/selected feedback and popup surface outlines remain visible. The popup
+example uses the same sized, outlined PopupCard as the desktop. The input-disable
+preview covers sliders, range, volume, dropdown
+and search controls. Shared editable inputs are Tab-focusable; time fields grow
+with text size and use the same centisecond display as the replay editor.
 Preview zoom, text size and right-to-left layout are local to the gallery. Zoom
 scales the whole composition; the separate 100/125/150/200% text-size selector
 changes shared typography while preserving unscaled minimum hit targets. Shared

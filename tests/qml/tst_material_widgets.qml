@@ -232,6 +232,38 @@ ShellRoot {
             width: 100
             height: 100
         }
+        Flickable {
+            id: focusView
+            visible: false
+            z: 20
+            width: 220
+            height: 120
+            contentWidth: width
+            contentHeight: focusComposition.height * focusComposition.scale
+            clip: true
+            Item {
+                id: focusComposition
+                width: 140
+                height: 300
+                scale: 1.5
+                transformOrigin: Item.TopLeft
+                ControlAction {
+                    id: nearFocus
+                    y: 10
+                    width: 140
+                    text: "Near"
+                }
+                ControlAction {
+                    id: farFocus
+                    y: 220
+                    width: 140
+                    text: "Far"
+                }
+            }
+        }
+        FocusViewport {
+            viewport: focusView
+        }
         Item {
             id: controls
             visible: false
@@ -281,6 +313,13 @@ ShellRoot {
                 x: 300
                 y: 70
                 onClicked: controls.activated++
+            }
+            ControlTimeField {
+                id: sampleTimeField
+                x: 300
+                y: 140
+                width: 240
+                seconds: 24.125
             }
             ControlChoice {
                 id: choice
@@ -508,6 +547,80 @@ ShellRoot {
                 compare(sidebar.position, 0);
                 verify(!sidebar.running);
                 Theme.reducedMotion = false;
+            }
+            function test_shared_editable_focus_and_scaling() {
+                controls.visible = true;
+                verify(search.activeFocusOnTab);
+                search.enabled = false;
+                compare(search.opacity, Material.state.disabledContent);
+                search.enabled = true;
+                verify(sampleTimeField.input.activeFocusOnTab);
+                const originalScale = Material.textScale;
+                Material.textScale = 2;
+                tryVerify(() => sampleTimeField.height >= Material.type.bodyLargeLine + 16, 1000);
+                Material.textScale = originalScale;
+                sampleTimeField.input.forceActiveFocus();
+                verify(sampleTimeField.input.activeFocus);
+                keyClick(Qt.Key_Tab);
+                verify(!sampleTimeField.input.activeFocus);
+                controls.visible = false;
+            }
+            function test_shared_focus_viewport() {
+                focusView.visible = true;
+                focusView.contentY = 0;
+                farFocus.forceActiveFocus();
+                tryVerify(() => focusView.contentY > 0, 1000);
+                let top = farFocus.mapToItem(focusView.contentItem, 0, 0).y;
+                let bottom = farFocus.mapToItem(focusView.contentItem, 0, farFocus.height).y;
+                verify(top >= focusView.contentY);
+                verify(bottom <= focusView.contentY + focusView.height);
+                focusComposition.scale = 2;
+                tryVerify(() => Math.abs(focusView.contentY - (farFocus.mapToItem(focusView.contentItem, 0, 0).y - 6)) < 1, 1000);
+                focusView.height = 180;
+                tryVerify(() => farFocus.mapToItem(focusView.contentItem, 0, farFocus.height).y <= focusView.contentY + focusView.height, 1000);
+                focusView.contentY = 0;
+                focusView.height = 170;
+                wait(20);
+                compare(focusView.contentY, 0); // Manual scrolling stays in charge.
+                const previous = focusView.contentY;
+                controls.visible = true;
+                firstControl.forceActiveFocus();
+                wait(20);
+                compare(focusView.contentY, previous); // Unrelated focus is ignored.
+                nearFocus.forceActiveFocus();
+                tryVerify(() => focusView.contentY < 30, 1000);
+                focusComposition.scale = 1.5;
+                focusView.height = 120;
+                focusView.visible = false;
+                controls.visible = false;
+            }
+            function test_keyboard_only_control_outlines() {
+                controls.visible = true;
+                for (const control of [firstControl, testSwitch, slider]) {
+                    control.forceActiveFocus(Qt.TabFocusReason);
+                    verify(find(control, "focusIndicator").visible);
+                    mouseClick(control, control.width / 2, control.height / 2);
+                    verify(!find(control, "focusIndicator").visible);
+                    Material.restoreFocus(control, Qt.BacktabFocusReason);
+                    verify(find(control, "focusIndicator").visible);
+                }
+                mouseClick(firstControl, firstControl.width / 2, firstControl.height / 2);
+                keyClick(Qt.Key_D);
+                verify(secondControl.activeFocus && secondControl.visualFocus);
+                mouseClick(slider, slider.width / 2, slider.height / 2);
+                keyClick(Qt.Key_Right);
+                verify(find(slider, "focusIndicator").visible);
+                Material.restoreFocus(rangeSlider.first.handle, Qt.TabFocusReason);
+                verify(find(rangeSlider.first.handle, "focusIndicator").visible);
+                mouseClick(rangeSlider, rangeSlider.firstCenter, rangeSlider.height / 2);
+                verify(!find(rangeSlider.first.handle, "focusIndicator").visible);
+                keyClick(Qt.Key_Right);
+                verify(find(rangeSlider.first.handle, "focusIndicator").visible);
+                keyClick(Qt.Key_Tab);
+                verify(rangeSlider.second.handle.activeFocus && rangeSlider.second.handle.visualFocus);
+                keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+                verify(rangeSlider.first.handle.activeFocus && rangeSlider.first.handle.visualFocus);
+                controls.visible = false;
             }
             function test_control_geometry_tokens() {
                 compare(firstControl.implicitHeight, Material.control.listOneLine);
@@ -948,6 +1061,9 @@ ShellRoot {
                 checks.test_reduced_motion();
                 checks.test_shared_roles();
                 checks.test_palette_propagation();
+                checks.test_shared_editable_focus_and_scaling();
+                checks.test_shared_focus_viewport();
+                checks.test_keyboard_only_control_outlines();
                 checks.test_control_geometry_tokens();
                 checks.test_large_text_control_geometry();
                 checks.test_slider_request_semantics();

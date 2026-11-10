@@ -7,6 +7,7 @@ import "SliderInput.js" as SliderInput
 // 6dp handle/track gap, 48dp minimum interactive height. No value animation.
 Slider {
     id: root
+    PointerFocus {}
     from: 0
     to: 100
     stepSize: 1
@@ -42,6 +43,8 @@ Slider {
         }
         const previous = value;
         if (SliderInput.adjust(event, root, from, to, mirrored)) {
+            root.focusReason = Qt.TabFocusReason;
+            root.forceActiveFocus(Qt.TabFocusReason);
             if (value !== previous)
                 moved();
             event.accepted = true;
@@ -97,7 +100,7 @@ Slider {
         opacity: root.enabled ? 1 : Material.state.disabledContent
         FocusIndicator {
             cornerRadius: parent.radius
-            visible: root.activeFocus
+            visible: root.visualFocus
         }
     }
 }

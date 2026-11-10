@@ -2,11 +2,20 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import "../theme"
+import "SliderInput.js" as SliderInput
 
 // The timeline selects footage inside an immutable source, never buffer length.
 ColumnLayout {
     id: root
+    objectName: "replayTimeline"
     property var thumbnails: []
+    readonly property bool mirrored: selection.mirrored
+    readonly property real selectionLeft: selection.x + Math.min(selection.firstCenter, selection.secondCenter) - footage.x
+    readonly property real selectionRight: selection.x + Math.max(selection.firstCenter, selection.secondCenter) - footage.x
+    function timeAt(position: real): real {
+        const fraction = Math.max(0, Math.min(1, position / Math.max(1, footage.width)));
+        return (mirrored ? 1 - fraction : fraction) * duration;
+    }
     property real duration: 0
     property real startTime: 0
     property real endTime: duration
@@ -29,15 +38,15 @@ ColumnLayout {
             if (!direction)
                 return;
             if (direction[0])
-                root.scrubRequested(Math.max(0, Math.min(root.duration, root.playhead + direction[0] * root.frameStep)));
+                root.scrubRequested(Math.max(0, Math.min(root.duration, root.playhead + SliderInput.direction(event, root.mirrored) * root.frameStep)));
             else
                 Material.moveFocus(footage, direction[0], direction[1]);
             event.accepted = true;
         }
         Layout.fillWidth: true
         // Match both trim-handle centres, including the shared slider padding.
-        Layout.leftMargin: selection.leftPadding + 2
-        Layout.rightMargin: selection.rightPadding + 2
+        Layout.leftMargin: selection.leftPadding + Material.control.sliderHandleWidth / 2
+        Layout.rightMargin: selection.rightPadding + Material.control.sliderHandleWidth / 2
         implicitHeight: 68
         clip: true
         Row {
@@ -63,28 +72,29 @@ ColumnLayout {
             border.color: Material.colors.outline_variant
         }
         Rectangle {
-            width: root.duration > 0 ? parent.width * root.startTime / root.duration : 0
+            width: Math.max(0, root.selectionLeft)
             height: parent.height
             color: Material.colors.scrim ?? Material.colors.surface
             opacity: 0.65
         }
         Rectangle {
-            x: root.duration > 0 ? parent.width * root.endTime / root.duration : parent.width
+            x: root.selectionRight
             width: Math.max(0, parent.width - x)
             height: parent.height
             color: Material.colors.scrim ?? Material.colors.surface
             opacity: 0.65
         }
         Rectangle {
-            x: root.duration > 0 ? parent.width * root.startTime / root.duration : 0
-            width: root.duration > 0 ? parent.width * (root.endTime - root.startTime) / root.duration : 0
+            objectName: "replaySelectionFrame"
+            x: root.selectionLeft
+            width: Math.max(0, root.selectionRight - root.selectionLeft)
             height: parent.height
             color: "transparent"
             border.width: 2
             border.color: Material.colors.primary
         }
         Rectangle {
-            x: root.duration > 0 ? parent.width * root.playhead / root.duration : 0
+            x: root.duration > 0 ? parent.width * (root.mirrored ? 1 - root.playhead / root.duration : root.playhead / root.duration) - width / 2 : 0
             width: 2
             height: parent.height
             color: Material.colors.on_surface
@@ -103,11 +113,11 @@ ColumnLayout {
             enabled: root.duration > 0
             onPressed: mouse => {
                 footage.forceActiveFocus(Qt.MouseFocusReason);
-                root.scrubRequested(Math.max(0, Math.min(root.duration, mouse.x / width * root.duration)));
+                root.scrubRequested(root.timeAt(mouse.x));
             }
             onPositionChanged: mouse => {
                 if (pressed)
-                    root.scrubRequested(Math.max(0, Math.min(root.duration, mouse.x / width * root.duration)));
+                    root.scrubRequested(root.timeAt(mouse.x));
             }
         }
     }

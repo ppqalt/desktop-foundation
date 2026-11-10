@@ -2,6 +2,7 @@ import QtQuick
 import "../theme"
 
 Rectangle {
+    objectName: "focusIndicator"
     property real cornerRadius: Material.shape.medium
     anchors.fill: parent
     anchors.margins: -3

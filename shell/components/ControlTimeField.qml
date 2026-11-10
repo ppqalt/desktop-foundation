@@ -23,7 +23,7 @@ ColumnLayout {
     }
     Rectangle {
         Layout.fillWidth: true
-        implicitHeight: Material.control.target
+        implicitHeight: field.preferredFieldHeight
         radius: Material.shape.small
         color: Material.colors.surface_container_highest
         border.width: field.activeFocus ? 2 : 0

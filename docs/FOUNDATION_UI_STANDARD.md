@@ -496,3 +496,39 @@ Application stream models must retain delegates by serial during readback and
 reordering. Never replace their entire array model while a slider can be pressed.
 Device/application volume readback must not override a pointer-owned value until
 release. Track/handle geometry comes from the same Material control roles.
+
+### Focus in scrollable surfaces
+
+Use `FocusViewport` for focus reveal in ordinary Flickable content; the gallery
+and Control Center share this implementation. It maps full control bounds into
+content coordinates, including scaling, and clamps scrolling to valid bounds.
+Unrelated popup/surface focus must not move the viewport. Resize/content layout
+can reveal the current control while following focus; manual scrolling suspends
+that behavior until a new focus target is selected. Do not duplicate coordinate
+math in individual surfaces or animate focus reveal behind keyboard input.
+
+`SearchInput` owns the default Tab-focus and disabled-content treatment. Its
+`preferredFieldHeight` lets wrappers accommodate shared text sizing while keeping
+font rendering in one control. Gallery examples must use these production defaults
+rather than adding local focus behavior unavailable in the desktop.
+
+`PopupCard` defaults to filling its parent when used as a Qt Quick Controls
+popup background. Top-level desktop surfaces keep their explicit geometry. The
+shared `SurfaceCard` fill and palette-derived outline must remain visible in both
+contexts; a gallery example with a zero-size background is not acceptable parity.
+ReplayTimeline selection decorations use actual range-handle geometry rather
+than a second, independently rounded time-to-pixel conversion. Keep thumbnail
+scrubbing, keyboard direction and playhead mapping consistent in mirrored layouts.
+
+### Keyboard-only control focus rings
+
+Interactive focus outlines appear for Tab/Backtab, WASD and arrow navigation,
+not pointer clicks. Keep pressed, hovered, checked/selected and confirmed state
+feedback separate from focus rings. Do not remove persistent popup/card borders.
+Shared buttons and single sliders use native visual focus with `PointerFocus`
+to update the reason even when the already focused control is clicked. Range
+handles keep native pointer ownership and track keyboard focus without inserting
+another pointer grab. Use `Material.restoreFocus` for explicit reason propagation;
+a plain forceActiveFocus call can leave the previous reason on an already
+focused control. Legacy Bluetooth selection marks its keyboard origin separately
+from pointer selection. Popup examples preserve the origin on open/return.

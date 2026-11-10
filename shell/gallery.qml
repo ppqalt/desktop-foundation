@@ -56,6 +56,9 @@ ShellRoot {
                     replay_status: "off"
                 })
         }
+        FocusViewport {
+            viewport: galleryScroll
+        }
         Flickable {
             id: galleryScroll
             anchors.fill: parent
@@ -388,6 +391,9 @@ ShellRoot {
                         Accessible.name: "Disabled example slider"
                     }
                     ControlChoice {
+                        id: sampleChoice
+                        enabled: !window.inputsDisabled
+                        Accessible.name: "Example choice"
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         textRole: "name"
@@ -401,9 +407,11 @@ ShellRoot {
                         ]
                     }
                     SearchInput {
+                        id: sampleSearch
+                        enabled: !window.inputsDisabled
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
-                        Layout.preferredHeight: 48
+                        Layout.preferredHeight: preferredFieldHeight
                         placeholderText: "Search example"
                         Accessible.name: "Search example"
                     }
@@ -510,6 +518,7 @@ ShellRoot {
                         Layout.minimumWidth: 0
                     }
                     ReplayTimeline {
+                        id: galleryTimeline
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         duration: 300
@@ -550,7 +559,7 @@ ShellRoot {
                         wrapMode: Text.WordWrap
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
-                        text: (window.sampleEnd - window.sampleStart).toFixed(3) + " seconds selected"
+                        text: (window.sampleEnd - window.sampleStart).toFixed(2) + " s selected"
                         color: Material.colors.on_surface
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.bodyMedium
@@ -594,8 +603,10 @@ ShellRoot {
             modal: true
             focus: true
             closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-            onOpened: popupClose.forceActiveFocus()
-            onClosed: Material.restoreFocus(openPopup, Qt.PopupFocusReason)
+            property bool keyboardOpened: false
+            onAboutToShow: keyboardOpened = openPopup.visualFocus
+            onOpened: Material.restoreFocus(popupClose, keyboardOpened ? Qt.TabFocusReason : Qt.MouseFocusReason)
+            onClosed: Material.restoreFocus(openPopup, keyboardOpened ? Qt.TabFocusReason : Qt.MouseFocusReason)
             background: PopupCard {
                 presented: examplePopup.opened
                 dismissing: false
@@ -636,6 +647,9 @@ ShellRoot {
             running: Quickshell.env("DF_GALLERY_TEST") === "1"
             interval: 100
             onTriggered: {
+                window.inputsDisabled = true;
+                const disabledInputs = !sampleSlider.enabled && !sampleRange.enabled && !sampleChoice.enabled && !sampleSearch.enabled;
+                window.inputsDisabled = false;
                 const initial = sampleSwitch.marked;
                 const normalText = Material.type.bodyLarge;
                 textScaleChoice.activated(3);
@@ -656,9 +670,9 @@ ShellRoot {
                 sampleSlider.moved();
                 exampleReplay.setEnabled(true);
                 examplePopup.open();
-                const popupOpened = examplePopup.visible;
+                const popupOpened = examplePopup.visible && Math.abs(examplePopup.background.width - examplePopup.width) <= 1 && Math.abs(examplePopup.background.height - examplePopup.height) <= 1 && examplePopup.background.border.width > 0;
                 examplePopup.close();
-                const good = textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
+                const good = disabledInputs && textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
                 if (!good) {
                     console.error("GALLERY_TEST_FAILED");
                     Qt.quit();
@@ -682,9 +696,11 @@ ShellRoot {
             onTriggered: {
                 const capture = Quickshell.env("DF_GALLERY_CAPTURE");
                 const section = Quickshell.env("DF_GALLERY_CAPTURE_SECTION");
-                const target = section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : null;
+                if (section === "popup")
+                    examplePopup.open();
+                const target = section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : null;
                 if (target)
-                    galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.y * window.previewZoom));
+                    galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.mapToItem(content, 0, 0).y * window.previewZoom));
                 window.contentItem.grabToImage(result => {
                     if (result.saveToFile(capture))
                         console.log("GALLERY_TEST_OK");

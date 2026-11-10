@@ -5,6 +5,10 @@ import "../theme"
 // One activation/navigation contract for actions and backend-owned toggles.
 AbstractButton {
     id: root
+    signal pointerFocused
+    PointerFocus {
+        onFocusedByPointer: root.pointerFocused()
+    }
     activeFocusOnTab: true
     autoRepeat: false
     function activateKey(event): bool {
@@ -25,6 +29,8 @@ AbstractButton {
             return;
         const direction = Material.direction(event.key);
         if (direction) {
+            root.focusReason = Qt.TabFocusReason;
+            root.forceActiveFocus(Qt.TabFocusReason);
             Material.moveFocus(root, direction[0], direction[1]);
             event.accepted = true;
         }
