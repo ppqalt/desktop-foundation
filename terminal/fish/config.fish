@@ -15,3 +15,7 @@ abbr -a -- gs 'git status --short --branch'
 abbr -a -- gd 'git diff'
 abbr -a -- gl 'git log --oneline -12'
 # Native Fish autosuggestions, history pager and key bindings are retained.
+
+if test -d "$HOME/.spicetify"
+    fish_add_path "$HOME/.spicetify"
+end
