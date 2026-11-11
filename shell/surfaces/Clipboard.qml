@@ -106,7 +106,7 @@ PopupWindow {
         }
         if (!results.length)
             actionFocus = 0;
-        else if (actionFocus === 2 && !plainAvailable())
+        else if (actionFocus > 1)
             actionFocus = 0;
         // Keep scrolling independent from selection. Background copies must
         // not hide pins just to hold the selected ordinary row at one pixel.
@@ -163,8 +163,6 @@ PopupWindow {
         else if (results.length > 0) {
             if (actionFocus === 1)
                 pinSelected();
-            else if (actionFocus === 2)
-                copyPlainSelected();
             else
                 history.request("copy", results[selectedIndex].id);
         }
@@ -221,7 +219,7 @@ PopupWindow {
             selectIndex(0);
             actionFocus = 0;
         } else {
-            const lastAction = plainAvailable() ? 2 : 1;
+            const lastAction = 1;
             if (actionFocus + delta >= 0 && actionFocus + delta <= lastAction)
                 actionFocus += delta;
             else if (delta < 0 && selectedIndex === 0) {
@@ -231,7 +229,7 @@ PopupWindow {
                 return;
             } else {
                 selectIndex(selectedIndex + delta);
-                actionFocus = delta > 0 ? 0 : (plainAvailable() ? 2 : 1);
+                actionFocus = delta > 0 ? 0 : 1;
             }
         }
         if (!clearSelected) {
@@ -414,6 +412,11 @@ PopupWindow {
                 font.family: Theme.typography.family
                 font.pixelSize: 11
             }
+            StateLayer {
+                color: Material.colors.primary
+                pressed: clearActionMouse.pressed
+                cornerRadius: Theme.radii.medium
+            }
             MouseArea {
                 id: clearActionMouse
                 anchors.fill: parent
@@ -498,11 +501,7 @@ PopupWindow {
                         root.selectIndex(parent.index);
                         root.pinSelected();
                     }
-                    onPlainCopied: {
-                        root.clearSelected = false;
-                        root.selectIndex(parent.index);
-                        root.copyPlainSelected();
-                    }
+
                     onChosen: {
                         root.clearSelected = false;
                         root.actionFocus = 0;
@@ -571,6 +570,11 @@ PopupWindow {
                     font.family: Theme.typography.family
                     font.pixelSize: 12
                 }
+                StateLayer {
+                    color: Material.colors.primary
+                    pressed: cancelMouse.pressed
+                    cornerRadius: Theme.radii.medium
+                }
                 MouseArea {
                     id: cancelMouse
                     anchors.fill: parent
@@ -605,6 +609,11 @@ PopupWindow {
                     color: Material.colors.error
                     font.family: Theme.typography.family
                     font.pixelSize: 12
+                }
+                StateLayer {
+                    color: Material.colors.primary
+                    pressed: clearMouse.pressed
+                    cornerRadius: Theme.radii.medium
                 }
                 MouseArea {
                     id: clearMouse
@@ -644,6 +653,11 @@ PopupWindow {
                     color: Material.colors.error
                     font.family: Theme.typography.family
                     font.pixelSize: 12
+                }
+                StateLayer {
+                    color: Material.colors.primary
+                    pressed: clearAllMouse.pressed
+                    cornerRadius: Theme.radii.medium
                 }
                 MouseArea {
                     id: clearAllMouse

@@ -105,10 +105,13 @@ ShellRoot {
                         },
                         {
                             name: "Motion"
+                        },
+                        {
+                            name: "Power"
                         }
                     ]
                     onActivated: index => {
-                        const items = [null, actionsGroup, inputGroup, desktopGroup, motionGroup];
+                        const items = [null, actionsGroup, inputGroup, desktopGroup, motionGroup, powerGroup];
                         if (items[index])
                             galleryScroll.contentY = Math.min(galleryScroll.contentHeight - galleryScroll.height, Math.max(0, items[index].y * window.previewZoom));
                     }
@@ -612,6 +615,32 @@ ShellRoot {
                         message: "Nothing here yet"
                     }
                 }
+                Item {
+                    id: powerGroup
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    implicitHeight: powerExample.height + (powerExample.armed >= 0 ? 56 : 0)
+                    PowerCard {
+                        id: powerExample
+                        availableWidth: powerGroup.width + 48
+                        availableHeight: 1000
+                        anchors.centerIn: undefined
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        presented: true
+                        onConfirmed: action => {
+                            window.sliderEvent = action;
+                            cancelConfirmation();
+                        }
+                    }
+                    ControlAction {
+                        anchors.top: powerExample.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "Back"
+                        compact: true
+                        visible: powerExample.armed >= 0
+                        onClicked: powerExample.cancelConfirmation()
+                    }
+                }
                 MotionGallery {
                     id: motionGroup
                     Layout.fillWidth: true
@@ -723,13 +752,15 @@ ShellRoot {
                 const section = Quickshell.env("DF_GALLERY_CAPTURE_SECTION");
                 if (section === "popup")
                     examplePopup.open();
-                const target = section === "recording" ? exampleCapture : section === "motion" ? motionGroup : section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : section === "choice" ? sampleChoice : null;
+                const target = section === "power" ? powerGroup : section === "recording" ? exampleCapture : section === "motion" ? motionGroup : section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : section === "choice" ? sampleChoice : null;
                 if (target)
                     galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.mapToItem(content, 0, 0).y * window.previewZoom));
                 if (section === "choice")
                     sampleChoice.popup.open();
                 if (section === "motion")
                     motionGroup.showPreview();
+                if (section === "power")
+                    powerExample.choose(3);
                 captureDelay.capturePath = capture;
                 captureDelay.start();
             }

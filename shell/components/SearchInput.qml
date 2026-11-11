@@ -16,6 +16,15 @@ TextInput {
     activeFocusOnTab: true
     readonly property real preferredFieldHeight: Math.max(Material.control.target, Material.type.bodyLargeLine + 16)
     verticalAlignment: TextInput.AlignVCenter
+    TapHandler {
+        id: press
+        target: null
+        gesturePolicy: TapHandler.DragThreshold
+    }
+    StateLayer {
+        color: Material.colors.primary
+        pressed: press.pressed
+    }
     Text {
         anchors.fill: parent
         verticalAlignment: Text.AlignVCenter

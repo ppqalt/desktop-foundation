@@ -205,18 +205,18 @@ ColumnLayout {
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.bodyMedium
                     }
-                    Rectangle {
-                        anchors.fill: parent
+                    StateLayer {
                         color: Material.colors.primary
-                        opacity: tile.down ? 0.12 : tile.hovered ? 0.08 : 0
+                        pressed: tile.down
+                        hovered: tile.hovered
                     }
                 }
                 Rectangle {
                     anchors.fill: parent
-                    anchors.margins: tile.activeFocus ? -3 : 0
-                    radius: Material.shape.medium + (tile.activeFocus ? 3 : 0)
+                    anchors.margins: tile.visualFocus ? -3 : 0
+                    radius: Material.shape.medium + (tile.visualFocus ? 3 : 0)
                     color: "transparent"
-                    border.width: tile.activeFocus ? 3 : tile.selected ? 2 : 0
+                    border.width: tile.visualFocus ? 3 : tile.selected ? 2 : 0
                     border.color: Material.colors.primary
                 }
                 Rectangle {

@@ -52,6 +52,10 @@ Rectangle {
             }
         }
     }
+    StateLayer {
+        color: Material.colors.primary
+        pressed: mouse.pressed
+    }
     Rectangle {
         x: 14
         anchors.verticalCenter: parent.verticalCenter

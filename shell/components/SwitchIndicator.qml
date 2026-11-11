@@ -18,6 +18,11 @@ Rectangle {
     Behavior on color {
         SurfaceColorAnimation {}
     }
+    StateLayer {
+        color: Material.colors.on_surface
+        pressed: root.pressed
+        cornerRadius: root.radius
+    }
     Rectangle {
         id: thumb
         objectName: "control-switch-thumb"

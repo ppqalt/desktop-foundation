@@ -108,7 +108,13 @@ ColumnLayout {
             border.color: Material.colors.primary
             visible: footage.activeFocus
         }
+        StateLayer {
+            color: Material.colors.primary
+            pressed: scrubMouse.pressed
+            cornerRadius: 0
+        }
         MouseArea {
+            id: scrubMouse
             anchors.fill: parent
             enabled: root.duration > 0
             onPressed: mouse => {

@@ -9,7 +9,7 @@ ShellRoot {
     Window {
         visible: true
         width: 540
-        height: 320
+        height: 900
         ControlSwitch {
             id: toggle
             text: "Motion switch"
@@ -32,6 +32,19 @@ ShellRoot {
             id: gallery
             y: 115
             width: 500
+        }
+        WallpaperGrid {
+            id: wallpapers
+            y: 480
+            width: 500
+            backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/component-gallery-fixture"
+        }
+        StateLayer {
+            id: pulseExample
+            width: 48
+            height: 48
+            anchors.fill: undefined
+            color: "white"
         }
         Item {
             id: presentation
@@ -76,6 +89,30 @@ ShellRoot {
         }
         function init() {
             Theme.reducedMotion = false;
+        }
+        function test_rapid_click_pulse_finishes_and_respects_reduced_motion() {
+            pulseExample.pressed = true;
+            pulseExample.pressed = false;
+            verify(pulseExample.pulse);
+            wait(35);
+            verify(pulseExample.opacity > 0);
+            tryCompare(pulseExample, "pulse", false, 300);
+            tryCompare(pulseExample, "opacity", 0, 500);
+            pulseExample.pressed = true;
+            pulseExample.pressed = false;
+            Theme.reducedMotion = true;
+            verify(!pulseExample.pulse);
+            compare(pulseExample.opacity, 0);
+        }
+        function test_wallpaper_pointer_does_not_leave_keyboard_outline() {
+            tryVerify(() => findChild(wallpapers, "wallpaper-1") !== null, 1500);
+            const tile = findChild(wallpapers, "wallpaper-1");
+            tile.forceActiveFocus(Qt.TabFocusReason);
+            verify(tile.visualFocus);
+            mouseClick(tile, tile.width / 2, tile.height / 2);
+            verify(!tile.visualFocus);
+            tryVerify(() => !wallpapers.busy, 1500);
+            verify(!tile.visualFocus);
         }
         function test_spring_parameters_and_completion() {
             for (const name of Object.keys(Material.springs)) {

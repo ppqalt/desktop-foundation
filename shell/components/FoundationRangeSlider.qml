@@ -114,6 +114,11 @@ RangeSlider {
                 color: Material.colors.on_secondary_container
             }
         }
+        StateLayer {
+            color: Material.colors.on_surface
+            pressed: root.first.pressed || root.second.pressed
+            cornerRadius: Material.control.sliderTrackRadius
+        }
     }
     first.handle: Rectangle {
         property int focusReason: Qt.OtherFocusReason

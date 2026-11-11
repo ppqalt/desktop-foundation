@@ -73,6 +73,28 @@ retiring only after exit/cleanup, and never allowing a stale close to dispose a
 reopened view. The shared popup remains allocated if backend cleanup blocks its
 retirement. Reduced motion skips presentation delay, never cleanup or confirmation.
 
+## Click feedback and power confirmation
+
+`StateLayer` retains a fast tap for 90ms, then animates to the current hover/focus
+state. Rapid clicks replace the active pulse rather than queueing animations.
+Reduced motion and disabled controls cancel it immediately. Actions, list rows,
+clipboard pin/confirmation controls, switches, wallpaper tiles, dropdowns/menu
+options, search/time inputs, replay timelines, sliders and footer actions use the
+same feedback primitive. Scrollbar presses use the shared color effect. Passive
+surfaces do not flash when clicking empty space; actions and value updates stay
+immediate.
+
+Flat selectors retain a quiet underline, emphasized for keyboard focus. Wallpaper
+selection reflects the applied wallpaper; only keyboard focus draws the stronger
+ring. A pointer click must not leave a keyboard-focus outline behind.
+
+`PowerCard` and `PowerActions` own the same circular confirmation and two-stage interaction in Power and the gallery. First
+activation isolates/enlarges that action's icon and hides other actions. A second
+activation confirms. Escape first cancels the confirmation; Escape again closes.
+Outside click closes without execution. Confirmed logout skips Niri's second prompt. Held activation keys never confirm, and
+busy system actions remain protected. The component emits an action ID; only the
+Power surface invokes the existing system helper. Gallery confirmation is inert.
+
 ## Verification
 
 `tests/test-motion` exercises the production components and gallery: all six spring

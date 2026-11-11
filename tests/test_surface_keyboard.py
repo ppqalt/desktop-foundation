@@ -39,8 +39,8 @@ def block(source, marker):
     return source[start + 1:index - 1]
 
 
-def production(surface, names):
-    source = (ROOT / 'shell/surfaces' / (surface + '.qml')).read_text()
+def production(surface, names, component=False, with_handler=True):
+    source = (ROOT / ('shell/components' if component else 'shell/surfaces') / (surface + '.qml')).read_text()
     functions = []
     for name in names:
         signature = re.search(r'function ' + name + r'\((.*?)\)\s*:\s*(?:void|bool|var|string)\s*\{', source)
@@ -52,6 +52,8 @@ def production(surface, names):
         names = [*names, 'handleKey']
         signature = re.search(r'function handleKey\((.*?)\)\s*:\s*void\s*\{', source)
         functions.append('function handleKey(' + signature.group(1) + ') {' + block(source, 'function handleKey(') + '}')
+    if not with_handler:
+        return '\n'.join(functions)
     entry = re.search(r'Keys.onPressed:\s*event\s*=>\s*([^\n]+)', source).group(1)
     handler = block(source, 'Keys.onPressed:') if entry.startswith('{') else entry + ';'
     return '\n'.join(functions) + '\nhandler = event => {' + handler + '};'
@@ -103,6 +105,23 @@ function key(name, modifiers = 0, repeated = false) {
             arguments = re.sub(r':\s*(?:int|real|string|bool|var)\b', '', signature.group(1))
             helpers.append('function ' + name + '(' + arguments + ') {' + block(material, 'function ' + name + '(') + '}')
         code = code.replace('MATERIAL', json.dumps('\n'.join(helpers)))
+        if surface == 'Power':
+            shared = production('PowerActions', ['navigate', 'activate', 'cancel'], component=True, with_handler=False)
+            code += r'''
+const cardContext = {enabled: true, selected: 0, armed: -1, actions: context.actions, Material: context.Material,
+    confirmed() {context.execute();}};
+cardContext.root = cardContext;
+vm.createContext(cardContext);
+vm.runInContext(SHARED, cardContext);
+for (const property of ['selected', 'armed']) Object.defineProperty(context, property, {
+    get() {return cardContext[property];}, set(value) {cardContext[property] = value;}
+});
+context.card = {
+    navigate(delta) {cardContext.enabled = !context.busy; cardContext.navigate(delta);},
+    choose(index) {cardContext.enabled = !context.busy; cardContext.activate(index);},
+    cancelConfirmation() {cardContext.cancel();}
+};
+'''.replace('SHARED', json.dumps(shared))
         code = code.replace('PRODUCTION', json.dumps(production(surface, names))) + checks
         result = subprocess.run(['node', '-e', code], capture_output=True, text=True,
                                 timeout=10, env={'PATH': '/usr/bin:/bin'})
@@ -143,11 +162,10 @@ key('P', Qt.ControlModifier | Qt.ShiftModifier); assert.deepEqual(events.find(e 
 context.results[0].pinned = true;
 key('P', Qt.ControlModifier | Qt.ShiftModifier); assert.deepEqual(events.find(e => e[0] === 'unpin'), ['unpin', 'item-0']);
 key('Tab'); assert.equal(context.actionFocus, 1, 'Tab reaches Pin');
-key('Tab'); assert.equal(context.actionFocus, 2, 'Tab reaches Copy plain text');
-key('Return', 0, true); assert.equal(events.some(e => e[0] === 'copy-plain'), false);
-key('Return'); assert.deepEqual(events.find(e => e[0] === 'copy-plain'), ['copy-plain', 'item-0']);
+key('C', Qt.ControlModifier | Qt.ShiftModifier, true); assert.equal(events.some(e => e[0] === 'copy-plain'), false);
+key('C', Qt.ControlModifier | Qt.ShiftModifier); assert.deepEqual(events.find(e => e[0] === 'copy-plain'), ['copy-plain', 'item-0']);
 key('Tab'); assert.equal(context.selectedIndex, 1); assert.equal(context.actionFocus, 0);
-key('Backtab'); assert.equal(context.selectedIndex, 0); assert.equal(context.actionFocus, 2);
+key('Backtab'); assert.equal(context.selectedIndex, 0); assert.equal(context.actionFocus, 1);
 key('Escape'); assert.equal(context.actionFocus, 0); assert.equal(context.closing, false);
 context.search.activeFocus = true;
 for (const name of ['Home', 'End', 'Left', 'Right', 'Space', 'A'])
@@ -283,15 +301,18 @@ key('End'); assert.equal(context.selected, 3);
 key('PageUp'); assert.equal(context.selected, 0);
 key('PageDown'); assert.equal(context.selected, 3);
 key('Return', 0, true); assert.equal(context.busy, false);
+key('Space'); assert.equal(context.busy, false); assert.equal(context.armed, 3);
 key('Space'); assert.equal(context.busy, true);
 assert.equal(context.actionProcess.command[1], 'poweroff');
 key('Home'); assert.equal(context.selected, 3);
 for (let index = 1; index <= 4; index++) {
     context.busy = false;
     key(String(index), 0, true); assert.equal(context.busy, false);
+    key(String(index)); assert.equal(context.busy, false); assert.equal(context.armed, index - 1);
     key(String(index)); assert.equal(context.actionProcess.command[1], context.actions[index - 1].id);
 }
 context.busy = false;
+key('Escape'); assert.equal(context.armed, -1); assert.equal(context.closing, false);
 key('Escape'); assert.equal(context.closing, true);
 assert.equal(events.includes('dismiss'), true);
 const lastCommand = Array.from(context.actionProcess.command);

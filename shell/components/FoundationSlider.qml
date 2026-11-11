@@ -89,6 +89,11 @@ Slider {
                 color: Material.colors.on_secondary_container
             }
         }
+        StateLayer {
+            color: Material.colors.on_surface
+            pressed: root.pressed
+            cornerRadius: Material.control.sliderTrackRadius
+        }
     }
     handle: Rectangle {
         x: root.handleCenter - width / 2

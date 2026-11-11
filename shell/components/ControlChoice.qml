@@ -112,7 +112,7 @@ ComboBox {
             hovered: root.hovered
         }
         Rectangle {
-            visible: !root.flat || root.visualFocus || (root.popup.visible && root.menuKeyboard)
+            opacity: root.flat && !root.visualFocus && !(root.popup.visible && root.menuKeyboard) ? 0.45 : 1
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -194,6 +194,11 @@ ComboBox {
             border.color: Material.colors.primary
             Behavior on color {
                 SurfaceColorAnimation {}
+            }
+            StateLayer {
+                color: Material.colors.primary
+                cornerRadius: 4
+                pressed: option.down
             }
         }
     }

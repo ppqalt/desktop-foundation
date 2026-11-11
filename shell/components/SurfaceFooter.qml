@@ -71,7 +71,12 @@ Item {
                     font.pixelSize: Theme.typography.small
                 }
             }
+            StateLayer {
+                color: Material.colors.primary
+                pressed: escapeMouse.pressed
+            }
             MouseArea {
+                id: escapeMouse
                 anchors.fill: parent
                 anchors.margins: -4
                 enabled: root.escapeEnabled
@@ -105,7 +110,12 @@ Item {
                 label: root.actionKey
             }
         }
+        StateLayer {
+            color: Material.colors.primary
+            pressed: actionMouse.pressed
+        }
         MouseArea {
+            id: actionMouse
             anchors.fill: parent
             anchors.margins: -4
             enabled: root.actionEnabled

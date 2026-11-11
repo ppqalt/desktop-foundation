@@ -9,13 +9,11 @@ Rectangle {
     property int actionFocus: 0
     property bool busy: false
     readonly property string kind: entry.kind || (entry.image ? "image" : (["text/html", "text/rtf", "application/rtf"].includes(entry.mime) ? "rich" : "text"))
-    readonly property bool plainAvailable: kind === "rich"
-    readonly property int actionInset: plainAvailable ? 0 : 38
+    readonly property int actionInset: 38
     readonly property string title: entry.label || (kind === "image" ? "Copied image" : (entry.preview || "Clipboard item").replace(/\s+/g, " ").trim())
     readonly property string detail: entry.unavailable ? "Original file is unavailable" : (entry.detail || ((kind === "rich" ? "Formatted text" : (kind === "files" ? (entry.fileCount || 1) + " file" + (entry.fileCount > 1 ? "s" : "") : (kind === "image" ? (entry.mime || "image").split("/")[1].toUpperCase() : "Text"))) + " · " + (entry.size >= 1024 ? (entry.size / 1024).toFixed(1) + " KB" : (entry.size || 0) + " bytes")))
     signal chosen
     signal pinned
-    signal plainCopied
     implicitHeight: 72
     radius: Theme.radii.medium
     color: selected ? Material.colors.secondary_container : (mouse.containsMouse ? Material.colors.surface_container_high : "transparent")
@@ -26,6 +24,10 @@ Rectangle {
     Accessible.onPressAction: root.chosen()
     Behavior on color {
         SurfaceColorAnimation {}
+    }
+    StateLayer {
+        color: Material.colors.primary
+        pressed: mouse.pressed
     }
     Rectangle {
         x: 14
@@ -90,7 +92,7 @@ Rectangle {
     Controls.ToolTip {
         id: filesTip
         width: Math.min(420, root.width - 32)
-        visible: root.kind === "files" && mouse.containsMouse && !pinMouse.containsMouse && !plainMouse.containsMouse
+        visible: root.kind === "files" && mouse.containsMouse && !pinMouse.containsMouse
         delay: 500
         text: (root.entry.preview || root.title).slice(0, 512)
         background: Rectangle {
@@ -131,6 +133,11 @@ Rectangle {
         Accessible.role: Accessible.Button
         Accessible.name: root.entry.pinned ? "Unpin item" : "Pin item"
         Accessible.onPressAction: root.pinned()
+        StateLayer {
+            color: Material.colors.primary
+            pressed: pinMouse.pressed
+            cornerRadius: 24
+        }
         Canvas {
             id: pinCanvas
             anchors.centerIn: parent
@@ -188,55 +195,6 @@ Rectangle {
             }
             contentItem: Text {
                 text: pinTip.text
-                color: Material.colors.on_surface
-                font.family: Theme.typography.family
-                font.pixelSize: Material.type.bodyMedium
-            }
-        }
-    }
-    Rectangle {
-        id: plainButton
-        anchors.right: parent.right
-        anchors.rightMargin: 12
-        anchors.verticalCenter: parent.verticalCenter
-        width: 48
-        height: 48
-        radius: 24
-        visible: root.plainAvailable
-        color: root.selected && root.actionFocus === 2 ? Material.colors.surface_container_highest : (plainMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
-        border.width: root.selected && root.actionFocus === 2 ? 1 : 0
-        border.color: Material.colors.primary
-        enabled: !root.busy
-        Accessible.role: Accessible.Button
-        Accessible.name: "Copy as plain text"
-        Accessible.onPressAction: root.plainCopied()
-        Text {
-            anchors.centerIn: parent
-            text: "T"
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.bodyLarge
-            font.underline: true
-            color: plainMouse.containsMouse || (root.selected && root.actionFocus === 2) ? Material.colors.primary : Material.colors.on_surface_variant
-        }
-        MouseArea {
-            id: plainMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.plainCopied()
-        }
-        Controls.ToolTip {
-            id: plainTip
-            visible: plainMouse.containsMouse
-            delay: 400
-            text: "Copy plain text · Ctrl+Shift+C"
-            background: Rectangle {
-                color: Material.colors.surface_container_high
-                radius: Theme.radii.small
-                border.color: Material.colors.outline_variant
-            }
-            contentItem: Text {
-                text: plainTip.text
                 color: Material.colors.on_surface
                 font.family: Theme.typography.family
                 font.pixelSize: Material.type.bodyMedium

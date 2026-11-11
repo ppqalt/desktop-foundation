@@ -95,7 +95,9 @@ ShellRoot {
                 keyboard.keyClick(Qt.Key_Tab);
                 fixture.check(clip.actionFocus === 1, "Tab cannot reach Pin");
                 keyboard.keyClick(Qt.Key_Tab);
-                fixture.check(clip.actionFocus === 2, "Tab cannot reach Copy plain");
+                fixture.check(clip.actionFocus !== 2, "Removed plain-copy button remains in Tab order");
+                keyboard.keyClick(Qt.Key_Backtab);
+                fixture.check(clip.actionFocus === 1, "Backtab did not return to Pin");
                 keyboard.keyClick(Qt.Key_Escape);
                 fixture.check(!clip.closing && clip.actionFocus === 0, "Escape cannot return to normal row selection");
                 keyboard.keyClick(Qt.Key_Up);

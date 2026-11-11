@@ -84,3 +84,7 @@ Opening reads the existing projection directly. Database initialization is a
 missing-index recovery path, not an operation repeated for every popup. Image
 thumbnails decode asynchronously so large copied images do not block the QML
 opening frame; keyboard focus and copy actions do not wait for image decoding.
+
+The rich-text plain-copy action remains available through Ctrl+Shift+C, without a
+separate row button. Tab navigates row selection and Pin; there is no invisible
+plain-copy tab target. Existing stored rich formats and normal copying are unchanged.
