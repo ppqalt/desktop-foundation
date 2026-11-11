@@ -127,6 +127,64 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn quick_timeline_refines_without_changing_source_or_export() {
+    let Some(f) = Fixture::new() else { return };
+    let original = fs::read(&f.source).unwrap();
+    let first = f.run(&["resume-fast", ID]);
+    assert_eq!(first["thumbnails_complete"], false);
+    assert_eq!(first["thumbnails"].as_array().unwrap().len(), 3);
+    for thumb in first["thumbnails"].as_array().unwrap() {
+        let name = thumb["url"].as_str().unwrap().rsplit('/').next().unwrap();
+        assert_eq!(
+            image::open(f.source.parent().unwrap().join(name))
+                .unwrap()
+                .width(),
+            160
+        );
+    }
+    let refined = f.run(&["thumbnails", ID]);
+    assert_eq!(refined["thumbnails_complete"], true);
+    assert_eq!(refined["thumbnails"].as_array().unwrap().len(), 10);
+    for thumb in refined["thumbnails"].as_array().unwrap() {
+        let name = thumb["url"].as_str().unwrap().rsplit('/').next().unwrap();
+        assert_eq!(
+            image::open(f.source.parent().unwrap().join(name))
+                .unwrap()
+                .width(),
+            240
+        );
+    }
+    assert_eq!(first["duration"], refined["duration"]);
+    let saved = f.run(&["save", ID, "0", &first["duration"].to_string()]);
+    assert_eq!(saved["mode"], "copy");
+    assert_eq!(fs::read(saved["path"].as_str().unwrap()).unwrap(), original);
+    assert_eq!(fs::read(&f.source).unwrap(), original);
+    // Very short footage can quantize several requested thumbnails to one frame.
+    let manifest = f.source.parent().unwrap().join("session.json");
+    let mut value: Value = serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
+    value["duration"] = 0.08.into();
+    fs::write(&manifest, serde_json::to_vec(&value).unwrap()).unwrap();
+    for entry in fs::read_dir(f.source.parent().unwrap()).unwrap() {
+        let path = entry.unwrap().path();
+        if path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("thumb-")
+        {
+            fs::remove_file(path).unwrap();
+        }
+    }
+    assert_eq!(
+        f.run(&["thumbnails", ID])["thumbnails"]
+            .as_array()
+            .unwrap()
+            .len(),
+        10
+    );
+}
+
+#[test]
 fn real_thumbnails_scrubbing_and_packet_preserving_full_export() {
     let Some(f) = Fixture::new() else { return };
     let source = fs::read(&f.source).unwrap();

@@ -41,7 +41,7 @@ if [ "$*" = 'wifi on' ]; then
 fi
 if [ "$*" = snapshot ]; then
     cat "$DF_CONTROL_SNAPSHOT"
-elif [ "$*" = 'editor capture' ]; then
+elif [ "$*" = 'editor capture' ] || [ "$*" = 'editor capture-fast' ]; then
     printf '%s\n' '{"id":"0123456789abcdef00000001","duration":300,"fps":60,"width":2560,"height":1440,"audio_tracks":2,"thumbnails":[]}'
 elif [ "$1 $2" = 'editor preview' ]; then
     printf '%s\n' '{"url":"","seconds":253}'

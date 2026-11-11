@@ -18,7 +18,7 @@ ShellRoot {
             LayoutMirroring.childrenInherit: true
             anchors.fill: parent
             backend: Quickshell.env("DF_EDITOR_BINARY")
-            Component.onCompleted: run(["resume", "0123456789abcdef00000001"])
+            Component.onCompleted: run(["resume-fast", "0123456789abcdef00000001"])
         }
         TestCase {
             id: checks
@@ -28,7 +28,7 @@ ShellRoot {
             function test_real_snapshot_and_range_selection() {
                 tryVerify(() => editor.session !== null, 20000);
                 compare(editor.session.audio_tracks, 2);
-                compare(editor.session.thumbnails.length, 10);
+                compare(editor.session.thumbnails.length, 3);
                 const range = findChild(editor, "replaySelection");
                 const footage = findChild(editor, "replayFootage");
                 verify(range !== null && footage !== null);
@@ -60,6 +60,10 @@ ShellRoot {
                 compare(editor.startTime, 2.5);
                 editor.scrub(3.1);
                 tryVerify(() => editor.previewUrl.includes("preview-000186.jpg"), 10000);
+                tryVerify(() => editor.session.thumbnails.length === 10, 10000);
+                verify(editor.session.thumbnails_complete);
+                compare(editor.startTime, 2.5);
+                compare(editor.endTime, 7.125);
                 footage.forceActiveFocus();
                 const before = editor.playhead;
                 keyClick(Qt.Key_Right);

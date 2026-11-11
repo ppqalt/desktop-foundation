@@ -16,7 +16,8 @@ ColumnLayout {
     property string previewUrl: ""
     property string error: ""
     property string savedPath: ""
-    readonly property bool busy: job.running || save.running || cleanup.running
+    readonly property bool busy: job.running || save.running || cleanup.running || refinement.running
+    property bool needsRefinement: false
     signal settled
     spacing: 12
     function command(args): var {
@@ -32,7 +33,7 @@ ColumnLayout {
     function open(): void {
         if (!busy) {
             savedPath = "";
-            run(["capture"]);
+            run(["capture-fast"]);
         }
     }
     function select(start: real, end: real): void {
@@ -57,16 +58,52 @@ ColumnLayout {
     ControlRequest {
         id: job
         onFinished: code => {
-            if (code !== 0)
+            if (code !== 0 || typeof response.id !== "string" || !Number.isFinite(response.duration) || response.duration <= 0 || !Array.isArray(response.thumbnails))
                 root.error = failure || "Replay could not be opened.";
             else {
                 root.session = response;
+                root.needsRefinement = response.thumbnails_complete === false;
+                if (root.needsRefinement)
+                    refineTimer.restart();
                 root.error = response.export_error || "";
                 root.startTime = Math.max(0, response.duration - 47);
                 root.endTime = response.duration;
                 root.playhead = root.startTime;
                 root.savedPath = "";
                 root.scrub(root.playhead);
+            }
+            root.settled();
+        }
+    }
+    Timer {
+        id: refineTimer
+        interval: 300
+        onTriggered: {
+            if (!root.needsRefinement || !root.session)
+                return;
+            if (root.busy || preview.running || previewTimer.running) {
+                restart();
+                return;
+            }
+            root.needsRefinement = false;
+            refinement.command = root.command(["thumbnails", root.session.id]);
+            refinement.running = true;
+        }
+    }
+    ControlRequest {
+        id: refinement
+        property string sessionId: ""
+        onStarted: sessionId = root.session?.id ?? ""
+        onFinished: code => {
+            if (root.session?.id === sessionId) {
+                if (code === 0)
+                    root.session = Object.assign({}, root.session, {
+                        thumbnails: response.thumbnails,
+                        thumbnails_complete: true
+                    });
+                else
+                    root.error = failure || "Timeline preview failed; footage is retained.";
+                previewTimer.restart();
             }
             root.settled();
         }
@@ -188,7 +225,7 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         visible: !!root.session
-        enabled: !root.busy
+        enabled: !save.running && !cleanup.running
         ControlTimeField {
             id: startField
             objectName: "clipStart"

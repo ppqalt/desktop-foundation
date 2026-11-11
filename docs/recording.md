@@ -78,7 +78,18 @@ selections stay aligned at fractional widths and in mirrored layouts. Mirrored
 thumbnail scrubbing and keyboard steps follow the same timeline direction.
 
 Thumbnail and scrub jobs run asynchronously outside QML, one job per snapshot.
-Ten small timeline frames are generated with bounded single-thread FFmpeg jobs.
+A coarse strip appears first; refinement is a finite follow-up request.
+The interactive editor opens with three 160px thumbnails, so the timeline and
+trim selection can be used before the full strip is ready. After the first frame
+preview and a short idle interval, a finite background request replaces them with
+ten 240px thumbnails. Thumbnail decoding is limited to two single-threaded jobs;
+no additional recorder or resident worker is started. First-pass and refined
+images have separate cache names. Refined thumbnails never reset the selected
+range or playhead. A refinement failure retains the small previews and footage.
+Save waits for an active image job to finish to avoid racing the source lock;
+local trimming remains usable. Source validation and saved-file validation are
+unchanged, and preview downscaling never changes an exported clip.
+
 Scrub requests coalesce while dragging and cache at most 128 larger preview
 images. There is no thumbnail daemon or additional capture pipeline.
 

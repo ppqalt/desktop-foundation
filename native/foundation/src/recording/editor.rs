@@ -201,6 +201,9 @@ fn wait_for_capture(dir: &Path, request: impl FnOnce() -> Result<()>) -> Result<
     }
 }
 fn frame(dir: &Path, seconds: f64, large: bool) -> Result<Value> {
+    frame_sized(dir, seconds, large, if large { 640 } else { 240 })
+}
+fn frame_sized(dir: &Path, seconds: f64, large: bool, width: u32) -> Result<Value> {
     let metadata = read_json(&dir.join("session.json"))?;
     let end = metadata["duration"]
         .as_f64()
@@ -218,7 +221,13 @@ fn frame(dir: &Path, seconds: f64, large: bool) -> Result<Value> {
     let frame_time = tick as f64 / rate;
     let target = dir.join(format!(
         "{}-{tick:06}.jpg",
-        if large { "preview" } else { "thumb" }
+        if large {
+            "preview"
+        } else if width == 160 {
+            "quickthumb"
+        } else {
+            "thumb"
+        }
     ));
     if !target.try_exists()? {
         if large
@@ -237,7 +246,11 @@ fn frame(dir: &Path, seconds: f64, large: bool) -> Result<Value> {
                 }
             }
         }
-        let temporary = dir.join("frame.part.jpg");
+        let temporary = target.with_extension(format!(
+            "{}-{:?}.part.jpg",
+            std::process::id(),
+            std::thread::current().id()
+        ));
         let args = vec![
             "ffmpeg".into(),
             "-nostdin".into(),
@@ -256,7 +269,7 @@ fn frame(dir: &Path, seconds: f64, large: bool) -> Result<Value> {
             "-an".into(),
             "-sn".into(),
             "-vf".into(),
-            format!("scale={}:-2", if large { 640 } else { 240 }),
+            format!("scale={width}:-2"),
             "-filter_threads".into(),
             "1".into(),
             "-threads:v".into(),
@@ -279,7 +292,36 @@ fn describe(id: &str, dir: &Path, metadata: &Value) -> Result<Value> {
     }
     Ok(value)
 }
-fn initialize(id: &str) -> Result<Value> {
+// At most two single-threaded decoder jobs, including on high-core-count hosts.
+fn thumbnail_strip(dir: &Path, duration: f64, count: usize, width: u32) -> Result<Vec<Value>> {
+    let batches = std::thread::scope(|scope| {
+        let jobs: Vec<_> = (0..2)
+            .map(|worker| {
+                scope.spawn(move || {
+                    (worker..count)
+                        .step_by(2)
+                        .map(|index| {
+                            frame_sized(dir, duration * index as f64 / count as f64, false, width)
+                                .map(|value| (index, value))
+                                .map_err(|error| error.to_string())
+                        })
+                        .collect::<std::result::Result<Vec<_>, String>>()
+                })
+            })
+            .collect();
+        jobs.into_iter()
+            .map(|job| {
+                job.join()
+                    .map_err(|_| "Thumbnail worker stopped".to_string())?
+            })
+            .collect::<std::result::Result<Vec<_>, String>>()
+    })
+    .map_err(invalid)?;
+    let mut frames: Vec<_> = batches.into_iter().flatten().collect();
+    frames.sort_by_key(|(index, _)| *index);
+    Ok(frames.into_iter().map(|(_, value)| value).collect())
+}
+fn initialize(id: &str, quick: bool) -> Result<Value> {
     let dir = session(id)?;
     let _lock = state::lock(&dir.join("job.lock"), Duration::from_millis(100))?;
     let metadata = inspect(&dir.join("source.mkv"))?;
@@ -301,15 +343,14 @@ fn initialize(id: &str) -> Result<Value> {
         &serde_json::to_vec(&value)?,
         0o600,
     )?;
-    let mut thumbnails = Vec::new();
-    for i in 0..10 {
-        thumbnails.push(frame(
-            &dir,
-            value["duration"].as_f64().unwrap() * i as f64 / 10.0,
-            false,
-        )?);
-    }
-    value["thumbnails"] = thumbnails.into();
+    value["thumbnails"] = thumbnail_strip(
+        &dir,
+        value["duration"].as_f64().unwrap(),
+        if quick { 3 } else { 10 },
+        if quick { 160 } else { 240 },
+    )?
+    .into();
+    value["thumbnails_complete"] = (!quick).into();
     state::atomic(
         &dir.join("session.json"),
         &serde_json::to_vec(&value)?,
@@ -318,9 +359,9 @@ fn initialize(id: &str) -> Result<Value> {
     describe(id, &dir, &value)
 }
 pub(super) fn open() -> Result<Value> {
-    open_mode(false)
+    open_mode(false, false)
 }
-fn open_mode(interactive: bool) -> Result<Value> {
+fn open_mode(interactive: bool, quick: bool) -> Result<Value> {
     let current = runtime::status()?;
     if current["replay"] != true
         || current["replay_status"] == "paused"
@@ -374,7 +415,7 @@ fn open_mode(interactive: bool) -> Result<Value> {
         state::atomic(&dir.join("interactive.json"), b"{}", 0o600)?;
     }
     wait_for_capture(&dir, || runtime::editor_request(&id))?;
-    let result = initialize(&id)?;
+    let result = initialize(&id, quick)?;
     for (old, _lock) in previous {
         // Only previous interactive workspaces, never legacy drafts or exports.
         fs::remove_dir_all(old)?;
@@ -543,8 +584,24 @@ pub(super) fn run(root: &Path, args: &[String]) -> Result<()> {
         .as_slice()
     {
         ["open"] => open()?,
-        ["capture"] => open_mode(true)?,
-        ["resume", id] => initialize(id)?,
+        ["capture"] => open_mode(true, false)?,
+        ["capture-fast"] => open_mode(true, true)?,
+        ["resume", id] => initialize(id, false)?,
+        ["resume-fast", id] => initialize(id, true)?,
+        ["thumbnails", id] => {
+            let dir = session(id)?;
+            let _lock = state::lock(&dir.join("job.lock"), Duration::from_millis(100))?;
+            let mut value = read_json(&dir.join("session.json"))?;
+            value["thumbnails"] =
+                thumbnail_strip(&dir, number(&value["duration"])?, 10, 240)?.into();
+            value["thumbnails_complete"] = true.into();
+            state::atomic(
+                &dir.join("session.json"),
+                &serde_json::to_vec(&value)?,
+                0o600,
+            )?;
+            describe(id, &dir, &value)?
+        }
         ["preview", id, seconds] => {
             let dir = session(id)?;
             let _lock = state::lock(&dir.join("job.lock"), Duration::from_millis(100))?;
