@@ -688,6 +688,9 @@ ShellRoot {
             running: Quickshell.env("DF_GALLERY_TEST") === "1"
             interval: 100
             onTriggered: {
+                const recordChoice = exampleCapture.modeChoice;
+                const recordButton = exampleCapture.actionButton;
+                const recordLayout = recordButton.width <= exampleCapture.width && (exampleCapture.width >= 320 * Material.effectiveTextScale ? Math.abs(recordChoice.y + recordChoice.height / 2 - recordButton.y - recordButton.height / 2) <= 1 : recordButton.y >= recordChoice.y + recordChoice.height);
                 window.inputsDisabled = true;
                 const disabledInputs = !sampleSlider.enabled && !sampleRange.enabled && !sampleChoice.enabled && !sampleSearch.enabled;
                 window.inputsDisabled = false;
@@ -718,7 +721,7 @@ ShellRoot {
                 examplePopup.open();
                 const popupOpened = examplePopup.visible && Math.abs(examplePopup.background.width - examplePopup.width) <= 1 && Math.abs(examplePopup.background.height - examplePopup.height) <= 1 && examplePopup.background.border.width > 0;
                 examplePopup.close();
-                const good = exampleCapture.modeChoice.flat && captureStarted && captureStopped && disabledInputs && textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
+                const good = recordLayout && exampleCapture.modeChoice.flat && captureStarted && captureStopped && disabledInputs && textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
                 if (!good) {
                     console.error("GALLERY_TEST_FAILED");
                     Qt.quit();

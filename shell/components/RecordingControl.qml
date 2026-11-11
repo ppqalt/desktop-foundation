@@ -30,9 +30,11 @@ ColumnLayout {
         font.pixelSize: Material.type.titleMedium
         font.weight: Font.Medium
     }
-    RowLayout {
+    GridLayout {
         Layout.fillWidth: true
-        spacing: 8
+        columns: root.width >= 320 * Material.effectiveTextScale ? 2 : 1
+        columnSpacing: 8
+        rowSpacing: 0
         ControlChoice {
             id: audioChoice
             flat: true
@@ -50,8 +52,15 @@ ColumnLayout {
             objectName: "recordingAction"
             compact: true
             marked: root.captureActive
-            Layout.preferredWidth: 88
-            Layout.maximumWidth: 88
+            Layout.alignment: Qt.AlignRight
+            Layout.preferredWidth: Math.max(88, recordLabel.advanceWidth + 40)
+            Layout.maximumWidth: Layout.preferredWidth
+            TextMetrics {
+                id: recordLabel
+                font.family: Theme.typography.family
+                font.pixelSize: Material.type.labelLarge
+                text: recordAction.text
+            }
             text: root.phase === "stopping" ? "Saving" : root.startingCapture ? "Cancel" : root.captureActive ? "Stop" : "Record"
             Accessible.name: root.captureActive ? "Stop screen recording" : "Start screen recording"
             enabled: !!root.recording?.prepared && root.compatible && !root.pending && (!root.transitioning || root.startingCapture)

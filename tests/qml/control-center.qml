@@ -98,6 +98,9 @@ ShellRoot {
                 panel.stateData = updated;
                 panel.syncApplications();
             }
+            function waitForMenu(choice) {
+                keys.tryCompare(choice.popup, "visible", false, 1000);
+            }
             function key(key, modifiers) {
                 keys.keyClick(key, modifiers || Qt.NoModifier);
             }
@@ -278,10 +281,12 @@ ShellRoot {
                 panel.key(Qt.Key_Space);
                 fixture.check(choice.popup.visible, "keyboard cannot open device dropdown");
                 panel.key(Qt.Key_Escape);
+                panel.waitForMenu(choice);
                 fixture.check(!choice.popup.visible && !panel.closing, "Escape does not close dropdown first");
                 panel.key(Qt.Key_Space);
                 panel.key(Qt.Key_S);
                 panel.key(Qt.Key_Space);
+                panel.waitForMenu(choice);
                 fixture.check(!choice.popup.visible, "Enter does not accept the device choice");
                 panel.key(Qt.Key_Escape);
                 fixture.check(panel.page === "overview" && !panel.closing, "Escape does not return to overview");

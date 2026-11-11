@@ -16,6 +16,7 @@ This reference does not introduce an Android runtime dependency or alter 0BSD li
 | Slider pressed handle shape | `FoundationSlider` / `FoundationRangeSlider` + `SpringValue` | Input, volume, replay selection |
 | Selected/hovered row colors | `SurfaceColorAnimation` in `ApplicationRow` / `ClipboardRow` | Desktop examples |
 | Button/dropdown hover/press/focus state layer | `StateLayer` + `SurfaceAnimation` | Every gallery action and choice |
+| Menu fade, interrupted close/reopen | `MenuPopup` + `SurfaceAnimation` | Every shared dropdown |
 | Dropdown chevron open/close/reversal | `ControlChoice` + `SpringValue` | Input choices and Recording selector |
 | Centered popup fade/scale and retirement | `PopupCard`, `PopupLifecycle`, `SurfaceAnimation` | Motion preview |
 | Sidebar entry, exit and reversal | `SidebarMotion` | Motion preview |
@@ -23,7 +24,14 @@ This reference does not introduce an Android runtime dependency or alter 0BSD li
 Recording uses the shared dropdown's native `flat` variant: its base is transparent
 so the surrounding group's wallpaper-derived surface shows through. It retains
 shared hover/pressed feedback and keyboard focus, without a permanent field fill
-or underline. Other filled dropdowns keep their existing appearance.
+or underline. Other filled dropdowns keep their existing appearance. Menu enter/exit uses the same
+`MenuPopup` (100ms entry, 120ms exit) everywhere. During exit, the menu retains its
+contents but cannot accept selection. Reopening reverses the current opacity.
+Keyboard activation is owned on press; the corresponding release cannot trigger
+ComboBox's native stale-highlight commit. Focus restoration occurs when dismissal
+begins, so a delayed close cannot steal Tab focus. Plain string and textRole/object
+models both render actual option labels. Narrow recording rows stack their action
+below the selector; the action width follows the rendered label at larger text sizes.
 
 The gallery imports the production components. It must not copy their drawing,
 spring parameters, curves or lifecycle controllers. Its sample state has no

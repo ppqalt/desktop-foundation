@@ -185,14 +185,22 @@ ShellRoot {
             verify(chevron !== null);
             choice.popup.open();
             wait(40);
+            verify(choice.popup.opacity > 0 && choice.popup.opacity < 1);
+            const first = choice.popup.contentItem.itemAtIndex(0);
+            verify(first !== null);
+            verify(first.contentItem.text.includes("Desktop"));
+            verify(!first.contentItem.text.includes("undefined"));
             verify(chevron.rotation !== 90 && chevron.rotation !== -90);
             choice.popup.close();
             wait(20);
+            verify(choice.popup.visible && choice.popup.dismissing);
+            verify(!choice.popup.contentItem.enabled);
             choice.popup.open();
             tryVerify(() => Math.abs(chevron.rotation + 90) < 0.001, 1500);
             choice.popup.close();
             Theme.reducedMotion = true;
             compare(chevron.rotation, 90);
+            tryCompare(choice.popup, "visible", false, 100);
         }
         function test_effects_complete_when_reduced_motion_changes() {
             effects.lit = true;

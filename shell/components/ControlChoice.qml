@@ -41,6 +41,12 @@ ComboBox {
             return;
         const direction = Material.direction(event.key);
         const activate = [Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space].includes(event.key);
+        if (popup.visible && choiceMenu.dismissing) {
+            if (activate && !event.isAutoRepeat && count > 0)
+                popup.open();
+            event.accepted = true;
+            return;
+        }
         if (popup.visible) {
             if (direction && direction[1]) {
                 menuKeyboard = true;
@@ -82,8 +88,15 @@ ComboBox {
             event.accepted = true;
         }
     }
+    function handleRelease(event): void {
+        // We own activation on press. Native ComboBox release must not commit its
+        // stale highlightedIndex while the shared exit transition is still mapped.
+        if ([Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space, Qt.Key_Escape].includes(event.key))
+            event.accepted = true;
+    }
     Keys.priority: Keys.BeforeItem
     Keys.onPressed: event => handleKey(event)
+    Keys.onReleased: event => handleRelease(event)
     leftPadding: 16
     rightPadding: 48
     background: Rectangle {
@@ -125,7 +138,7 @@ ComboBox {
         rotation: chevronMotion.value
         SpringValue {
             id: chevronMotion
-            targetValue: root.popup.visible ? -90 : 90
+            targetValue: root.popup.visible && !choiceMenu.dismissing ? -90 : 90
         }
         color: Material.colors.on_surface_variant
         opacity: root.enabled ? 1 : Material.state.disabledContent
@@ -165,7 +178,8 @@ ComboBox {
         leftPadding: 12
         rightPadding: 12
         contentItem: Text {
-            text: (option.index === root.currentIndex ? "✓  " : "") + option.modelData[root.textRole]
+            objectName: "choice-option-label"
+            text: (option.index === root.currentIndex ? "✓  " : "") + (root.textRole ? option.modelData[root.textRole] : option.modelData)
             textFormat: Text.PlainText
             verticalAlignment: Text.AlignVCenter
             color: option.index === root.currentIndex ? Material.colors.on_secondary_container : Material.colors.on_surface
@@ -183,14 +197,15 @@ ComboBox {
             }
         }
     }
-    popup: Popup {
-        onAboutToShow: root.menuKeyboard = root.visualFocus
-        onOpened: {
+    popup: MenuPopup {
+        id: choiceMenu
+        onAboutToShow: {
+            root.menuKeyboard = root.visualFocus;
             root.menuIndex = Math.max(0, root.currentIndex);
             root.lastMenuPointer = Qt.point(-1, -1);
             options.positionViewAtIndex(root.menuIndex, ListView.Contain);
         }
-        onClosed: {
+        onAboutToHide: {
             if (root.visible && root.enabled)
                 Material.restoreFocus(root, root.menuKeyboard ? Qt.TabFocusReason : Qt.MouseFocusReason);
         }
@@ -198,13 +213,11 @@ ComboBox {
         width: root.width
         padding: 8
         implicitHeight: Math.min(320, contentItem.implicitHeight + 16)
-        background: SurfaceCard {
-            radius: Material.shape.small
-            color: Material.colors.surface_container
-        }
         contentItem: ListView {
             id: options
+            enabled: !choiceMenu.dismissing
             Keys.onPressed: event => root.handleKey(event)
+            Keys.onReleased: event => root.handleRelease(event)
             clip: true
             implicitHeight: contentHeight
             model: root.popup.visible ? root.delegateModel : null

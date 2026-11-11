@@ -857,7 +857,8 @@ ShellRoot {
                     keyClick(Qt.Key_Home);
                     compare(choice.menuIndex, 0);
                     keyClick(Qt.Key_Escape);
-                    verify(!choice.popup.visible && choice.activeFocus && choice.visualFocus);
+                    tryCompare(choice.popup, "visible", false);
+                    verify(choice.activeFocus && choice.visualFocus);
                     compare(controls.choiceActivations, 0);
                     keyClick(Qt.Key_Space);
                     keyClick(Qt.Key_End);
@@ -867,7 +868,8 @@ ShellRoot {
                     keyClick(Qt.Key_Space);
                     keyClick(Qt.Key_Home);
                     keyClick(Qt.Key_Tab);
-                    verify(!choice.popup.visible && !choice.activeFocus);
+                    tryCompare(choice.popup, "visible", false);
+                    verify(!choice.activeFocus);
                     compare(choice.currentIndex, 1);
                     compare(controls.choiceActivations, 1);
                     mouseClick(choice, choice.width / 2, choice.height / 2);
@@ -877,20 +879,21 @@ ShellRoot {
                     mouseClick(firstOption, firstOption.width / 2, firstOption.height / 2);
                     compare(choice.currentIndex, 0);
                     compare(controls.choiceActivations, 2);
-                    verify(!choice.popup.visible && !choice.visualFocus);
+                    tryCompare(choice.popup, "visible", false);
+                    verify(!choice.visualFocus);
                     Material.restoreFocus(choice, Qt.TabFocusReason);
                     keyClick(Qt.Key_Space);
                     choice.enabled = false;
-                    verify(!choice.popup.visible);
+                    tryCompare(choice.popup, "visible", false);
                     choice.enabled = true;
                     choice.model = [];
                     tryCompare(choice, "count", 0, 1000);
                     choice.forceActiveFocus();
                     keyClick(Qt.Key_Space);
-                    verify(!choice.popup.visible);
+                    tryCompare(choice.popup, "visible", false);
                     compare(choice.displayText, choice.emptyText);
                     mouseClick(choice, choice.width / 2, choice.height / 2);
-                    verify(!choice.popup.visible);
+                    tryCompare(choice.popup, "visible", false);
                     compare(controls.choiceActivations, 2);
                     choice.model = Qt.binding(() => controls.choiceOptions);
                     tryCompare(choice, "count", 2, 1000);
@@ -899,7 +902,7 @@ ShellRoot {
                     verify(choice.popup.visible);
                     choice.model = [];
                     tryCompare(choice, "count", 0, 1000);
-                    verify(!choice.popup.visible);
+                    tryCompare(choice.popup, "visible", false);
                     compare(controls.choiceActivations, 2);
                 } finally {
                     choice.popup.close();
@@ -936,11 +939,11 @@ ShellRoot {
                 keyClick(Qt.Key_S);
                 keyClick(Qt.Key_Return);
                 compare(choice.currentIndex, 1);
-                verify(!choice.popup.visible);
+                tryCompare(choice.popup, "visible", false);
                 verify(choice.activeFocus);
                 keyClick(Qt.Key_Space);
                 keyClick(Qt.Key_Escape);
-                verify(!choice.popup.visible);
+                tryCompare(choice.popup, "visible", false);
                 verify(choice.activeFocus);
                 controls.visible = false;
             }
