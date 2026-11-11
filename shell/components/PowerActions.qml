@@ -54,15 +54,21 @@ Item {
             required property var modelData
             required property int index
             objectName: "power-action-" + modelData.id
-            x: 0
+            x: root.armed >= 0 ? (root.width - 160) / 2 : 0
             y: root.armed >= 0 ? 20 : index * 76
-            width: root.width
+            width: root.armed >= 0 ? 160 : root.width
             height: root.armed >= 0 ? 160 : 72
             opacity: root.armed < 0 || root.armed === index ? 1 : 0
             visible: opacity > 0
             enabled: root.enabled && (root.armed < 0 || root.armed === index)
             Accessible.name: (root.armed === index ? "Confirm " : "") + modelData.label
             onClicked: root.activate(index)
+            Behavior on x {
+                SurfaceAnimation {}
+            }
+            Behavior on width {
+                SurfaceAnimation {}
+            }
             Behavior on y {
                 SurfaceAnimation {}
             }
@@ -73,18 +79,20 @@ Item {
                 SurfaceAnimation {}
             }
             background: Rectangle {
-                radius: Material.shape.medium
+                radius: root.armed >= 0 ? height / 2 : Material.shape.medium
                 color: root.armed < 0 && root.selected === action.index ? Material.colors.secondary_container : "transparent"
                 Behavior on color {
                     SurfaceColorAnimation {}
                 }
                 StateLayer {
                     color: Material.colors.primary
+                    cornerRadius: root.armed >= 0 ? 80 : Material.shape.medium
                     pressed: action.down
                     hovered: action.hovered
                     focused: action.visualFocus
                 }
                 FocusIndicator {
+                    cornerRadius: root.armed >= 0 ? 80 : Material.shape.medium
                     visible: action.visualFocus
                 }
             }
