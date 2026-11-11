@@ -718,7 +718,7 @@ ShellRoot {
                 examplePopup.open();
                 const popupOpened = examplePopup.visible && Math.abs(examplePopup.background.width - examplePopup.width) <= 1 && Math.abs(examplePopup.background.height - examplePopup.height) <= 1 && examplePopup.background.border.width > 0;
                 examplePopup.close();
-                const good = captureStarted && captureStopped && disabledInputs && textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
+                const good = exampleCapture.modeChoice.flat && captureStarted && captureStopped && disabledInputs && textScaled && rangeCommitted && popupOpened && motionChanged && lightSurface !== darkSurface && sampleSwitch.marked !== initial && sampleSwitch.implicitHeight === Material.control.target && window.sliderEvent === "Committed: 47" && exampleReplay.statusText === "Buffering";
                 if (!good) {
                     console.error("GALLERY_TEST_FAILED");
                     Qt.quit();
@@ -744,7 +744,7 @@ ShellRoot {
                 const section = Quickshell.env("DF_GALLERY_CAPTURE_SECTION");
                 if (section === "popup")
                     examplePopup.open();
-                const target = section === "motion" ? motionGroup : section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : section === "choice" ? sampleChoice : null;
+                const target = section === "recording" ? exampleCapture : section === "motion" ? motionGroup : section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : section === "choice" ? sampleChoice : null;
                 if (target)
                     galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.mapToItem(content, 0, 0).y * window.previewZoom));
                 if (section === "choice")

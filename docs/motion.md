@@ -15,9 +15,15 @@ This reference does not introduce an Android runtime dependency or alter 0BSD li
 | Switch state, pressed size and thumb travel | `SwitchIndicator` + `SpringValue`, used by `ControlSwitch` and setting `ApplicationRow` | Actions, Motion switch, desktop results |
 | Slider pressed handle shape | `FoundationSlider` / `FoundationRangeSlider` + `SpringValue` | Input, volume, replay selection |
 | Selected/hovered row colors | `SurfaceColorAnimation` in `ApplicationRow` / `ClipboardRow` | Desktop examples |
-| Button hover/press/focus state layer | `ControlAction` + `SurfaceAnimation` | Every gallery action |
+| Button/dropdown hover/press/focus state layer | `StateLayer` + `SurfaceAnimation` | Every gallery action and choice |
+| Dropdown chevron open/close/reversal | `ControlChoice` + `SpringValue` | Input choices and Recording selector |
 | Centered popup fade/scale and retirement | `PopupCard`, `PopupLifecycle`, `SurfaceAnimation` | Motion preview |
 | Sidebar entry, exit and reversal | `SidebarMotion` | Motion preview |
+
+Recording uses the shared dropdown's native `flat` variant: its base is transparent
+so the surrounding group's wallpaper-derived surface shows through. It retains
+shared hover/pressed feedback and keyboard focus, without a permanent field fill
+or underline. Other filled dropdowns keep their existing appearance.
 
 The gallery imports the production components. It must not copy their drawing,
 spring parameters, curves or lifecycle controllers. Its sample state has no

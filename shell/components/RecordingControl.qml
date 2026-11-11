@@ -35,6 +35,7 @@ ColumnLayout {
         spacing: 8
         ControlChoice {
             id: audioChoice
+            flat: true
             objectName: "recordingAudioMode"
             Layout.fillWidth: true
             Layout.minimumWidth: 0

@@ -37,18 +37,12 @@ ControlButton {
             Behavior on color {
                 SurfaceColorAnimation {}
             }
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
+            StateLayer {
+                cornerRadius: fill.radius
                 color: root.ink
-                opacity: !root.enabled ? 0 : root.down ? Material.state.pressed : root.visualFocus ? Material.state.focus : root.hovered ? Material.state.hover : 0
-                Behavior on opacity {
-                    SurfaceAnimation {
-                        duration: Material.motion.fastEffects
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Material.effectsCurve
-                    }
-                }
+                pressed: root.down
+                focused: root.visualFocus
+                hovered: root.hovered
             }
         }
         FocusIndicator {

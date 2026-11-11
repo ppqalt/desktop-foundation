@@ -21,6 +21,13 @@ ShellRoot {
             width: 400
             value: 50
         }
+        ControlChoice {
+            id: choice
+            x: 410
+            width: 120
+            flat: true
+            model: ["Desktop", "Microphone"]
+        }
         MotionGallery {
             id: gallery
             y: 115
@@ -171,6 +178,21 @@ ShellRoot {
             verify(slider.value > 65); // No smoothing/delay on the user's value.
             mouseRelease(slider, 280, 24);
             verify(!slider.pressed);
+        }
+        function test_flat_choice_and_chevron_retarget() {
+            compare(choice.background.color, Qt.rgba(0, 0, 0, 0));
+            const chevron = findChild(choice, "choice-chevron");
+            verify(chevron !== null);
+            choice.popup.open();
+            wait(40);
+            verify(chevron.rotation !== 90 && chevron.rotation !== -90);
+            choice.popup.close();
+            wait(20);
+            choice.popup.open();
+            tryVerify(() => Math.abs(chevron.rotation + 90) < 0.001, 1500);
+            choice.popup.close();
+            Theme.reducedMotion = true;
+            compare(chevron.rotation, 90);
         }
         function test_effects_complete_when_reduced_motion_changes() {
             effects.lit = true;

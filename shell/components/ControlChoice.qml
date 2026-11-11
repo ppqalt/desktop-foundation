@@ -11,6 +11,8 @@ ComboBox {
     property int menuIndex: 0
     property bool menuKeyboard: false
     property point lastMenuPointer: Qt.point(-1, -1)
+    // Blend into a containing group without introducing a second filled surface.
+    flat: false
     property string emptyText: "No options available"
     displayText: count > 0 ? currentText : emptyText
     PointerFocus {
@@ -87,9 +89,17 @@ ComboBox {
     background: Rectangle {
         topLeftRadius: 4
         topRightRadius: 4
-        color: Material.colors.surface_container_highest
+        color: root.flat ? "transparent" : Material.colors.surface_container_highest
         opacity: root.enabled ? 1 : Material.state.disabledContainer
+        StateLayer {
+            cornerRadius: 4
+            color: Material.colors.on_surface
+            pressed: root.down
+            focused: root.visualFocus
+            hovered: root.hovered
+        }
         Rectangle {
+            visible: !root.flat || root.visualFocus || (root.popup.visible && root.menuKeyboard)
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -111,7 +121,12 @@ ComboBox {
         x: root.width - width - 16
         anchors.verticalCenter: parent.verticalCenter
         name: "chevron_right"
-        rotation: root.popup.visible ? -90 : 90
+        objectName: "choice-chevron"
+        rotation: chevronMotion.value
+        SpringValue {
+            id: chevronMotion
+            targetValue: root.popup.visible ? -90 : 90
+        }
         color: Material.colors.on_surface_variant
         opacity: root.enabled ? 1 : Material.state.disabledContent
     }
@@ -163,6 +178,9 @@ ComboBox {
             color: option.index === root.currentIndex ? Material.colors.secondary_container : option.highlighted ? Material.colors.surface_container_highest : "transparent"
             border.width: option.highlighted && root.menuKeyboard ? 2 : 0
             border.color: Material.colors.primary
+            Behavior on color {
+                SurfaceColorAnimation {}
+            }
         }
     }
     popup: Popup {
