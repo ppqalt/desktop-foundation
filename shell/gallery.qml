@@ -111,10 +111,13 @@ ShellRoot {
                         },
                         {
                             name: "Desktop examples"
+                        },
+                        {
+                            name: "Motion"
                         }
                     ]
                     onActivated: index => {
-                        const items = [null, actionsGroup, inputGroup, desktopGroup];
+                        const items = [null, actionsGroup, inputGroup, desktopGroup, motionGroup];
                         if (items[index])
                             galleryScroll.contentY = Math.min(galleryScroll.contentHeight - galleryScroll.height, Math.max(0, items[index].y * window.previewZoom));
                     }
@@ -624,6 +627,11 @@ ShellRoot {
                         message: "Nothing here yet"
                     }
                 }
+                MotionGallery {
+                    id: motionGroup
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                }
             }
         }
         Popup {
@@ -736,13 +744,24 @@ ShellRoot {
                 const section = Quickshell.env("DF_GALLERY_CAPTURE_SECTION");
                 if (section === "popup")
                     examplePopup.open();
-                const target = section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : section === "choice" ? sampleChoice : null;
+                const target = section === "motion" ? motionGroup : section === "input" ? inputGroup : section === "actions" ? actionsGroup : section === "desktop" ? desktopGroup : section === "replay" ? galleryTimeline : section === "choice" ? sampleChoice : null;
                 if (target)
                     galleryScroll.contentY = Math.max(0, Math.min(galleryScroll.contentHeight - galleryScroll.height, target.mapToItem(content, 0, 0).y * window.previewZoom));
                 if (section === "choice")
                     sampleChoice.popup.open();
+                if (section === "motion")
+                    motionGroup.showPreview();
+                captureDelay.capturePath = capture;
+                captureDelay.start();
+            }
+        }
+        Timer {
+            id: captureDelay
+            property string capturePath: ""
+            interval: 700
+            onTriggered: {
                 window.contentItem.grabToImage(result => {
-                    if (result.saveToFile(capture))
+                    if (result.saveToFile(captureDelay.capturePath))
                         console.log("GALLERY_TEST_OK");
                     else
                         console.error("GALLERY_TEST_FAILED");

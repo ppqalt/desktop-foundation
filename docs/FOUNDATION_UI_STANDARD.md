@@ -47,7 +47,9 @@ Do not label a visually similar custom control a specification-exact component.
 
 The current Expressive motion system is spring-based, with spatial and effects
 families. Legacy duration/easing tokens are not the entire current specification.
-Our existing Bezier curves are desktop approximations, not physical springs.
+Shared `SpringValue` uses the physical Expressive presets for component shape and
+position. Retained Bezier effects and bounded sidebar/popup timings are documented
+desktop adaptations, not physical springs. See [motion and gallery coverage](motion.md).
 Some Google pages require JavaScript: if a page cannot be inspected, say so and
 verify measurements through Google's official implementation rather than guessing.
 
@@ -380,7 +382,10 @@ has one current view and one destination; new input replaces an obsolete intent.
   that must follow keyboard repeat. Animate emphasis/presentation separately.
 
 `Theme.timing` holds desktop presentation durations; `Material.motion` holds
-component approximation durations. `Theme.reducedMotion` reduces both to zero.
+bounded effect/legacy durations, and `Material.springs` holds physical presets.
+`SpringValue` retains position and velocity when retargeted. All new component
+motion must have a production-component gallery example. `Theme.reducedMotion`
+reduces timed presentation to zero and settles running springs immediately.
 The native `ui-preferences` command reads `enable-animations` on demand; the shell
 refreshes it at startup and on surface requests, without a preference-watcher
 process. `DF_REDUCED_MOTION=1` is an explicit override. Unknown preference reads

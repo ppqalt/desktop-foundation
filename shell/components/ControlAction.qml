@@ -27,15 +27,15 @@ ControlButton {
             anchors.fill: parent
             anchors.topMargin: root.compact ? 4 : 0
             anchors.bottomMargin: root.compact ? 4 : 0
-            radius: root.compact ? root.down ? 8 : root.toggle && root.marked ? 12 : height / 2 : 12
+            radius: Math.max(0, corner.value)
             color: !root.enabled ? Material.colors.on_surface : root.compact ? root.marked ? Material.colors.primary : root.toggle ? Material.colors.surface_container : Material.colors.secondary_container : root.marked ? Material.colors.secondary_container : "transparent"
             opacity: root.enabled ? 1 : Material.state.disabledContainer
-            Behavior on radius {
-                SurfaceAnimation {
-                    duration: Material.motion.fastSpatial
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: Material.spatialCurve
-                }
+            SpringValue {
+                id: corner
+                targetValue: root.compact ? root.down ? 8 : root.toggle && root.marked ? 12 : fill.height / 2 : 12
+            }
+            Behavior on color {
+                SurfaceColorAnimation {}
             }
             Rectangle {
                 anchors.fill: parent

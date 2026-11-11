@@ -33,14 +33,10 @@ Rectangle {
     border.width: selected || confirmed ? 1 : 0
     border.color: confirmed ? Material.colors.primary : Material.colors.outline
     Behavior on color {
-        ColorAnimation {
-            duration: Material.motion.fastEffects
-        }
+        SurfaceColorAnimation {}
     }
     Behavior on border.color {
-        ColorAnimation {
-            duration: Material.motion.fastEffects
-        }
+        SurfaceColorAnimation {}
     }
     Rectangle {
         width: 3
@@ -137,30 +133,11 @@ Rectangle {
             width: Math.min(implicitWidth, Math.max(40, root.width * 0.28))
             elide: Text.ElideRight
         }
-        Rectangle {
+        SwitchIndicator {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.hasSettingState
-            width: 52
-            height: 32
-            radius: 16
-            color: root.settingState ? Material.colors.primary : Material.colors.surface_container_highest
-            border.width: root.settingState ? 0 : 2
-            border.color: Material.colors.outline
-            Rectangle {
-                x: root.settingState ? 24 : 8
-                y: root.settingState ? 4 : 8
-                width: root.settingState ? 24 : 16
-                height: width
-                radius: width / 2
-                color: root.settingState ? Material.colors.on_primary : Material.colors.outline
-                Behavior on x {
-                    SurfaceAnimation {
-                        duration: Material.motion.fastSpatial
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Material.spatialCurve
-                    }
-                }
-            }
+            marked: root.settingState === true
+            pending: root.pending
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter

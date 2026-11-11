@@ -69,6 +69,34 @@ QtObject {
             fastSpatial: Theme.reducedMotion ? 0 : 350,
             fastEffects: Theme.reducedMotion ? 0 : 150
         })
+    // Physical parameters from Google's AndroidX ExpressiveMotionTokens v0_14_0.
+    // Unit mass; damping is a ratio, stiffness is radians/second squared.
+    readonly property var springs: ({
+            fastSpatial: {
+                stiffness: 800,
+                damping: 0.6
+            },
+            defaultSpatial: {
+                stiffness: 380,
+                damping: 0.8
+            },
+            slowSpatial: {
+                stiffness: 200,
+                damping: 0.8
+            },
+            fastEffects: {
+                stiffness: 3800,
+                damping: 1
+            },
+            defaultEffects: {
+                stiffness: 1600,
+                damping: 1
+            },
+            slowEffects: {
+                stiffness: 800,
+                damping: 1
+            }
+        })
     readonly property var spatialCurve: [0.42, 1.67, 0.21, 0.90, 1, 1]
     readonly property var effectsCurve: [0.31, 0.94, 0.34, 1, 1, 1]
     // Foundation's existing centered-popup output insets (desktop adaptations).

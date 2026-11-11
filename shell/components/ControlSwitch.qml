@@ -19,45 +19,11 @@ ControlButton {
     Accessible.checkable: true
     Accessible.checked: marked
     background: Item {
-        Rectangle {
-            id: track
-            objectName: "control-switch-track"
+        SwitchIndicator {
             anchors.centerIn: parent
-            width: Material.control.switchTrackWidth
-            height: Material.control.switchTrackHeight
-            radius: height / 2
-            color: root.marked ? Material.colors.primary : Material.colors.surface_container_highest
-            border.width: root.marked ? 0 : 2
-            border.color: Material.colors.outline
-            opacity: root.enabled ? 1 : Material.state.disabledContent
-            Rectangle {
-                id: thumb
-                objectName: "control-switch-thumb"
-                width: root.down ? 28 : root.marked ? 24 : 16
-                height: width
-                radius: width / 2
-                x: root.marked ? parent.width - width - (root.down ? 2 : 4) : root.down ? 2 : 8
-                anchors.verticalCenter: parent.verticalCenter
-                color: root.marked ? Material.colors.on_primary : Material.colors.outline
-                Behavior on x {
-                    SurfaceAnimation {
-                        duration: Material.motion.fastEffects
-                    }
-                }
-                Behavior on width {
-                    SurfaceAnimation {
-                        duration: Material.motion.fastEffects
-                    }
-                }
-                ControlIcon {
-                    anchors.centerIn: parent
-                    name: root.pending ? "more_horiz" : "check"
-                    width: 16
-                    height: 16
-                    visible: root.marked || root.pending
-                    color: root.marked ? Material.colors.on_primary_container : Material.colors.surface_container_highest
-                }
-            }
+            marked: root.marked
+            pressed: root.down
+            pending: root.pending
         }
         FocusIndicator {
             anchors.fill: parent

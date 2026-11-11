@@ -25,9 +25,7 @@ Rectangle {
     Accessible.name: title + ". " + detail + (entry.pinned ? ". Pinned" : "")
     Accessible.onPressAction: root.chosen()
     Behavior on color {
-        ColorAnimation {
-            duration: Material.motion.fastEffects
-        }
+        SurfaceColorAnimation {}
     }
     Rectangle {
         x: 14

@@ -1073,7 +1073,7 @@ ShellRoot {
                 compare(card.color, Material.colors.surface_container_low);
                 compare(card.border.width, 1);
                 compare(card.border.color, Qt.alpha(Material.colors.primary, 0.65));
-                compare(setting.color, Material.colors.secondary_container);
+                tryCompare(setting, "color", Material.colors.secondary_container);
                 compare(setting.height, 72);
                 compare(clipboard.height, 72);
                 compare(search.font.family, "Google Sans Flex");
@@ -1089,7 +1089,7 @@ ShellRoot {
                         material: palette
                     });
                     radio.marked = true;
-                    compare(find(radio, "control-switch-track").color, Qt.rgba(18 / 255, 52 / 255, 86 / 255, 1));
+                    tryCompare(find(radio, "control-switch-track"), "color", Qt.rgba(18 / 255, 52 / 255, 86 / 255, 1));
                 } finally {
                     radio.marked = false;
                     Theme.generated = saved;
@@ -1110,14 +1110,13 @@ ShellRoot {
                 radio.enabled = false;
                 compare(track.opacity, Material.state.disabledContent);
                 radio.enabled = true;
-                compare(thumb.width, 16);
+                tryVerify(() => Math.abs(thumb.width - 16) < 0.001, 1500);
                 radio.forceActiveFocus();
                 keyClick(Qt.Key_Return);
                 compare(radio.requests, 1);
                 compare(radio.marked, false);
                 radio.marked = true;
-                wait(200);
-                compare(thumb.width, 24);
+                tryVerify(() => Math.abs(thumb.width - 24) < 0.001, 1500);
                 keyClick(Qt.Key_Space);
                 compare(radio.requests, 2);
                 compare(radio.marked, true);
@@ -1142,34 +1141,16 @@ ShellRoot {
             interval: 100
             running: true
             onTriggered: {
-                checks.test_handoff_and_interruption();
-                checks.test_external_routing();
-                checks.test_shared_lifecycle();
-                checks.test_shared_transport();
-                checks.test_backdrop_survives_handoff();
-                checks.test_wheel_ownership();
-                checks.test_reduced_motion();
-                checks.test_shared_roles();
-                checks.test_palette_propagation();
-                checks.test_shared_editable_focus_and_scaling();
-                checks.test_shared_focus_viewport();
-                checks.test_keyboard_only_control_outlines();
-                checks.test_control_geometry_tokens();
-                checks.test_large_text_control_geometry();
-                checks.test_slider_request_semantics();
-                checks.test_range_keyboard_contract();
-                checks.test_range_pointer_commit_contract();
-                checks.test_slider_endpoint_and_wheel_parity();
-                checks.test_button_switch_activation_parity();
-                checks.test_slider_rtl_and_disabled_parity();
-                checks.test_minimal_footer();
-                checks.test_setting_feedback();
-                checks.test_search_keyboard();
-                checks.test_dropdown_shared_contract();
-                checks.test_control_navigation();
-                checks.test_search_surface_focus();
-                checks.test_session_navigation();
-                checks.test_volume_feedback();
+                const cases = ["test_handoff_and_interruption", "test_external_routing", "test_shared_lifecycle", "test_shared_transport", "test_backdrop_survives_handoff", "test_wheel_ownership", "test_reduced_motion", "test_shared_roles", "test_palette_propagation", "test_shared_editable_focus_and_scaling", "test_shared_focus_viewport", "test_keyboard_only_control_outlines", "test_control_geometry_tokens", "test_large_text_control_geometry", "test_slider_request_semantics", "test_range_keyboard_contract", "test_range_pointer_commit_contract", "test_slider_endpoint_and_wheel_parity", "test_button_switch_activation_parity", "test_slider_rtl_and_disabled_parity", "test_minimal_footer", "test_setting_feedback", "test_search_keyboard", "test_dropdown_shared_contract", "test_control_navigation", "test_search_surface_focus", "test_session_navigation", "test_volume_feedback"];
+                for (const name of cases) {
+                    try {
+                        checks[name]();
+                    } catch (error) {
+                        console.error("Material widget failure in " + name + ": " + error);
+                        Qt.exit(1);
+                        return;
+                    }
+                }
                 const output = Quickshell.env("DF_MATERIAL_CAPTURE");
                 if (output) {
                     card.grabToImage(image => {

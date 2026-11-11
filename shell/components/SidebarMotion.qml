@@ -75,6 +75,13 @@ QtObject {
         position = Math.max(0, Math.min(1, x));
         velocity = position === x ? distance * (6 * t - 6 * t * t) / seconds + initialVelocity * (1 - 4 * t + 3 * t * t) : 0;
     }
+    property Connections preferences: Connections {
+        target: Theme
+        function onReducedMotionChanged(): void {
+            if (Theme.reducedMotion && root.running)
+                root.move(root.opening);
+        }
+    }
     property Connections presentation: Connections {
         target: root.targetItem ? root.targetItem.Window.window : null
         enabled: root.awaitingFrame

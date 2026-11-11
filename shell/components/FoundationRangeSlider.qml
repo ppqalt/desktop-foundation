@@ -120,7 +120,11 @@ RangeSlider {
         readonly property bool visualFocus: activeFocus && (focusReason === Qt.TabFocusReason || focusReason === Qt.BacktabFocusReason)
         x: root.firstCenter - width / 2
         y: (root.height - height) / 2
-        width: root.first.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
+        width: Math.max(0, handleShape.value)
+        SpringValue {
+            id: handleShape
+            targetValue: root.first.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
+        }
         height: Material.control.sliderHandleHeight
         radius: Material.control.sliderHandleRadius
         color: root.activeColor
@@ -146,7 +150,11 @@ RangeSlider {
         readonly property bool visualFocus: activeFocus && (focusReason === Qt.TabFocusReason || focusReason === Qt.BacktabFocusReason)
         x: root.secondCenter - width / 2
         y: (root.height - height) / 2
-        width: root.second.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
+        width: Math.max(0, secondHandleShape.value)
+        SpringValue {
+            id: secondHandleShape
+            targetValue: root.second.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
+        }
         height: Material.control.sliderHandleHeight
         radius: Material.control.sliderHandleRadius
         color: root.activeColor

@@ -93,7 +93,11 @@ Slider {
     handle: Rectangle {
         x: root.handleCenter - width / 2
         y: (root.height - height) / 2
-        width: root.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
+        width: Math.max(0, handleShape.value)
+        SpringValue {
+            id: handleShape
+            targetValue: root.pressed ? Material.control.sliderPressedHandleWidth : Material.control.sliderHandleWidth
+        }
         height: Material.control.sliderHandleHeight
         radius: Material.control.sliderHandleRadius
         color: root.activeColor
