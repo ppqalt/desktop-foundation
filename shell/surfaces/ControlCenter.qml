@@ -504,6 +504,7 @@ PanelWindow {
                                 }
                                 ControlChoice {
                                     id: outputChoice
+                                    flat: true
                                     objectName: "outputChoice"
                                     visible: root.page === "audio"
                                     Layout.fillWidth: true
@@ -555,6 +556,7 @@ PanelWindow {
                                 }
                                 ControlChoice {
                                     id: inputChoice
+                                    flat: true
                                     objectName: "inputChoice"
                                     visible: root.page === "audio"
                                     Layout.fillWidth: true

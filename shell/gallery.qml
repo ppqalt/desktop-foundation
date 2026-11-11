@@ -380,6 +380,7 @@ ShellRoot {
                     }
                     ControlChoice {
                         id: sampleChoice
+                        flat: true
                         enabled: !window.inputsDisabled
                         Accessible.name: "Example choice"
                         Layout.fillWidth: true

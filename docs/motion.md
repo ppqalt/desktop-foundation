@@ -21,7 +21,7 @@ This reference does not introduce an Android runtime dependency or alter 0BSD li
 | Centered popup fade/scale and retirement | `PopupCard`, `PopupLifecycle`, `SurfaceAnimation` | Motion preview |
 | Sidebar entry, exit and reversal | `SidebarMotion` | Motion preview |
 
-Recording uses the shared dropdown's native `flat` variant: its base is transparent
+Recording and audio device selectors use the shared dropdown's native `flat` variant: its base is transparent
 so the surrounding group's wallpaper-derived surface shows through. It retains
 shared hover/pressed feedback and keyboard focus, without a permanent field fill
 or underline. Other filled dropdowns keep their existing appearance. Menu enter/exit uses the same
