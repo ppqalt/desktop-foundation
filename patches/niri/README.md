@@ -14,7 +14,13 @@ overview {
 ```
 
 With overview open, vertical wheel events with exactly Ctrl adjust the overview
-zoom: up zooms in and down zooms out. The overview remains open. Zoom changes
+zoom: up zooms in and down zooms out. Zoom uses a short 120ms ease-out transition,
+retargeted from the currently rendered value. Detents accumulate into the latest
+target immediately, with no input cooldown or delayed event queue. Animation state
+is shared across output/workspace option clones and evaluated on Niri's frame
+clock, rather than regenerating layout configuration on each frame. Animation-off
+settings bypass the transition; configuration reload clears obsolete motion.
+The overview remains open. Zoom changes
 are clamped between 15% and 75% and apply to all outputs. The setting retains
 its original name for compatibility. Ctrl scrolling uses an independent wheel-detent accumulator without an additional cooldown, so partial high-resolution wheel events do not leak into workspace scrolling. Ordinary
 wheel, horizontal wheel, touchpad gestures and other modifier combinations keep

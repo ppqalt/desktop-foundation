@@ -1,0 +1,2 @@
+# Empty context lines in unified patches contain a required single space.
+patches/niri/*.patch whitespace=-blank-at-eol

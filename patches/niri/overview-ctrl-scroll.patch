@@ -2,38 +2,60 @@ diff --git a/niri-config/src/lib.rs b/niri-config/src/lib.rs
 index 329b7669..6856bfcd 100644
 --- a/niri-config/src/lib.rs
 +++ b/niri-config/src/lib.rs
-@@ -1665,2 +1665,3 @@ mod tests {
+@@ -1663,6 +1663,7 @@ mod tests {
+                 },
+             },
              overview: Overview {
 +                ctrl_scroll_workspaces: false,
                  zoom: 0.5,
+                 backdrop_color: Color {
+                     r: 0.15,
 diff --git a/niri-config/src/misc.rs b/niri-config/src/misc.rs
 index 66a200ca..368422d5 100644
 --- a/niri-config/src/misc.rs
 +++ b/niri-config/src/misc.rs
-@@ -122,2 +122,3 @@ impl MergeWith<ClipboardPart> for Clipboard {
+@@ -120,6 +120,7 @@ impl MergeWith<ClipboardPart> for Clipboard {
+ 
+ #[derive(Debug, Clone, Copy, PartialEq)]
  pub struct Overview {
 +    pub ctrl_scroll_workspaces: bool,
      pub zoom: f64,
-@@ -130,2 +131,3 @@ impl Default for Overview {
+     pub backdrop_color: Color,
+     pub workspace_shadow: WorkspaceShadow,
+@@ -128,6 +129,7 @@ pub struct Overview {
+ impl Default for Overview {
+     fn default() -> Self {
          Self {
 +            ctrl_scroll_workspaces: false,
              zoom: 0.5,
-@@ -139,2 +141,4 @@ impl Default for Overview {
+             backdrop_color: DEFAULT_BACKDROP_COLOR,
+             workspace_shadow: WorkspaceShadow::default(),
+@@ -137,6 +139,8 @@ impl Default for Overview {
+ 
+ #[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
  pub struct OverviewPart {
 +    #[knuffel(child, unwrap(argument))]
 +    pub ctrl_scroll_workspaces: Option<bool>,
      #[knuffel(child, unwrap(argument))]
-@@ -149,2 +153,5 @@ impl MergeWith<OverviewPart> for Overview {
+     pub zoom: Option<FloatOrInt<0, 1>>,
+     #[knuffel(child)]
+@@ -147,6 +151,9 @@ pub struct OverviewPart {
+ 
+ impl MergeWith<OverviewPart> for Overview {
      fn merge_with(&mut self, part: &OverviewPart) {
 +        if let Some(value) = part.ctrl_scroll_workspaces {
 +            self.ctrl_scroll_workspaces = value;
 +        }
          merge!((self, part), zoom, workspace_shadow);
+         merge_clone!((self, part), backdrop_color);
+     }
 diff --git a/src/input/mod.rs b/src/input/mod.rs
-index f1ad4932..9d842353 100644
+index f1ad4932..84155f8c 100644
 --- a/src/input/mod.rs
 +++ b/src/input/mod.rs
-@@ -3108,2 +3108,20 @@ impl State {
+@@ -3106,6 +3106,28 @@ impl State {
+             let should_handle = should_handle_in_overview
+                 || is_mru_open
                  || self.niri.mods_with_wheel_binds.contains(&modifiers);
 +            if should_handle_in_overview
 +                && vertical_amount_v120.unwrap_or(0.) != 0.
@@ -41,12 +63,16 @@ index f1ad4932..9d842353 100644
 +                && self.niri.config.borrow().overview.ctrl_scroll_workspaces
 +            {
 +                self.niri.vertical_wheel_tracker.reset();
-+                let ticks = self.niri.overview_zoom_wheel_tracker.accumulate(vertical_amount_v120.unwrap_or(0.));
++                let ticks = self
++                    .niri
++                    .overview_zoom_wheel_tracker
++                    .accumulate(vertical_amount_v120.unwrap_or(0.));
 +                if ticks != 0 {
 +                    {
 +                        let mut config = self.niri.config.borrow_mut();
-+                        config.overview.zoom = (config.overview.zoom - f64::from(ticks) * 0.05).clamp(0.15, 0.75);
-+                        self.niri.layout.update_config(&config);
++                        config.overview.zoom =
++                            (config.overview.zoom - f64::from(ticks) * 0.05).clamp(0.15, 0.75);
++                        self.niri.layout.animate_overview_zoom(config.overview.zoom);
 +                    }
 +                    self.niri.queue_redraw_all();
 +                }
@@ -54,22 +80,205 @@ index f1ad4932..9d842353 100644
 +            }
 +            self.niri.overview_zoom_wheel_tracker.reset();
              if should_handle {
+                 let horizontal = horizontal_amount_v120.unwrap_or(0.);
+                 let ticks = self.niri.horizontal_wheel_tracker.accumulate(horizontal);
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 5c4dd639..d95657cd 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -31,6 +31,7 @@
+ //! workspace just like any other. Then they come back, reconnect the second monitor, and now we
+ //! don't want an unassuming workspace to end up on it.
+ 
++use std::cell::Cell;
+ use std::collections::HashMap;
+ use std::mem;
+ use std::rc::Rc;
+@@ -364,6 +365,7 @@ pub struct Layout<W: LayoutElement> {
+     overview_open: bool,
+     /// The overview zoom progress.
+     overview_progress: Option<OverviewProgress>,
++    overview_zoom_animation: Option<Animation>,
+     /// Configurable properties of the layout.
+     options: Rc<Options>,
+ }
+@@ -392,6 +394,7 @@ pub struct Options {
+     pub animations: niri_config::Animations,
+     pub gestures: niri_config::Gestures,
+     pub overview: niri_config::Overview,
++    pub overview_zoom_override: Rc<Cell<Option<f64>>>,
+     pub blur: niri_config::Blur,
+     // Debug flags.
+     pub disable_resize_throttling: bool,
+@@ -653,6 +656,7 @@ impl Options {
+             animations: config.animations.clone(),
+             gestures: config.gestures,
+             overview: config.overview,
++            overview_zoom_override: Rc::default(),
+             blur: config.blur,
+             disable_resize_throttling: config.debug.disable_resize_throttling,
+             disable_transactions: config.debug.disable_transactions,
+@@ -703,6 +707,7 @@ impl<W: LayoutElement> Layout<W> {
+             update_render_elements_time: Duration::ZERO,
+             overview_open: false,
+             overview_progress: None,
++            overview_zoom_animation: None,
+             options: Rc::new(options),
+         }
+     }
+@@ -728,6 +733,7 @@ impl<W: LayoutElement> Layout<W> {
+             update_render_elements_time: Duration::ZERO,
+             overview_open: false,
+             overview_progress: None,
++            overview_zoom_animation: None,
+             options: opts,
+         }
+     }
+@@ -2580,8 +2586,44 @@ impl<W: LayoutElement> Layout<W> {
+         }
+     }
+ 
++    /// Retarget from the rendered value; input continues accumulating its target.
++    pub fn animate_overview_zoom(&mut self, target: f64) {
++        let target = target.clamp(0.15, 0.75);
++        let from = self
++            .overview_zoom_animation
++            .as_ref()
++            .map(|a| a.value())
++            .or(self.options.overview_zoom_override.get())
++            .unwrap_or(self.options.overview.zoom);
++        if self.options.animations.off || self.options.animations.overview_open_close.0.off {
++            self.overview_zoom_animation = None;
++            self.options.overview_zoom_override.set(Some(target));
++            return;
++        }
++        self.options.overview_zoom_override.set(Some(from));
++        self.overview_zoom_animation = Some(Animation::ease(
++            self.clock.clone(),
++            from,
++            target,
++            0.,
++            120,
++            crate::animation::Curve::EaseOutCubic,
++        ));
++    }
++
+     pub fn advance_animations(&mut self) {
+         let _span = tracy_client::span!("Layout::advance_animations");
++        if let Some(animation) = &self.overview_zoom_animation {
++            self.options
++                .overview_zoom_override
++                .set(Some(animation.value().clamp(0.15, 0.75)));
++            if animation.is_done() {
++                self.options
++                    .overview_zoom_override
++                    .set(Some(animation.to()));
++                self.overview_zoom_animation = None;
++            }
++        }
+ 
+         let mut dnd_scroll = None;
+         let mut is_dnd = false;
+@@ -2725,6 +2767,9 @@ impl<W: LayoutElement> Layout<W> {
+     }
+ 
+     pub fn are_animations_ongoing(&self, output: Option<&Output>) -> bool {
++        if self.overview_zoom_animation.is_some() {
++            return true;
++        }
+         // Keep advancing animations if we might need to scroll the view.
+         if let Some(dnd) = &self.dnd {
+             if output.is_none_or(|output| *output == dnd.output) {
+@@ -2946,6 +2991,7 @@ impl<W: LayoutElement> Layout<W> {
+     }
+ 
+     pub fn update_config(&mut self, config: &Config) {
++        self.overview_zoom_animation = None;
+         // Update workspace-specific config for all named workspaces.
+         for ws in self.workspaces_mut() {
+             let Some(name) = ws.name() else { continue };
+@@ -5013,7 +5059,11 @@ impl<W: LayoutElement> Default for MonitorSet<W> {
+ 
+ fn compute_overview_zoom(options: &Options, overview_progress: Option<f64>) -> f64 {
+     // Clamp to some sane values.
+-    let zoom = options.overview.zoom.clamp(0.0001, 0.75);
++    let zoom = options
++        .overview_zoom_override
++        .get()
++        .unwrap_or(options.overview.zoom)
++        .clamp(0.0001, 0.75);
+ 
+     if let Some(p) = overview_progress {
+         (1. - p * (1. - zoom)).max(0.0001)
+diff --git a/src/layout/tests/animations.rs b/src/layout/tests/animations.rs
+index 85df548c..b29e0b18 100644
+--- a/src/layout/tests/animations.rs
++++ b/src/layout/tests/animations.rs
+@@ -1097,3 +1097,36 @@ fn width_resize_and_cancel_of_column_to_the_left() {
+     200 × 200 at x:100 y:  0
+     ");
+ }
++
++#[test]
++fn overview_zoom_retargets_without_delay_or_workspace_movement() {
++    let mut clock = crate::animation::Clock::with_time(Duration::ZERO);
++    let mut layout: Layout<TestWindow> = Layout::new(clock.clone(), &Config::default());
++    layout.overview_open = true;
++    layout.overview_progress = Some(super::super::OverviewProgress::Open);
++    layout.animate_overview_zoom(0.6);
++    assert_eq!(layout.overview_zoom(), 0.5);
++    clock.set_unadjusted(Duration::from_millis(16));
++    layout.advance_animations();
++    let rendered = layout.overview_zoom();
++    assert!(rendered > 0.5 && rendered < 0.6);
++    layout.animate_overview_zoom(0.4);
++    assert_eq!(layout.overview_zoom(), rendered);
++    clock.set_unadjusted(Duration::from_millis(80));
++    layout.advance_animations();
++    assert!(layout.overview_zoom() > 0.4 && layout.overview_zoom() < rendered);
++    clock.set_unadjusted(Duration::from_millis(300));
++    layout.advance_animations();
++    assert_eq!(layout.overview_zoom(), 0.4);
++    assert!(layout.overview_zoom_animation.is_none());
++    layout.animate_overview_zoom(0.7);
++    let mut config = Config::default();
++    config.animations.off = true;
++    layout.update_config(&config);
++    assert_eq!(layout.overview_zoom(), 0.5);
++    layout.animate_overview_zoom(0.9);
++    assert_eq!(layout.overview_zoom(), 0.75);
++    assert!(layout.overview_zoom_animation.is_none());
++    layout.overview_progress = None;
++    assert_eq!(layout.overview_zoom(), 1.);
++}
 diff --git a/src/niri.rs b/src/niri.rs
 index ec40e01c..b41b80b1 100644
 --- a/src/niri.rs
 +++ b/src/niri.rs
-@@ -374,2 +374,3 @@ pub struct Niri {
+@@ -372,6 +372,7 @@ pub struct Niri {
+     pub gesture_swipe_3f_cumulative: Option<(f64, f64)>,
+     pub overview_scroll_swipe_gesture: ScrollSwipeGesture,
      pub vertical_wheel_tracker: ScrollTracker,
 +    pub overview_zoom_wheel_tracker: ScrollTracker,
      pub horizontal_wheel_tracker: ScrollTracker,
-@@ -2585,2 +2586,3 @@ impl Niri {
+     pub mods_with_mouse_binds: HashSet<Modifiers>,
+     pub mods_with_wheel_binds: HashSet<Modifiers>,
+@@ -2583,6 +2584,7 @@ impl Niri {
+             gesture_swipe_3f_cumulative: None,
+             overview_scroll_swipe_gesture: ScrollSwipeGesture::new(),
              vertical_wheel_tracker: ScrollTracker::new(120),
 +            overview_zoom_wheel_tracker: ScrollTracker::new(120),
              horizontal_wheel_tracker: ScrollTracker::new(120),
-@@ -3419,3 +3421,5 @@ impl Niri {
+             mods_with_mouse_binds,
+             mods_with_wheel_binds,
+@@ -3417,7 +3419,9 @@ impl Niri {
+                 .or_else(|| layer_toplevel_under(Layer::Bottom))
+                 .or_else(|| layer_toplevel_under(Layer::Background));
          } else {
 -            if self.is_inside_hot_corner(output, pos_within_output) {
 +            // Overlay surfaces such as screenshot selectors must receive the pointer
 +            // before the underlying hot corner can open the overview.
 +            if under.is_none() && self.is_inside_hot_corner(output, pos_within_output) {
                  rv.hot_corner = true;
+                 return rv;
+             }

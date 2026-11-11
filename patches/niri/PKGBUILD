@@ -3,7 +3,7 @@
 # replace the compositor with a build that rejects the Foundation config.
 pkgname=niri-foundation
 pkgver=26.04
-pkgrel=1
+pkgrel=2
 pkgdesc='Niri with Desktop Foundation overview input fixes'
 arch=('x86_64' 'x86_64_v3')
 url='https://github.com/niri-wm/niri'
@@ -20,7 +20,7 @@ makedepends=('git' 'rustup' 'pkgconf' 'clang')
 source=('niri::git+https://github.com/niri-wm/niri.git#commit=8ed0da44d974c32c6877d2f4630c314da0717ecb'
         'overview-ctrl-scroll.patch')
 sha256sums=('SKIP'
-            '873da4c22115e7f4f65fc70efd2cb1f56038e543b71b704271270f87246f6f9c')
+            '31262c362bdc02c8d6e2f9d16efa50732d40ae0dc5ea39f24e85a9a6de25b17f')
 
 prepare() {
   cd "$srcdir/niri"
@@ -36,6 +36,7 @@ build() {
 check() {
   cd "$srcdir/niri"
   cargo +1.98.1 test --locked -p niri-config --lib
+  cargo +1.98.1 test --locked --lib overview_zoom_retargets
   printf 'overview { ctrl-scroll-workspaces true; }\n' > "$srcdir/check.kdl"
   target/release/niri validate -c "$srcdir/check.kdl"
 }
