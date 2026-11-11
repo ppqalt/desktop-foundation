@@ -105,7 +105,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.topMargin: 8
         status: root.replayState.phase === "error" || root.replayState.save_status === "error" ? "error" : "loading"
-        message: status === "error" ? root.replayState.save_error || root.replayState.error || "Recording failed. Retry recording or Instant Replay." : root.replayState.replay_status === "paused" ? "Paused for " + (root.replayState.audio_mode === "none" ? "video-only" : "desktop-only") + " recording. Replay will restart with an empty buffer." : ""
+        message: status === "error" ? root.replayState.save_error || root.replayState.error || "Recording failed" : root.replayState.replay_status === "paused" ? "Paused · " + (root.replayState.audio_mode === "none" ? "video-only" : "desktop-only") + " recording; buffer resets." : ""
         font.pixelSize: Material.type.bodyMedium
     }
 }

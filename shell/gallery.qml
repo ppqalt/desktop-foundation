@@ -85,15 +85,6 @@ ShellRoot {
                     font.family: Theme.typography.family
                     font.pixelSize: Material.type.headlineSmall
                 }
-                Text {
-                    wrapMode: Text.WordWrap
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    text: "Interactive examples use local sample state."
-                    color: Material.colors.on_surface_variant
-                    font.family: Theme.typography.family
-                    font.pixelSize: Material.type.bodyMedium
-                }
                 ControlChoice {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
@@ -164,7 +155,7 @@ ShellRoot {
                         Layout.minimumWidth: 0
                         Text {
                             wrapMode: Text.WordWrap
-                            text: "Reduced motion (preview only)"
+                            text: "Reduced motion"
                             color: Material.colors.on_surface
                             font.family: Theme.typography.family
                             font.pixelSize: Material.type.bodyMedium
@@ -248,12 +239,6 @@ ShellRoot {
                             marked: window.mirroredPreview
                             onClicked: window.mirroredPreview = !window.mirroredPreview
                         }
-                    }
-                    WidgetStatus {
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        status: "loading"
-                        message: "Text size changes shared typography independently of preview zoom; neither changes system settings."
                     }
                 }
                 ControlGroup {
@@ -492,7 +477,7 @@ ShellRoot {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         text: "Wireless headphones"
-                        detail: "Connected · example device"
+                        detail: "Connected"
                         symbol: "headphones"
                         badge: "›"
                     }
@@ -500,7 +485,7 @@ ShellRoot {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         text: "Example Wi-Fi"
-                        detail: "Connected · example network"
+                        detail: "Connected"
                         symbol: "wifi"
                         badge: "›"
                     }
@@ -545,7 +530,7 @@ ShellRoot {
                         onSaveRequested: window.samplePlayhead = window.sampleStart
                     }
                     Text {
-                        text: "Clip selection · sample frames · fixed 5:00 buffer"
+                        text: "Clip selection"
                         color: Material.colors.on_surface_variant
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.bodyMedium
@@ -611,7 +596,6 @@ ShellRoot {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         text: "Open popup example"
-                        detail: "Escape or click outside to close"
                         onClicked: examplePopup.open()
                     }
                     WidgetStatus {
@@ -663,15 +647,6 @@ ShellRoot {
                     color: Material.colors.on_surface
                     font.family: Theme.typography.family
                     font.pixelSize: Material.type.titleMedium
-                }
-                Text {
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    text: "A local preview of the shared popup surface."
-                    color: Material.colors.on_surface_variant
-                    font.family: Theme.typography.family
-                    font.pixelSize: Material.type.bodyMedium
-                    wrapMode: Text.WordWrap
                 }
                 Item {
                     Layout.fillHeight: true

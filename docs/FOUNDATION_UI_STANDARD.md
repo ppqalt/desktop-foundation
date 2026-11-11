@@ -263,6 +263,14 @@ at the top left above the device list, without a title or counter.
 Do not remove useful values, errors, safety notices or action labels to achieve
 visual minimalism; reclaim the empty header space when deleting text.
 
+Foundation is the owner's familiar daily desktop. Assume knowledge of existing
+controls: omit tutorials, obvious action descriptions, implementation/container
+explanations and routine stream counters. Keep action names, device identity,
+actual state, useful values, errors and destructive-action consequences. Do not
+hide operational limitations (such as replay buffer resets) or change accessible
+names to achieve a quieter visual layout. The gallery uses the same production
+wording; explanatory development guidance belongs in documentation.
+
 ## Shared component contract
 
 Use these existing APIs before introducing another control. Extend one common

@@ -16,7 +16,7 @@ ColumnLayout {
     property string checkedAt: ""
     property bool expanded: false
     readonly property int total: (packages?.length ?? 0) + (aur?.length ?? 0) + (flatpak?.length ?? 0)
-    readonly property string status: check.running ? "Checking…" : !checkedAt || packages === null ? "No completed update check" : aur === null || flatpak === null ? "Last check: " + packages.length + " repository updates" : "Last check: " + total + (total === 1 ? " update" : " updates")
+    readonly property string status: check.running ? "Checking…" : !checkedAt || packages === null ? "Not checked" : aur === null || flatpak === null ? "Last check: " + packages.length + " repository updates" : "Last check: " + total + (total === 1 ? " update" : " updates")
     required property string backend
     property string checkError: ""
     readonly property bool busy: check.running || updater.running
@@ -155,7 +155,8 @@ ColumnLayout {
         spacing: 4
         Text {
             Layout.fillWidth: true
-            text: root.checkedAt ? "Checked " + root.checkedAt : "Run a check in Cachy Update to see details."
+            visible: root.checkedAt !== ""
+            text: "Checked " + root.checkedAt
             color: Material.colors.on_surface_variant
             font.family: Theme.typography.family
             font.pixelSize: Material.type.bodyMedium

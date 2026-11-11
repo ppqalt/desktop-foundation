@@ -190,7 +190,7 @@ PopupWindow {
         if (!device)
             return;
         if (!device.adapter?.enabled || device.blocked) {
-            error = device.blocked ? "Device blocked. Open Bluetooth Manager to change this." : "Bluetooth is off. Use the switch to turn it on.";
+            error = device.blocked ? "Device blocked" : "Bluetooth is off";
             return;
         }
         if (device.connected && !forceDisconnect && (!discoveryDone || !supportsControls(device) && !capabilitiesChecked)) {

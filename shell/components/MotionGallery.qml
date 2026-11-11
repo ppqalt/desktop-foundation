@@ -21,14 +21,6 @@ ControlGroup {
         font.family: Theme.typography.family
         font.pixelSize: Material.type.titleMedium
     }
-    Text {
-        Layout.fillWidth: true
-        wrapMode: Text.WordWrap
-        text: "Try rapid reversals, press and hold, or enable reduced motion above. These are the desktop's shared components."
-        color: Material.colors.on_surface_variant
-        font.family: Theme.typography.family
-        font.pixelSize: Material.type.bodyMedium
-    }
     Flow {
         Layout.fillWidth: true
         spacing: 8

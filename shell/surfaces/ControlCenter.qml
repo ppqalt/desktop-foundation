@@ -471,7 +471,6 @@ PanelWindow {
                                 ControlAction {
                                     Layout.fillWidth: true
                                     text: root.networkSummary
-                                    detail: "Network details"
                                     badge: "›"
                                     onClicked: root.navigate("network", this)
                                 }
@@ -594,7 +593,6 @@ PanelWindow {
                                 Layout.fillWidth: true
                                 text: "Application volumes"
                                 badge: "›"
-                                detail: (root.audio.applications ?? []).length + ((root.audio.applications ?? []).length === 1 ? " audio stream" : " audio streams")
                                 onClicked: {
                                     root.navigate("audio", this);
                                     root.refresh();
@@ -706,7 +704,7 @@ PanelWindow {
                             ControlAction {
                                 Layout.fillWidth: true
                                 text: "Wi-Fi"
-                                detail: root.wifiAvailable ? "Wireless radio" : "No Wi-Fi adapter"
+                                detail: root.wifiAvailable ? "" : "No Wi-Fi adapter"
                                 badge: root.wifiAvailable ? root.network.wifi ? "On" : "Off" : "Unavailable"
                                 marked: root.wifiAvailable && (root.network.wifi ?? false)
                                 enabled: root.wifiAvailable && !deviceRequest.running
@@ -742,7 +740,6 @@ PanelWindow {
                             ControlAction {
                                 Layout.fillWidth: true
                                 text: "Network settings"
-                                detail: "Add networks or edit connections"
                                 symbol: "settings"
                                 badge: "›"
                                 enabled: (root.network.editor ?? false) && !deviceRequest.running

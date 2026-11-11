@@ -118,7 +118,8 @@ ColumnLayout {
     }
     Text {
         Layout.fillWidth: true
-        text: root.savedPath ? "Clip saved." : root.session ? "Footage · " + Math.floor(root.session.duration / 60) + ":" + String(Math.floor(root.session.duration) % 60).padStart(2, "0") + " available" : "Select footage from the last five minutes"
+        visible: !!root.savedPath || !!root.session
+        text: root.savedPath ? "Saved" : root.session ? Math.floor(root.session.duration / 60) + ":" + String(Math.floor(root.session.duration) % 60).padStart(2, "0") + " available" : ""
         color: Material.colors.on_surface_variant
         font.family: Theme.typography.family
         font.pixelSize: Material.type.bodyMedium
@@ -127,7 +128,7 @@ ColumnLayout {
     WidgetStatus {
         Layout.fillWidth: true
         status: root.error ? "error" : "loading"
-        message: root.error || (job.running ? "Preparing replay…" : save.running ? "Saving and validating clip…" : !root.session && !root.savedPath && !root.captureAvailable ? "No captured replay is available. Enable Instant Replay to collect footage." : "")
+        message: root.error || (job.running ? "Preparing replay…" : !root.session && !root.savedPath && !root.captureAvailable ? "No replay available" : "")
     }
     Rectangle {
         Layout.fillWidth: true
@@ -210,7 +211,7 @@ ColumnLayout {
     }
     Text {
         visible: !!root.session
-        text: (root.endTime - root.startTime).toFixed(2) + " s selected · desktop + microphone"
+        text: (root.endTime - root.startTime).toFixed(2) + " s selected"
         color: Material.colors.on_surface
         font.family: Theme.typography.family
         font.pixelSize: Material.type.bodyMedium
