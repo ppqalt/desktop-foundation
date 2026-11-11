@@ -14,8 +14,10 @@ ControlButton {
     // Otherwise use M3 one/two-line list items, 56/72dp.
     readonly property real labelHeight: compact ? Material.type.labelLine : Material.type.bodyLargeLine
     readonly property real textHeight: labelHeight + (detail ? Material.type.bodyMediumLine : 0)
+    // Include the real label metrics and the control style's content padding.
+    readonly property real minimumContentWidth: iconOnly ? Material.control.target : Math.ceil(actionLabel.implicitWidth) + 40 + (symbol ? 28 : 0) + badgeLabel.implicitWidth + leftPadding + rightPadding
     implicitHeight: iconOnly ? Material.control.target : Math.max(compact ? Material.control.target : detail ? Material.control.listTwoLine : Material.control.listOneLine, textHeight + (compact ? 16 : 24))
-    implicitWidth: compact ? iconOnly ? Material.control.target : Math.max(Material.control.compactButtonWidth, Material.effectiveTextScale > 1 ? Math.ceil(actionLabel.implicitWidth) + 48 + (symbol ? 28 : 0) + indicator.implicitWidth : 0) : Material.control.listWidth
+    implicitWidth: compact ? iconOnly ? Material.control.target : Math.max(Material.control.compactButtonWidth, Material.effectiveTextScale > 1 ? Math.ceil(actionLabel.implicitWidth) + 48 + (symbol ? 28 : 0) + badgeLabel.implicitWidth : 0) : Material.control.listWidth
     Accessible.name: text + (detail ? ", " + detail : "") + (badge ? ", " + badge : "")
     Accessible.role: toggle ? Accessible.CheckBox : Accessible.Button
     Accessible.checkable: toggle
@@ -68,7 +70,7 @@ ControlButton {
             visible: !root.iconOnly
             anchors.left: parent.left
             anchors.leftMargin: root.symbol ? root.compact ? 44 : 56 : 16
-            anchors.right: indicator.left
+            anchors.right: badgeLabel.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             Text {
@@ -100,7 +102,7 @@ ControlButton {
             }
         }
         Text {
-            id: indicator
+            id: badgeLabel
             anchors.right: parent.right
             anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter

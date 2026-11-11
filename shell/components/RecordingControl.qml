@@ -53,14 +53,8 @@ ColumnLayout {
             compact: true
             marked: root.captureActive
             Layout.alignment: Qt.AlignRight
-            Layout.preferredWidth: Math.max(88, recordLabel.advanceWidth + 40)
+            Layout.preferredWidth: Math.max(88, minimumContentWidth)
             Layout.maximumWidth: Layout.preferredWidth
-            TextMetrics {
-                id: recordLabel
-                font.family: Theme.typography.family
-                font.pixelSize: Material.type.labelLarge
-                text: recordAction.text
-            }
             text: root.phase === "stopping" ? "Saving" : root.startingCapture ? "Cancel" : root.captureActive ? "Stop" : "Record"
             Accessible.name: root.captureActive ? "Stop screen recording" : "Start screen recording"
             enabled: !!root.recording?.prepared && root.compatible && !root.pending && (!root.transitioning || root.startingCapture)

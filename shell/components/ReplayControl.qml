@@ -9,6 +9,7 @@ ColumnLayout {
     property var recording: null
     property bool pending: false
     property bool showHeading: true
+    readonly property bool stacked: width < 320 * Material.effectiveTextScale
     property alias saveButton: saveAction
     readonly property var replayState: recording?.state ?? ({})
     readonly property bool replayEnabled: replayState.replay === true && replayState.phase !== "error"
@@ -43,13 +44,15 @@ ColumnLayout {
         font.pixelSize: Material.type.titleMedium
         font.weight: Font.Medium
     }
-    RowLayout {
+    Item {
         Layout.fillWidth: true
-        Layout.minimumWidth: root.width
-        spacing: 4
+        implicitHeight: root.stacked ? replayLabel.implicitHeight + replayActions.implicitHeight : Math.max(replayLabel.implicitHeight, replayActions.implicitHeight)
         ColumnLayout {
-            Layout.fillWidth: true
-            Layout.minimumWidth: Math.max(0, root.width - 154)
+            id: replayLabel
+            anchors.left: parent.left
+            y: root.stacked ? 0 : (parent.height - height) / 2
+            width: root.stacked ? parent.width : Math.max(0, parent.width - replayActions.width - 4)
+            height: implicitHeight
             spacing: 0
             Text {
                 Layout.fillWidth: true
@@ -69,26 +72,32 @@ ColumnLayout {
                 font.pixelSize: Material.type.bodyMedium
             }
         }
-        ControlAction {
-            id: saveAction
-            objectName: "saveReplay"
-            text: "Save"
-            Accessible.name: "Open replay editor"
-            compact: true
-            Layout.preferredWidth: 82
-            Layout.maximumWidth: 82
-            enabled: !!root.recording?.prepared && root.replayState.replay === true && ["buffering", "ready"].includes(root.replayState.replay_status) && root.replayState.phase !== "error" && root.replayState.save_status !== "saving" && !root.pending
-            onClicked: root.saveRequested()
-        }
-        ControlSwitch {
-            objectName: "replayToggle"
-            Layout.preferredWidth: 64
-            Layout.maximumWidth: 64
-            text: "Instant Replay"
-            marked: root.replayEnabled
-            pending: root.pending
-            enabled: !!root.recording?.prepared && !root.pending && (root.replayEnabled || root.replayState.replay_paused === true || root.replayState.phase === "idle" || root.replayState.phase === "error")
-            onClicked: root.setEnabled(!marked)
+        RowLayout {
+            id: replayActions
+            anchors.right: parent.right
+            y: root.stacked ? replayLabel.implicitHeight : 0
+            spacing: 4
+            ControlAction {
+                id: saveAction
+                objectName: "saveReplay"
+                text: "Save"
+                Accessible.name: "Open replay editor"
+                compact: true
+                Layout.preferredWidth: Math.max(82, minimumContentWidth)
+                Layout.maximumWidth: Layout.preferredWidth
+                enabled: !!root.recording?.prepared && root.replayState.replay === true && ["buffering", "ready"].includes(root.replayState.replay_status) && root.replayState.phase !== "error" && root.replayState.save_status !== "saving" && !root.pending
+                onClicked: root.saveRequested()
+            }
+            ControlSwitch {
+                objectName: "replayToggle"
+                Layout.preferredWidth: 64
+                Layout.maximumWidth: 64
+                text: "Instant Replay"
+                marked: root.replayEnabled
+                pending: root.pending
+                enabled: !!root.recording?.prepared && !root.pending && (root.replayEnabled || root.replayState.replay_paused === true || root.replayState.phase === "idle" || root.replayState.phase === "error")
+                onClicked: root.setEnabled(!marked)
+            }
         }
     }
     WidgetStatus {

@@ -31,7 +31,10 @@ Keyboard activation is owned on press; the corresponding release cannot trigger
 ComboBox's native stale-highlight commit. Focus restoration occurs when dismissal
 begins, so a delayed close cannot steal Tab focus. Plain string and textRole/object
 models both render actual option labels. Narrow recording rows stack their action
-below the selector; the action width follows the rendered label at larger text sizes.
+below the selector. `ControlAction.minimumContentWidth` accounts for the actual
+label, badge and style padding; recording/replay actions use it to avoid clipping
+large text. Replay labels get a full row on narrow layouts, while Save and the
+switch remain together and aligned to the right.
 
 The gallery imports the production components. It must not copy their drawing,
 spring parameters, curves or lifecycle controllers. Its sample state has no
