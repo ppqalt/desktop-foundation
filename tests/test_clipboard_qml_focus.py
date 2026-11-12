@@ -67,11 +67,19 @@ ShellRoot {
         width: 900; height: 760; visible: true
         lifecycle: fixture.lifecycle
         TestCase { id: keyboard; name: "ClipboardInput"; optional: true; when: false }
+        function waitForView() {
+            const ticking = steps.running;
+            steps.stop();
+            keyboard.tryVerify(() => !clip.snapshot().changingView, 1000);
+            if (ticking) steps.start();
+        }
     }
     Timer {
+        id: steps
         interval: 150; running: true; repeat: true
         onTriggered: {
             const s = clip.snapshot();
+            if (s.changingView) return;
             if (fixture.stage === 0) {
                 if (s.loading) return;
                 clip.entered = false;
@@ -136,6 +144,13 @@ ShellRoot {
                 fixture.check(fixture.card().width > 440 && fixture.card().height > 268, "Clear confirmation lost its size morph");
             } else if (fixture.stage === 6) {
                 fixture.check(s.confirmationFocused && !s.inputFocused, "Confirmation has no actual Qt button focus");
+                const entries = clip.fixtureEntries();
+                keyboard.keyClick(Qt.Key_End);
+                fixture.check(clip.clearChoice === 2, "Fixture cannot choose pinned cleanup");
+                clip.fixtureProject(entries.map(entry => Object.assign({}, entry, {pinned: false})));
+                fixture.check(clip.clearChoice === 0 && clip.snapshot().pinnedCount === 0 && clip.snapshot().confirmationFocused, "Removed pinned action did not safely return focus to Cancel");
+                clip.fixtureProject(entries);
+                fixture.check(clip.clearChoice === 0 && clip.snapshot().pinnedCount === 1, "Restoring pins selected a destructive action");
                 if (Quickshell.env("DF_QOL_PREVIEW_DIR") && !fixture.saved) {
                     fixture.saved = true;
                     fixture.capture("clipboard-clear.png");
@@ -165,6 +180,7 @@ ShellRoot {
                 keyboard.keyClick(Qt.Key_Tab, Qt.ShiftModifier);
                 fixture.check(clip.clearSelected, "Files cannot reach Clear history");
                 keyboard.keyClick(Qt.Key_Return);
+                clip.waitForView();
                 keyboard.keyClick(Qt.Key_Right);
                 fixture.check(clip.clearChoice === 1, "Right cannot choose normal cleanup");
                 keyboard.keyClick(Qt.Key_Return);
@@ -174,6 +190,7 @@ ShellRoot {
                 fixture.check(clip.snapshot().pinnedCount === 1, "Normal cleanup removed the pinned item");
                 keyboard.keyClick(Qt.Key_Delete, Qt.ControlModifier | Qt.ShiftModifier);
                 fixture.check(clip.confirmClear && clip.clearChoice === 0, "Reopened cleanup does not start at Cancel");
+                clip.waitForView();
                 keyboard.keyClick(Qt.Key_End);
                 fixture.check(clip.clearChoice === 2 && clip.snapshot().confirmationFocused, "Keyboard cannot reach explicit Clear everything");
                 keyboard.keyClick(Qt.Key_Return);
@@ -198,7 +215,11 @@ class ClipboardFocus(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='foundation-clipboard-focus-') as directory:
             base = Path(directory)
             surface = base / 'shell/surfaces'; surface.mkdir(parents=True)
-            (surface / 'ClipboardFixture.qml').write_text(window_transport((ROOT / 'shell/surfaces/Clipboard.qml').read_text()))
+            source = window_transport((ROOT / 'shell/surfaces/Clipboard.qml').read_text())
+            source = source.replace('    function snapshot(): var {', '''    function fixtureEntries() { return JSON.parse(JSON.stringify(history.entries)); }
+    function fixtureProject(entries) { history.aboutToUpdate(); history.entries = entries; }
+    function snapshot(): var {''', 1)
+            (surface / 'ClipboardFixture.qml').write_text(source)
             install_window_transport(base)
             for name in ('services', 'theme', 'assets'):
                 (base / 'shell' / name).symlink_to(ROOT / 'shell' / name, target_is_directory=True)

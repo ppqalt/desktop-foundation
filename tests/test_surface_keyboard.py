@@ -71,11 +71,15 @@ const Qt = {ControlModifier: 1, ShiftModifier: 2, callLater(fn) {fn();}};
  'Space', 'Tab', 'Backtab', 'Delete', 'PageUp', 'PageDown', 'Home', 'End',
  'A', 'C', '1', '2', '3', '4'].forEach((name, index) => Qt['Key_' + name] = index + 100);
 const context = {
-    Qt, Math, closing: false, confirmClear: false, clearSelected: false,
+    Qt, Math, closing: false, changingView: false, confirmClear: false, clearSelected: false,
     clearChoice: 0, clearChoiceCount: 3, pinnedCount: 1, actionFocus: 0, selectedIdentity: "item-0", selectedViewportOffset: 0, selectionRevision: 0, resultsQuery: "query", viewportRestorePending: false, viewportAtTop: true, viewportIdentity: "", viewportOffset: 0, viewportContentY: 0, selectedIndex: 0, selected: 0, busy: false, error: '',
     results: Array.from({length: 12}, (_, index) => ({id: 'item-' + index, kind: index === 0 ? 'rich' : 'text', mime: 'text/plain', pinned: false})),
     actions: ['suspend', 'logout', 'reboot', 'poweroff'].map(id => ({id})),
     search: {focus: true, text: 'query', forceActiveFocus() {events.push('focus');}},
+    focusClearChoice() {events.push('focus-confirmation');},
+    cancelButton: {visible: true, enabled: true, clicked() {context.acceptClear();}},
+    clearButton: {visible: true, enabled: true, clicked() {context.acceptClear();}},
+    clearAllButton: {visible: true, enabled: true, clicked() {context.acceptClear();}},
     list: {height: 228, contentHeight: 792, originY: 0, contentY: 0, forceLayout() {}, indexAt(x, y) {return Math.floor(y / 66);}, itemAtIndex(index) {return {y: index * 66, height: 62};}, positionViewAtBeginning() {this.contentY = 0;}, positionViewAtIndex(index, mode) {events.push(['visible', index]); if (mode === 2) this.contentY = index * 66;}},
     ListView: {Contain: 1, Beginning: 2}, exitAnimation: {start() {events.push('dismiss');}},
     applications: {launch(entry) {events.push(['launch', entry.id]); return true;}},
@@ -147,7 +151,7 @@ key('Return'); assert.equal(events.filter(e => e[0] === 'launch').length, 1);
 ''')
 
     CLIPBOARD_FUNCTIONS = ['dismiss', 'launchSelected', 'navigate', 'tabNavigate',
-                           'beginClear', 'acceptClear', 'deleteSelected', 'keyboardNavigate',
+                           'beginClear', 'acceptClear', 'activateClearChoice', 'deleteSelected', 'keyboardNavigate',
                            'handleKey', 'plainAvailable', 'pinSelected', 'copyPlainSelected',
                            'rememberSelection', 'captureViewport', 'selectIndex', 'reconcileSelection', 'queryChanged']
 
@@ -202,6 +206,24 @@ assert.equal(context.confirmClear, false); assert.equal(context.closing, false);
         source = (ROOT / 'shell/surfaces/Clipboard.qml').read_text()
         self.assertIn('readOnly: root.confirmClear', source)
         self.assertIn('enabled: !root.confirmClear', source)
+
+    def test_clipboard_transition_blocks_actions_and_escape_cancels(self):
+        self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''
+context.changingView = true;
+context.confirmClear = true;
+for (const name of ['Right', 'Return', 'Tab', 'Space']) key(name);
+key('Delete', Qt.ControlModifier);
+key('Delete', Qt.ControlModifier | Qt.ShiftModifier);
+key('P', Qt.ControlModifier | Qt.ShiftModifier);
+key('C', Qt.ControlModifier | Qt.ShiftModifier);
+context.acceptClear(); context.launchSelected(); context.deleteSelected();
+context.pinSelected(); context.copyPlainSelected();
+assert.equal(context.clearChoice, 0);
+assert.equal(events.some(e => ['clear', 'clear-all', 'copy', 'delete', 'pin', 'copy-plain'].includes(e[0])), false);
+key('Escape');
+assert.equal(context.confirmClear, false);
+assert.equal(context.closing, false);
+''')
 
     def test_clipboard_navigation_stops_at_header_and_last_item(self):
         self.run_policy('Clipboard', self.CLIPBOARD_FUNCTIONS, r'''

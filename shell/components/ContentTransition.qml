@@ -5,7 +5,8 @@ import "../theme"
 // The latest destination wins, and returning to the current page reverses exit.
 QtObject {
     id: root
-    property string currentKey: "overview"
+    property string initialKey: "overview"
+    property string currentKey: initialKey
     property string requestedKey: currentKey
     property string phase: "idle"
     property real opacity: 1
@@ -19,7 +20,10 @@ QtObject {
     function animate(entering): void {
         slide.stop();
         fade.stop();
+        const duration = entering ? Theme.timing.normal : Theme.timing.pageExit;
         phase = entering ? "entering" : "leaving";
+        slide.duration = duration;
+        fade.duration = duration;
         slide.from = offset;
         slide.to = entering ? 0 : -direction * Material.motionDistance.pageExit;
         fade.from = opacity;
@@ -42,24 +46,35 @@ QtObject {
     property SurfaceAnimation slide: SurfaceAnimation {
         target: root
         property: "offset"
-        duration: root.phase === "leaving" ? Theme.timing.pageExit : Theme.timing.normal
     }
     property SurfaceAnimation fade: SurfaceAnimation {
         target: root
         property: "opacity"
-        duration: root.slide.duration
         onFinished: {
             if (root.phase === "leaving") {
                 root.slide.complete();
-                root.currentKey = root.requestedKey;
+                const destination = root.requestedKey;
                 root.offset = root.direction * Material.motionDistance.pageEnter;
                 root.phase = "entering";
-                root.committed(root.currentKey);
-                root.animate(true);
+                root.currentKey = destination;
+                root.committed(destination);
+                // A callback may already have requested another destination or
+                // completed a zero-duration transition. Never overwrite it.
+                if (root.phase === "entering" && root.currentKey === destination && root.requestedKey === destination)
+                    root.animate(true);
             } else if (root.phase === "entering") {
                 root.slide.complete();
                 root.phase = "idle";
                 root.settled();
+            }
+        }
+    }
+    property Connections preferences: Connections {
+        target: Theme
+        function onReducedMotionChanged(): void {
+            if (Theme.reducedMotion && root.running) {
+                root.slide.complete();
+                root.fade.complete();
             }
         }
     }

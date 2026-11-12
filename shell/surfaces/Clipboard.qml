@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
-import Quickshell.Wayland
 import "../components"
 import "../services"
 import "../theme"
@@ -33,30 +33,36 @@ PopupWindow {
     property real viewportOffset: 0
     property real viewportContentY: 0
     property bool confirmClear: false
+    readonly property bool confirmationShown: contentPane.currentKey === "confirmation"
+    readonly property bool changingView: !contentPane.acceptsInput
     property bool clearSelected: false
-    // 0 = copy, 1 = pin, 2 = copy as plain text.
+    // 0 = copy, 1 = pin. Plain-text copy remains a keyboard shortcut.
     property int actionFocus: 0
     // Confirmation always starts on Cancel. Clearing pins is a distinct action.
     property int clearChoice: 0
+    property int confirmationFocusReason: Qt.OtherFocusReason
     readonly property int clearChoiceCount: pinnedCount ? 3 : 2
+    onClearChoiceCountChanged: {
+        if (clearChoice >= clearChoiceCount)
+            clearChoice = 0;
+    }
     onConfirmClearChanged: {
-        if (confirmClear)
-            focusClearChoice();
-        else if (!closing)
-            search.forceActiveFocus();
+        contentPane.request(confirmClear ? "confirmation" : "overview", confirmClear);
     }
     onClearChoiceChanged: {
-        if (confirmClear)
+        if (confirmClear && confirmationShown && !changingView)
             focusClearChoice();
     }
     onResultsChanged: reconcileSelection()
     function focusClearChoice(): void {
+        if (closing || superseded || !confirmationShown || changingView)
+            return;
         if (clearChoice === 1)
-            clearButton.forceActiveFocus();
+            Material.restoreFocus(clearButton, confirmationFocusReason);
         else if (clearChoice === 2)
-            clearAllButton.forceActiveFocus();
+            Material.restoreFocus(clearAllButton, confirmationFocusReason);
         else
-            cancelButton.forceActiveFocus();
+            Material.restoreFocus(cancelButton, confirmationFocusReason);
     }
     function rememberSelection(): void {
         selectedIdentity = results[selectedIndex]?.id || "";
@@ -156,10 +162,10 @@ PopupWindow {
         return !!entry && (entry.kind === "rich" || (!entry.kind && ["text/html", "text/rtf", "application/rtf"].includes(entry.mime)));
     }
     function launchSelected(): void {
-        if (closing || confirmClear || history.busy)
+        if (closing || changingView || confirmClear || history.busy)
             return;
         if (clearSelected)
-            beginClear();
+            beginClear(Qt.TabFocusReason);
         else if (results.length > 0) {
             if (actionFocus === 1)
                 pinSelected();
@@ -237,14 +243,15 @@ PopupWindow {
             rememberSelection();
         }
     }
-    function beginClear(): void {
-        if (closing || confirmClear || history.busy || !history.entries.length)
+    function beginClear(reason = Qt.OtherFocusReason): void {
+        if (closing || changingView || confirmClear || history.busy || !history.entries.length)
             return;
         clearChoice = 0;
+        confirmationFocusReason = reason;
         confirmClear = true;
     }
     function acceptClear(): void {
-        if (!confirmClear || history.busy)
+        if (!confirmClear || changingView || history.busy)
             return;
         if (clearChoice === 1)
             history.request("clear", "");
@@ -254,14 +261,21 @@ PopupWindow {
         clearSelected = false;
         actionFocus = 0;
     }
+    function activateClearChoice(): void {
+        if (!confirmClear || changingView || history.busy)
+            return;
+        const action = [cancelButton, clearButton, clearAllButton][clearChoice];
+        if (action?.visible && action.enabled)
+            action.clicked();
+    }
     function deleteSelected(): void {
-        if (!closing && !confirmClear && !clearSelected && !history.busy && results.length) {
+        if (!closing && !changingView && !confirmClear && !clearSelected && !history.busy && results.length) {
             rememberSelection();
             history.request("delete", results[selectedIndex].id);
         }
     }
     function pinSelected(): void {
-        if (!closing && !confirmClear && !clearSelected && !history.busy && results.length) {
+        if (!closing && !changingView && !confirmClear && !clearSelected && !history.busy && results.length) {
             rememberSelection();
             history.request(results[selectedIndex].pinned ? "unpin" : "pin", results[selectedIndex].id);
         }
@@ -269,7 +283,7 @@ PopupWindow {
     function copyPlainSelected(): void {
         const entry = results[selectedIndex];
         const textual = !!entry && (entry.kind === "text" || plainAvailable() || (!entry.kind && (entry.mime || "").startsWith("text/")));
-        if (!closing && !confirmClear && !clearSelected && !history.busy && textual)
+        if (!closing && !changingView && !confirmClear && !clearSelected && !history.busy && textual)
             history.request("copy-plain", entry.id);
     }
     function handleKey(event: var): void {
@@ -284,11 +298,19 @@ PopupWindow {
             event.accepted = true;
             return;
         }
+        if (root.changingView) {
+            if (event.key === Qt.Key_Escape)
+                root.confirmClear = false;
+            event.accepted = true;
+            return;
+        }
         if (root.confirmClear) {
+            if ([Qt.Key_Tab, Qt.Key_Backtab, Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_A, Qt.Key_W, Qt.Key_D, Qt.Key_S, Qt.Key_Home, Qt.Key_End].includes(event.key))
+                root.confirmationFocusReason = Qt.TabFocusReason;
             if (event.key === Qt.Key_Escape)
                 root.confirmClear = false;
             else if (activate || event.key === Qt.Key_Space)
-                root.acceptClear();
+                root.activateClearChoice();
             else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && shift) || event.key === Qt.Key_Left || event.key === Qt.Key_Up || [Qt.Key_A, Qt.Key_W].includes(event.key))
                 root.clearChoice = (root.clearChoice + root.clearChoiceCount - 1) % root.clearChoiceCount;
             else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Right || event.key === Qt.Key_Down || [Qt.Key_D, Qt.Key_S].includes(event.key))
@@ -298,6 +320,8 @@ PopupWindow {
             else if (event.key === Qt.Key_End)
                 root.clearChoice = root.clearChoiceCount - 1;
             // Modal input never reaches the hidden query or covered items.
+            if (root.confirmClear)
+                root.focusClearChoice();
         } else if (event.key === Qt.Key_Escape) {
             if (root.actionFocus || root.clearSelected) {
                 root.actionFocus = 0;
@@ -309,7 +333,7 @@ PopupWindow {
         else if (plain)
             root.copyPlainSelected();
         else if (remove && shift)
-            root.beginClear();
+            root.beginClear(Qt.TabFocusReason);
         else if (remove)
             root.deleteSelected();
         else if (event.key === Qt.Key_Down || (!editing && event.key === Qt.Key_S) || (event.key === Qt.Key_N && control))
@@ -347,6 +371,9 @@ PopupWindow {
             error: history.error,
             loading: history.loading,
             confirmClear: confirmClear,
+            confirmationShown: confirmationShown,
+            changingView: changingView,
+            viewMoving: contentPane.running,
             clearSelected: clearSelected,
             clearChoice: clearChoice,
             visible: !closing
@@ -366,7 +393,7 @@ PopupWindow {
         id: panel
         Keys.onPressed: event => root.handleKey(event)
         width: Material.popupWidth(root.confirmClear ? 440 : Theme.dimensions.launcherWidth, root.width)
-        height: Material.popupHeight(root.confirmClear ? 268 : 144 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 76 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height)
+        height: Material.popupHeight(root.confirmClear ? Math.max(268, confirmation.implicitHeight + 112) : 144 + (history.loading ? 6 : Math.max(2, Math.min(6, root.results.length))) * 76 + (root.results.slice(0, 6).some(entry => entry.pinned) && root.results.slice(0, 6).some(entry => !entry.pinned) ? 12 : 0), root.height)
         Behavior on width {
             // Initial output geometry uses the shared fade/scale entrance.
             // Keep the existing confirmation morph once opened (or requested).
@@ -389,321 +416,278 @@ PopupWindow {
         MouseArea {
             anchors.fill: parent
         }
-        Rectangle {
-            id: clearAction
-            anchors.right: parent.right
-            anchors.rightMargin: 22
-            y: 6
-            width: 120
-            height: 48
-            visible: !root.confirmClear
-            radius: Theme.radii.small
-            color: root.clearSelected ? Material.colors.secondary_container : (clearActionMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
-            border.width: root.clearSelected ? 1 : 0
-            border.color: Material.colors.outline
-            opacity: history.entries.length && !history.busy ? 1 : 0.45
-            Accessible.role: Accessible.Button
-            Accessible.name: "Clear clipboard history"
-            Accessible.onPressAction: root.beginClear()
-            Text {
-                anchors.centerIn: parent
+        PagePane {
+            id: contentPane
+            objectName: "clipboardPages"
+            anchors.fill: parent
+            focusAllowed: !root.closing && !root.superseded
+            onCancelled: {
+                if (!root.closing && !root.superseded)
+                    search.forceActiveFocus();
+            }
+            onCommitted: key => {
+                if (root.closing || root.superseded)
+                    return;
+                if (key === "confirmation")
+                    root.focusClearChoice();
+                else
+                    search.forceActiveFocus();
+            }
+            ControlAction {
+                id: clearAction
+                objectName: "clipboardOpenClear"
+                anchors.right: parent.right
+                anchors.rightMargin: 22
+                y: 6
+                width: 120
+                height: 48
+                visible: !root.confirmationShown
+                compact: true
+                activeFocusOnTab: false
                 text: "Clear history"
-                color: root.clearSelected ? Material.colors.primary : Material.colors.on_surface_variant
+                marked: root.clearSelected
+                enabled: history.entries.length > 0 && !history.busy
+                Accessible.name: "Clear clipboard history"
+                Keys.priority: Keys.BeforeItem
+                Keys.onPressed: event => root.handleKey(event)
+                onPointerFocused: {
+                    root.clearSelected = true;
+                    root.actionFocus = 0;
+                }
+                onClicked: root.beginClear(visualFocus ? Qt.TabFocusReason : Qt.MouseFocusReason)
+            }
+            Image {
+                visible: !root.confirmationShown
+                x: 28
+                y: 18
+                width: 24
+                height: 24
+                source: "../assets/search.svg"
+            }
+            SearchInput {
+                id: search
+                visible: !root.confirmationShown
+                x: 68
+                y: 11
+                width: panel.width - 244
+                height: 38
+                placeholderText: "Search clipboard…"
+                readOnly: root.confirmClear
+                onActiveFocusChanged: {
+                    if (activeFocus && !root.confirmClear) {
+                        root.actionFocus = 0;
+                        root.clearSelected = false;
+                    }
+                }
+                onTextChanged: root.queryChanged()
+                Keys.priority: Keys.BeforeItem
+                Keys.onPressed: event => root.handleKey(event)
+            }
+            Rectangle {
+                visible: !root.confirmationShown
+                x: 28
+                y: 72
+                width: panel.width - 56
+                height: 1
+                color: Material.colors.outline_variant
+            }
+            ListView {
+                id: list
+                visible: !root.confirmationShown
+                enabled: !root.confirmationShown
+                SelectionWheel {
+                    enabled: !root.confirmClear
+                    onStepped: delta => root.navigate(delta)
+                }
+                x: 16
+                y: 88
+                width: panel.width - 32
+                height: panel.height - 148
+                clip: true
+                spacing: 4
+                model: root.results
+                boundsBehavior: Flickable.StopAtBounds
+                currentIndex: root.selectedIndex
+                onContentYChanged: {
+                    if (!root.viewportRestorePending)
+                        root.rememberSelection();
+                }
+                delegate: Item {
+                    required property var modelData
+                    required property int index
+                    readonly property int groupGap: index > 0 && !modelData.pinned && root.results[index - 1]?.pinned ? 12 : 0
+                    width: list.width
+                    height: row.implicitHeight + groupGap
+                    ClipboardRow {
+                        id: row
+                        y: parent.groupGap
+                        width: parent.width
+                        entry: parent.modelData
+                        selected: !root.clearSelected && parent.index === root.selectedIndex
+                        actionFocus: selected ? root.actionFocus : -1
+                        busy: history.busy
+                        onPinned: {
+                            root.clearSelected = false;
+                            root.selectIndex(parent.index);
+                            root.pinSelected();
+                        }
+
+                        onChosen: {
+                            root.clearSelected = false;
+                            root.actionFocus = 0;
+                            root.selectIndex(parent.index);
+                            root.launchSelected();
+                        }
+                    }
+                }
+            }
+            Column {
+                visible: !root.confirmationShown && root.results.length === 0
+                anchors.centerIn: list
+                spacing: 10
+                WidgetStatus {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    status: history.loading ? "loading" : "empty"
+                    message: history.loading ? "Loading clipboard…" : (history.entries.length ? "No matching items" : "Clipboard empty")
+                    font.pixelSize: Material.type.bodyLarge
+                }
+            }
+            FocusScope {
+                id: confirmation
+                visible: root.confirmationShown
+                x: 28
+                y: 64
+                width: panel.width - 56
+                implicitHeight: confirmationBody.implicitHeight
+                Keys.priority: Keys.BeforeItem
+                Keys.onPressed: event => root.handleKey(event)
+                ColumnLayout {
+                    id: confirmationBody
+                    width: parent.width
+                    spacing: 8
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        text: root.clearChoice === 2 ? "Clear everything?" : "Clear clipboard history?"
+                        color: Material.colors.on_surface
+                        font.family: Theme.typography.family
+                        font.pixelSize: Material.type.titleLarge
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.clearChoice === 2 ? "All saved items, including pins, will be removed." : (root.pinnedCount ? "Unpinned items are removed. Pins stay saved." : "This removes the saved history.")
+                        color: Material.colors.on_surface_variant
+                        font.family: Theme.typography.family
+                        font.pixelSize: Material.type.bodyMedium
+                        wrapMode: Text.WordWrap
+                    }
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columnSpacing: 8
+                        rowSpacing: 4
+                        columns: confirmation.width >= cancelButton.minimumContentWidth + clearButton.minimumContentWidth + (root.pinnedCount ? clearAllButton.minimumContentWidth + 16 : 8) ? root.clearChoiceCount : 1
+                        ControlAction {
+                            id: cancelButton
+                            objectName: "clipboardCancelClear"
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            Layout.minimumWidth: 0
+                            compact: true
+                            text: "Cancel"
+                            marked: root.clearChoice === 0
+                            enabled: !history.busy
+                            Keys.priority: Keys.BeforeItem
+                            Keys.onPressed: event => root.handleKey(event)
+                            onPointerFocused: {
+                                root.confirmationFocusReason = Qt.MouseFocusReason;
+                                root.clearChoice = 0;
+                            }
+                            onClicked: root.confirmClear = false
+                        }
+                        ControlAction {
+                            id: clearButton
+                            objectName: "clipboardClearUnpinned"
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            Layout.minimumWidth: 0
+                            compact: true
+                            destructive: true
+                            text: "Clear history"
+                            marked: root.clearChoice === 1
+                            enabled: !history.busy
+                            Accessible.name: "Clear unpinned history"
+                            Keys.priority: Keys.BeforeItem
+                            Keys.onPressed: event => root.handleKey(event)
+                            onPointerFocused: {
+                                root.confirmationFocusReason = Qt.MouseFocusReason;
+                                root.clearChoice = 1;
+                            }
+                            onClicked: {
+                                root.clearChoice = 1;
+                                root.acceptClear();
+                            }
+                        }
+                        ControlAction {
+                            id: clearAllButton
+                            objectName: "clipboardClearAll"
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            Layout.minimumWidth: 0
+                            visible: root.pinnedCount > 0
+                            compact: true
+                            destructive: true
+                            text: "Clear all"
+                            marked: root.clearChoice === 2
+                            enabled: !history.busy
+                            Accessible.name: "Clear everything including pinned items"
+                            Keys.priority: Keys.BeforeItem
+                            Keys.onPressed: event => root.handleKey(event)
+                            onPointerFocused: {
+                                root.confirmationFocusReason = Qt.MouseFocusReason;
+                                root.clearChoice = 2;
+                            }
+                            onClicked: {
+                                root.clearChoice = 2;
+                                root.acceptClear();
+                            }
+                        }
+                    }
+                }
+            }
+            Text {
+                x: 28
+                y: panel.height - 31
+                width: panel.width - 220
+                visible: !!history.error
+                text: history.error
+                color: Material.colors.error
                 font.family: Theme.typography.family
                 font.pixelSize: 11
+                elide: Text.ElideRight
             }
-            StateLayer {
-                color: Material.colors.primary
-                pressed: clearActionMouse.pressed
-                cornerRadius: Theme.radii.medium
-            }
-            MouseArea {
-                id: clearActionMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                enabled: history.entries.length > 0 && !history.busy && !root.confirmClear
-                onClicked: root.beginClear()
-            }
-        }
-        Image {
-            visible: !root.confirmClear
-            x: 28
-            y: 18
-            width: 24
-            height: 24
-            source: "../assets/search.svg"
-        }
-        SearchInput {
-            id: search
-            visible: !root.confirmClear
-            x: 68
-            y: 11
-            width: panel.width - 244
-            height: 38
-            placeholderText: "Search clipboard…"
-            readOnly: root.confirmClear
-            onActiveFocusChanged: {
-                if (activeFocus && !root.confirmClear) {
-                    root.actionFocus = 0;
-                    root.clearSelected = false;
-                }
-            }
-            onTextChanged: root.queryChanged()
-            Keys.priority: Keys.BeforeItem
-            Keys.onPressed: event => root.handleKey(event)
-        }
-        Rectangle {
-            visible: !root.confirmClear
-            x: 28
-            y: 72
-            width: panel.width - 56
-            height: 1
-            color: Material.colors.outline_variant
-        }
-        ListView {
-            id: list
-            visible: !root.confirmClear
-            enabled: !root.confirmClear
-            SelectionWheel {
-                enabled: !root.confirmClear
-                onStepped: delta => root.navigate(delta)
-            }
-            x: 16
-            y: 88
-            width: panel.width - 32
-            height: panel.height - 148
-            clip: true
-            spacing: 4
-            model: root.results
-            boundsBehavior: Flickable.StopAtBounds
-            currentIndex: root.selectedIndex
-            onContentYChanged: {
-                if (!root.viewportRestorePending)
-                    root.rememberSelection();
-            }
-            delegate: Item {
-                required property var modelData
-                required property int index
-                readonly property int groupGap: index > 0 && !modelData.pinned && root.results[index - 1]?.pinned ? 12 : 0
-                width: list.width
-                height: row.implicitHeight + groupGap
-                ClipboardRow {
-                    id: row
-                    y: parent.groupGap
-                    width: parent.width
-                    entry: parent.modelData
-                    selected: !root.clearSelected && parent.index === root.selectedIndex
-                    actionFocus: selected ? root.actionFocus : -1
-                    busy: history.busy
-                    onPinned: {
-                        root.clearSelected = false;
-                        root.selectIndex(parent.index);
-                        root.pinSelected();
-                    }
-
-                    onChosen: {
-                        root.clearSelected = false;
-                        root.actionFocus = 0;
-                        root.selectIndex(parent.index);
+            SurfaceFooter {
+                x: 28
+                y: panel.height - 48
+                width: panel.width - 56
+                navigationKeys: root.confirmClear ? "Tab" : "↑ ↓ / Tab"
+                navigationLabel: root.confirmClear ? "choose" : "navigate"
+                escapeLabel: root.confirmClear ? "cancel" : "close"
+                hintsVisible: false
+                actionText: history.busy ? "Working…" : ""
+                actionEnabled: !root.closing && !history.busy && (root.confirmClear || root.clearSelected || root.results.length > 0)
+                onActivated: {
+                    if (root.confirmClear)
+                        root.acceptClear();
+                    else
                         root.launchSelected();
-                    }
                 }
-            }
-        }
-        Column {
-            visible: !root.confirmClear && root.results.length === 0
-            anchors.centerIn: list
-            spacing: 10
-            WidgetStatus {
-                anchors.horizontalCenter: parent.horizontalCenter
-                status: history.loading ? "loading" : "empty"
-                message: history.loading ? "Loading clipboard…" : (history.entries.length ? "No matching items" : "Clipboard empty")
-                font.pixelSize: Material.type.bodyLarge
-            }
-        }
-        FocusScope {
-            id: confirmation
-            visible: root.confirmClear
-            x: 28
-            y: 64
-            width: panel.width - 56
-            height: 132
-            Keys.priority: Keys.BeforeItem
-            Keys.onPressed: event => root.handleKey(event)
-            Text {
-                width: parent.width
-                text: root.clearChoice === 2 ? "Clear everything?" : "Clear clipboard history?"
-                color: Material.colors.on_surface
-                font.family: Theme.typography.family
-                font.pixelSize: 19
-            }
-            Text {
-                y: 34
-                width: parent.width
-                text: root.clearChoice === 2 ? "All saved items, including pins, will be removed." : (root.pinnedCount ? "Unpinned items are removed. Pins stay saved." : "This removes the saved history.")
-                color: Material.colors.on_surface_variant
-                font.family: Theme.typography.family
-                font.pixelSize: 12
-                wrapMode: Text.WordWrap
-            }
-            Rectangle {
-                id: cancelButton
-                y: 78
-                width: (parent.width - (root.pinnedCount ? 16 : 12)) / root.clearChoiceCount
-                height: 44
-                radius: Theme.radii.medium
-                color: root.clearChoice === 0 ? Material.colors.secondary_container : (cancelMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
-                border.width: 1
-                border.color: root.clearChoice === 0 ? Material.colors.outline : Material.colors.outline_variant
-                enabled: !history.busy
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: "Cancel"
-                Accessible.onPressAction: root.confirmClear = false
-                Keys.priority: Keys.BeforeItem
-                Keys.onPressed: event => root.handleKey(event)
-                Text {
-                    anchors.centerIn: parent
-                    text: "Cancel"
-                    color: Material.colors.on_surface
-                    font.family: Theme.typography.family
-                    font.pixelSize: 12
+                escapeEnabled: !root.closing && !history.busy
+                onEscapeRequested: {
+                    if (root.confirmClear)
+                        root.confirmClear = false;
+                    else
+                        root.dismiss();
                 }
-                StateLayer {
-                    color: Material.colors.primary
-                    pressed: cancelMouse.pressed
-                    cornerRadius: Theme.radii.medium
-                }
-                MouseArea {
-                    id: cancelMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.confirmClear = false
-                }
-            }
-            Rectangle {
-                id: clearButton
-                x: cancelButton.width + (root.pinnedCount ? 8 : 12)
-                y: 78
-                width: cancelButton.width
-                height: 44
-                radius: Theme.radii.medium
-                color: root.clearChoice === 1 ? Material.colors.secondary_container : (clearMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
-                border.width: 1
-                border.color: root.clearChoice === 1 ? Material.colors.outline : Material.colors.outline_variant
-                enabled: !history.busy
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: "Clear unpinned history"
-                Accessible.onPressAction: {
-                    root.clearChoice = 1;
-                    root.acceptClear();
-                }
-                Keys.priority: Keys.BeforeItem
-                Keys.onPressed: event => root.handleKey(event)
-                Text {
-                    anchors.centerIn: parent
-                    text: "Clear history"
-                    color: Material.colors.error
-                    font.family: Theme.typography.family
-                    font.pixelSize: 12
-                }
-                StateLayer {
-                    color: Material.colors.primary
-                    pressed: clearMouse.pressed
-                    cornerRadius: Theme.radii.medium
-                }
-                MouseArea {
-                    id: clearMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        root.clearChoice = 1;
-                        root.acceptClear();
-                    }
-                }
-            }
-            Rectangle {
-                id: clearAllButton
-                anchors.right: parent.right
-                y: 78
-                width: cancelButton.width
-                height: 44
-                visible: root.pinnedCount > 0
-                radius: Theme.radii.medium
-                color: root.clearChoice === 2 ? Material.colors.secondary_container : (clearAllMouse.containsMouse ? Material.colors.surface_container_high : "transparent")
-                border.width: 1
-                border.color: root.clearChoice === 2 ? Material.colors.outline : Material.colors.outline_variant
-                enabled: !history.busy
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: "Clear everything including pinned items"
-                Accessible.onPressAction: {
-                    root.clearChoice = 2;
-                    root.acceptClear();
-                }
-                Keys.priority: Keys.BeforeItem
-                Keys.onPressed: event => root.handleKey(event)
-                Text {
-                    anchors.centerIn: parent
-                    text: "Clear everything"
-                    color: Material.colors.error
-                    font.family: Theme.typography.family
-                    font.pixelSize: 12
-                }
-                StateLayer {
-                    color: Material.colors.primary
-                    pressed: clearAllMouse.pressed
-                    cornerRadius: Theme.radii.medium
-                }
-                MouseArea {
-                    id: clearAllMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        root.clearChoice = 2;
-                        root.acceptClear();
-                    }
-                }
-            }
-        }
-        Text {
-            x: 28
-            y: panel.height - 31
-            width: panel.width - 220
-            visible: !!history.error
-            text: history.error
-            color: Material.colors.error
-            font.family: Theme.typography.family
-            font.pixelSize: 11
-            elide: Text.ElideRight
-        }
-        SurfaceFooter {
-            x: 28
-            y: panel.height - 48
-            width: panel.width - 56
-            navigationKeys: root.confirmClear ? "Tab" : "↑ ↓ / Tab"
-            navigationLabel: root.confirmClear ? "choose" : "navigate"
-            escapeLabel: root.confirmClear ? "cancel" : "close"
-            hintsVisible: false
-            actionText: history.busy ? "Working…" : ""
-            actionEnabled: !root.closing && !history.busy && (root.confirmClear || root.clearSelected || root.results.length > 0)
-            onActivated: {
-                if (root.confirmClear)
-                    root.acceptClear();
-                else
-                    root.launchSelected();
-            }
-            escapeEnabled: !root.closing && !history.busy
-            onEscapeRequested: {
-                if (root.confirmClear)
-                    root.confirmClear = false;
-                else
-                    root.dismiss();
             }
         }
     }

@@ -300,6 +300,13 @@ ShellRoot {
                             compact: true
                             enabled: false
                         }
+                        ControlAction {
+                            objectName: "gallery-destructive-action"
+                            text: "Delete"
+                            compact: true
+                            destructive: true
+                            onClicked: window.activationCount++
+                        }
                         ControlSwitch {
                             id: sampleSwitch
                             text: "Example switch"

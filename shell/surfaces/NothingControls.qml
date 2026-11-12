@@ -30,7 +30,9 @@ SurfaceCard {
     property bool busy: false
     property bool leaving: false
     property string error: ""
-    property string page: "main"
+    readonly property string page: pages.currentKey
+    readonly property bool pageChanging: !pages.acceptsInput
+    readonly property bool pageMoving: pages.running
     property int mainSelection: 0
     property string mainSelectionKey: ""
     property bool hoverNavigationEnabled: false
@@ -40,7 +42,7 @@ SurfaceCard {
             y: (availableHeight - height) / 2,
             width: width,
             height: height,
-            listY: list.y,
+            listY: pages.y + list.y,
             listHeight: list.height,
             rowHeight: 76
         })
@@ -246,18 +248,33 @@ SurfaceCard {
     }
     function goBack(): void {
         hoverNavigationEnabled = false;
-        if (page !== "main" && ready && !busy) {
-            page = "main";
-            const restored = rows.findIndex(r => r.key + ":" + String(r.extra ?? "") === mainSelectionKey);
-            selected = restored >= 0 ? restored : Math.max(0, Math.min(mainSelection, rows.length - 1));
-            Qt.callLater(() => list.positionViewAtIndex(root.selected, ListView.Contain));
+        if ((page !== "main" || pages.requestedKey !== "main") && ready && !busy) {
+            requestPage("main");
         } else {
             leaving = true;
             stop();
         }
     }
+    function requestPage(destination): void {
+        if (!ready || busy || leaving || !["main", "info", "quality", "find", "fit", "custom", "gestures"].includes(destination))
+            return;
+        hoverNavigationEnabled = false;
+        pages.request(destination, destination !== "main");
+    }
+    function commitPage(destination): void {
+        if (destination === "main") {
+            const restored = rows.findIndex(r => r.key + ":" + String(r.extra ?? "") === mainSelectionKey);
+            selected = restored >= 0 ? restored : Math.max(0, Math.min(mainSelection, rows.length - 1));
+            list.positionViewAtIndex(selected, ListView.Contain);
+        } else {
+            navigateEdge(false);
+            list.positionViewAtBeginning();
+        }
+        if (!leaving && ready)
+            root.forceActiveFocus();
+    }
     function send(value): void {
-        if (!ready || busy || leaving)
+        if (!ready || busy || leaving || pageChanging)
             return;
         if (value.setting && readbackMatches(value, earState))
             return;
@@ -357,7 +374,7 @@ SurfaceCard {
         return pendingCommand?.action === "fit" ? "Testing…" : pendingCommand?.action === "ring" ? "Ringing…" : pendingCommand?.action === "refresh" ? "Refreshing…" : ["sbc:", "sbc_xq:", "aac:", "ldac:"].includes(pendingRowId) ? "Switching…" : "Saving…";
     }
     function activate(index: int, delta: int): void {
-        if (!ready || busy || leaving)
+        if (!ready || busy || leaving || pageChanging)
             return;
         selected = index;
         const entry = rows[index];
@@ -371,9 +388,7 @@ SurfaceCard {
             hoverNavigationEnabled = false;
             mainSelection = selected;
             mainSelectionKey = entry.key + ":" + String(entry.extra ?? "");
-            page = key === "gesturesPage" ? "gestures" : key === "qualityPage" ? "quality" : key;
-            navigateEdge(false);
-            list.positionViewAtBeginning();
+            requestPage(key === "gesturesPage" ? "gestures" : key === "qualityPage" ? "quality" : key);
         } else if (key === "back")
             goBack();
         else if (key === "disconnect") {
@@ -459,6 +474,10 @@ SurfaceCard {
         }
     }
     function handleKey(event): void {
+        if (pageChanging && ![Qt.Key_Escape, Qt.Key_Back].includes(event.key)) {
+            event.accepted = true;
+            return;
+        }
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
             if (!event.isAutoRepeat)
                 goBack();
@@ -668,53 +687,62 @@ SurfaceCard {
             }
         }
     }
-    ListView {
-        id: list
+    PagePane {
+        id: pages
+        objectName: "nothingPages"
+        initialKey: "main"
         x: 16
         y: 128
         width: root.width - 32
         height: root.height - 220
-        clip: true
-        interactive: false
-        spacing: 4
-        // A numeric model keeps delegates and scroll position alive across state updates.
-        model: root.rows.length
+        focusAllowed: !root.leaving
         visible: root.ready
-        opacity: root.ready ? 1 : 0
-        Behavior on opacity {
-            SurfaceAnimation {
-                duration: Theme.timing.normal
+        onCommitted: destination => root.commitPage(destination)
+        ListView {
+            id: list
+            anchors.fill: parent
+            clip: true
+            interactive: false
+            spacing: 4
+            // A numeric model keeps delegates and scroll position alive across state updates.
+            model: root.rows.length
+            visible: root.ready
+            opacity: root.ready ? 1 : 0
+            Behavior on opacity {
+                SurfaceAnimation {
+                    duration: Theme.timing.normal
+                }
             }
-        }
-        SelectionWheel {
-            onStepped: delta => root.navigate(delta)
-        }
-        delegate: ApplicationRow {
-            required property int index
-            width: list.width
-            entry: root.rows[index] || {
-                name: "",
-                genericName: "",
-                key: "none"
+            SelectionWheel {
+                onStepped: delta => root.navigate(delta)
             }
-            iconSource: "../assets/bluetooth-headphones.svg"
-            selected: root.selected === index
-            actionLabel: entry.key === "none" || entry.enabled === false ? "" : ["anc", "eq", "listening", "bass", "customEq", "gestures"].includes(entry.key) ? "‹  ›" : "↵"
-            settingState: entry.settingState ?? null
-            settingValue: entry.settingValue || ""
-            pending: root.busy && root.pendingRowId === entry.key + ":" + String(entry.extra ?? "")
-            pendingLabel: root.pendingLabel()
-            confirmed: root.confirmedRowId === entry.key + ":" + String(entry.extra ?? "")
-            interactive: root.ready && !root.busy && entry.key !== "none" && entry.enabled !== false
-            onHovered: {
-                if (root.hoverNavigationEnabled && index < root.rows.length)
-                    root.selected = index;
+            delegate: ApplicationRow {
+                required property int index
+                width: list.width
+                entry: root.rows[index] || {
+                    name: "",
+                    genericName: "",
+                    key: "none"
+                }
+                iconSource: "../assets/bluetooth-headphones.svg"
+                selected: root.selected === index
+                actionLabel: entry.key === "none" || entry.enabled === false ? "" : ["anc", "eq", "listening", "bass", "customEq", "gestures"].includes(entry.key) ? "‹  ›" : "↵"
+                settingState: entry.settingState ?? null
+                settingValue: entry.settingValue || ""
+                pending: root.busy && root.pendingRowId === entry.key + ":" + String(entry.extra ?? "")
+                pendingLabel: root.pendingLabel()
+                confirmed: root.confirmedRowId === entry.key + ":" + String(entry.extra ?? "")
+                interactive: root.ready && !root.busy && entry.key !== "none" && entry.enabled !== false
+                onHovered: {
+                    if (root.hoverNavigationEnabled && index < root.rows.length)
+                        root.selected = index;
+                }
+                onPointerMoved: {
+                    if (root.hoverNavigationEnabled && index < root.rows.length)
+                        root.selected = index;
+                }
+                onChosen: root.activate(index, 0)
             }
-            onPointerMoved: {
-                if (root.hoverNavigationEnabled && index < root.rows.length)
-                    root.selected = index;
-            }
-            onChosen: root.activate(index, 0)
         }
     }
     WidgetStatus {

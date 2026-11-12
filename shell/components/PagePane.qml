@@ -6,6 +6,9 @@ import "../theme"
 FocusScope {
     id: root
     default property alias contentData: canvas.data
+    property string initialKey: "overview"
+    property bool focusAllowed: true
+    readonly property bool canFocus: focusAllowed && enabled && visible && (root.Window.window?.visible ?? false)
     readonly property string currentKey: motion.currentKey
     readonly property string requestedKey: motion.requestedKey
     readonly property string phase: motion.phase
@@ -14,6 +17,7 @@ FocusScope {
     property var previousFocus: null
     property int previousReason: Qt.OtherFocusReason
     signal committed(string key)
+    signal cancelled
     signal settled
     function request(key, forward = true): void {
         if (key !== currentKey && acceptsInput) {
@@ -30,14 +34,16 @@ FocusScope {
     }
     ContentTransition {
         id: motion
+        initialKey: root.initialKey
         onPhaseChanged: {
-            if (!acceptsInput)
+            if (!acceptsInput && root.canFocus)
                 root.forceActiveFocus(Qt.OtherFocusReason);
         }
         onCommitted: key => root.committed(key)
         onCancelled: {
-            if (root.previousFocus?.enabled && root.previousFocus.visible)
+            if (root.canFocus && root.previousFocus?.enabled && root.previousFocus.visible)
                 Material.restoreFocus(root.previousFocus, root.previousReason);
+            root.cancelled();
         }
         onSettled: root.settled()
     }

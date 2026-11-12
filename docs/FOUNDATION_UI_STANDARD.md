@@ -290,7 +290,7 @@ primitive when multiple callers need the same change.
 | `SurfaceRouter` | `surfaces` adapters (`item/alive/open/dismiss/present`, optional `retiring`; `open(handoff)`), `request(name, showOnly)`; last intent wins; immediate visual handoff with retained backend ownership |
 | `ExternalSurface` | External-renderer lifecycle adapter using `ControlRequest`; serializes native requests, coalesces queued toggle pairs and prioritizes close; no mirrored native state or polling |
 | `ControlButton` | Shared AbstractButton input base: native Space press/release, single Enter/Return activation, no activation auto-repeat, arrows/WASD focus navigation; grid adapters reuse `activateKey` before their spatial navigation |
-| `ControlAction` | Button/list action: `text/detail/badge/symbol`, `marked/toggle/compact/iconOnly`, `clicked`; checked state is backend-owned |
+| `ControlAction` | Button/list action: `text/detail/badge/symbol`, `marked/toggle/compact/iconOnly/destructive`, `clicked`; checked state is backend-owned; destructive uses paired error roles |
 | `ControlSwitch` | Backend-owned `marked`, `pending`, optional menu `selected`, `clicked` request and pointer movement; Material switch geometry, no optimistic checked-state mutation |
 | `ControlChoice` | Keyboard dropdown: `model/textRole/currentIndex`, `activated`; private `menuIndex` until committed |
 | `FoundationSlider` | Shared slider rendering and directional input; `previewRequested(value)` on movement, `commitRequested(value)` once on drag release or per keyboard step; external value updates emit neither. Caller supplies accessible name and owns backend callbacks |

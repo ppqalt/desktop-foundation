@@ -27,8 +27,14 @@ first item: Up or Shift+Tab reaches it, and Down or Tab returns to the first ite
 ## Pins and clearing
 
 Pinned items survive ordinary history eviction and **Clear history**. Use
-**Clear everything** in the clear dialog to include pins. Deleting an individual
+**Clear all** in the clear dialog to include pins. Deleting an individual
 item is explicit and also works for a pin.
+
+The dialog starts on Cancel. Its page transition retains the outgoing contents
+without accepting destructive input, and Escape can cancel an opening dialog.
+Buttons use the shared controls and stack when the available width or text size
+requires it. If pins disappear while Clear all is selected, selection returns to
+Cancel; it must not silently target another action.
 
 Ordinary history retains up to 100 items and 32 MiB. Pins have their own limit of
 100 items and 32 MiB; exceeding that limit reports an error instead of discarding

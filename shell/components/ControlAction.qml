@@ -10,6 +10,7 @@ ControlButton {
     property bool compact: false
     property bool toggle: false
     property bool iconOnly: false
+    property bool destructive: false
     // Compact = M3 small button, 40dp visual in a 48dp input target.
     // Otherwise use M3 one/two-line list items, 56/72dp.
     readonly property real labelHeight: compact ? Material.type.labelLine : Material.type.bodyLargeLine
@@ -22,7 +23,7 @@ ControlButton {
     Accessible.role: toggle ? Accessible.CheckBox : Accessible.Button
     Accessible.checkable: toggle
     Accessible.checked: toggle && marked
-    readonly property color ink: !enabled ? Material.colors.on_surface : compact ? marked ? Material.colors.on_primary : toggle ? Material.colors.on_surface_variant : Material.colors.on_secondary_container : marked ? Material.colors.on_secondary_container : Material.colors.on_surface
+    readonly property color ink: !enabled ? Material.colors.on_surface : destructive ? marked ? Material.colors.on_error : Material.colors.on_error_container : compact ? marked ? Material.colors.on_primary : toggle ? Material.colors.on_surface_variant : Material.colors.on_secondary_container : marked ? Material.colors.on_secondary_container : Material.colors.on_surface
     background: Item {
         Rectangle {
             id: fill
@@ -30,7 +31,7 @@ ControlButton {
             anchors.topMargin: root.compact ? 4 : 0
             anchors.bottomMargin: root.compact ? 4 : 0
             radius: Math.max(0, corner.value)
-            color: !root.enabled ? Material.colors.on_surface : root.compact ? root.marked ? Material.colors.primary : root.toggle ? Material.colors.surface_container : Material.colors.secondary_container : root.marked ? Material.colors.secondary_container : "transparent"
+            color: !root.enabled ? Material.colors.on_surface : root.destructive ? root.marked ? Material.colors.error : Material.colors.error_container : root.compact ? root.marked ? Material.colors.primary : root.toggle ? Material.colors.surface_container : Material.colors.secondary_container : root.marked ? Material.colors.secondary_container : "transparent"
             opacity: root.enabled ? 1 : Material.state.disabledContainer
             SpringValue {
                 id: corner

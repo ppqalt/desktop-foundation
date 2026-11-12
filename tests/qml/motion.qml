@@ -77,6 +77,10 @@ ShellRoot {
             onSettled: completions++
         }
     }
+    Component {
+        id: transitionComponent
+        ContentTransition {}
+    }
     SidebarMotion {
         id: sidebar
         property int completions: 0
@@ -93,9 +97,15 @@ ShellRoot {
         property int commits: 0
         property int completions: 0
         property bool committedWhileVisible: false
+        property string redirect: ""
         onCommitted: {
             commits++;
             committedWhileVisible = committedWhileVisible || opacity !== 0;
+            if (redirect) {
+                const destination = redirect;
+                redirect = "";
+                request(destination);
+            }
         }
         onSettled: completions++
     }
@@ -179,6 +189,61 @@ ShellRoot {
             verify(button.activeFocus && button.visualFocus);
             tryCompare(pane, "phase", "idle", 1000);
             compare(pane.currentKey, "audio");
+        }
+        function test_hidden_page_never_steals_focus_on_exit_or_cancel() {
+            const pane = findChild(gallery, "motion-page-transition");
+            Theme.reducedMotion = true;
+            pane.request("overview", false);
+            Theme.reducedMotion = false;
+            pane.visible = false;
+            action.forceActiveFocus(Qt.TabFocusReason);
+            pane.request("audio");
+            wait(20);
+            verify(action.activeFocus);
+            pane.request("overview", false);
+            verify(action.activeFocus);
+            tryCompare(pane, "phase", "idle", 1000);
+            pane.request("audio");
+            tryCompare(pane, "phase", "idle", 1000);
+            verify(action.activeFocus);
+            pane.visible = true;
+            verify(action.activeFocus);
+        }
+        function test_initial_page_does_not_animate_or_commit() {
+            const pane = createTemporaryObject(transitionComponent, null, {
+                initialKey: "main"
+            });
+            compare(pane.currentKey, "main");
+            compare(pane.requestedKey, "main");
+            compare(pane.phase, "idle");
+            compare(pane.opacity, 1);
+            compare(pane.offset, 0);
+            verify(!pane.running);
+        }
+        function test_page_commit_can_request_another_destination() {
+            Theme.reducedMotion = true;
+            pages.request("overview", false);
+            Theme.reducedMotion = false;
+            const commits = pages.commits;
+            const completions = pages.completions;
+            pages.redirect = "network";
+            pages.request("audio");
+            tryCompare(pages, "currentKey", "network", 1000);
+            tryCompare(pages, "phase", "idle", 1000);
+            compare(pages.requestedKey, "network");
+            compare(pages.opacity, 1);
+            compare(pages.offset, 0);
+            compare(pages.commits, commits + 2);
+            compare(pages.completions, completions + 1);
+            Theme.reducedMotion = true;
+            pages.redirect = "overview";
+            pages.request("audio");
+            compare(pages.currentKey, "overview");
+            compare(pages.phase, "idle");
+            compare(pages.opacity, 1);
+            compare(pages.offset, 0);
+            compare(pages.commits, commits + 4);
+            compare(pages.completions, completions + 2);
         }
         function test_page_handoff_latest_intent_and_reversal() {
             Theme.reducedMotion = true;

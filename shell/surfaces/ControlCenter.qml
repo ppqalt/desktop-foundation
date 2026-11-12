@@ -388,6 +388,7 @@ PanelWindow {
                 id: pageMotion
                 objectName: "controlCenterPageMotion"
                 anchors.fill: parent
+                focusAllowed: !root.closing && !root.superseded
                 onCommitted: destination => root.commitPage(destination)
                 ColumnLayout {
                     anchors.fill: parent

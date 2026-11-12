@@ -53,6 +53,16 @@ ShellRoot {
         check(controls.selected >= 0, "Missing row " + keyName);
     }
     function copy(value) { return JSON.parse(JSON.stringify(value)); }
+    function waitForPage() {
+        const ticking = steps.running;
+        steps.stop();
+        keyboard.tryVerify(() => !controls.pageChanging, 1000);
+        if (ticking) steps.start();
+    }
+    function page(destination) {
+        controls.requestPage(destination);
+        waitForPage();
+    }
     function capture(name, complete) {
         const directory = Quickshell.env("DF_QOL_VISUAL_DIR");
         if (!directory) { if (complete) complete(); return; }
@@ -91,6 +101,7 @@ ShellRoot {
         }
     }
     Timer {
+        id: steps
         interval: 100; repeat: true; running: true
         onTriggered: {
             if (fixture.visualPending)
@@ -149,7 +160,7 @@ ShellRoot {
                 fixture.check(controls.confirmedRowId === "", "Acknowledgement without readback treated as confirmed");
                 controls.error = "";
                 controls.playbackCodecs = ["sbc", "sbc_xq"];
-                controls.page = "quality";
+                fixture.page("quality");
                 fixture.check(controls.rows.filter(row => ["sbc", "sbc_xq", "aac", "ldac"].includes(row.key)).length === 4, "Quality does not expose four host codec choices");
                 fixture.check(!controls.rows.some(row => row.key === "quality"), "Quality still exposes a firmware setting");
                 fixture.select("ldac"); fixture.key(Qt.Key_Return);
@@ -167,10 +178,18 @@ ShellRoot {
                 fixture.check(controls.rows.find(row => row.key === "ldac").settingValue === "", "Firmware preference also shown selected");
                 controls.audio = "AAC";
                 fixture.check(controls.playbackCodec === "aac", "Local readback overrides later native codec");
-                controls.page = "main";
+                fixture.page("main");
                 fixture.select("info"); fixture.key(Qt.Key_Right);
                 fixture.check(controls.page === "main", "Right opens subpage");
                 fixture.key(Qt.Key_Return);
+                fixture.check(controls.page === "main" && controls.pageChanging && !controls.leaving, "Page exit lost parent content or started shutdown");
+                controls.activate(0, 1);
+                fixture.check(!controls.busy, "Fading parent accepts a device write");
+                fixture.key(Qt.Key_Escape);
+                fixture.waitForPage();
+                fixture.check(controls.page === "main" && !controls.leaving, "Early Escape stops the transport instead of reversing navigation");
+                fixture.key(Qt.Key_Return);
+                fixture.waitForPage();
                 fixture.check(controls.page === "info" && controls.rows[controls.selected].key === "none", "Information page skips keyboard-readable details");
                 fixture.key(Qt.Key_End);
                 fixture.check(controls.rows[controls.selected].key === "back", "Information page has no keyboard Back");
@@ -179,7 +198,11 @@ ShellRoot {
                 fixture.key(Qt.Key_Escape, 0, true);
                 fixture.check(controls.page === "info", "Held Escape exits a page");
                 fixture.key(Qt.Key_Escape);
+                fixture.waitForPage();
                 fixture.check(controls.page === "main" && controls.rows[controls.selected].key === "info", "Escape loses parent selection");
+                fixture.check(controls.bounds.listY === 128, "Page wrapper changed reported list coordinates");
+                const rowTop = controls.selected * controls.bounds.rowHeight - controls.scrollY;
+                fixture.check(rowTop >= -1 && rowTop + 72 <= controls.bounds.listHeight + 1, "Back restores selection outside the viewport");
                 sample.settingState = true; sample.settingValue = "Level 3";
                 sample.pending = true;
                 fixture.check(sample.hasSettingState && sample.hasSetting && sample.pending, "Shared row loses switch during pending request");
@@ -188,7 +211,7 @@ ShellRoot {
             } else if ([3, 5, 7, 9].includes(fixture.stage)) {
                 const codec = ["aac", "ldac", "sbc", "sbc_xq"][(fixture.stage - 3) / 2];
                 controls.playbackCodecs = ["sbc", "sbc_xq", "aac", "ldac"];
-                controls.page = "quality";
+                fixture.page("quality");
                 fixture.select(codec);
                 fixture.key(Qt.Key_Left); fixture.key(Qt.Key_Right);
                 fixture.check(!controls.busy, "Adjust key starts " + codec + " playback change");
@@ -201,7 +224,7 @@ ShellRoot {
                 fixture.check(controls.playbackCodec === codec && controls.confirmedRowId === codec + ":", "Host codec is not confirmed: " + codec);
                 fixture.check(controls.rows.find(row => row.key === codec).settingValue === "Selected", "Active PipeWire codec badge missing: " + codec);
                 fixture.check(controls.earState.quality === 2, "Host codec rewrites earbud preference: " + codec);
-                controls.page = "main";
+                fixture.page("main");
             } else if (fixture.stage === 24) {
                 controls.navigateEdge(false);
             } else if (fixture.stage === 25) {

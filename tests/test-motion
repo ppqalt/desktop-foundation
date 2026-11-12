@@ -13,7 +13,7 @@ if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
 	cat "$log" >&2
 	exit 1
 fi
-if ! rg -q MOTION_TEST_OK "$log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|TypeError|ReferenceError|QtQuickTest::fail' "$log"; then
+if ! rg -q MOTION_TEST_OK "$log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|Binding loop|TypeError|ReferenceError|QtQuickTest::fail' "$log"; then
 	cat "$log" >&2
 	exit 1
 fi

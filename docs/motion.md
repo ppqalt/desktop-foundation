@@ -21,9 +21,10 @@ This reference does not introduce an Android runtime dependency or alter 0BSD li
 | Dropdown chevron open/close/reversal | `ControlChoice` + `SpringValue` | Input choices and Recording selector |
 | Centered popup fade/scale and retirement | `PopupCard`, `PopupLifecycle`, `SurfaceAnimation` | Motion preview |
 | Sidebar entry, exit and reversal | `SidebarMotion` | Motion preview |
-| Coordinated page replacement and input ownership | `PagePane` + `ContentTransition` in Control Center | Motion → Open Audio / Back |
+| Coordinated page replacement and input ownership | `PagePane` + `ContentTransition` in Control Center, Clipboard and Nothing settings | Motion → Open Audio / Back |
 | Details expand/collapse | `ContentReveal` in Cachy Update | Motion → Details |
 | Tonal surface/palette changes | `SurfaceColorAnimation` in `SurfaceCard` and `ControlGroup` | Gallery palette selector |
+| Destructive action feedback | `ControlAction.destructive`, including clipboard cleanup actions | Actions → Delete |
 
 Recording and audio device selectors use the shared dropdown's native `flat` variant: its base is transparent
 so the surrounding group's wallpaper-derived surface shows through. It retains
@@ -117,6 +118,28 @@ an uncommitted destination and restore the invoking focus; a later request repla
 the pending destination. Closed/superseded sidebars never restore page focus.
 The gallery uses the same pane and controller, not a parallel fade/slide example.
 
+Clipboard search/history and cleanup confirmation use that same pane. Confirmation
+intent is distinct from the displayed page: the outgoing history stays drawn until
+the handoff, while actions are blocked. Escape can reverse an early open without
+clearing anything; the initial choice is still Cancel. Search focus returns on
+cancel or completion. Cleanup buttons and the header action now use `ControlAction`,
+including shared press geometry, keyboard-only focus rings and semantic destructive
+colors. At narrow widths or large text, confirmation actions stack and the card's
+height adapts. Pin preservation and explicit Clear all remain backend contracts.
+
+Nothing/CMF settings subpages also use `PagePane`, initialized on `main` without a
+startup transition. Opening Information, Quality or another settings page retains
+the outgoing rows, then restores the parent's stable selection on Back. Escape
+before a page commits cancels navigation instead of stopping the device transport.
+Device writes cannot start from outgoing rows. The existing owned process and stop
+handshake remain unchanged. These page effects do not certify physical Bluetooth.
+
+Transition durations are assigned while stopped instead of being bound to phase:
+a nested request from a commit callback must not create duration-binding loops or
+be overwritten by the old completion. Nested requests, including zero-duration
+ones, have one final settled notification. Hidden, disabled or closing panes never
+take or restore focus through the shared controller.
+
 `ContentReveal` animates height, opacity and a small vertical offset together with
 the bounded fast-effects spring. Cachy Update details retain their content until
 collapse settles, but cease accepting input as soon as collapse is requested.
@@ -133,8 +156,8 @@ The goal is feedback on every actionable interaction, with related content motio
 This pass covers shared actions, switches, wallpaper tiles and result rows, Control
 Center navigation, details, popups, menus and sidebars. Text editing, live volume,
 scrubbing and search results remain immediate rather than smoothing user data.
-Bluetooth's device-list/control-session handoff and clipboard's confirmation-body
-replacement still use their existing presentations; they are not yet migrated to
+Bluetooth's top-level device-list/control-session handoff retains its specialized
+resource ownership and existing presentation; its internal settings pages now use
 `PagePane`. Native Kitty/Niri animations remain their own renderer integrations.
 
 ## Verification
@@ -150,6 +173,12 @@ styling, zero-opacity content handoff, latest-destination/reversal, focus return
 section retention and mid-transition reduced motion. Control Center's fixture
 allows the bounded handoff time before inspecting destination controls; its overall
 deadline includes those transitions and the existing post-close idle check.
+Nested commit callbacks must finish without QML binding-loop warnings; the motion
+runner treats those warnings as failures. Clipboard fixtures cover early cancel,
+blocked rapid/destructive input, pointer versus keyboard focus, large text, pins
+and cleanup. The inert Nothing fixture uses the actual page request route rather
+than directly replacing the page property, and checks early Escape and transport
+continuity before testing the normal owned shutdown path.
 
 Offscreen tests establish logic and shared rendering. Private Niri tests establish
 Wayland loading/input/lifecycle behavior. Neither proves frame pacing under gaming
