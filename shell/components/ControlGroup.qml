@@ -12,6 +12,12 @@ Rectangle {
     color: Material.colors.surface_container_low ?? "#1d1b20"
     border.width: 1
     border.color: Qt.alpha(Material.colors.primary, 0.65)
+    Behavior on color {
+        SurfaceColorAnimation {}
+    }
+    Behavior on border.color {
+        SurfaceColorAnimation {}
+    }
     SurfaceOutline {
         cornerRadius: parent.radius
     }

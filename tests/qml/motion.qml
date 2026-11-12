@@ -9,7 +9,15 @@ ShellRoot {
     Window {
         visible: true
         width: 540
-        height: 900
+        height: 1300
+        ControlAction {
+            id: action
+            objectName: "animated-action"
+            x: 200
+            width: 160
+            text: "Open"
+            compact: true
+        }
         ControlSwitch {
             id: toggle
             text: "Motion switch"
@@ -35,7 +43,7 @@ ShellRoot {
         }
         WallpaperGrid {
             id: wallpapers
-            y: 480
+            y: 900
             width: 500
             backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/component-gallery-fixture"
         }
@@ -80,6 +88,17 @@ ShellRoot {
         property int completions: 0
         onFinished: completions++
     }
+    ContentTransition {
+        id: pages
+        property int commits: 0
+        property int completions: 0
+        property bool committedWhileVisible: false
+        onCommitted: {
+            commits++;
+            committedWhileVisible = committedWhileVisible || opacity !== 0;
+        }
+        onSettled: completions++
+    }
     TestCase {
         name: "SharedMotion"
         when: true
@@ -89,6 +108,112 @@ ShellRoot {
         }
         function init() {
             Theme.reducedMotion = false;
+        }
+        function test_button_pointer_keyboard_and_repeated_feedback() {
+            const feedback = action.transform[0];
+            mousePress(action, action.width / 2, action.height / 2);
+            wait(40);
+            verify(feedback.xScale < 1 && feedback.yScale < 1);
+            mouseRelease(action, action.width / 2, action.height / 2);
+            tryCompare(feedback, "compression", 0, 1500);
+            action.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Return);
+            verify(feedback.pulsing); // Return emits clicked without native down.
+            wait(30);
+            keyClick(Qt.Key_Return);
+            tryCompare(feedback, "compression", 0, 1500);
+            keyClick(Qt.Key_Space);
+            Theme.reducedMotion = true;
+            compare(feedback.compression, 0);
+            verify(!feedback.pulsing);
+        }
+        function test_content_reveal_retains_exit_but_blocks_hidden_input() {
+            const button = findChild(gallery, "motion-details-toggle");
+            const reveal = findChild(gallery, "motion-details-reveal");
+            gallery.detailsOpen = false;
+            tryCompare(reveal, "progress", 0, 1000);
+            verify(!reveal.visible);
+            button.clicked();
+            wait(40);
+            verify(reveal.progress > 0 && reveal.progress < 1);
+            verify(reveal.implicitHeight > 0 && reveal.implicitHeight < reveal.contentHeight);
+            const previous = reveal.progress;
+            button.clicked();
+            compare(reveal.progress, previous); // Retarget, never snap to a new origin.
+            verify(reveal.visible && !reveal.children[0].enabled);
+            wait(25);
+            button.clicked();
+            tryCompare(reveal, "progress", 1, 1500);
+            compare(reveal.implicitHeight, reveal.contentHeight);
+            button.clicked();
+            Theme.reducedMotion = true;
+            compare(reveal.progress, 0);
+            verify(!reveal.visible);
+        }
+        function test_page_pane_preserves_button_feedback_and_blocks_second_input() {
+            const pane = findChild(gallery, "motion-page-transition");
+            const button = findChild(gallery, "motion-page-toggle");
+            Theme.reducedMotion = true;
+            pane.request("overview", false);
+            Theme.reducedMotion = false;
+            let activations = 0;
+            const count = () => activations++;
+            button.clicked.connect(count);
+            button.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Return);
+            compare(pane.phase, "leaving");
+            verify(button.enabled); // Do not replace exit colors with disabled gray.
+            wait(20);
+            verify(button.transform[0].compression > 0);
+            mouseClick(button, button.width / 2, button.height / 2);
+            keyClick(Qt.Key_Return);
+            compare(pane.requestedKey, "audio");
+            compare(activations, 1);
+            button.clicked.disconnect(count);
+            tryCompare(pane, "phase", "idle", 1000);
+            compare(pane.currentKey, "audio");
+            verify(button.activeFocus && button.visualFocus);
+            pane.request("overview", false);
+            wait(20);
+            pane.request("audio");
+            verify(button.activeFocus && button.visualFocus);
+            tryCompare(pane, "phase", "idle", 1000);
+            compare(pane.currentKey, "audio");
+        }
+        function test_page_handoff_latest_intent_and_reversal() {
+            Theme.reducedMotion = true;
+            pages.request("overview", false);
+            Theme.reducedMotion = false;
+            const committed = pages.commits;
+            pages.request("audio");
+            verify(!pages.acceptsInput);
+            compare(pages.currentKey, "overview");
+            wait(20);
+            const opacity = pages.opacity;
+            pages.request("overview", false);
+            compare(pages.opacity, opacity);
+            verify(pages.acceptsInput);
+            tryCompare(pages, "phase", "idle", 1000);
+            compare(pages.commits, committed); // Cancelled exit never swaps content.
+            pages.request("audio");
+            pages.request("network");
+            tryCompare(pages, "currentKey", "network", 300);
+            tryCompare(pages, "phase", "idle", 1000);
+            compare(pages.commits, committed + 1);
+            verify(!pages.committedWhileVisible);
+            compare(pages.opacity, 1);
+            compare(pages.offset, 0);
+            const completions = pages.completions;
+            pages.request("audio");
+            wait(15);
+            Theme.reducedMotion = true;
+            compare(pages.currentKey, "audio");
+            compare(pages.phase, "idle");
+            compare(pages.opacity, 1);
+            compare(pages.offset, 0);
+            compare(pages.completions, completions + 1);
+            wait(180);
+            compare(pages.completions, completions + 1);
         }
         function test_rapid_click_pulse_finishes_and_respects_reduced_motion() {
             pulseExample.pressed = true;

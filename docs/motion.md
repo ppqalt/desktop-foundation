@@ -4,7 +4,7 @@ Foundation uses Google's [Material 3 Expressive motion system](https://m3.materi
 Spatial motion may overshoot; effects such as opacity and color must remain bounded.
 The spring constants in `Material.springs` are the unit-mass stiffness and damping
 ratios from Google's [AndroidX ExpressiveMotionTokens v0_14_0](https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/ExpressiveMotionTokens.kt),
-consulted 2026-11-11. They are physical parameters, not millisecond durations.
+consulted 2026-11-11 and rechecked 2026-11-12. They are physical parameters, not millisecond durations.
 This reference does not introduce an Android runtime dependency or alter 0BSD licensing.
 
 ## Shared implementations
@@ -12,6 +12,7 @@ This reference does not introduce an Android runtime dependency or alter 0BSD li
 | Interaction | Production implementation | Gallery coverage |
 | --- | --- | --- |
 | Button press/release shape | `ControlAction` + `SpringValue` | Actions, Motion buttons |
+| Pointer/keyboard activation compression | `ControlButton`, `ApplicationRow`, `ClipboardRow` + `PressFeedback` | Actions, desktop results, wallpapers, Motion controls |
 | Switch state, pressed size and thumb travel | `SwitchIndicator` + `SpringValue`, used by `ControlSwitch` and setting `ApplicationRow` | Actions, Motion switch, desktop results |
 | Slider pressed handle shape | `FoundationSlider` / `FoundationRangeSlider` + `SpringValue` | Input, volume, replay selection |
 | Selected/hovered row colors | `SurfaceColorAnimation` in `ApplicationRow` / `ClipboardRow` | Desktop examples |
@@ -20,11 +21,14 @@ This reference does not introduce an Android runtime dependency or alter 0BSD li
 | Dropdown chevron open/close/reversal | `ControlChoice` + `SpringValue` | Input choices and Recording selector |
 | Centered popup fade/scale and retirement | `PopupCard`, `PopupLifecycle`, `SurfaceAnimation` | Motion preview |
 | Sidebar entry, exit and reversal | `SidebarMotion` | Motion preview |
+| Coordinated page replacement and input ownership | `PagePane` + `ContentTransition` in Control Center | Motion → Open Audio / Back |
+| Details expand/collapse | `ContentReveal` in Cachy Update | Motion → Details |
+| Tonal surface/palette changes | `SurfaceColorAnimation` in `SurfaceCard` and `ControlGroup` | Gallery palette selector |
 
 Recording and audio device selectors use the shared dropdown's native `flat` variant: its base is transparent
 so the surrounding group's wallpaper-derived surface shows through. It retains
-shared hover/pressed feedback and keyboard focus, without a permanent field fill
-or underline. Other filled dropdowns keep their existing appearance. Menu enter/exit uses the same
+shared hover/pressed feedback, quiet underline and keyboard focus, without a permanent field fill.
+Other filled dropdowns keep their existing appearance. Menu enter/exit uses the same
 `MenuPopup` (100ms entry, 120ms exit) everywhere. During exit, the menu retains its
 contents but cannot accept selection. Reopening reverses the current opacity.
 Keyboard activation is owned on press; the corresponding release cannot trigger
@@ -77,6 +81,12 @@ retirement. Reduced motion skips presentation delay, never cleanup or confirmati
 
 `StateLayer` retains a fast tap for 90ms, then animates to the current hover/focus
 state. Rapid clicks replace the active pulse rather than queueing animations.
+`InteractionPulse` owns this latch for both `StateLayer` and `PressFeedback`;
+they do not copy timer policies. Shared buttons compress by two logical pixels
+using the same spatial spring, including Enter activation which has no native
+button-down state. Application/clipboard rows use that implementation too.
+Sliders retain immediate value and pointer geometry, with their existing handle
+shape/state feedback; they must not inherit whole-control compression.
 Reduced motion and disabled controls cancel it immediately. Actions, list rows,
 clipboard pin/confirmation controls, switches, wallpaper tiles, dropdowns/menu
 options, search/time inputs, replay timelines, sliders and footer actions use the
@@ -95,6 +105,38 @@ Outside click closes without execution. Confirmed logout skips Niri's second pro
 busy system actions remain protected. The component emits an action ID; only the
 Power surface invokes the existing system helper. Gallery confirmation is inert.
 
+## Coordinated content changes
+
+Control Center's Audio, Network and Save Replay navigation uses `PagePane`.
+The outgoing page slides/fades for 65ms; content switches exactly at opacity zero,
+then enters over 160ms. The initiating button reacts at once. Pointer/wheel input
+is intercepted during exit and keyboard focus belongs to the pane, rather than
+disabling the outgoing controls and interrupting their feedback or changing their
+colors. Incoming controls can respond immediately during entry. Escape can cancel
+an uncommitted destination and restore the invoking focus; a later request replaces
+the pending destination. Closed/superseded sidebars never restore page focus.
+The gallery uses the same pane and controller, not a parallel fade/slide example.
+
+`ContentReveal` animates height, opacity and a small vertical offset together with
+the bounded fast-effects spring. Cachy Update details retain their content until
+collapse settles, but cease accepting input as soon as collapse is requested.
+Rapid toggling retargets the running spring. Its gallery example uses the same
+component and restores the Details button when closed from within the section.
+
+`Theme.timing.activation`, `pageExit` and `Material.motionDistance` are compact
+Foundation desktop adaptations, not official Google measurements. They add no
+startup animation, delay to backend actions, permanent timer or worker process.
+Reduced motion settles running transitions, including staged page commitment,
+without skipping cleanup, confirmation or validated backend status.
+
+The goal is feedback on every actionable interaction, with related content motion.
+This pass covers shared actions, switches, wallpaper tiles and result rows, Control
+Center navigation, details, popups, menus and sidebars. Text editing, live volume,
+scrubbing and search results remain immediate rather than smoothing user data.
+Bluetooth's device-list/control-session handoff and clipboard's confirmation-body
+replacement still use their existing presentations; they are not yet migrated to
+`PagePane`. Native Kitty/Niri animations remain their own renderer integrations.
+
 ## Verification
 
 `tests/test-motion` exercises the production components and gallery: all six spring
@@ -103,6 +145,11 @@ presets; exact endpoint and one completion; reversal with preserved velocity;
 spring, fade and sidebar entry; held slider dragging; popup reopen and blocked
 retirement; and rapid gallery interaction. `tests/test-material-widgets` includes
 this suite alongside the existing controls, modal handoff and Control Center checks.
+It also checks keyboard/pointer compression, exit input blocking without disabled
+styling, zero-opacity content handoff, latest-destination/reversal, focus return,
+section retention and mid-transition reduced motion. Control Center's fixture
+allows the bounded handoff time before inspecting destination controls; its overall
+deadline includes those transitions and the existing post-close idle check.
 
 Offscreen tests establish logic and shared rendering. Private Niri tests establish
 Wayland loading/input/lifecycle behavior. Neither proves frame pacing under gaming

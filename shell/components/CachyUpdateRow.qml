@@ -149,38 +149,43 @@ ColumnLayout {
         message: root.checkError
         font.pixelSize: Material.type.bodyMedium
     }
-    ColumnLayout {
-        visible: root.expanded
+    ContentReveal {
+        objectName: "updateDetailsReveal"
+        expanded: root.expanded
         Layout.fillWidth: true
-        spacing: 4
-        Text {
-            Layout.fillWidth: true
-            visible: root.checkedAt !== ""
-            text: "Checked " + root.checkedAt
-            color: Material.colors.on_surface_variant
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.bodyMedium
-            wrapMode: Text.Wrap
-        }
-        Text {
-            Layout.fillWidth: true
-            visible: root.checkedAt !== ""
-            text: "Repository: " + (root.packages?.length ?? "—") + "  ·  AUR: " + (root.aur?.length ?? "—") + "  ·  Flatpak: " + (root.flatpak?.length ?? "—")
-            color: Material.colors.on_surface_variant
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.bodyMedium
-            wrapMode: Text.Wrap
-        }
-        Text {
-            objectName: "updateList"
-            Layout.fillWidth: true
-            visible: root.total > 0 && root.checkedAt !== ""
-            text: [...(root.packages ?? []), ...(root.aur ?? []), ...(root.flatpak ?? [])].slice(0, 12).join("\n") + (root.total > 12 ? "\n…" : "")
-            textFormat: Text.PlainText
-            color: Material.colors.on_surface_variant
-            font.family: Theme.typography.family
-            font.pixelSize: Material.type.bodyMedium
-            wrapMode: Text.WrapAnywhere
+        ColumnLayout {
+            width: parent.width
+            height: implicitHeight
+            spacing: 4
+            Text {
+                Layout.fillWidth: true
+                visible: root.checkedAt !== ""
+                text: "Checked " + root.checkedAt
+                color: Material.colors.on_surface_variant
+                font.family: Theme.typography.family
+                font.pixelSize: Material.type.bodyMedium
+                wrapMode: Text.Wrap
+            }
+            Text {
+                Layout.fillWidth: true
+                visible: root.checkedAt !== ""
+                text: "Repository: " + (root.packages?.length ?? "—") + "  ·  AUR: " + (root.aur?.length ?? "—") + "  ·  Flatpak: " + (root.flatpak?.length ?? "—")
+                color: Material.colors.on_surface_variant
+                font.family: Theme.typography.family
+                font.pixelSize: Material.type.bodyMedium
+                wrapMode: Text.Wrap
+            }
+            Text {
+                objectName: "updateList"
+                Layout.fillWidth: true
+                visible: root.total > 0 && root.checkedAt !== ""
+                text: [...(root.packages ?? []), ...(root.aur ?? []), ...(root.flatpak ?? [])].slice(0, 12).join("\n") + (root.total > 12 ? "\n…" : "")
+                textFormat: Text.PlainText
+                color: Material.colors.on_surface_variant
+                font.family: Theme.typography.family
+                font.pixelSize: Material.type.bodyMedium
+                wrapMode: Text.WrapAnywhere
+            }
         }
     }
 }

@@ -104,8 +104,13 @@ PanelWindow {
     function navigate(destination, origin = null): void {
         if (destination !== "overview")
             returnFocus = origin;
-        page = destination;
+        pageMotion.request(destination, destination !== "overview");
+    }
+    function commitPage(destination): void {
+        root.page = destination;
         scroll.contentY = 0;
+        if (root.closing || root.superseded)
+            return;
         if (destination === "overview" && returnFocus && returnFocus.visible)
             Material.restoreFocus(returnFocus, Qt.BacktabFocusReason);
         else
@@ -119,6 +124,9 @@ PanelWindow {
             progress: motion.position,
             contentReady: contentReady,
             moving: motion.running,
+            pageMoving: pageMotion.running,
+            page: root.page,
+            requestedPage: pageMotion.requestedKey,
             width: width,
             height: height,
             busy: busy,
@@ -363,7 +371,7 @@ PanelWindow {
                     event.accepted = true;
                     return;
                 }
-                if (root.page !== "overview")
+                if (root.page !== "overview" || pageMotion.requestedKey !== "overview")
                     root.navigate("overview");
                 else
                     root.dismiss();
@@ -376,378 +384,384 @@ PanelWindow {
                     event.accepted = true;
                 }
             }
-            ColumnLayout {
+            PagePane {
+                id: pageMotion
+                objectName: "controlCenterPageMotion"
                 anchors.fill: parent
-                spacing: 16
-                RowLayout {
-                    visible: root.page !== "overview"
-                    Layout.fillWidth: true
-                    Layout.minimumHeight: 48
-                    spacing: 8
-                    ControlAction {
-                        id: backAction
-                        objectName: "backAction"
-                        visible: root.page !== "overview"
-                        text: "Back"
-                        symbol: "arrow_back"
-                        iconOnly: true
-                        compact: true
-                        Layout.preferredWidth: 48
-                        onClicked: root.navigate("overview")
-                    }
-                    Text {
+                onCommitted: destination => root.commitPage(destination)
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 16
+                    RowLayout {
                         visible: root.page !== "overview"
                         Layout.fillWidth: true
-                        Layout.leftMargin: 12
-                        text: ({
-                                overview: "",
-                                audio: "Audio",
-                                network: "Network",
-                                replay: "Save Replay"
-                            })[root.page]
-                        color: Material.colors.on_surface
-                        font.family: Theme.typography.family
-                        font.pixelSize: Material.type.headlineSmall
-                        lineHeightMode: Text.FixedHeight
-                        lineHeight: Material.type.headlineLine
-                    }
-                }
-                ControlGroup {
-                    Layout.fillWidth: true
-                    visible: root.error !== ""
-                    color: Material.colors.error_container
-                    WidgetStatus {
-                        Layout.fillWidth: true
-                        message: root.error
-                        color: Material.colors.on_error_container
-                        font.pixelSize: Material.type.bodyMedium
-                    }
-                }
-                Flickable {
-                    id: scroll
-                    objectName: "controlCenterScroll"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    contentWidth: width
-                    contentHeight: body.height
-                    boundsBehavior: Flickable.StopAtBounds
-                    WheelHandler {
-                        target: null
-                        onWheel: event => {
-                            if (!event.pixelDelta.y && !event.angleDelta.y) {
-                                event.accepted = false;
-                                return;
-                            }
-                            const delta = event.pixelDelta.y || event.angleDelta.y * 1.25;
-                            scroll.contentY = Math.max(0, Math.min(scroll.contentHeight - scroll.height, scroll.contentY - delta));
-                            event.accepted = true;
+                        Layout.minimumHeight: 48
+                        spacing: 8
+                        ControlAction {
+                            id: backAction
+                            objectName: "backAction"
+                            visible: root.page !== "overview"
+                            text: "Back"
+                            symbol: "arrow_back"
+                            iconOnly: true
+                            compact: true
+                            Layout.preferredWidth: 48
+                            onClicked: root.navigate("overview")
+                        }
+                        Text {
+                            visible: root.page !== "overview"
+                            Layout.fillWidth: true
+                            Layout.leftMargin: 12
+                            text: ({
+                                    overview: "",
+                                    audio: "Audio",
+                                    network: "Network",
+                                    replay: "Save Replay"
+                                })[root.page]
+                            color: Material.colors.on_surface
+                            font.family: Theme.typography.family
+                            font.pixelSize: Material.type.headlineSmall
+                            lineHeightMode: Text.FixedHeight
+                            lineHeight: Material.type.headlineLine
                         }
                     }
-                    ColumnLayout {
-                        id: body
-                        width: scroll.width
-                        height: implicitHeight
-                        spacing: 16
-                        ControlGroup {
+                    ControlGroup {
+                        Layout.fillWidth: true
+                        visible: root.error !== ""
+                        color: Material.colors.error_container
+                        WidgetStatus {
                             Layout.fillWidth: true
-                            visible: root.page === "overview"
-                            RowLayout {
+                            message: root.error
+                            color: Material.colors.on_error_container
+                            font.pixelSize: Material.type.bodyMedium
+                        }
+                    }
+                    Flickable {
+                        id: scroll
+                        objectName: "controlCenterScroll"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        contentWidth: width
+                        contentHeight: body.height
+                        boundsBehavior: Flickable.StopAtBounds
+                        WheelHandler {
+                            target: null
+                            onWheel: event => {
+                                if (!event.pixelDelta.y && !event.angleDelta.y) {
+                                    event.accepted = false;
+                                    return;
+                                }
+                                const delta = event.pixelDelta.y || event.angleDelta.y * 1.25;
+                                scroll.contentY = Math.max(0, Math.min(scroll.contentHeight - scroll.height, scroll.contentY - delta));
+                                event.accepted = true;
+                            }
+                        }
+                        ColumnLayout {
+                            id: body
+                            width: scroll.width
+                            height: implicitHeight
+                            spacing: 16
+                            ControlGroup {
                                 Layout.fillWidth: true
-                                spacing: 16
+                                visible: root.page === "overview"
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 16
+                                    ControlAction {
+                                        id: networkToggle
+                                        objectName: "networkToggle"
+                                        Layout.preferredWidth: 208
+                                        text: "Networking"
+                                        symbol: root.wifiAvailable ? "wifi" : "lan"
+                                        compact: true
+                                        toggle: true
+                                        marked: root.network.enabled ?? false
+                                        badge: marked ? "On" : "Off"
+                                        enabled: (root.network.available ?? false) && !deviceRequest.running
+                                        onClicked: root.enqueue(["networking", root.network.enabled ? "off" : "on"])
+                                    }
+                                    ControlAction {
+                                        Layout.fillWidth: true
+                                        text: root.networkSummary
+                                        badge: "›"
+                                        onClicked: root.navigate("network", this)
+                                    }
+                                }
+                            }
+                            GridLayout {
+                                Layout.fillWidth: true
+                                visible: root.page === "overview" || root.page === "audio"
+                                columns: root.width >= 600 ? 2 : 1
+                                rowSpacing: 16
+                                columnSpacing: 16
+                                ControlGroup {
+                                    Layout.fillWidth: true
+                                    Layout.preferredWidth: 1
+                                    Text {
+                                        visible: root.page === "audio"
+                                        text: "Output"
+                                        color: Material.colors.on_surface
+                                        font.family: Theme.typography.family
+                                        font.pixelSize: Material.type.titleMedium
+                                    }
+                                    ControlAction {
+                                        Layout.fillWidth: true
+                                        visible: root.page === "overview"
+                                        objectName: "audioDetails"
+                                        text: "Output"
+                                        detail: root.output.label || root.output.description || "No output available"
+                                        symbol: "headphones"
+                                        badge: "›"
+                                        onClicked: root.navigate("audio", this)
+                                    }
+                                    ControlChoice {
+                                        id: outputChoice
+                                        flat: true
+                                        objectName: "outputChoice"
+                                        visible: root.page === "audio"
+                                        Layout.fillWidth: true
+                                        model: root.outputs
+                                        textRole: "description"
+                                        currentIndex: root.outputs.findIndex(d => d.name === root.audio.output)
+                                        enabled: root.outputs.length > 0
+                                        Accessible.name: "Audio output"
+                                        displayText: currentIndex < 0 ? "No audio output" : currentText
+                                        onActivated: index => root.enqueue(["select", "output", root.outputs[index].name])
+                                    }
+                                    ControlVolumeRow {
+                                        id: outputLevel
+                                        Layout.fillWidth: true
+                                        showMute: true
+                                        muteName: "outputMute"
+                                        sliderName: "outputVolume"
+                                        accessibleLabel: "Output"
+                                        muteAccessibleLabel: "Volume"
+                                        enabled: root.outputs.length > 0
+                                        muted: root.output.muted ?? false
+                                        volume: root.pendingOutput >= 0 ? root.pendingOutput : root.output.volume ?? 0
+                                        onMuteRequested: root.enqueue(["mute", "output", root.output.muted ? "off" : "on"])
+                                        onVolumeRequested: value => {
+                                            root.pendingOutput = Math.round(value);
+                                            root.enqueue(["volume", "output", String(root.pendingOutput)]);
+                                        }
+                                    }
+                                }
+                                ControlGroup {
+                                    Layout.fillWidth: true
+                                    Layout.preferredWidth: 1
+                                    Text {
+                                        visible: root.page === "audio"
+                                        text: "Microphone"
+                                        color: Material.colors.on_surface
+                                        font.family: Theme.typography.family
+                                        font.pixelSize: Material.type.titleMedium
+                                    }
+                                    ControlAction {
+                                        Layout.fillWidth: true
+                                        visible: root.page === "overview"
+                                        objectName: "inputDetails"
+                                        text: "Microphone"
+                                        detail: root.input.label || root.input.description || "No microphone available"
+                                        symbol: "mic"
+                                        badge: "›"
+                                        onClicked: root.navigate("audio", this)
+                                    }
+                                    ControlChoice {
+                                        id: inputChoice
+                                        flat: true
+                                        objectName: "inputChoice"
+                                        visible: root.page === "audio"
+                                        Layout.fillWidth: true
+                                        model: root.inputs
+                                        textRole: "description"
+                                        currentIndex: root.inputs.findIndex(d => d.name === root.audio.input)
+                                        displayText: currentIndex < 0 ? "No microphone" : currentText
+                                        enabled: root.inputs.length > 0
+                                        Accessible.name: "Microphone device"
+                                        onActivated: index => root.enqueue(["select", "input", root.inputs[index].name])
+                                    }
+                                    ControlVolumeRow {
+                                        id: inputLevel
+                                        Layout.fillWidth: true
+                                        showMute: true
+                                        sliderName: "inputVolume"
+                                        accessibleLabel: "Microphone"
+                                        muteSymbol: "mic"
+                                        mutedSymbol: "mic_off"
+                                        enabled: root.inputs.length > 0
+                                        muted: root.input.muted ?? false
+                                        volume: root.pendingInput >= 0 ? root.pendingInput : root.input.volume ?? 0
+                                        onMuteRequested: root.enqueue(["mute", "input", root.input.muted ? "off" : "on"])
+                                        onVolumeRequested: value => {
+                                            root.pendingInput = Math.round(value);
+                                            root.enqueue(["volume", "input", String(root.pendingInput)]);
+                                        }
+                                    }
+                                }
+                            }
+                            ControlGroup {
+                                Layout.fillWidth: true
+                                visible: root.page === "overview"
                                 ControlAction {
-                                    id: networkToggle
-                                    objectName: "networkToggle"
-                                    Layout.preferredWidth: 208
+                                    objectName: "applicationsToggle"
+                                    Layout.fillWidth: true
+                                    text: "Application volumes"
+                                    badge: "›"
+                                    onClicked: {
+                                        root.navigate("audio", this);
+                                        root.refresh();
+                                    }
+                                }
+                            }
+                            ControlGroup {
+                                Layout.fillWidth: true
+                                visible: root.page === "audio"
+                                Text {
+                                    text: "Application volumes"
+                                    color: Material.colors.on_surface
+                                    font.family: Theme.typography.family
+                                    font.pixelSize: Material.type.titleMedium
+                                }
+                                Repeater {
+                                    model: root.page === "audio" ? applicationModel : null
+                                    delegate: ControlVolumeRow {
+                                        required property string streamSerial
+                                        required property int streamId
+                                        required property string streamName
+                                        required property string streamLabel
+                                        required property real streamVolume
+                                        Layout.fillWidth: true
+                                        label: streamLabel
+                                        accessibleLabel: streamName
+                                        sliderName: "applicationVolume-" + streamSerial
+                                        volume: root.pendingApplications[streamSerial] ?? streamVolume
+                                        onVolumeRequested: value => {
+                                            const values = Object.assign({}, root.pendingApplications);
+                                            values[streamSerial] = Math.round(value);
+                                            root.pendingApplications = values;
+                                            root.enqueue(["stream-volume", String(streamId), streamSerial, String(values[streamSerial])]);
+                                        }
+                                    }
+                                }
+                            }
+                            ControlGroup {
+                                Layout.fillWidth: true
+                                visible: root.page === "overview"
+                                RecordingControl {
+                                    Layout.fillWidth: true
+                                    recording: root.recording
+                                    pending: replayRequest.running
+                                    onRequested: requestArgs => root.requestReplay(requestArgs)
+                                }
+                                ReplayControl {
+                                    id: replayControl
+                                    showHeading: false
+                                    Layout.fillWidth: true
+                                    recording: root.recording
+                                    pending: replayRequest.running
+                                    onSetEnabled: enabled => root.requestReplay(enabled ? "replay-on" : "replay-off")
+                                    onSaveRequested: {
+                                        root.navigate("replay", replayControl.saveButton);
+                                        replayEditor.open();
+                                    }
+                                }
+                            }
+                            ReplayEditor {
+                                id: replayEditor
+                                captureAvailable: root.recording?.state.replay === true && ["buffering", "ready"].includes(root.recording?.state.replay_status) && root.recording?.state.phase !== "error"
+                                Layout.fillWidth: true
+                                visible: root.page === "replay"
+                                backend: root.backend
+                                onSettled: root.finishClose()
+                            }
+                            ControlGroup {
+                                Layout.fillWidth: true
+                                visible: root.page === "overview"
+                                CachyUpdateRow {
+                                    id: cachyUpdate
+                                    onSettled: root.finishClose()
+                                    backend: root.backend
+                                    Layout.fillWidth: true
+                                }
+                            }
+                            ControlGroup {
+                                Layout.fillWidth: true
+                                visible: root.page === "overview"
+                                WallpaperGrid {
+                                    id: wallpapers
+                                    Layout.fillWidth: true
+                                    active: !root.closing && root.contentReady && !motion.running && visible
+                                    backend: root.backend
+                                    viewport: scroll
+                                    onStarted: root.error = ""
+                                    onFailed: message => root.error = message
+                                    onSettled: {
+                                        root.finishClose();
+                                        root.refresh();
+                                    }
+                                }
+                            }
+                            ControlGroup {
+                                Layout.fillWidth: true
+                                visible: root.page === "network"
+                                ControlAction {
+                                    Layout.fillWidth: true
                                     text: "Networking"
-                                    symbol: root.wifiAvailable ? "wifi" : "lan"
+                                    symbol: "lan"
                                     compact: true
                                     toggle: true
+                                    badge: root.network.enabled ? "On" : "Off"
                                     marked: root.network.enabled ?? false
-                                    badge: marked ? "On" : "Off"
                                     enabled: (root.network.available ?? false) && !deviceRequest.running
                                     onClicked: root.enqueue(["networking", root.network.enabled ? "off" : "on"])
                                 }
                                 ControlAction {
                                     Layout.fillWidth: true
-                                    text: root.networkSummary
-                                    badge: "›"
-                                    onClicked: root.navigate("network", this)
+                                    text: "Wi-Fi"
+                                    detail: root.wifiAvailable ? "" : "No Wi-Fi adapter"
+                                    badge: root.wifiAvailable ? root.network.wifi ? "On" : "Off" : "Unavailable"
+                                    marked: root.wifiAvailable && (root.network.wifi ?? false)
+                                    enabled: root.wifiAvailable && !deviceRequest.running
+                                    onClicked: root.enqueue(["wifi", root.network.wifi ? "off" : "on"])
                                 }
-                            }
-                        }
-                        GridLayout {
-                            Layout.fillWidth: true
-                            visible: root.page === "overview" || root.page === "audio"
-                            columns: root.width >= 600 ? 2 : 1
-                            rowSpacing: 16
-                            columnSpacing: 16
-                            ControlGroup {
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                Text {
-                                    visible: root.page === "audio"
-                                    text: "Output"
-                                    color: Material.colors.on_surface
-                                    font.family: Theme.typography.family
-                                    font.pixelSize: Material.type.titleMedium
+                                Repeater {
+                                    model: root.network.devices ?? []
+                                    delegate: ControlAction {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        text: modelData.kind === "ethernet" ? "Ethernet" : modelData.kind === "wifi" ? "Wi-Fi" : modelData.name
+                                        detail: modelData.name + " · " + (modelData.connection && modelData.connection !== "--" ? modelData.connection : modelData.state)
+                                        badge: modelData.state === "connected" ? "Disconnect" : "Connect"
+                                        marked: modelData.state === "connected"
+                                        enabled: (root.network.enabled ?? false) && !deviceRequest.running
+                                        onClicked: root.enqueue(["device", modelData.state === "connected" ? "disconnect" : "connect", modelData.name])
+                                    }
+                                }
+                                Repeater {
+                                    // Active non-VPN profiles already appear as connected devices.
+                                    model: (root.network.connections ?? []).filter(c => !c.active || c.kind === "vpn" || c.kind === "wireguard")
+                                    delegate: ControlAction {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        text: modelData.name
+                                        detail: modelData.kind
+                                        badge: modelData.active ? "Disconnect" : "Connect"
+                                        marked: modelData.active
+                                        enabled: (root.network.enabled ?? false) && !deviceRequest.running
+                                        onClicked: root.enqueue(["connection", modelData.active ? "down" : "up", modelData.uuid])
+                                    }
                                 }
                                 ControlAction {
                                     Layout.fillWidth: true
-                                    visible: root.page === "overview"
-                                    objectName: "audioDetails"
-                                    text: "Output"
-                                    detail: root.output.label || root.output.description || "No output available"
-                                    symbol: "headphones"
+                                    text: "Network settings"
+                                    symbol: "settings"
                                     badge: "›"
-                                    onClicked: root.navigate("audio", this)
-                                }
-                                ControlChoice {
-                                    id: outputChoice
-                                    flat: true
-                                    objectName: "outputChoice"
-                                    visible: root.page === "audio"
-                                    Layout.fillWidth: true
-                                    model: root.outputs
-                                    textRole: "description"
-                                    currentIndex: root.outputs.findIndex(d => d.name === root.audio.output)
-                                    enabled: root.outputs.length > 0
-                                    Accessible.name: "Audio output"
-                                    displayText: currentIndex < 0 ? "No audio output" : currentText
-                                    onActivated: index => root.enqueue(["select", "output", root.outputs[index].name])
-                                }
-                                ControlVolumeRow {
-                                    id: outputLevel
-                                    Layout.fillWidth: true
-                                    showMute: true
-                                    muteName: "outputMute"
-                                    sliderName: "outputVolume"
-                                    accessibleLabel: "Output"
-                                    muteAccessibleLabel: "Volume"
-                                    enabled: root.outputs.length > 0
-                                    muted: root.output.muted ?? false
-                                    volume: root.pendingOutput >= 0 ? root.pendingOutput : root.output.volume ?? 0
-                                    onMuteRequested: root.enqueue(["mute", "output", root.output.muted ? "off" : "on"])
-                                    onVolumeRequested: value => {
-                                        root.pendingOutput = Math.round(value);
-                                        root.enqueue(["volume", "output", String(root.pendingOutput)]);
+                                    enabled: (root.network.editor ?? false) && !deviceRequest.running
+                                    onClicked: {
+                                        root.enqueue(["network-settings"]);
+                                        root.dismiss();
                                     }
-                                }
-                            }
-                            ControlGroup {
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                Text {
-                                    visible: root.page === "audio"
-                                    text: "Microphone"
-                                    color: Material.colors.on_surface
-                                    font.family: Theme.typography.family
-                                    font.pixelSize: Material.type.titleMedium
-                                }
-                                ControlAction {
-                                    Layout.fillWidth: true
-                                    visible: root.page === "overview"
-                                    objectName: "inputDetails"
-                                    text: "Microphone"
-                                    detail: root.input.label || root.input.description || "No microphone available"
-                                    symbol: "mic"
-                                    badge: "›"
-                                    onClicked: root.navigate("audio", this)
-                                }
-                                ControlChoice {
-                                    id: inputChoice
-                                    flat: true
-                                    objectName: "inputChoice"
-                                    visible: root.page === "audio"
-                                    Layout.fillWidth: true
-                                    model: root.inputs
-                                    textRole: "description"
-                                    currentIndex: root.inputs.findIndex(d => d.name === root.audio.input)
-                                    displayText: currentIndex < 0 ? "No microphone" : currentText
-                                    enabled: root.inputs.length > 0
-                                    Accessible.name: "Microphone device"
-                                    onActivated: index => root.enqueue(["select", "input", root.inputs[index].name])
-                                }
-                                ControlVolumeRow {
-                                    id: inputLevel
-                                    Layout.fillWidth: true
-                                    showMute: true
-                                    sliderName: "inputVolume"
-                                    accessibleLabel: "Microphone"
-                                    muteSymbol: "mic"
-                                    mutedSymbol: "mic_off"
-                                    enabled: root.inputs.length > 0
-                                    muted: root.input.muted ?? false
-                                    volume: root.pendingInput >= 0 ? root.pendingInput : root.input.volume ?? 0
-                                    onMuteRequested: root.enqueue(["mute", "input", root.input.muted ? "off" : "on"])
-                                    onVolumeRequested: value => {
-                                        root.pendingInput = Math.round(value);
-                                        root.enqueue(["volume", "input", String(root.pendingInput)]);
-                                    }
-                                }
-                            }
-                        }
-                        ControlGroup {
-                            Layout.fillWidth: true
-                            visible: root.page === "overview"
-                            ControlAction {
-                                objectName: "applicationsToggle"
-                                Layout.fillWidth: true
-                                text: "Application volumes"
-                                badge: "›"
-                                onClicked: {
-                                    root.navigate("audio", this);
-                                    root.refresh();
-                                }
-                            }
-                        }
-                        ControlGroup {
-                            Layout.fillWidth: true
-                            visible: root.page === "audio"
-                            Text {
-                                text: "Application volumes"
-                                color: Material.colors.on_surface
-                                font.family: Theme.typography.family
-                                font.pixelSize: Material.type.titleMedium
-                            }
-                            Repeater {
-                                model: root.page === "audio" ? applicationModel : null
-                                delegate: ControlVolumeRow {
-                                    required property string streamSerial
-                                    required property int streamId
-                                    required property string streamName
-                                    required property string streamLabel
-                                    required property real streamVolume
-                                    Layout.fillWidth: true
-                                    label: streamLabel
-                                    accessibleLabel: streamName
-                                    sliderName: "applicationVolume-" + streamSerial
-                                    volume: root.pendingApplications[streamSerial] ?? streamVolume
-                                    onVolumeRequested: value => {
-                                        const values = Object.assign({}, root.pendingApplications);
-                                        values[streamSerial] = Math.round(value);
-                                        root.pendingApplications = values;
-                                        root.enqueue(["stream-volume", String(streamId), streamSerial, String(values[streamSerial])]);
-                                    }
-                                }
-                            }
-                        }
-                        ControlGroup {
-                            Layout.fillWidth: true
-                            visible: root.page === "overview"
-                            RecordingControl {
-                                Layout.fillWidth: true
-                                recording: root.recording
-                                pending: replayRequest.running
-                                onRequested: requestArgs => root.requestReplay(requestArgs)
-                            }
-                            ReplayControl {
-                                id: replayControl
-                                showHeading: false
-                                Layout.fillWidth: true
-                                recording: root.recording
-                                pending: replayRequest.running
-                                onSetEnabled: enabled => root.requestReplay(enabled ? "replay-on" : "replay-off")
-                                onSaveRequested: {
-                                    root.navigate("replay", replayControl.saveButton);
-                                    replayEditor.open();
-                                }
-                            }
-                        }
-                        ReplayEditor {
-                            id: replayEditor
-                            captureAvailable: root.recording?.state.replay === true && ["buffering", "ready"].includes(root.recording?.state.replay_status) && root.recording?.state.phase !== "error"
-                            Layout.fillWidth: true
-                            visible: root.page === "replay"
-                            backend: root.backend
-                            onSettled: root.finishClose()
-                        }
-                        ControlGroup {
-                            Layout.fillWidth: true
-                            visible: root.page === "overview"
-                            CachyUpdateRow {
-                                id: cachyUpdate
-                                onSettled: root.finishClose()
-                                backend: root.backend
-                                Layout.fillWidth: true
-                            }
-                        }
-                        ControlGroup {
-                            Layout.fillWidth: true
-                            visible: root.page === "overview"
-                            WallpaperGrid {
-                                id: wallpapers
-                                Layout.fillWidth: true
-                                active: !root.closing && root.contentReady && !motion.running && visible
-                                backend: root.backend
-                                viewport: scroll
-                                onStarted: root.error = ""
-                                onFailed: message => root.error = message
-                                onSettled: {
-                                    root.finishClose();
-                                    root.refresh();
-                                }
-                            }
-                        }
-                        ControlGroup {
-                            Layout.fillWidth: true
-                            visible: root.page === "network"
-                            ControlAction {
-                                Layout.fillWidth: true
-                                text: "Networking"
-                                symbol: "lan"
-                                compact: true
-                                toggle: true
-                                badge: root.network.enabled ? "On" : "Off"
-                                marked: root.network.enabled ?? false
-                                enabled: (root.network.available ?? false) && !deviceRequest.running
-                                onClicked: root.enqueue(["networking", root.network.enabled ? "off" : "on"])
-                            }
-                            ControlAction {
-                                Layout.fillWidth: true
-                                text: "Wi-Fi"
-                                detail: root.wifiAvailable ? "" : "No Wi-Fi adapter"
-                                badge: root.wifiAvailable ? root.network.wifi ? "On" : "Off" : "Unavailable"
-                                marked: root.wifiAvailable && (root.network.wifi ?? false)
-                                enabled: root.wifiAvailable && !deviceRequest.running
-                                onClicked: root.enqueue(["wifi", root.network.wifi ? "off" : "on"])
-                            }
-                            Repeater {
-                                model: root.network.devices ?? []
-                                delegate: ControlAction {
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    text: modelData.kind === "ethernet" ? "Ethernet" : modelData.kind === "wifi" ? "Wi-Fi" : modelData.name
-                                    detail: modelData.name + " · " + (modelData.connection && modelData.connection !== "--" ? modelData.connection : modelData.state)
-                                    badge: modelData.state === "connected" ? "Disconnect" : "Connect"
-                                    marked: modelData.state === "connected"
-                                    enabled: (root.network.enabled ?? false) && !deviceRequest.running
-                                    onClicked: root.enqueue(["device", modelData.state === "connected" ? "disconnect" : "connect", modelData.name])
-                                }
-                            }
-                            Repeater {
-                                // Active non-VPN profiles already appear as connected devices.
-                                model: (root.network.connections ?? []).filter(c => !c.active || c.kind === "vpn" || c.kind === "wireguard")
-                                delegate: ControlAction {
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    text: modelData.name
-                                    detail: modelData.kind
-                                    badge: modelData.active ? "Disconnect" : "Connect"
-                                    marked: modelData.active
-                                    enabled: (root.network.enabled ?? false) && !deviceRequest.running
-                                    onClicked: root.enqueue(["connection", modelData.active ? "down" : "up", modelData.uuid])
-                                }
-                            }
-                            ControlAction {
-                                Layout.fillWidth: true
-                                text: "Network settings"
-                                symbol: "settings"
-                                badge: "›"
-                                enabled: (root.network.editor ?? false) && !deviceRequest.running
-                                onClicked: {
-                                    root.enqueue(["network-settings"]);
-                                    root.dismiss();
                                 }
                             }
                         }

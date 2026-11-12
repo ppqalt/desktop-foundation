@@ -393,7 +393,12 @@ has one current view and one destination; new input replaces an obsolete intent.
 bounded effect/legacy durations, and `Material.springs` holds physical presets.
 `SpringValue` retains position and velocity when retargeted. All new component
 motion must have a production-component gallery example. `Theme.reducedMotion`
-reduces timed presentation to zero and settles running springs immediately.
+settles in-flight effects as well as spatial motion. Use `PagePane` for staged
+internal-page slides/fades and input ownership, `ContentReveal` for collapsible
+sections, and `PressFeedback`/`InteractionPulse` for activation feedback. Their
+production gallery examples must use these same components. Outgoing pages block
+input without changing controls to disabled styling or cutting off press feedback.
+Reduced motion reduces timed presentation to zero and settles running springs immediately.
 The native `ui-preferences` command reads `enable-animations` on demand; the shell
 refreshes it at startup and on surface requests, without a preference-watcher
 process. `DF_REDUCED_MOTION=1` is an explicit override. Unknown preference reads

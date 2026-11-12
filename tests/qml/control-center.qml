@@ -14,6 +14,7 @@ ShellRoot {
     property bool updateCacheChecked: false
     property bool updateLaunchChecked: false
     property bool editorChecked: false
+    property bool rapidNavigationChecked: false
     Process {
         id: updateWriter
         command: ["/bin/sh", "-c", "printf 'repo-three 1 -> 2\\n' >> \"$XDG_STATE_HOME/arch-update/last_updates_check_packages\""]
@@ -103,6 +104,25 @@ ShellRoot {
             }
             function key(key, modifiers) {
                 keys.keyClick(key, modifiers || Qt.NoModifier);
+                waitForPage();
+            }
+            function waitForPage() {
+                const ticking = test.running;
+                test.stop();
+                keys.tryVerify(() => !panel.snapshot().pageMoving, 1000);
+                if (ticking)
+                    test.start();
+            }
+            function interruptPage() {
+                test.stop();
+                panel.navigate("audio");
+                keys.wait(20);
+                fixture.check(panel.snapshot().requestedPage === "audio" && panel.page === "overview", "page replacement did not retain outgoing content");
+                key(Qt.Key_Escape);
+                fixture.check(panel.page === "overview" && !panel.closing, "Escape during page exit dismissed the sidebar");
+                keys.wait(100);
+                fixture.check(panel.page === "overview", "obsolete navigation committed after cancellation");
+                test.start();
             }
         }
     }
@@ -120,6 +140,10 @@ ShellRoot {
             } else if (fixture.stage === 1) {
                 if (panel.snapshot().moving || !panel.stateData.audio)
                     return;
+                if (!fixture.rapidNavigationChecked) {
+                    fixture.rapidNavigationChecked = true;
+                    panel.interruptPage();
+                }
                 const replayToggle = find(panel.contentItem, "replayToggle");
                 const updateAction = find(panel.contentItem, "cachyUpdateShortcut");
                 if (replayToggle && updateAction) {
@@ -146,7 +170,8 @@ ShellRoot {
                     fixture.check(find(panel.contentItem, "updateList").visible, "update details did not expand");
                     fixture.check(find(panel.contentItem, "updateList").text.includes("aur-one"), "cached update details missing");
                     updateDetails.clicked();
-                    fixture.check(!find(panel.contentItem, "updateList").visible, "update details did not collapse");
+                    fixture.check(!find(panel.contentItem, "updateDetailsReveal").expanded, "update details did not request collapse");
+                    fixture.check(!find(panel.contentItem, "updateDetailsReveal").children[0].enabled, "collapsing update details still accept input");
                     updateAction.clicked();
                     fixture.updateCacheChecked = true;
                     updateWriter.running = true;
@@ -156,6 +181,7 @@ ShellRoot {
                     return;
                 if (!fixture.editorChecked) {
                     find(panel.contentItem, "saveReplay").clicked();
+                    panel.waitForPage();
                     fixture.check(panel.page === "replay", "Save Replay did not open the editor");
                     fixture.editorChecked = true;
                     return;
@@ -167,6 +193,7 @@ ShellRoot {
                     fixture.check(editor.session && editor.session.duration === 300, "editor did not load its protected source");
                     fixture.check(editor.endTime - editor.startTime === 47, "editor selection changed buffer duration");
                     find(panel.contentItem, "backAction").clicked();
+                    panel.waitForPage();
                     fixture.check(find(panel.contentItem, "saveReplay").activeFocus, "return from editor did not restore Save focus");
                 }
                 const updateRow = find(panel.contentItem, "cachyUpdateRow");
@@ -187,6 +214,7 @@ ShellRoot {
                 }, panel.requestRevision - 1), "obsolete snapshot accepted");
                 fixture.check(panel.stateData === savedState, "obsolete snapshot changed state");
                 find(panel.contentItem, "applicationsToggle").clicked();
+                panel.waitForPage();
                 fixture.check(panel.page === "audio", "application volumes did not open Audio settings");
                 const application = find(panel.contentItem, "applicationVolume-100");
                 fixture.check(!!application, "application slider is missing");
@@ -198,9 +226,11 @@ ShellRoot {
                     application.moved();
                 }
                 find(panel.contentItem, "backAction").clicked();
+                panel.waitForPage();
                 fixture.check(find(panel.contentItem, "applicationsToggle").activeFocus, "return from Audio did not restore application volumes focus");
                 panel.requestActivate();
                 panel.navigate("audio");
+                panel.waitForPage();
                 find(panel.contentItem, "outputChoice").forceActiveFocus();
                 fixture.check(find(panel.contentItem, "outputChoice").activeFocus, "output choice not focusable");
                 const card = panel.contentItem.children.find(c => c.topRightRadius === 14);
@@ -247,6 +277,7 @@ ShellRoot {
                     return;
                 fixture.check(!panel.closing && panel.snapshot().progress === 1, "reversal did not settle open");
                 panel.navigate("overview");
+                panel.waitForPage();
                 fixture.stage = 8;
                 captureDelay.restart();
             } else if (fixture.stage === 9) {
@@ -276,6 +307,7 @@ ShellRoot {
                 }
                 fixture.check(sawNetwork && sawMic, "keyboard cannot reach microphone/network controls");
                 panel.navigate("audio");
+                panel.waitForPage();
                 const choice = find(panel.contentItem, "outputChoice");
                 choice.forceActiveFocus();
                 panel.key(Qt.Key_Space);
@@ -326,7 +358,8 @@ ShellRoot {
         }
     }
     Timer {
-        interval: 6500
+        // Includes staged page handoffs plus the 2.5s post-close idle check.
+        interval: 9000
         running: true
         onTriggered: {
             console.error("CONTROL_TIMEOUT stage=" + fixture.stage);

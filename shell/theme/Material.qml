@@ -69,6 +69,13 @@ QtObject {
             fastSpatial: Theme.reducedMotion ? 0 : 350,
             fastEffects: Theme.reducedMotion ? 0 : 150
         })
+    // Compact desktop adaptations, in logical pixels; not Google spring tokens.
+    readonly property var motionDistance: ({
+            press: 2,
+            reveal: 8,
+            pageExit: 8,
+            pageEnter: 12
+        })
     // Physical parameters from Google's AndroidX ExpressiveMotionTokens v0_14_0.
     // Unit mass; damping is a ratio, stiffness is radians/second squared.
     readonly property var springs: ({

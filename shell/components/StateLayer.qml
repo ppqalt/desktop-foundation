@@ -7,32 +7,11 @@ Rectangle {
     property bool pressed: false
     property bool focused: false
     property bool hovered: false
-    property bool pulse: false
-    onPressedChanged: {
-        if (pressed && !Theme.reducedMotion) {
-            pulse = true;
-            pulseClock.restart();
-        }
-    }
-    onEnabledChanged: {
-        if (!enabled) {
-            pulseClock.stop();
-            pulse = false;
-        }
-    }
-    Timer {
-        id: pulseClock
-        interval: 90
-        onTriggered: root.pulse = false
-    }
-    Connections {
-        target: Theme
-        function onReducedMotionChanged(): void {
-            if (Theme.reducedMotion) {
-                pulseClock.stop();
-                root.pulse = false;
-            }
-        }
+    readonly property bool pulse: activation.active
+    InteractionPulse {
+        id: activation
+        pressed: root.pressed
+        enabled: root.enabled
     }
     property real cornerRadius: Material.shape.medium
     anchors.fill: parent

@@ -14,6 +14,12 @@ Rectangle {
     readonly property string detail: entry.unavailable ? "Original file is unavailable" : (entry.detail || ((kind === "rich" ? "Formatted text" : (kind === "files" ? (entry.fileCount || 1) + " file" + (entry.fileCount > 1 ? "s" : "") : (kind === "image" ? (entry.mime || "image").split("/")[1].toUpperCase() : "Text"))) + " · " + (entry.size >= 1024 ? (entry.size / 1024).toFixed(1) + " KB" : (entry.size || 0) + " bytes")))
     signal chosen
     signal pinned
+    transform: PressFeedback {
+        id: pressFeedback
+        control: root
+        pressed: mouse.pressed
+    }
+    onChosen: pressFeedback.activate()
     implicitHeight: 72
     radius: Theme.radii.medium
     color: selected ? Material.colors.secondary_container : (mouse.containsMouse ? Material.colors.surface_container_high : "transparent")

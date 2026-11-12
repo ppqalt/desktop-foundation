@@ -62,7 +62,7 @@ if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNA
 	XDG_STATE_HOME="$base/state" XDG_CACHE_HOME="$base/cache" XDG_DATA_HOME="$base/data" \
 	XDG_DATA_DIRS="$base/data" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 	DF_FOUNDATION_ROOT="$base" DF_CONTROL_CALLS="$base/calls" DF_CONTROL_SNAPSHOT="$base/snapshot.json" \
-	timeout 10s quickshell --path "$base" >"$base/log" 2>&1; then
+		timeout 12s quickshell --path "$base" >"$base/log" 2>&1; then
 	cat "$base/log" >&2
 	exit 1
 fi

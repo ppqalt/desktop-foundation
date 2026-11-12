@@ -27,6 +27,12 @@ Rectangle {
     signal pointerMoved(real x, real y)
     signal hovered
     signal chosen
+    transform: PressFeedback {
+        id: pressFeedback
+        control: root
+        pressed: mouse.pressed
+    }
+    onChosen: pressFeedback.activate()
     implicitHeight: 72
     radius: Material.shape.medium
     color: selected ? Material.colors.secondary_container : (mouse.containsMouse ? Material.colors.surface_container_high : "transparent")

@@ -57,6 +57,8 @@ QtObject {
             heading: 22
         })
     readonly property var timing: ({
+            activation: reducedMotion ? 0 : 90,
+            pageExit: reducedMotion ? 0 : 65,
             fast: reducedMotion ? 0 : 100,
             normal: reducedMotion ? 0 : 160,
             exit: reducedMotion ? 0 : 120,

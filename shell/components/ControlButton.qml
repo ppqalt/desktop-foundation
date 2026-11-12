@@ -6,6 +6,17 @@ import "../theme"
 AbstractButton {
     id: root
     signal pointerFocused
+    transform: PressFeedback {
+        id: pressFeedback
+        control: root
+        pressed: root.down
+    }
+    Connections {
+        target: root
+        function onClicked(): void {
+            pressFeedback.activate();
+        }
+    }
     PointerFocus {
         onFocusedByPointer: root.pointerFocused()
     }

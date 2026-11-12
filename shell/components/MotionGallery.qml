@@ -8,6 +8,8 @@ ControlGroup {
     property bool sidebarOpen: false
     property int sidebarCompletions: 0
     property int popupCompletions: 0
+    property bool detailsOpen: false
+    property int pageFocusReason: Qt.OtherFocusReason
     function showPreview(): void {
         sidebarOpen = true;
         sidebarMotion.move(true);
@@ -50,6 +52,64 @@ ControlGroup {
             text: "Animated switch"
             onClicked: marked = !marked
         }
+        ControlAction {
+            id: detailsToggle
+            compact: true
+            objectName: "motion-details-toggle"
+            text: root.detailsOpen ? "Hide details" : "Details"
+            onClicked: root.detailsOpen = !root.detailsOpen
+        }
+    }
+    ContentReveal {
+        id: details
+        objectName: "motion-details-reveal"
+        Layout.fillWidth: true
+        expanded: root.detailsOpen
+        ControlGroup {
+            width: parent.width
+            Text {
+                text: "Details"
+                color: Material.colors.on_surface
+                font.family: Theme.typography.family
+                font.pixelSize: Material.type.titleMedium
+            }
+            ControlAction {
+                Layout.fillWidth: true
+                text: "Close"
+                onClicked: {
+                    const reason = visualFocus ? Qt.BacktabFocusReason : Qt.MouseFocusReason;
+                    root.detailsOpen = false;
+                    Material.restoreFocus(detailsToggle, reason);
+                }
+            }
+        }
+    }
+    PagePane {
+        id: pageMotion
+        objectName: "motion-page-transition"
+        Layout.fillWidth: true
+        implicitHeight: pageExample.implicitHeight
+        onCommitted: Material.restoreFocus(pageToggle, root.pageFocusReason)
+        ControlGroup {
+            id: pageExample
+            anchors.fill: parent
+            Text {
+                text: pageMotion.currentKey === "overview" ? "Overview" : "Audio"
+                color: Material.colors.on_surface
+                font.family: Theme.typography.family
+                font.pixelSize: Material.type.titleMedium
+            }
+            ControlAction {
+                id: pageToggle
+                compact: true
+                objectName: "motion-page-toggle"
+                text: pageMotion.currentKey === "overview" ? "Open Audio" : "Back"
+                onClicked: {
+                    root.pageFocusReason = visualFocus ? Qt.TabFocusReason : Qt.MouseFocusReason;
+                    pageMotion.request(pageMotion.currentKey === "overview" ? "audio" : "overview", pageMotion.currentKey === "overview");
+                }
+            }
+        }
     }
     Item {
         id: viewport
@@ -63,7 +123,6 @@ ControlGroup {
             x: -width * (1 - sidebarMotion.position)
             Text {
                 anchors.centerIn: parent
-                objectName: "motion-sidebar-toggle"
                 text: "Sidebar"
                 color: Material.colors.on_surface
                 font.family: Theme.typography.family
