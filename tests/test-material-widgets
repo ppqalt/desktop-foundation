@@ -55,3 +55,4 @@ printf 'PASS Material controls, modal handoff/reopen, wheel ownership, search ed
 "$root/tests/test-component-gallery"
 
 "$root/tests/test-motion"
+DF_CONTROL_MEMORY_TEST=1 "$root/tests/test-control-center"

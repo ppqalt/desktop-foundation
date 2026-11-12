@@ -4,7 +4,7 @@ use std::{
     fs,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{Command, Output, Stdio},
     sync::atomic::{AtomicU64, Ordering},
 };
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -54,12 +54,16 @@ impl Fixture {
         }
     }
     fn call(&self, args: &[&str], failure: Option<&str>) -> Output {
+        self.command(args, failure).output().unwrap()
+    }
+    fn command(&self, args: &[&str], failure: Option<&str>) -> Command {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut command = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"));
         command
             .args(["--root", root.to_str().unwrap(), "control-center"])
             .args(args)
             .env("HOME", &self.base)
+            .env("XDG_CACHE_HOME", self.base.join("cache"))
             .env("XDG_RUNTIME_DIR", &self.runtime)
             .env("PATH", &self.bin)
             .env("DF_CONTROL_LOG", &self.log)
@@ -67,7 +71,28 @@ impl Fixture {
         if let Some(value) = failure {
             command.env("DF_FAIL_CONTROL", value);
         }
-        command.output().unwrap()
+        command
+    }
+    fn cache_write(&self, value: &Value) -> Output {
+        use std::io::Write;
+        let mut child = self
+            .command(&["snapshot-cache", "write"], None)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(&serde_json::to_vec(value).unwrap())
+            .unwrap();
+        child.wait_with_output().unwrap()
+    }
+    fn cache_file(&self) -> PathBuf {
+        self.base
+            .join("cache/desktop-foundation/control-center/snapshot-v1.json")
     }
     fn calls(&self) -> Vec<Vec<String>> {
         fs::read_to_string(&self.log)
@@ -85,6 +110,108 @@ impl Fixture {
         );
         serde_json::from_slice(&output.stdout).unwrap()
     }
+}
+#[test]
+fn remembered_snapshots_round_trip_privately_without_querying_or_reapplying() {
+    use std::os::unix::fs::MetadataExt;
+    let f = Fixture::new();
+    assert!(f.ok(&["snapshot-cache", "read"])["snapshot"].is_null());
+    assert!(f.calls().is_empty());
+    let snapshot = f.ok(&["snapshot"]);
+    fs::remove_file(&f.log).unwrap();
+    let result = f.cache_write(&snapshot);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(f.ok(&["snapshot-cache", "read"])["snapshot"], snapshot);
+    let first = fs::metadata(f.cache_file()).unwrap();
+    assert_eq!(first.permissions().mode() & 0o777, 0o600);
+    assert!(f.cache_write(&snapshot).status.success());
+    assert_eq!(fs::metadata(f.cache_file()).unwrap().ino(), first.ino());
+    assert!(
+        f.calls().is_empty(),
+        "Reading/writing display cache must not touch devices"
+    );
+    let mut audio = snapshot["audio"].clone();
+    audio["outputs"][0]["volume"] = 63.into();
+    assert!(
+        f.cache_write(&serde_json::json!({"audio": audio}))
+            .status
+            .success()
+    );
+    let restored = f.ok(&["snapshot-cache", "read"]);
+    assert_eq!(restored["snapshot"]["audio"]["outputs"][0]["volume"], 63);
+    assert_eq!(restored["snapshot"]["network"], snapshot["network"]);
+}
+#[test]
+fn corrupt_future_and_unsafe_snapshot_files_are_ignored_and_preserved() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    let snapshot = f.ok(&["snapshot"]);
+    assert!(f.cache_write(&snapshot).status.success());
+    let path = f.cache_file();
+    for bytes in [
+        b"broken".to_vec(),
+        b"{\"version\":99}".to_vec(),
+        vec![b' '; 1024 * 1024 + 1],
+    ] {
+        fs::write(&path, &bytes).unwrap();
+        assert!(f.ok(&["snapshot-cache", "read"])["snapshot"].is_null());
+        assert!(!f.cache_write(&snapshot).status.success());
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+    }
+    fs::remove_file(&path).unwrap();
+    let foreign = f.base.join("foreign");
+    fs::write(&foreign, "keep").unwrap();
+    symlink(&foreign, &path).unwrap();
+    assert!(f.ok(&["snapshot-cache", "read"])["snapshot"].is_null());
+    assert!(!f.cache_write(&snapshot).status.success());
+    assert_eq!(fs::read_to_string(foreign).unwrap(), "keep");
+}
+#[test]
+fn invalid_cached_device_values_never_replace_a_good_snapshot() {
+    let f = Fixture::new();
+    let snapshot = f.ok(&["snapshot"]);
+    assert!(f.cache_write(&snapshot).status.success());
+    let original = fs::read(f.cache_file()).unwrap();
+    let mut invalid = snapshot.clone();
+    invalid["audio"]["outputs"][0]["volume"] = 101.into();
+    assert!(!f.cache_write(&invalid).status.success());
+    invalid = snapshot.clone();
+    invalid["network"]["connections"][0]["uuid"] = "--help".into();
+    assert!(!f.cache_write(&invalid).status.success());
+    invalid = snapshot.clone();
+    invalid["audio"]["applications"][0]["serial"] = serde_json::Value::Null;
+    assert!(!f.cache_write(&invalid).status.success());
+    assert_eq!(fs::read(f.cache_file()).unwrap(), original);
+    let mut large_network = snapshot["network"].clone();
+    large_network["devices"] = serde_json::json!(vec![
+        serde_json::json!({
+            "name":"n".repeat(3000),"kind":"wifi","state":"connected","connection":"Example"
+        });
+        200
+    ]);
+    assert!(
+        f.cache_write(&serde_json::json!({"network":large_network}))
+            .status
+            .success()
+    );
+    let retained = fs::read(f.cache_file()).unwrap();
+    let mut large_audio = snapshot["audio"].clone();
+    large_audio["outputs"] = serde_json::json!(vec![
+        serde_json::json!({
+            "name":"a".repeat(3000),"volume":50,"muted":false
+        });
+        200
+    ]);
+    assert!(
+        !f.cache_write(&serde_json::json!({"audio":large_audio}))
+            .status
+            .success()
+    );
+    assert_eq!(fs::read(f.cache_file()).unwrap(), retained);
 }
 impl Drop for Fixture {
     fn drop(&mut self) {

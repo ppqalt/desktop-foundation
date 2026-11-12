@@ -49,6 +49,9 @@ ShellRoot {
     }
     readonly property ControlCenter controlCenter: controlCenterLoader.item as ControlCenter
     property bool controlCenterEnabled: false
+    Services.ControlCenterState {
+        id: controlCenterState
+    }
     property var controlCenterStyle: ({
             width: 720,
             padding: 12,
@@ -61,6 +64,7 @@ ShellRoot {
         id: controlCenterLoader
         active: root.controlCenterEnabled
         ControlCenter {
+            rememberedState: controlCenterState
             recording: recordingState
             handoff: root.handoffSurface === "controlCenter"
             sidebarStyle: root.controlCenterStyle

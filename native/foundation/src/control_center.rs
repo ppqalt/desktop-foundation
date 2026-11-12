@@ -7,6 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 const QUERY: Duration = Duration::from_secs(3);
+mod snapshot_cache;
 
 fn request(args: &[&str], timeout: Duration) -> Result<String> {
     let output = process::checked_c_locale(
@@ -375,6 +376,8 @@ fn audio_action(args: &[String]) -> Result<()> {
 pub fn run(args: &[String]) -> Result<Value> {
     let parts: Vec<_> = args.iter().map(String::as_str).collect();
     match parts.as_slice() {
+        ["snapshot-cache", "read"] => return snapshot_cache::read(),
+        ["snapshot-cache", "write"] => return snapshot_cache::write(),
         ["check-updates"] => {
             request(&["arch-update", "--check"], Duration::from_secs(120))?;
             return Ok(json!({"success":true}));
@@ -422,7 +425,7 @@ pub fn run(args: &[String]) -> Result<Value> {
         }
         _ => return Err(invalid("Invalid control-center action")),
     }
-    Ok(json!({"success":true}))
+    Ok(json!({"success":true,"network":network()?}))
 }
 #[cfg(test)]
 mod tests {

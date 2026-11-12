@@ -27,7 +27,31 @@ PanelWindow {
     readonly property var connectedDevices: (network.devices ?? []).filter(d => d.state === "connected")
     readonly property string networkSummary: !network.available ? "Unavailable" : !network.enabled ? "Off" : connectedDevices.length ? connectedDevices.map(d => d.kind === "ethernet" ? "Ethernet" : d.connection || d.name).join(" · ") : "Not connected"
     property var stateData: ({})
+    property var rememberedState: null
+    property bool receivedSnapshot: false
+    property bool audioFresh: false
+    property bool networkFresh: false
+    readonly property bool refreshingRemembered: Object.keys(stateData).length > 0 && (!receivedSnapshot || ((!audioFresh || !networkFresh) && status.running))
+    function applyRemembered(): void {
+        if (closing || superseded || !rememberedState)
+            return;
+        const value = rememberedState.snapshot;
+        const next = Object.assign({}, stateData);
+        for (const key of ["audio", "network"]) {
+            const fresh = key === "audio" ? audioFresh : networkFresh;
+            if (!fresh && value[key]?.available === true)
+                next[key] = receivedSnapshot ? Object.assign({}, value[key], stateData[key]) : value[key];
+        }
+        stateData = next;
+    }
+    Connections {
+        target: root.rememberedState
+        function onSnapshotChanged(): void {
+            root.applyRemembered();
+        }
+    }
     property string error: ""
+    property string refreshError: ""
     property var queue: []
     property var audioQueue: []
     property bool initialFocus: true
@@ -98,6 +122,8 @@ PanelWindow {
     Component.onCompleted: Qt.callLater(() => {
         if (root.closing || root.superseded)
             return;
+        root.applyRemembered();
+        root.rememberedState?.restore();
         root.present();
         outputMute.forceActiveFocus();
     })
@@ -124,6 +150,9 @@ PanelWindow {
             progress: motion.position,
             contentReady: contentReady,
             moving: motion.running,
+            audioFresh: audioFresh,
+            networkFresh: networkFresh,
+            refreshingRemembered: refreshingRemembered,
             pageMoving: pageMotion.running,
             page: root.page,
             requestedPage: pageMotion.requestedKey,
@@ -183,9 +212,11 @@ PanelWindow {
     function enqueue(args: list<string>): void {
         if (closing)
             return;
+        const audioRequest = ["volume", "mute", "select", "stream-volume"].includes(args[0]);
+        if (audioRequest ? !audioFresh : !networkFresh)
+            return;
         requestRevision++;
         initialFocus = false;
-        const audioRequest = ["volume", "mute", "select", "stream-volume"].includes(args[0]);
         let pending = (audioRequest ? audioQueue : queue).slice();
         const existing = args[0] === "volume" || args[0] === "stream-volume" ? pending.findIndex(p => p[0] === args[0] && p[1] === args[1] && (args[0] !== "stream-volume" || p[2] === args[2])) : -1;
         if (existing >= 0)
@@ -217,6 +248,7 @@ PanelWindow {
         if (code !== 0 || worker.response.success === false)
             error = worker.response.error || worker.failure || "The device request failed. Try again.";
         if (worker.response.audio) {
+            audioFresh = worker.response.audio.available === true;
             stateData = Object.assign({}, stateData, {
                 audio: worker.response.audio
             });
@@ -226,12 +258,20 @@ PanelWindow {
                 pendingApplications = ({});
             }
         }
+        if (worker.response.network) {
+            networkFresh = worker.response.network.available === true;
+            stateData = Object.assign({}, stateData, {
+                network: worker.response.network
+            });
+        }
+        rememberedState?.remember(worker.response);
         if (worker === audioAction && !audioQueue.length)
             pendingApplications = ({});
         Qt.callLater(() => {
             root.pump();
             root.finishClose();
-            root.refresh();
+            if (!worker.response.audio && !worker.response.network)
+                root.refresh();
         });
     }
     FocusViewport {
@@ -262,7 +302,19 @@ PanelWindow {
             return false;
         if (!response.audio || !response.network)
             return false;
-        stateData = response;
+        receivedSnapshot = true;
+        const audioAvailable = response.audio.available === true;
+        const networkAvailable = response.network.available === true;
+        stateData = {
+            audio: audioAvailable ? response.audio : Object.assign({}, stateData.audio, response.audio),
+            network: networkAvailable ? response.network : Object.assign({}, stateData.network, response.network)
+        };
+        // Retire cached stream identities before enabling their controls.
+        syncApplications();
+        audioFresh = audioAvailable;
+        networkFresh = networkAvailable;
+        rememberedState?.remember(response);
+        refreshError = [audioFresh ? "" : "Audio unavailable", networkFresh ? "" : "Network unavailable"].filter(Boolean).join(" · ");
         if (initialFocus) {
             initialFocus = false;
             Qt.callLater(() => {
@@ -310,7 +362,7 @@ PanelWindow {
             if (root.closing || root.busy || root.queue.length || root.audioQueue.length)
                 return;
             if (code !== 0 || !root.acceptSnapshot(response, revision))
-                root.error = "Could not refresh device state. Press Ctrl+R to retry.";
+                root.refreshError = "Could not refresh device state. Press Ctrl+R to retry.";
         }
     }
     ControlRequest {
@@ -380,6 +432,7 @@ PanelWindow {
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_R && event.modifiers & Qt.ControlModifier) {
                     root.error = "";
+                    root.refreshError = "";
                     root.refresh();
                     event.accepted = true;
                 }
@@ -428,12 +481,13 @@ PanelWindow {
                     }
                     ControlGroup {
                         Layout.fillWidth: true
-                        visible: root.error !== ""
-                        color: Material.colors.error_container
+                        visible: root.error !== "" || root.refreshError !== "" || root.refreshingRemembered
+                        color: root.error || root.refreshError ? Material.colors.error_container : Material.colors.surface_container_low
                         WidgetStatus {
                             Layout.fillWidth: true
-                            message: root.error
-                            color: Material.colors.on_error_container
+                            message: root.error || root.refreshError || "Refreshing…"
+                            status: root.error || root.refreshError ? "error" : "loading"
+                            color: root.error || root.refreshError ? Material.colors.on_error_container : Material.colors.on_surface_variant
                             font.pixelSize: Material.type.bodyMedium
                         }
                     }
@@ -479,7 +533,7 @@ PanelWindow {
                                         toggle: true
                                         marked: root.network.enabled ?? false
                                         badge: marked ? "On" : "Off"
-                                        enabled: (root.network.available ?? false) && !deviceRequest.running
+                                        enabled: root.networkFresh && (root.network.available ?? false) && !deviceRequest.running
                                         onClicked: root.enqueue(["networking", root.network.enabled ? "off" : "on"])
                                     }
                                     ControlAction {
@@ -525,7 +579,7 @@ PanelWindow {
                                         model: root.outputs
                                         textRole: "description"
                                         currentIndex: root.outputs.findIndex(d => d.name === root.audio.output)
-                                        enabled: root.outputs.length > 0
+                                        enabled: root.audioFresh && root.outputs.length > 0
                                         Accessible.name: "Audio output"
                                         displayText: currentIndex < 0 ? "No audio output" : currentText
                                         onActivated: index => root.enqueue(["select", "output", root.outputs[index].name])
@@ -538,7 +592,7 @@ PanelWindow {
                                         sliderName: "outputVolume"
                                         accessibleLabel: "Output"
                                         muteAccessibleLabel: "Volume"
-                                        enabled: root.outputs.length > 0
+                                        enabled: root.audioFresh && root.outputs.length > 0
                                         muted: root.output.muted ?? false
                                         volume: root.pendingOutput >= 0 ? root.pendingOutput : root.output.volume ?? 0
                                         onMuteRequested: root.enqueue(["mute", "output", root.output.muted ? "off" : "on"])
@@ -578,7 +632,7 @@ PanelWindow {
                                         textRole: "description"
                                         currentIndex: root.inputs.findIndex(d => d.name === root.audio.input)
                                         displayText: currentIndex < 0 ? "No microphone" : currentText
-                                        enabled: root.inputs.length > 0
+                                        enabled: root.audioFresh && root.inputs.length > 0
                                         Accessible.name: "Microphone device"
                                         onActivated: index => root.enqueue(["select", "input", root.inputs[index].name])
                                     }
@@ -590,7 +644,7 @@ PanelWindow {
                                         accessibleLabel: "Microphone"
                                         muteSymbol: "mic"
                                         mutedSymbol: "mic_off"
-                                        enabled: root.inputs.length > 0
+                                        enabled: root.audioFresh && root.inputs.length > 0
                                         muted: root.input.muted ?? false
                                         volume: root.pendingInput >= 0 ? root.pendingInput : root.input.volume ?? 0
                                         onMuteRequested: root.enqueue(["mute", "input", root.input.muted ? "off" : "on"])
@@ -618,6 +672,7 @@ PanelWindow {
                             ControlGroup {
                                 Layout.fillWidth: true
                                 visible: root.page === "audio"
+                                enabled: root.audioFresh
                                 Text {
                                     text: "Application volumes"
                                     color: Material.colors.on_surface
@@ -714,7 +769,7 @@ PanelWindow {
                                     toggle: true
                                     badge: root.network.enabled ? "On" : "Off"
                                     marked: root.network.enabled ?? false
-                                    enabled: (root.network.available ?? false) && !deviceRequest.running
+                                    enabled: root.networkFresh && (root.network.available ?? false) && !deviceRequest.running
                                     onClicked: root.enqueue(["networking", root.network.enabled ? "off" : "on"])
                                 }
                                 ControlAction {
@@ -723,7 +778,7 @@ PanelWindow {
                                     detail: root.wifiAvailable ? "" : "No Wi-Fi adapter"
                                     badge: root.wifiAvailable ? root.network.wifi ? "On" : "Off" : "Unavailable"
                                     marked: root.wifiAvailable && (root.network.wifi ?? false)
-                                    enabled: root.wifiAvailable && !deviceRequest.running
+                                    enabled: root.networkFresh && root.wifiAvailable && !deviceRequest.running
                                     onClicked: root.enqueue(["wifi", root.network.wifi ? "off" : "on"])
                                 }
                                 Repeater {
@@ -735,7 +790,7 @@ PanelWindow {
                                         detail: modelData.name + " · " + (modelData.connection && modelData.connection !== "--" ? modelData.connection : modelData.state)
                                         badge: modelData.state === "connected" ? "Disconnect" : "Connect"
                                         marked: modelData.state === "connected"
-                                        enabled: (root.network.enabled ?? false) && !deviceRequest.running
+                                        enabled: root.networkFresh && (root.network.enabled ?? false) && !deviceRequest.running
                                         onClicked: root.enqueue(["device", modelData.state === "connected" ? "disconnect" : "connect", modelData.name])
                                     }
                                 }
@@ -749,7 +804,7 @@ PanelWindow {
                                         detail: modelData.kind
                                         badge: modelData.active ? "Disconnect" : "Connect"
                                         marked: modelData.active
-                                        enabled: (root.network.enabled ?? false) && !deviceRequest.running
+                                        enabled: root.networkFresh && (root.network.enabled ?? false) && !deviceRequest.running
                                         onClicked: root.enqueue(["connection", modelData.active ? "down" : "up", modelData.uuid])
                                     }
                                 }
@@ -758,7 +813,7 @@ PanelWindow {
                                     text: "Network settings"
                                     symbol: "settings"
                                     badge: "›"
-                                    enabled: (root.network.editor ?? false) && !deviceRequest.running
+                                    enabled: root.networkFresh && (root.network.editor ?? false) && !deviceRequest.running
                                     onClicked: {
                                         root.enqueue(["network-settings"]);
                                         root.dismiss();

@@ -16,6 +16,7 @@ mkdir -p "$base/shell/surfaces" "$base/native/foundation/target/release" "$base/
 for leaf in home runtime config state cache data; do mkdir -m 700 "$base/$leaf"; done
 ln -s "$root/shell/components" "$base/shell/components"
 ln -s "$root/shell/theme" "$base/shell/theme"
+ln -s "$root/shell/services" "$base/shell/services"
 ln -s "$root/theme" "$base/theme"
 mkdir -p "$base/state/arch-update"
 printf '%s\n' 'repo-one 1 -> 2' 'repo-two 1 -> 2' >"$base/state/arch-update/last_updates_check_packages"
@@ -23,7 +24,9 @@ printf '%s\n' 'aur-one 1 -> 2' >"$base/state/arch-update/last_updates_check_aur"
 : >"$base/state/arch-update/last_updates_check_flatpak"
 printf '%s\n' '1000000000' '2026-11-08 00:00:00' >"$base/state/arch-update/last_updates_check_time"
 perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n    \}\n//; s/^    (?:screen:|implicitWidth:|margins.left:|exclusionMode:|WlrLayershell\.).*\n//mg' "$root/shell/surfaces/ControlCenter.qml" >"$base/shell/surfaces/ControlCenterFixture.qml"
-if [[ ${DF_CONTROL_OPENING_TEST:-0} == 1 ]]; then
+if [[ ${DF_CONTROL_MEMORY_TEST:-0} == 1 ]]; then
+	cp "$root/tests/qml/control-center-memory.qml" "$base/shell.qml"
+elif [[ ${DF_CONTROL_OPENING_TEST:-0} == 1 ]]; then
 	cp "$root/tests/qml/sidebar-opening.qml" "$base/shell.qml"
 else
 	cp "$root/tests/qml/control-center.qml" "$base/shell.qml"
@@ -35,6 +38,9 @@ cat >"$base/native/foundation/target/release/desktop-foundationctl" <<'WORKER'
 #!/bin/sh
 shift 3
 printf '%s\n' "$*" >> "$DF_CONTROL_CALLS"
+if [ "${DF_CONTROL_MEMORY_TEST:-0}" = 1 ]; then
+    exec /usr/bin/python3 "$DF_CONTROL_MEMORY_WORKER" "$@"
+fi
 if [ "$*" = 'wifi on' ]; then
     sleep .6
     printf '%s\n' 'done wifi on' >> "$DF_CONTROL_CALLS"
@@ -54,6 +60,59 @@ else
 fi
 WORKER
 chmod 700 "$base/native/foundation/target/release/desktop-foundationctl"
+cat >"$base/memory-worker.py" <<'PYTHON'
+import json, os, pathlib, sys, time
+args = sys.argv[1:]
+source = pathlib.Path(os.environ['DF_CONTROL_SNAPSHOT'])
+cache = source.with_name('remembered.json')
+if args == ['snapshot-cache', 'read']:
+    value = json.loads(cache.read_text()) if cache.exists() else None
+    time.sleep(.15)
+    print(json.dumps({'snapshot': value}))
+elif args == ['snapshot-cache', 'write']:
+    value = json.load(sys.stdin)
+    temporary = cache.with_suffix('.pending')
+    temporary.write_text(json.dumps(value)); temporary.replace(cache)
+    print('{"success":true}')
+elif args == ['snapshot']:
+    time.sleep(.35)
+    counter = source.with_name('reads')
+    reads = int(counter.read_text()) + 1 if counter.exists() else 1
+    counter.write_text(str(reads))
+    value = json.loads(source.read_text())
+    value['audio']['applications'][0]['serial'] = '200'
+    value['audio']['applications'][0]['id'] = 43
+    value['audio']['applications'][0]['name'] = 'New player'
+    if reads >= 2:
+        value['audio']['outputs'][0]['volume'] = 19
+        value['network']['enabled'] = True
+    print(json.dumps(value))
+elif args[:2] == ['volume', 'output']:
+    time.sleep(.08)
+    value = json.loads(source.read_text())
+    value['audio']['outputs'][0]['volume'] = int(args[2])
+    source.write_text(json.dumps(value))
+    print(json.dumps({'success': True, 'audio': value['audio']}))
+elif args[:1] == ['networking']:
+    time.sleep(.08)
+    value = json.loads(source.read_text())['network']
+    value['enabled'] = args[1] == 'on'
+    print(json.dumps({'success': True, 'network': value}))
+elif args == ['list']:
+    print('{"images":[],"current":""}')
+else:
+    print('{"success":true}')
+PYTHON
+if [[ ${DF_CONTROL_MEMORY_TEST:-0} == 1 ]]; then
+	/usr/bin/python3 - "$base/snapshot.json" <<'PYTHON'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1]); value = json.loads(p.read_text())
+p.with_name('remembered.json').write_text(json.dumps(value))
+value['audio']['outputs'][0]['volume'] = 27
+value['network']['enabled'] = False
+p.write_text(json.dumps(value))
+PYTHON
+fi
 printf '%s\n' '#!/bin/sh' 'printf '\''%s\n'\'' '\''{"reducedMotion":false}'\''' >"$base/scripts/foundation"
 chmod 700 "$base/scripts/foundation"
 if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNATURE \
@@ -61,14 +120,18 @@ if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNA
 	HOME="$base/home" XDG_RUNTIME_DIR="$base/runtime" XDG_CONFIG_HOME="$base/config" \
 	XDG_STATE_HOME="$base/state" XDG_CACHE_HOME="$base/cache" XDG_DATA_HOME="$base/data" \
 	XDG_DATA_DIRS="$base/data" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
-	DF_FOUNDATION_ROOT="$base" DF_CONTROL_CALLS="$base/calls" DF_CONTROL_SNAPSHOT="$base/snapshot.json" \
-		timeout 12s quickshell --path "$base" >"$base/log" 2>&1; then
+	DF_FOUNDATION_ROOT="$base" DF_CONTROL_CALLS="$base/calls" DF_CONTROL_SNAPSHOT="$base/snapshot.json" DF_CONTROL_MEMORY_WORKER="$base/memory-worker.py" \
+	timeout 12s quickshell --path "$base" >"$base/log" 2>&1; then
 	cat "$base/log" >&2
 	exit 1
 fi
-if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|CONTROL_TIMEOUT|TypeError|ReferenceError|ERROR|QML (Warning|Error)|Qt Quick Layouts: Detected recursive' "$base/log"; then
+if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|CONTROL_TIMEOUT|TypeError|ReferenceError|ERROR|QML (Warning|Error)|Qt Quick Layouts: Detected recursive|FAIL!|QtQuickTest::fail' "$base/log"; then
 	cat "$base/log" >&2
 	exit 1
+fi
+if [[ ${DF_CONTROL_MEMORY_TEST:-0} == 1 ]]; then
+	printf '%s\n' 'PASS remembered audio/network, live readback, closed-panel save, restart restore and stale-load rejection'
+	exit 0
 fi
 if [[ ${DF_CONTROL_OPENING_TEST:-0} == 1 ]]; then
 	printf '%s\n' 'PASS first-frame sidebar entry, deferred discovery, early cancellation and quiet closure'

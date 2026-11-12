@@ -4,6 +4,44 @@
 opens btop. Bluetooth and Nothing controls remain in the existing `Super+B`
 widget.
 
+## Remembered audio and network
+
+Control Center keeps the last confirmed device names, volumes, mute states,
+application streams and network snapshot when its lazy view closes. Reopening
+shows that snapshot immediately and refreshes live state in the background.
+Saved readouts show a compact Refreshing status; affected controls become usable
+after current readback. Fresh stream identities replace saved rows before those
+sliders are enabled. A failed service refresh keeps its last values visible with
+an unavailable status, while the other service can remain usable.
+
+The shell keeps a small in-memory projection and the Rust helper stores a
+versioned, private `0600` snapshot at
+`$XDG_CACHE_HOME/desktop-foundation/control-center/snapshot-v1.json` (normally
+`~/.cache/desktop-foundation/control-center/snapshot-v1.json`). It survives shell
+restarts and remains disposable display data. PipeWire and NetworkManager own
+actual settings; loading the cache performs no device action. TOML configuration
+and deployment journals keep their existing ownership.
+
+Only accepted snapshots and confirmed action readbacks enter the cache. A late
+disk read cannot overwrite newer observations. Writes coalesce while a save is
+running and identical data is not rewritten. Audio/network action confirmations
+update the remembered values even when the panel is closing, without a redundant
+full-device query. A separate finite cache owner lets the view dispose normally;
+it adds no daemon, watcher or closed-panel hardware polling.
+
+Rust validates the bounded snapshot and atomically publishes it. Missing,
+corrupt or future-format data cannot block live queries; unsafe or unknown cache
+files are preserved rather than overwritten. Persistence errors remain in shell
+logs and in-memory reopening continues to work.
+
+`DF_CONTROL_MEMORY_TEST=1 tests/test-control-center` covers retained readouts,
+background updates, unavailable/removed devices, application identity changes,
+closing during a confirmed action, state-owner recreation, stale load rejection
+and quiet closure in an isolated fixture. The standard material-widget suite runs
+it too. Native control-center tests cover private disk round trips and invalid,
+oversized, future and symlinked cache files. These checks use inert workers and
+do not establish physical device acceptance.
+
 The overview contains a network summary and two audio cards: output and
 microphone. Each audio card has a device-details action, mute button, short
 volume slider and percentage. Device selection opens an Audio view inside the
