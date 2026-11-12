@@ -51,6 +51,7 @@ ShellRoot {
     property bool controlCenterEnabled: false
     Services.ControlCenterState {
         id: controlCenterState
+        live: true
     }
     property var controlCenterStyle: ({
             width: 720,

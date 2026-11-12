@@ -167,9 +167,10 @@ unavailable and error are distinct and keep useful close/back/retry routes.
 Stderr or malformed output is not success. A request owner may finish safely
 after its view disappears, but must not re-open the view or steal focus afterward.
 
-Prefer subscriptions/file watches over polling. Existing visible-only Control
-Center snapshot polling is an audited gap, not a pattern for new widgets. Never
-poll closed views. UI handlers must not synchronously decode large images, read
+Prefer subscriptions/file watches over polling. Control Center uses one shell-owned
+Rust audio/network event session, independent of lazy view lifetime. Its retained
+standalone snapshot fallback is not the production refresh path or a pattern for
+new widgets. Never poll closed views. UI handlers must not synchronously decode large images, read
 large files, invoke blocking subprocesses or redundantly initialize databases.
 Preserve async clipboard thumbnails and its missing-index-only initialization.
 Lazy data and caches must remain correct when external state changes.
@@ -423,8 +424,12 @@ must disable invalid controls, cancel stale presentation and preserve a useful
 back/close path. A removed device must not make an old index target another device.
 
 Backends should be on demand; lazy surfaces must release polling/processes when
-closed, except an already-owned request finishing safely. No new permanent daemon
-for UI convenience. Color mapping, file parsing, system calls and persistence
+closed, except an already-owned request finishing safely. Control Center's
+shell-owned read-only event projection is an explicit ownership exception:
+audio/network values must stay current before a view exists. It blocks when
+healthy and idle, has no hidden UI or independent service lifetime, and releases
+its owned subscriptions with the shell. This does not permit closed-view polling.
+No new permanent daemon for UI convenience. Color mapping, file parsing, system calls and persistence
 belong in Rust; presentation-only navigation can remain in QML.
 
 ## Window behavior and states

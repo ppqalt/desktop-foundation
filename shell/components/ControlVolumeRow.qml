@@ -14,6 +14,7 @@ ColumnLayout {
     property bool muted: false
     property string muteSymbol: "volume_up"
     property string mutedSymbol: "volume_off"
+    property bool valueAvailable: true
     property real volume: 0
     property alias slider: slider
     property alias muteButton: mute
@@ -64,7 +65,7 @@ ColumnLayout {
         Text {
             Layout.preferredWidth: 48
             horizontalAlignment: Text.AlignRight
-            text: Math.round(slider.value) + "%"
+            text: root.valueAvailable ? Math.round(slider.value) + "%" : "—"
             color: Material.colors.on_surface
             font.family: Theme.typography.family
             font.pixelSize: Material.type.bodyMedium

@@ -1,4 +1,4 @@
-//! Finite control-center requests. PipeWire, BlueZ and NetworkManager own state.
+//! Control-center read models and finite actions; device services own state.
 use crate::{Result, apps, bluetooth, invalid, process, state};
 use serde_json::{Value, json};
 use std::{
@@ -7,6 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 const QUERY: Duration = Duration::from_secs(3);
+pub mod live;
 mod snapshot_cache;
 
 fn request(args: &[&str], timeout: Duration) -> Result<String> {

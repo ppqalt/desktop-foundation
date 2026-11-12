@@ -4,48 +4,54 @@
 opens btop. Bluetooth and Nothing controls remain in the existing `Super+B`
 widget.
 
-## Remembered audio and network
+## Live audio and network
 
-Control Center keeps the last confirmed device names, volumes, mute states,
-application streams and network snapshot when its lazy view closes. Reopening
-shows that snapshot immediately and refreshes live state in the background.
-Saved readouts show a compact Refreshing status; affected controls become usable
-after current readback. Fresh stream identities replace saved rows before those
-sliders are enabled. A failed service refresh keeps its last values visible with
-an unavailable status, while the other service can remain usable.
+A shell-owned Rust read model subscribes to PipeWire/PulseAudio (`pactl subscribe`)
+and NetworkManager (`nmcli monitor`). It reads current state at shell startup and
+on relevant events, including while Control Center is closed. Reopening projects
+those already-current values before the slide finishes; opening does not launch a
+new device scan. There is no Refreshing label. Cold startup or a disconnected
+service shows unavailable controls and neutral readouts rather than presenting
+saved values or 0% as current.
 
-The shell keeps a small in-memory projection and the Rust helper stores a
-versioned, private `0600` snapshot at
-`$XDG_CACHE_HOME/desktop-foundation/control-center/snapshot-v1.json` (normally
-`~/.cache/desktop-foundation/control-center/snapshot-v1.json`). It survives shell
-restarts and remains disposable display data. PipeWire and NetworkManager own
-actual settings; loading the cache performs no device action. TOML configuration
-and deployment journals keep their existing ownership.
+The helper coalesces event bursts for 35 ms, ignores self-generated PulseAudio
+client events, and blocks when idle. Only the affected domain is queried. Failed
+subscriptions mark that domain unavailable and reconnect with bounded backoff;
+failed readbacks also retry only the unavailable domain with backoff, so recovery
+does not depend on a new external event. The other domain remains usable. Ctrl+R explicitly requests fresh readback. This
+is one stdio session owned by Quickshell and its two read-only subscriptions,
+not a detached daemon, retained hidden panel or periodic sampler. Closing stdin
+or stopping the shell helper reaps its owned children. Actual hardware state can
+still take an event delivery and readback to propagate; this does not claim
+instantaneous observation of a change that has not reached the services yet.
 
-Only accepted snapshots and confirmed action readbacks enter the cache. A late
-disk read cannot overwrite newer observations. Writes coalesce while a save is
-running and identical data is not rewritten. Audio/network action confirmations
-update the remembered values even when the panel is closing, without a redundant
-full-device query. A separate finite cache owner lets the view dispose normally;
-it adds no daemon, watcher or closed-panel hardware polling.
+Actions retain their existing validated Rust operations and confirmed readback.
+Per-domain epochs invalidate watch results started before a newer action or
+confirmation. Local pending values and pressed sliders keep their existing
+ownership; event updates never recreate a stream's slider merely because its
+volume changed. Unavailable/removed devices cannot be used through stale IDs.
 
-Rust validates the bounded snapshot and atomically publishes it. Missing,
-corrupt or future-format data cannot block live queries; unsafe or unknown cache
-files are preserved rather than overwritten. Persistence errors remain in shell
-logs and in-memory reopening continues to work.
+The shell also remembers confirmed snapshots in memory and in the private `0600`
+file `$XDG_CACHE_HOME/desktop-foundation/control-center/snapshot-v1.json`.
+This is disposable historical display data, never desired settings or live truth.
+The production live view does not bootstrap interactive values from disk.
+PipeWire and NetworkManager remain authoritative. Partial writes merge confirmed
+sections; identical data is not rewritten, and unsafe/corrupt/future files are
+preserved. Cache I/O failures are logged without blocking the live read model.
 
-`DF_CONTROL_MEMORY_TEST=1 tests/test-control-center` covers retained readouts,
-background updates, unavailable/removed devices, application identity changes,
-closing during a confirmed action, state-owner recreation, stale load rejection
-and quiet closure in an isolated fixture. The standard material-widget suite runs
-it too. Native control-center tests cover private disk round trips and invalid,
-oversized, future and symlinked cache files. These checks use inert workers and
-do not establish physical device acceptance.
+`DF_CONTROL_LIVE_TEST=1 tests/test-control-center` checks values before the opening
+slide finishes, external changes while closed, action confirmation, obsolete
+event rejection, helper/service recovery and held application sliders.
+The standard material-widget suite includes this fixture and the legacy
+`DF_CONTROL_MEMORY_TEST=1` cache/standalone fixture. Native control-center tests
+exercise real watch protocol, inert service events, idle-query suppression,
+in-flight epochs, monitor restart and child cleanup, alongside private cache
+validation. They do not mutate physical audio/network settings.
 
 The overview contains a network summary and two audio cards: output and
 microphone. Each audio card has a device-details action, mute button, short
 volume slider and percentage. Device selection opens an Audio view inside the
-same frame. **Application volumes** opens that same Audio view, with one slider per active playback stream. Multiple streams from one app remain independently adjustable. Audio changes are subscribed to while that view is open; stream identity is verified before setting volume. Stream rows are updated by serial in place, so asynchronous snapshots do not recreate a pressed slider or drop its pointer grab. Device and application sliders retain pointer-owned values until release. Networking, audio, application volumes, recording, updates and wallpapers use shared tonal section containers. The overview scrolls without a visible scrollbar.
+same frame. **Application volumes** opens that same Audio view, with one slider per active playback stream. Multiple streams from one app remain independently adjustable. Audio changes are subscribed to for the shell lifetime; stream identity is verified before setting volume. Stream rows are updated by serial in place, so asynchronous snapshots do not recreate a pressed slider or drop its pointer grab. Device and application sliders retain pointer-owned values until release. Networking, audio, application volumes, recording, updates and wallpapers use shared tonal section containers. The overview scrolls without a visible scrollbar.
 
 The compact Cachy Update section shows the last completed Arch Update cache. **Details** expands per-source counts and cached package names; **Check**, immediately to its right, runs `arch-update --check` asynchronously without installing updates. **Update** opens the existing Cachy Update terminal for review and authenticated installation. Its terminal handoff has no JSON body and is handled as a launcher, not a failed device response. Pending state prevents duplicate checks; failures remain visible and cached details remain available. Closing the sidebar does not abandon a running check.
 Network details show device actions and saved connections, omitting
@@ -127,17 +133,17 @@ and stable identifiers remain available in the device picker. Selecting a device
 reroutes existing streams as well as future streams.
 
 The panel starts its opening motion only after its own first frame is presented.
-Device snapshots and wallpaper discovery wait until the opening slide has settled,
-so constructing a large wallpaper grid cannot block the slide. A close request
+Wallpaper discovery waits until the opening slide has settled,
+so constructing a large wallpaper grid cannot block the slide. Audio/network
+values come from the existing live read model before the first visible content. A close request
 before the first frame cancels entry, and deferred initialization respects that
 close rather than reopening the panel.
 
-The panel samples state every two seconds only while open. Closing finishes the
-slide, stops sampling and discovery, and disposes the view after finite actions
-finish. The earlier asynchronous retained-window experiment was removed after
+The production panel does not poll device state. Closing finishes the slide,
+stops discovery, and disposes the view after finite actions finish; the read-only
+event owner remains with the shell. The earlier asynchronous retained-window experiment was removed after
 reported regressions; there is no hidden cached Control Center window. Existing
-animation duration/curve settings are unchanged. No additional daemon, sampler
-or background animation process is added. Passwords remain in the native network editor rather
+animation duration/curve settings are unchanged. The event session performs no periodic sampling or background animation. Passwords remain in the native network editor rather
 than the Control Center's arguments, logs or state files.
 
 Isolated checks use simulated device services and an offscreen Qt window. They

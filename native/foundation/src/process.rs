@@ -278,11 +278,17 @@ pub enum StreamRead {
     Timeout,
 }
 
-/// An event source scoped to a finite request, never a resident supervisor.
+/// An event source scoped to its request or shell-owned stdio session.
 /// Dropping this guard stops/reaps the owned child and its process group.
 pub struct Subscription {
     owned: OwnedChild,
     stdout: std::process::ChildStdout,
+}
+
+impl AsRawFd for Subscription {
+    fn as_raw_fd(&self) -> std::os::fd::RawFd {
+        self.stdout.as_raw_fd()
+    }
 }
 
 impl Subscription {

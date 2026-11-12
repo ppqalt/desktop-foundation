@@ -182,6 +182,9 @@ fn run() -> Result<()> {
             let style = monitor::sidebar_style(&root)?;
             shell::call_now(&root, &["toggleControlCenter".into(), style.to_string()])
         }
+        Some("control-center") if args.as_slice() == ["control-center", "watch"] => {
+            control_center::live::run()
+        }
         Some("control-center") => print_json(&control_center::run(&args[1..])?),
         Some("update") => update::run(&root, &args[1..]),
         Some("app-roles") => {

@@ -24,7 +24,9 @@ printf '%s\n' 'aur-one 1 -> 2' >"$base/state/arch-update/last_updates_check_aur"
 : >"$base/state/arch-update/last_updates_check_flatpak"
 printf '%s\n' '1000000000' '2026-11-08 00:00:00' >"$base/state/arch-update/last_updates_check_time"
 perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n    \}\n//; s/^    (?:screen:|implicitWidth:|margins.left:|exclusionMode:|WlrLayershell\.).*\n//mg' "$root/shell/surfaces/ControlCenter.qml" >"$base/shell/surfaces/ControlCenterFixture.qml"
-if [[ ${DF_CONTROL_MEMORY_TEST:-0} == 1 ]]; then
+if [[ ${DF_CONTROL_LIVE_TEST:-0} == 1 ]]; then
+	cp "$root/tests/qml/control-center-live.qml" "$base/shell.qml"
+elif [[ ${DF_CONTROL_MEMORY_TEST:-0} == 1 ]]; then
 	cp "$root/tests/qml/control-center-memory.qml" "$base/shell.qml"
 elif [[ ${DF_CONTROL_OPENING_TEST:-0} == 1 ]]; then
 	cp "$root/tests/qml/sidebar-opening.qml" "$base/shell.qml"
@@ -38,7 +40,7 @@ cat >"$base/native/foundation/target/release/desktop-foundationctl" <<'WORKER'
 #!/bin/sh
 shift 3
 printf '%s\n' "$*" >> "$DF_CONTROL_CALLS"
-if [ "${DF_CONTROL_MEMORY_TEST:-0}" = 1 ]; then
+if [ "${DF_CONTROL_MEMORY_TEST:-0}" = 1 ] || [ "${DF_CONTROL_LIVE_TEST:-0}" = 1 ]; then
     exec /usr/bin/python3 "$DF_CONTROL_MEMORY_WORKER" "$@"
 fi
 if [ "$*" = 'wifi on' ]; then
@@ -74,6 +76,18 @@ elif args == ['snapshot-cache', 'write']:
     temporary = cache.with_suffix('.pending')
     temporary.write_text(json.dumps(value)); temporary.replace(cache)
     print('{"success":true}')
+elif args == ['watch']:
+    epochs = {'audio_epoch': 0, 'network_epoch': 0}
+    def emit(value):
+        print(json.dumps(dict(value, **epochs)), flush=True)
+    time.sleep(.25)  # Prove historical disk data is never promoted to live state.
+    emit(json.loads(source.read_text()))
+    for line in sys.stdin:
+        message = json.loads(line)
+        if message.get('fixture_exit'): break
+        epochs.update({k: message[k] for k in epochs if k in message})
+        value = message.get('fixture', json.loads(source.read_text()))
+        emit(value)
 elif args == ['snapshot']:
     time.sleep(.35)
     counter = source.with_name('reads')
@@ -103,7 +117,7 @@ elif args == ['list']:
 else:
     print('{"success":true}')
 PYTHON
-if [[ ${DF_CONTROL_MEMORY_TEST:-0} == 1 ]]; then
+if [[ ${DF_CONTROL_MEMORY_TEST:-0} == 1 || ${DF_CONTROL_LIVE_TEST:-0} == 1 ]]; then
 	/usr/bin/python3 - "$base/snapshot.json" <<'PYTHON'
 import json, pathlib, sys
 p = pathlib.Path(sys.argv[1]); value = json.loads(p.read_text())
@@ -128,6 +142,14 @@ fi
 if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|CONTROL_TIMEOUT|TypeError|ReferenceError|ERROR|QML (Warning|Error)|Qt Quick Layouts: Detected recursive|FAIL!|QtQuickTest::fail' "$base/log"; then
 	cat "$base/log" >&2
 	exit 1
+fi
+if [[ ${DF_CONTROL_LIVE_TEST:-0} == 1 ]]; then
+	if rg -qx snapshot "$base/calls"; then
+		printf '%s\n' 'Unexpected open-time snapshot in live mode' >&2
+		exit 1
+	fi
+	printf '%s\n' 'PASS event-fed first-open state, closed-panel updates, held slider, helper/service recovery and stale-event rejection'
+	exit 0
 fi
 if [[ ${DF_CONTROL_MEMORY_TEST:-0} == 1 ]]; then
 	printf '%s\n' 'PASS remembered audio/network, live readback, closed-panel save, restart restore and stale-load rejection'

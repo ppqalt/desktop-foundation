@@ -142,3 +142,15 @@ model discovery until after opening reduced the largest observed opening gap to
 17 ms in the same virtual/software-rendered scenario. This is not a Lucky38
 physical presentation measurement. Native Kitty/btop cold startup remains its
 own renderer boundary.
+
+### Control Center live state (2026-11-12)
+
+The older visible-only snapshot-loop entries above describe the audit baseline.
+Production now projects `ControlCenterState.current` from a shell-owned Rust
+`control-center watch` stdio session. PipeWire/PulseAudio and NetworkManager
+subscriptions feed changes while the lazy panel is closed; opening adds no scan
+and no Refreshing status. Epoch barriers protect action readback. Service
+reconnection, idle blocking and owned-child cleanup live in Rust. The finite
+snapshot fallback remains for standalone hosts/cache fixtures, without adding a
+second production watcher or retaining a hidden sidebar. See
+[Control Center](../control-center.md) for the current ownership and checks.

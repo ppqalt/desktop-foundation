@@ -35,6 +35,10 @@ PanelWindow {
     function applyRemembered(): void {
         if (closing || superseded || !rememberedState)
             return;
+        if (rememberedState.live) {
+            applyLive();
+            return;
+        }
         const value = rememberedState.snapshot;
         const next = Object.assign({}, stateData);
         for (const key of ["audio", "network"]) {
@@ -44,8 +48,27 @@ PanelWindow {
         }
         stateData = next;
     }
+    function applyLive(): void {
+        if (closing || superseded || !rememberedState?.live)
+            return;
+        const value = rememberedState.current;
+        const next = Object.assign({}, stateData);
+        if (value.audio && (value.audio.available !== true || (!audioAction.running && !audioQueue.length)))
+            next.audio = value.audio;
+        if (value.network && (value.network.available !== true || (!deviceRequest.running && !queue.length)))
+            next.network = value.network;
+        stateData = next;
+        syncApplications();
+        audioFresh = next.audio?.available === true;
+        networkFresh = next.network?.available === true;
+        receivedSnapshot = !!value.audio && !!value.network;
+        refreshError = [value.audio?.available === false ? "Audio unavailable" : "", value.network?.available === false ? "Network unavailable" : ""].filter(Boolean).join(" · ");
+    }
     Connections {
         target: root.rememberedState
+        function onCurrentChanged(): void {
+            root.applyLive();
+        }
         function onSnapshotChanged(): void {
             root.applyRemembered();
         }
@@ -119,15 +142,20 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: closing || superseded ? WlrKeyboardFocus.None : WlrKeyboardFocus.OnDemand
     color: "transparent"
-    Component.onCompleted: Qt.callLater(() => {
-        if (root.closing || root.superseded)
-            return;
+    Component.onCompleted: {
+        // Project the shell's current values before the window's first frame.
         root.applyRemembered();
-        root.rememberedState?.restore();
-        root.present();
-        outputMute.forceActiveFocus();
-    })
+        Qt.callLater(() => {
+            if (root.closing || root.superseded)
+                return;
+            root.applyRemembered();
+            root.rememberedState?.restore();
+            root.present();
+            outputMute.forceActiveFocus();
+        });
+    }
     function navigate(destination, origin = null): void {
+        initialFocus = false;
         if (destination !== "overview")
             returnFocus = origin;
         pageMotion.request(destination, destination !== "overview");
@@ -205,7 +233,12 @@ PanelWindow {
             dismissed(nextSurface);
         }
     }
-    function refresh(): void {
+    function refresh(force = false): void {
+        if (rememberedState?.live) {
+            if (force)
+                rememberedState.refreshLive();
+            return;
+        }
         if (!closing && contentReady && !motion.running && !busy && queue.length === 0 && audioQueue.length === 0 && !status.running && !outputChoice.popup.visible && !inputChoice.popup.visible)
             status.running = true;
     }
@@ -215,6 +248,8 @@ PanelWindow {
         const audioRequest = ["volume", "mute", "select", "stream-volume"].includes(args[0]);
         if (audioRequest ? !audioFresh : !networkFresh)
             return;
+        if (rememberedState?.live)
+            rememberedState.beginAction(audioRequest ? "audio" : "network");
         requestRevision++;
         initialFocus = false;
         let pending = (audioRequest ? audioQueue : queue).slice();
@@ -264,14 +299,17 @@ PanelWindow {
                 network: worker.response.network
             });
         }
-        rememberedState?.remember(worker.response);
+        if (rememberedState?.live)
+            rememberedState.confirm(worker.response);
+        else
+            rememberedState?.remember(worker.response);
         if (worker === audioAction && !audioQueue.length)
             pendingApplications = ({});
         Qt.callLater(() => {
             root.pump();
             root.finishClose();
             if (!worker.response.audio && !worker.response.network)
-                root.refresh();
+                root.refresh(true);
         });
     }
     FocusViewport {
@@ -294,7 +332,7 @@ PanelWindow {
     Timer {
         interval: 2000
         repeat: true
-        running: !root.closing
+        running: !root.closing && !root.rememberedState?.live
         onTriggered: root.refresh()
     }
     function acceptSnapshot(response, revision): bool {
@@ -336,7 +374,7 @@ PanelWindow {
     Process {
         id: audioEvents
         command: ["pactl", "subscribe"]
-        running: !root.closing && root.page === "audio"
+        running: !root.closing && root.page === "audio" && !root.rememberedState?.live
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
@@ -433,7 +471,7 @@ PanelWindow {
                 if (event.key === Qt.Key_R && event.modifiers & Qt.ControlModifier) {
                     root.error = "";
                     root.refreshError = "";
-                    root.refresh();
+                    root.refresh(true);
                     event.accepted = true;
                 }
             }
@@ -481,12 +519,12 @@ PanelWindow {
                     }
                     ControlGroup {
                         Layout.fillWidth: true
-                        visible: root.error !== "" || root.refreshError !== "" || root.refreshingRemembered
-                        color: root.error || root.refreshError ? Material.colors.error_container : Material.colors.surface_container_low
+                        visible: root.error !== "" || root.refreshError !== ""
+                        color: Material.colors.error_container
                         WidgetStatus {
                             Layout.fillWidth: true
-                            message: root.error || root.refreshError || "Refreshing…"
-                            status: root.error || root.refreshError ? "error" : "loading"
+                            message: root.error || root.refreshError
+                            status: "error"
                             color: root.error || root.refreshError ? Material.colors.on_error_container : Material.colors.on_surface_variant
                             font.pixelSize: Material.type.bodyMedium
                         }
@@ -532,7 +570,7 @@ PanelWindow {
                                         compact: true
                                         toggle: true
                                         marked: root.network.enabled ?? false
-                                        badge: marked ? "On" : "Off"
+                                        badge: root.rememberedState?.live && !root.networkFresh ? "—" : marked ? "On" : "Off"
                                         enabled: root.networkFresh && (root.network.available ?? false) && !deviceRequest.running
                                         onClicked: root.enqueue(["networking", root.network.enabled ? "off" : "on"])
                                     }
@@ -565,7 +603,7 @@ PanelWindow {
                                         visible: root.page === "overview"
                                         objectName: "audioDetails"
                                         text: "Output"
-                                        detail: root.output.label || root.output.description || "No output available"
+                                        detail: root.rememberedState?.live && !root.audioFresh ? "" : root.output.label || root.output.description || "No output available"
                                         symbol: "headphones"
                                         badge: "›"
                                         onClicked: root.navigate("audio", this)
@@ -586,6 +624,7 @@ PanelWindow {
                                     }
                                     ControlVolumeRow {
                                         id: outputLevel
+                                        valueAvailable: !root.rememberedState?.live || root.audioFresh
                                         Layout.fillWidth: true
                                         showMute: true
                                         muteName: "outputMute"
@@ -617,7 +656,7 @@ PanelWindow {
                                         visible: root.page === "overview"
                                         objectName: "inputDetails"
                                         text: "Microphone"
-                                        detail: root.input.label || root.input.description || "No microphone available"
+                                        detail: root.rememberedState?.live && !root.audioFresh ? "" : root.input.label || root.input.description || "No microphone available"
                                         symbol: "mic"
                                         badge: "›"
                                         onClicked: root.navigate("audio", this)
@@ -638,6 +677,7 @@ PanelWindow {
                                     }
                                     ControlVolumeRow {
                                         id: inputLevel
+                                        valueAvailable: !root.rememberedState?.live || root.audioFresh
                                         Layout.fillWidth: true
                                         showMute: true
                                         sliderName: "inputVolume"
@@ -682,6 +722,7 @@ PanelWindow {
                                 Repeater {
                                     model: root.page === "audio" ? applicationModel : null
                                     delegate: ControlVolumeRow {
+                                        valueAvailable: !root.rememberedState?.live || root.audioFresh
                                         required property string streamSerial
                                         required property int streamId
                                         required property string streamName

@@ -406,3 +406,172 @@ fn sidebar_entry_is_presented_before_discovery_and_can_be_cancelled() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+// The real native watch protocol against inert event-producing services.
+const WATCH_FAKE: &str = r#"#!/usr/bin/python3
+import json, os, pathlib, sys, time
+base = pathlib.Path(os.environ['DF_CONTROL_WATCH'])
+name = pathlib.Path(sys.argv[0]).name
+args = sys.argv[1:]
+with open(base / 'calls', 'a') as log:
+    log.write(name + '\t' + '\t'.join(args) + '\n')
+if args == (['subscribe'] if name == 'pactl' else ['monitor']):
+    (base / (name + '.pid')).write_text(str(os.getpid()))
+    with os.fdopen(os.open(base / (name + '.events'), os.O_RDWR)) as events:
+        for event in events:
+            if event.strip() == 'EXIT': sys.exit(0)
+            print(event, end='', flush=True)
+    sys.exit(0)
+if name == 'pactl' and (base / 'query-failed').exists(): sys.exit(8)
+state = json.loads((base / 'live.json').read_text())
+if name == 'pactl':
+    if args[-1] == 'info': print(json.dumps({'default_sink_name':'speakers','default_source_name':'mic'}))
+    elif args[-1] == 'sinks':
+        if (base / 'slow').exists():
+            (base / 'entered').touch()
+            time.sleep(.25)
+        print(json.dumps([{'index':1,'name':'speakers','description':'Speakers','mute':False,'volume':{'mono':{'value':state['volume'] * 65536 // 100}}}]))
+    elif args[-1] == 'sources': print('[]')
+    elif args[-1] == 'sink-inputs': print('[]')
+else:
+    if args[-1] == 'general': print(('enabled' if state['network'] else 'disabled') + ':enabled:connected:full')
+    elif args[-1] == 'status': print('enp4s0:ethernet:connected:Office')
+    elif args[-1] == 'show': print('')
+"#;
+
+#[test]
+fn live_state_updates_while_views_are_closed_without_idle_polling_and_recovers() {
+    use std::{
+        io::{BufRead, BufReader, Write},
+        sync::mpsc,
+        time::{Duration, Instant},
+    };
+    struct Watch(std::process::Child);
+    impl Drop for Watch {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    fn wait_for(mut predicate: impl FnMut() -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while !predicate() {
+            assert!(Instant::now() < deadline, "event source timed out");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+    let f = Fixture::new();
+    for name in ["pactl", "nmcli"] {
+        fs::write(f.bin.join(name), WATCH_FAKE).unwrap();
+        let path = std::ffi::CString::new(
+            f.base
+                .join(format!("{name}.events"))
+                .as_os_str()
+                .as_encoded_bytes(),
+        )
+        .unwrap();
+        assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+    }
+    let state = |volume: u64, network: bool| {
+        let pending = f.base.join("live.pending");
+        fs::write(
+            &pending,
+            serde_json::json!({"volume":volume,"network":network}).to_string(),
+        )
+        .unwrap();
+        fs::rename(pending, f.base.join("live.json")).unwrap();
+    };
+    state(27, false);
+    let mut child = Watch(
+        f.command(&["watch"], None)
+            .env("DF_CONTROL_WATCH", &f.base)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let mut input = child.0.stdin.take().unwrap();
+    let stdout = child.0.stdout.take().unwrap();
+    let (tx, rx) = mpsc::channel();
+    let reader = std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            if tx
+                .send(serde_json::from_str::<Value>(&line.unwrap()).unwrap())
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+    let receive = || {
+        rx.recv_timeout(Duration::from_secs(4))
+            .expect("missing state event")
+    };
+    let first = receive();
+    let second = receive();
+    assert_eq!(first["audio"]["outputs"][0]["volume"], 27);
+    assert_eq!(second["network"]["enabled"], false);
+    for name in ["pactl", "nmcli"] {
+        wait_for(|| f.base.join(format!("{name}.pid")).exists());
+    }
+    let event = |name: &str, text: &str| {
+        fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(f.base.join(format!("{name}.events")))
+            .unwrap()
+            .write_all(text.as_bytes())
+            .unwrap();
+    };
+    std::thread::sleep(Duration::from_millis(80));
+    let calls = f.calls();
+    event("pactl", "Event 'new' on client #1\n");
+    std::thread::sleep(Duration::from_millis(180));
+    assert_eq!(
+        f.calls(),
+        calls,
+        "idle/client events must not query devices"
+    );
+    state(63, true);
+    event("pactl", "Event 'change' on sink #1\n");
+    assert_eq!(receive()["audio"]["outputs"][0]["volume"], 63);
+    event("nmcli", "enp4s0: connected\n");
+    assert_eq!(receive()["network"]["enabled"], true);
+    // A command arriving during a slow read invalidates the obsolete result.
+    fs::write(f.base.join("slow"), "").unwrap();
+    event("pactl", "Event 'change' on sink #1\n");
+    wait_for(|| f.base.join("entered").exists());
+    state(81, true);
+    input.write_all(b"{\"audio_epoch\":1}\n").unwrap();
+    fs::remove_file(f.base.join("slow")).unwrap();
+    let fresh = receive();
+    assert_eq!(fresh["audio_epoch"], 1);
+    assert_eq!(fresh["audio"]["outputs"][0]["volume"], 81);
+    // A failed read can recover even if the surviving event stream stays quiet.
+    fs::write(f.base.join("query-failed"), "").unwrap();
+    event("pactl", "Event 'change' on sink #1\n");
+    assert_eq!(receive()["audio"]["available"], false);
+    fs::remove_file(f.base.join("query-failed")).unwrap();
+    assert_eq!(receive()["audio"]["available"], true);
+    // Only the failed service goes unavailable, then its owned monitor reconnects.
+    event("pactl", "EXIT\n");
+    assert_eq!(receive()["audio"]["available"], false);
+    assert_eq!(receive()["audio"]["available"], true);
+    let pids: Vec<i32> = ["pactl", "nmcli"]
+        .iter()
+        .map(|name| {
+            fs::read_to_string(f.base.join(format!("{name}.pid")))
+                .unwrap()
+                .parse()
+                .unwrap()
+        })
+        .collect();
+    drop(input); // Shell teardown, no detached subscriptions left behind.
+    wait_for(|| child.0.try_wait().unwrap().is_some());
+    assert!(child.0.wait().unwrap().success());
+    reader.join().unwrap();
+    for pid in pids {
+        assert_eq!(unsafe { libc::kill(pid, 0) }, -1, "monitor child leaked");
+    }
+}

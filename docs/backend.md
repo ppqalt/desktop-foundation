@@ -39,7 +39,7 @@ notifications start|check-owner
 system packages [--config FILE]
 shell call METHOD [ARGS...]
 local-ai start|status|plan
-control-center toggle|snapshot|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings
+control-center toggle|snapshot|watch|snapshot-cache|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings
 update [--dry-run]
 build-info
 doctor [--installation] [--personal|--core] [--no-greeter]|--json

@@ -3,9 +3,15 @@ import Quickshell
 import Quickshell.Io
 import "../components"
 
-// Confirmed display snapshots survive lazy panels. Rust owns disk validation.
+// Shell-owned read model; lazy views never own device subscriptions.
+// Rust owns event filtering, current readback, reconnection and disk validation.
 QtObject {
     id: root
+    property bool live: false
+    property bool initialized: false
+    property var current: ({})
+    property int audioEpoch: 0
+    property int networkEpoch: 0
     property var snapshot: ({})
     property int revision: 0
     property bool requested: false
@@ -16,6 +22,110 @@ QtObject {
     property string error: ""
     readonly property bool busy: reader.running || writer.running || pending !== ""
     property string backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/native/foundation/target/release/desktop-foundationctl"
+    Component.onCompleted: {
+        initialized = true;
+        if (live)
+            startWatch();
+    }
+    onLiveChanged: {
+        if (!initialized)
+            return;
+        reconnect.stop();
+        if (live)
+            startWatch();
+        else
+            watcher.running = false;
+    }
+    function startWatch(): void {
+        if (!live || watcher.running)
+            return;
+        watcher.stdinEnabled = true;
+        watcher.running = true;
+    }
+    function send(value): void {
+        if (watcher.running)
+            watcher.write(JSON.stringify(value) + "\n");
+    }
+    function epochs(): var {
+        return {
+            audio_epoch: audioEpoch,
+            network_epoch: networkEpoch
+        };
+    }
+    function beginAction(domain): void {
+        if (domain === "audio")
+            audioEpoch++;
+        else
+            networkEpoch++;
+        send(epochs());
+    }
+    function publish(value): void {
+        current = Object.assign({}, current, value);
+        remember(value);
+    }
+    function confirm(value): void {
+        const next = {};
+        if (value.audio) {
+            audioEpoch++;
+            next.audio = value.audio;
+        }
+        if (value.network) {
+            networkEpoch++;
+            next.network = value.network;
+        }
+        send(epochs());
+        publish(next);
+    }
+    function refreshLive(): void {
+        send({
+            refresh: "all"
+        });
+        if (!watcher.running)
+            startWatch();
+    }
+    function accept(line): void {
+        try {
+            const value = JSON.parse(line);
+            const next = {};
+            if (value.audio && value.audio_epoch === audioEpoch)
+                next.audio = value.audio;
+            if (value.network && value.network_epoch === networkEpoch)
+                next.network = value.network;
+            if (Object.keys(next).length)
+                publish(next);
+        } catch (e) {
+            console.warn("Invalid Control Center event:", String(e));
+        }
+    }
+    property Timer reconnect: Timer {
+        interval: 1000
+        onTriggered: root.startWatch()
+    }
+    property Process watcher: Process {
+        command: [root.backend, "--root", Quickshell.env("DF_FOUNDATION_ROOT"), "control-center", "watch"]
+        onStarted: root.send(root.epochs())
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => root.accept(data)
+        }
+        stderr: StdioCollector {}
+        onExited: {
+            root.audioEpoch++;
+            root.networkEpoch++;
+            root.current = {
+                audio: {
+                    available: false,
+                    error: "Event connection unavailable"
+                },
+                network: {
+                    available: false,
+                    error: "Event connection unavailable"
+                }
+            };
+            if (root.live)
+                root.reconnect.restart();
+        }
+    }
     function restore(): void {
         if (requested || Object.keys(snapshot).length)
             return;
