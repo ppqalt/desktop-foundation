@@ -19,19 +19,34 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['install', 'restore'])
-    args = parser.parse_args()
-    if os.geteuid() != 0:
-        parser.error('Run with sudo')
+def activation_plan(*, check_lsms=True):
+    """Read-only prerequisites shared by preflight and the privileged writer."""
     if not Path('/sys/module/apparmor').exists():
         raise RuntimeError('Running kernel lacks AppArmor capability; install a supported kernel first. No boot files changed.')
     generator = Path('/usr/bin/grub-mkconfig')
-    if not generator.exists() or 'default/grub.d/' not in generator.read_text():
+    if not generator.is_file() or 'default/grub.d/' not in generator.read_text():
         raise RuntimeError('Automatic AppArmor boot configuration requires GRUB with drop-in support. See docs/APPARMOR.md; no boot files changed.')
     if not Path('/boot/grub/grub.cfg').is_file():
         raise RuntimeError('GRUB output path missing; mount the installed boot filesystem first. No boot files changed.')
+    return installed_lsms() if check_lsms else None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['check', 'install', 'restore'])
+    args = parser.parse_args()
+    if args.action == 'check':
+        enabled = Path('/sys/module/apparmor/parameters/enabled')
+        if enabled.is_file() and enabled.read_text().strip() == 'Y':
+            print('AppArmor already enabled; boot setup unchanged.')
+            return
+        activation_plan()
+        print('AppArmor activation prerequisites ready; no boot files changed.')
+        return
+    if os.geteuid() != 0:
+        parser.error('Run with sudo')
+    # Recheck immediately before mutation; a prior check is not authorization.
+    lsms = activation_plan(check_lsms=args.action == 'install')
     STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     journal = STATE / 'manifest.json'
     entry = json.loads(journal.read_text()) if journal.exists() else None
@@ -48,7 +63,7 @@ def main():
         journal.unlink()
         return
     template = ROOT / 'session/apparmor/60-desktop-foundation.cfg'
-    content = 'DF_APPARMOR_LSM=' + shlex.quote(installed_lsms()) + '\n' + template.read_text()
+    content = 'DF_APPARMOR_LSM=' + shlex.quote(lsms) + '\n' + template.read_text()
     source = STATE / 'rendered.cfg'
     source.write_text(content)
     if entry and (not TARGET.exists() or digest(TARGET) != entry['managed']):

@@ -639,6 +639,11 @@ pub fn execute(
             r.validate_app("steam", &personal["steam"])?;
         }
     }
+    // Detect unsupported activation before authentication, builds or deployment.
+    // The privileged writer repeats the same read-only prerequisites later.
+    if !o.clean_boot && !r.apparmor_enabled() {
+        call(r, root, "apparmor-setup", &["check"])?;
+    }
     r.command(&words(&["sudo", "-v"]))?;
     if o.packages {
         let mut bootstrap = Vec::new();

@@ -14,7 +14,20 @@ The kernel activation file must report `Y`.
 
 ## GRUB setup
 
-When kernel activation is needed, the installer calls:
+When kernel activation is needed, the installer first runs a read-only check,
+before native installation authentication, component builds or desktop deployment
+(the shell entry point may first bootstrap/build the installer CLI):
+
+```sh
+scripts/apparmor-setup check
+```
+
+It detects kernel capability, GRUB drop-in support, the mounted boot output and
+installed kernel LSM metadata. Unsupported boot setups stop early with guidance;
+they are never silently converted or treated as successful activation. If
+AppArmor is already enabled, the installer leaves the boot setup alone.
+
+After that check, the installer calls:
 
 ```sh
 sudo scripts/apparmor-setup install

@@ -819,3 +819,38 @@ fn configured_manager_detection_is_read_only_and_preserves_broken_or_custom_alia
             .contains("/custom/manager")
     );
 }
+
+#[test]
+fn apparmor_activation_is_detected_before_any_mutation_and_rechecked_by_writer() {
+    let f = Fixture::new();
+    let options = f.options(&["--core"]);
+    let mut unsupported = Fake {
+        no_apparmor: true,
+        failure: Some("apparmor-setup".into()),
+        ..Fake::default()
+    };
+    assert!(install::execute(&f.root, &f.paths, &options, &mut unsupported).is_err());
+    assert_eq!(unsupported.commands.len(), 1);
+    assert_eq!(unsupported.commands[0].last().unwrap(), "check");
+    assert!(!unsupported.named("sudo"));
+    assert!(!unsupported.named("deploy"));
+
+    let mut supported = Fake {
+        no_apparmor: true,
+        ..Fake::default()
+    };
+    install::execute(&f.root, &f.paths, &options, &mut supported).unwrap();
+    assert_eq!(supported.commands[0].last().unwrap(), "check");
+    assert!(
+        supported
+            .commands
+            .iter()
+            .any(|c| c.first().is_some_and(|s| s == "sudo")
+                && c.iter().any(|s| s.ends_with("/apparmor-setup"))
+                && c.last().is_some_and(|s| s == "install"))
+    );
+
+    let mut active = Fake::default();
+    install::execute(&f.root, &f.paths, &options, &mut active).unwrap();
+    assert!(!active.named("apparmor-setup"));
+}

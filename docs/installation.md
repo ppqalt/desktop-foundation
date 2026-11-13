@@ -88,6 +88,12 @@ than surfacing after a replay has been captured. See [personal applications](per
 | `--greeter` | Explicitly configure greetd; another configured manager is never replaced |
 | `--clean-boot` | Apply the GRUB/mkinitcpio cleanup and boot optimization helpers |
 
+If AppArmor needs activation, its kernel/bootloader prerequisites are checked
+before native installation authentication, component builds or deployment. The
+initial CLI bootstrap/build may already have run. Existing activation is preserved;
+unsupported boot setups stop early rather than failing after desktop deployment.
+See [AppArmor](APPARMOR.md) for the read-only check and native bootloader guidance.
+
 The installed Niri must accept the generated KDL, including its blur and
 background effects. The installer checks that configuration before deployment.
 Greeter setup checks tuigreet's None background before writing login files. Existing display-manager configuration is detected through systemd's
