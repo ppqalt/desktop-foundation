@@ -71,11 +71,18 @@ if $help; then
 		'  --patched-niri       Install managed patched Niri (default)' \
 		'  --stock-niri         Restore/preserve stock Niri instead' \
 		'  --no-packages        Preserve installed packages; deploy only' \
+		'  --greeter            Configure greetd when no other manager owns login' \
 		'  --no-greeter         Preserve the existing login manager' \
+		'  Default: keep a configured login manager; otherwise install greetd' \
 		'  --clean-boot         Apply the selected supported boot cleanup' \
 		'  --dry-run|--check    Inspect without package or build changes' \
 		'Extras: steam, spicetify, geode, recording'
 	exit 0
+fi
+# Provision/build as the login user; sudo is acquired only by the selected steps.
+if ! $dry && ! $check && [[ ${EUID} == 0 ]]; then
+	printf '%s\n' 'Run the installer as your normal login user, without sudo; it requests administrator authentication when needed. Nothing bootstrapped.' >&2
+	exit 1
 fi
 if [[ ! -x $root/native/foundation/target/release/desktop-foundationctl ]]; then
 	no_packages=false

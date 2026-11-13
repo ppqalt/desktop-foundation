@@ -7,12 +7,15 @@ A barless CachyOS and Niri desktop with Material-inspired widgets, wallpaper col
 ```sh
 git clone https://github.com/ppqalt/desktop-foundation.git
 cd desktop-foundation
-./scripts/install-core
+./scripts/install-all
 ```
 
-Use `./scripts/install-all` for the full application setup. Both commands build
-and install the patched Niri compositor automatically; your running session stays
-open and the patch activates at the next login. Stock recovery is retained. See [installation](docs/installation.md) for requirements and options.
+This installs the full desktop and application setup, including recording/replay
+tools and patched Niri. Use `./scripts/install-core` for Minimal, or
+`./scripts/install --standard` for Standard. Existing login managers are preserved
+automatically. Every profile builds and installs patched Niri; your running
+session stays open and the patch activates at the next login. Stock recovery is
+retained. See [installation](docs/installation.md) for requirements and options.
 
 ## Shortcuts
 
@@ -28,7 +31,9 @@ open and the patch activates at the next login. Stock recovery is retained. See 
 | Super+Shift+C | Clock |
 | Super+T | Terminal |
 | Super+E / Super+W | Files / browser |
-| Insert | Transparency Mode |
+| Insert / Delete | Next / previous track |
+| Pause/Break | Transparency Mode |
+| Shift+Pause/Break | Microphone monitoring |
 
 ```sh
 df-update

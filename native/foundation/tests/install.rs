@@ -153,6 +153,8 @@ struct Fake {
     conflict: bool,
     missing_app: bool,
     missing_recorder: bool,
+    missing_recording_tool: Option<String>,
+    manager: Option<String>,
     no_pacman: bool,
     root: bool,
     no_apparmor: bool,
@@ -168,6 +170,9 @@ impl Fake {
     }
 }
 impl Runtime for Fake {
+    fn display_manager(&self) -> Result<Option<String>> {
+        Ok(self.manager.clone())
+    }
     fn query(&mut self, args: &[String]) -> Result<bool> {
         self.queries.push(args.to_vec());
         Ok(if args.get(1).map(String::as_str) == Some("-T") {
@@ -191,6 +196,8 @@ impl Runtime for Fake {
             !self.no_pacman
         } else if name == "gpu-screen-recorder" {
             !self.missing_recorder
+        } else if ["ffmpeg", "ffprobe"].contains(&name) {
+            self.missing_recording_tool.as_deref() != Some(name)
         } else {
             self.variant
         }
@@ -690,4 +697,125 @@ fn compositor_package_failure_stops_before_deploy() {
     assert!(install::execute(&f.root, &f.paths, &f.options(&[]), &mut r).is_err());
     assert!(!r.named("deploy"));
     assert!(!r.named("preflight"));
+}
+
+#[test]
+fn recording_manifest_explicitly_includes_the_editor_and_validation_dependency() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let packages = install::manifest(&root, "recording").unwrap();
+    assert!(packages.contains(&"gpu-screen-recorder".into()));
+    assert!(packages.contains(&"ffmpeg".into()));
+}
+#[test]
+fn selected_recording_checks_all_tools_before_mutation_or_success() {
+    for tool in ["ffmpeg", "ffprobe"] {
+        for mode in ["--no-packages", "--check"] {
+            let f = Fixture::new();
+            let mut r = Fake {
+                missing_recording_tool: Some(tool.into()),
+                ..Fake::default()
+            };
+            let result = install::execute(
+                &f.root,
+                &f.paths,
+                &f.options(&["--extra", "recording", mode, "--no-greeter"]),
+                &mut r,
+            );
+            assert!(result.unwrap_err().to_string().contains(tool));
+            assert!(r.commands.is_empty());
+        }
+        let f = Fixture::new();
+        let mut r = Fake {
+            available: true,
+            missing_recording_tool: Some(tool.into()),
+            ..Fake::default()
+        };
+        let result = install::execute(
+            &f.root,
+            &f.paths,
+            &f.options(&["--personal", "--no-greeter"]),
+            &mut r,
+        );
+        assert!(result.unwrap_err().to_string().contains(tool));
+        assert!(!r.named("deploy") && !r.named("doctor") && !r.named("build-nothing"));
+    }
+}
+#[test]
+fn automatic_login_setup_preserves_existing_managers_and_provisions_empty_systems() {
+    for manager in [
+        None,
+        Some("sddm.service"),
+        Some("gdm.service"),
+        Some("lightdm.service"),
+        Some("greetd.service"),
+    ] {
+        let f = Fixture::new();
+        let mut r = Fake {
+            available: true,
+            manager: manager.map(String::from),
+            ..Fake::default()
+        };
+        install::execute(&f.root, &f.paths, &f.options(&["--minimal"]), &mut r).unwrap();
+        assert_eq!(r.named("system-setup"), manager.is_none());
+        let bootstrap = r
+            .commands
+            .iter()
+            .find(|args| args[0].ends_with("/bootstrap"))
+            .unwrap();
+        assert_eq!(
+            bootstrap.iter().any(|s| s == "--greeter"),
+            manager.is_none()
+        );
+        let doctor = r
+            .commands
+            .iter()
+            .find(|args| args[0].ends_with("/doctor"))
+            .unwrap();
+        assert_eq!(
+            doctor.iter().any(|s| s == "--no-greeter"),
+            manager.is_some()
+        );
+    }
+}
+#[test]
+fn explicit_greeter_conflict_is_rejected_before_packages_or_deployment() {
+    let f = Fixture::new();
+    let mut r = Fake {
+        manager: Some("sddm.service".into()),
+        available: true,
+        ..Fake::default()
+    };
+    let error =
+        install::execute(&f.root, &f.paths, &f.options(&["--greeter"]), &mut r).unwrap_err();
+    assert!(error.to_string().contains("sddm.service"));
+    assert!(r.commands.is_empty());
+    install::execute(&f.root, &f.paths, &f.options(&["--no-greeter"]), &mut r).unwrap();
+    assert!(!r.named("system-setup"));
+}
+#[test]
+fn configured_manager_detection_is_read_only_and_preserves_broken_or_custom_aliases() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    let alias = f.base.join("display-manager.service");
+    assert_eq!(install::configured_display_manager(&alias).unwrap(), None);
+    symlink("/missing/sddm.service", &alias).unwrap();
+    assert_eq!(
+        install::configured_display_manager(&alias)
+            .unwrap()
+            .as_deref(),
+        Some("sddm.service")
+    );
+    fs::remove_file(&alias).unwrap();
+    fs::write(&alias, "[Service]\nExecStart=/custom/manager\n").unwrap();
+    assert_eq!(
+        install::configured_display_manager(&alias)
+            .unwrap()
+            .as_deref(),
+        Some("display-manager.service")
+    );
+    assert!(
+        fs::read_to_string(alias)
+            .unwrap()
+            .contains("/custom/manager")
+    );
 }

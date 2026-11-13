@@ -10,6 +10,7 @@ pub struct Options {
     pub standard: bool,
     pub extras: Vec<String>,
     pub greeter: bool,
+    pub auto_greeter: bool,
     pub patched_niri: bool,
     pub packages: bool,
     pub clean_boot: bool,
@@ -24,6 +25,7 @@ impl Options {
             standard: false,
             extras: Vec::new(),
             greeter: true,
+            auto_greeter: true,
             patched_niri: true,
             packages: true,
             clean_boot: false,
@@ -68,8 +70,14 @@ impl Options {
                 }
                 "--patched-niri" => o.patched_niri = true,
                 "--stock-niri" => o.patched_niri = false,
-                "--greeter" => o.greeter = true,
-                "--no-greeter" => o.greeter = false,
+                "--greeter" => {
+                    o.greeter = true;
+                    o.auto_greeter = false;
+                }
+                "--no-greeter" => {
+                    o.greeter = false;
+                    o.auto_greeter = false;
+                }
                 "--no-packages" => o.packages = false,
                 "--clean-boot" => o.clean_boot = true,
                 "--dry-run" | "--plan" => o.dry_run = true,
@@ -176,9 +184,15 @@ pub trait Runtime {
     fn conflicts(&self, root: &Path, paths: &deploy::Paths, personal: bool) -> Result<Vec<String>>;
     fn apparmor_enabled(&self) -> bool;
     fn clean_boot_supported(&self) -> bool;
+    fn display_manager(&self) -> Result<Option<String>> {
+        Ok(None)
+    }
 }
 pub struct Native;
 impl Runtime for Native {
+    fn display_manager(&self) -> Result<Option<String>> {
+        configured_display_manager(Path::new("/etc/systemd/system/display-manager.service"))
+    }
     fn query(&mut self, args: &[String]) -> Result<bool> {
         Ok(process::run(args, None, Duration::from_secs(10), true)?
             .status
@@ -323,6 +337,64 @@ pub fn provision(
     }
     r.validate_app(name, app)
 }
+/// Detect the configured manager without contacting/restarting a running session.
+pub fn configured_display_manager(alias: &Path) -> Result<Option<String>> {
+    match fs::symlink_metadata(alias) {
+        Ok(meta) if meta.file_type().is_symlink() => Ok(Some(
+            fs::read_link(alias)?
+                .file_name()
+                .and_then(|name| name.to_str())
+                .filter(|name| {
+                    name.bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || b"@._-".contains(&c))
+                })
+                .unwrap_or("display-manager.service")
+                .to_string(),
+        )),
+        Ok(meta) if meta.is_file() => Ok(Some("display-manager.service".into())),
+        Ok(_) => Err(invalid(
+            "Display-manager configuration is not a service file or link",
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+fn resolve_greeter(r: &impl Runtime, options: &Options) -> Result<Options> {
+    let mut resolved = options.clone();
+    if !options.auto_greeter && !options.greeter {
+        return Ok(resolved);
+    }
+    let manager = r.display_manager()?;
+    if options.auto_greeter {
+        resolved.greeter = manager.is_none();
+        resolved.auto_greeter = false;
+        if let Some(manager) = manager {
+            println!("Preserving existing login manager: {manager}");
+        }
+    } else if let Some(manager) = manager
+        && manager != "greetd.service"
+    {
+        return Err(invalid(format!(
+            "Existing login manager {manager}; use --no-greeter to preserve it. No login files changed."
+        )));
+    }
+    Ok(resolved)
+}
+const RECORDING_TOOLS: [&str; 3] = ["gpu-screen-recorder", "ffmpeg", "ffprobe"];
+fn check_recording_tools(r: &impl Runtime) -> Result<()> {
+    let missing: Vec<_> = RECORDING_TOOLS
+        .into_iter()
+        .filter(|tool| !r.executable(tool))
+        .collect();
+    if !missing.is_empty() {
+        return Err(invalid(format!(
+            "Recording requires {} (recording packages: gpu-screen-recorder and ffmpeg)",
+            missing.join(", ")
+        )));
+    }
+    Ok(())
+}
+
 fn doctor(r: &mut impl Runtime, root: &Path, o: &Options) -> Result<()> {
     let mut args = vec![
         "--installation",
@@ -340,11 +412,11 @@ pub fn execute(
     o: &Options,
     r: &mut impl Runtime,
 ) -> Result<()> {
-    if (o.check || !o.packages)
-        && (o.personal || o.extras.iter().any(|e| e == "recording"))
-        && !r.executable("gpu-screen-recorder")
-    {
-        return Err(invalid("The recording extra requires gpu-screen-recorder"));
+    let resolved = resolve_greeter(r, o)?;
+    let o = &resolved;
+    let recording_selected = o.personal || o.extras.iter().any(|e| e == "recording");
+    if (o.check || !o.packages) && recording_selected {
+        check_recording_tools(r)?;
     }
     if o.check {
         doctor(r, root, o)?;
@@ -581,6 +653,9 @@ pub fn execute(
             missing_packages(r, &manifest(root, "recording")?)?;
         }
     }
+    if recording_selected {
+        check_recording_tools(r)?;
+    }
     call(r, root, "build-nothing", &[])?;
     call(r, root, "build-backend", &[])?;
     if o.packages {
@@ -676,7 +751,7 @@ pub fn execute(
         }
     }
     doctor(r, root, o)?;
-    println!("Install complete. Log into Niri and run scripts/doctor. Restore: scripts/uninstall.");
+    println!("Install complete. Choose Niri at your next login. Restore: scripts/uninstall.");
     Ok(())
 }
 
@@ -778,7 +853,7 @@ fn save_selection(dir: &Path, o: &Options) -> Result<()> {
 pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let root = root.canonicalize()?;
     let paths = deploy::Paths::environment()?;
-    let options = selection(&root, &paths.state, args)?;
+    let options = resolve_greeter(&Native, &selection(&root, &paths.state, args)?)?;
     // Dry-run/check never create a state directory or acquire a mutation lock.
     if options.dry_run || options.check {
         return execute(&root, &paths, &options, &mut Native);
@@ -799,7 +874,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     let _lock = state::lock(&paths.state.join("install.lock"), Duration::from_secs(30))?;
     // Another installer may have completed while we waited for the lock.
     // Re-read its selection and ownership state before changing anything.
-    let options = selection(&root, &paths.state, args)?;
+    let options = resolve_greeter(&runtime, &selection(&root, &paths.state, args)?)?;
     let conflicts = runtime.conflicts(&root, &paths, options.personal)?;
     if !conflicts.is_empty() {
         return Err(invalid(format!(
@@ -819,6 +894,54 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod selection_tests {
     use super::*;
+    #[test]
+    fn automatically_preserved_manager_choice_survives_the_next_install() {
+        struct ExistingManager;
+        impl Runtime for ExistingManager {
+            fn display_manager(&self) -> Result<Option<String>> {
+                Ok(Some("sddm.service".into()))
+            }
+            fn query(&mut self, _: &[String]) -> Result<bool> {
+                unreachable!()
+            }
+            fn command(&mut self, _: &[String]) -> Result<()> {
+                unreachable!()
+            }
+            fn executable(&self, _: &str) -> bool {
+                unreachable!()
+            }
+            fn validate_app(&self, _: &str, _: &Value) -> Result<()> {
+                unreachable!()
+            }
+            fn desktop_exists(&self, _: &str) -> Result<bool> {
+                unreachable!()
+            }
+            fn uid(&self) -> u32 {
+                unreachable!()
+            }
+            fn conflicts(&self, _: &Path, _: &deploy::Paths, _: bool) -> Result<Vec<String>> {
+                unreachable!()
+            }
+            fn apparmor_enabled(&self) -> bool {
+                unreachable!()
+            }
+            fn clean_boot_supported(&self) -> bool {
+                unreachable!()
+            }
+        }
+        let root =
+            std::env::temp_dir().join(format!("df-install-auto-greeter-{}", std::process::id()));
+        fs::create_dir_all(root.join("profiles/default")).unwrap();
+        fs::create_dir_all(root.join("state")).unwrap();
+        let selected =
+            resolve_greeter(&ExistingManager, &Options::parse(&root, &[]).unwrap()).unwrap();
+        assert!(!selected.greeter && !selected.auto_greeter);
+        save_selection(&root.join("state"), &selected).unwrap();
+        let next = selection(&root, &root.join("state"), &[]).unwrap();
+        assert!(!next.greeter && !next.auto_greeter);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn recording_extra_is_optional_and_preserved() {
         let dir =

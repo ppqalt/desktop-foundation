@@ -7,6 +7,10 @@ orchestration is native Rust; Python remains necessary for the not-yet-migrated
 privileged helpers.
 
 Malformed arguments and `--help` are handled before bootstrapping or building.
+Do not run the installer with sudo: a mutable root invocation is rejected before
+bootstrap/build, and the normal-user workflow requests authentication for its
+privileged steps. The installer runs its selected doctor checks before reporting
+success; no separate validation command is needed to finish installation.
 
 A normal installation bootstraps missing build dependencies and builds the release
 backend automatically. A normal rerun rebuilds the selected checkout before
@@ -24,9 +28,13 @@ scripts/install-core
 The default installation provides the Niri desktop, Quickshell and terminal
 configuration. It builds both Rust backends and the pinned patched Niri package, retains a signed
 stock-compositor recovery package, deploys configuration and enables
-Bluetooth and AppArmor. Existing application associations are left alone. The default greeter is greetd with tuigreet and a
-plain, non-animated background. The keyring uses oo7 with PAM password unlocking through
-greetd. Choose Niri at login, then run `scripts/doctor`. See [keyring setup](keyring.md).
+Bluetooth and AppArmor. Existing application associations are left alone. When no display-manager service is configured, the installer provides greetd
+with tuigreet and a plain background. An existing configured manager (including
+SDDM, GDM, LightDM or greetd) is preserved automatically. An explicit
+`--greeter` cannot replace another manager and is rejected before native package
+or deployment actions. `--no-greeter` always preserves the login setup. The keyring uses oo7 with PAM password unlocking through
+greetd. Choose Niri at login. `scripts/doctor` remains available for later
+troubleshooting. See [keyring setup](keyring.md).
 
 Use Standard to add Brave Origin Nightly, paru, ChatGPT and Vesktop without
 changing application defaults:
@@ -63,7 +71,10 @@ scripts/install-all
 
 `scripts/install` defaults to Minimal on a new installation and reuses the last
 saved selection afterward; `scripts/install-all` selects the legacy personal
-profile and includes the recording package. See [personal applications](personal-apps.md) for package sources and setup.
+profile and includes GPU Screen Recorder and FFmpeg. The recorder, `ffmpeg` and
+`ffprobe` are checked when the feature is selected, including check/deploy-only
+modes. A missing tool stops the install before configuration deployment, rather
+than surfacing after a replay has been captured. See [personal applications](personal-apps.md) for package sources and setup.
 
 | Option | Purpose |
 | --- | --- |
@@ -72,14 +83,18 @@ profile and includes the recording package. See [personal applications](personal
 | `--no-packages` | Build and deploy using installed dependencies; leave compositor packages alone |
 | `--stock-niri` | Save a stock-compositor preference; restore a managed patched installation to its signed original |
 | `--patched-niri` | Build/install patched Niri (default for every profile) |
-| `--no-greeter` | Use an existing display manager or TTY login |
+| `--no-greeter` | Always preserve the login setup; automatic detection already preserves configured managers |
 | `--hardware-profile NAME` or `--profile NAME` | Select a directory under `profiles/`; default is `default` |
+| `--greeter` | Explicitly configure greetd; another configured manager is never replaced |
 | `--clean-boot` | Apply the GRUB/mkinitcpio cleanup and boot optimization helpers |
 
 The installed Niri must accept the generated KDL, including its blur and
 background effects. The installer checks that configuration before deployment.
-Greeter setup checks tuigreet's None background before writing login files. A
-system with another display manager should use `--no-greeter`.
+Greeter setup checks tuigreet's None background before writing login files. Existing display-manager configuration is detected through systemd's
+`display-manager.service` alias. Broken aliases and custom unit files are preserved
+rather than treated as permission to replace login. Existing PAM settings remain
+untouched when its manager is preserved; keyring auto-unlock then depends on that
+manager's existing PAM integration.
 
 The default profile uses automatic outputs and Finnish input. Shared input lives
 in `config/input.toml`; Niri output overrides belong in `profiles/NAME/niri.kdl`.

@@ -5,7 +5,11 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 base=$(mktemp -d /tmp/df-install-bootstrap.XXXXXXXX)
 trap 'rm -r -- "$base"' EXIT
 mkdir -p "$base/repo/scripts" "$base/state" "$base/home"
-cp "$root/scripts/install" "$base/repo/scripts/install"
+# Substitute only the host UID getter in this private copy; production has no
+# test override. All bootstrap/argument/ownership logic remains the actual script.
+sed "s/\${EUID}/\${DF_FIXTURE_UID}/g" "$root/scripts/install" >"$base/repo/scripts/install"
+export DF_FIXTURE_UID=1000
+cp "$root/scripts/install-all" "$root/scripts/install-core" "$base/repo/scripts/"
 cat >"$base/repo/scripts/bootstrap" <<'SH'
 #!/bin/sh
 printf 'bootstrap\n' >> "$DF_TEST_LOG"
@@ -40,10 +44,13 @@ for mode in missing present; do
 	if [[ $mode == present ]]; then rm "$base/repo/native/foundation/target/release/desktop-foundationctl"; fi
 done
 
+if DF_FIXTURE_UID=0 "$base/repo/scripts/install" --core >"$base/root-error" 2>&1; then exit 1; fi
+rg -q 'normal login user' "$base/root-error"
+[[ ! -e $base/log ]]
 "$base/repo/scripts/install" --core
 [[ $(cat "$base/log") == $'bootstrap\nbuild\nfoundation install --core' ]]
 rm "$base/log"
-"$base/repo/scripts/install" --personal
+"$base/repo/scripts/install-all"
 [[ $(cat "$base/log") == $'build\nfoundation install --personal' ]]
 rm "$base/log"
 "$base/repo/scripts/install" --dry-run
