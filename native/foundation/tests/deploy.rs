@@ -442,3 +442,170 @@ fn shipped_default_keyring_and_lucky38_provider_remain_distinct() {
         );
     }
 }
+
+#[test]
+fn legacy_theme_migration_preserves_custom_settings_and_exact_rollback() {
+    let f = Fixture::new();
+    let gtk3 = f.paths.config.join("gtk-3.0/gtk.css");
+    let gtk4 = f.paths.config.join("gtk-4.0/gtk.css");
+    let old = f.paths.config.join("environment.d/ryoku-session.conf");
+    let new = f
+        .paths
+        .config
+        .join("environment.d/session-desktop-foundation.conf");
+    for parent in [
+        gtk3.parent().unwrap(),
+        gtk4.parent().unwrap(),
+        old.parent().unwrap(),
+    ] {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(
+        &gtk3,
+        "/* Ryoku palette -> classic GTK 3. */\n@define-color accent_color #80d5d2;\n",
+    )
+    .unwrap();
+    fs::write(
+        &gtk4,
+        "/* Custom user styling, keep it */\nbutton { border-radius: 4px; }\n",
+    )
+    .unwrap();
+    fs::write(&old, "# Ryoku session environment, read by systemd\nEDITOR=vim\nLOCAL_VALUE=keep\nXCURSOR_THEME=Bibata-Modern-Ice\nRYOKU_POLKIT_AGENT=1\nQML_IMPORT_PATH=$HOME/.local/lib/qt6/qml\nQT_QPA_PLATFORMTHEME=qt6ct\nGSK_RENDERER=gl\n").unwrap();
+    fs::write(&new, "EDITOR=helix\nUSER_EXTENSION=keep-too\n").unwrap();
+    fs::write(
+        f.paths.config.join("environment.d/cursor.conf"),
+        "XCURSOR_THEME=Adwaita\n",
+    )
+    .unwrap();
+    let originals: Vec<_> = [&gtk3, &gtk4, &old, &new]
+        .into_iter()
+        .map(|p| {
+            (
+                p.clone(),
+                fs::read(p).unwrap(),
+                deploy::fingerprint(p).unwrap(),
+            )
+        })
+        .collect();
+    let mut manifest = f.manifest();
+    let dry = deploy::targets(&source(), &f.paths, &manifest, false).unwrap();
+    assert!(!f.paths.state.join("legacy").exists());
+    assert!(dry.iter().any(|(p, _)| p == &gtk3));
+    assert!(!dry.iter().any(|(p, _)| p == &gtk4));
+    let targets = deploy::targets(&source(), &f.paths, &manifest, true).unwrap();
+    let migrated =
+        fs::read_to_string(f.paths.state.join("legacy/session-environment.conf")).unwrap();
+    for expected in [
+        "EDITOR=vim",
+        "LOCAL_VALUE=keep",
+        "EDITOR=helix",
+        "USER_EXTENSION=keep-too",
+        "QT_QPA_PLATFORMTHEME=qt6ct",
+        "GSK_RENDERER=gl",
+    ] {
+        assert!(migrated.contains(expected));
+    }
+    assert!(migrated.find("EDITOR=helix").unwrap() > migrated.find("EDITOR=vim").unwrap());
+    assert!(!migrated.contains("RYOKU_") && !migrated.contains("QML_IMPORT_PATH"));
+    assert_eq!(
+        fs::metadata(f.paths.state.join("legacy/session-environment.conf"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+    for (path, source) in targets
+        .iter()
+        .filter(|(p, _)| [&gtk3, &old, &new].contains(&p))
+    {
+        if path == &gtk3 {
+            theme_render::write(source, "/* Foundation test palette */").unwrap();
+        }
+        deploy::install_link(&f.paths, &mut manifest, path, source).unwrap();
+    }
+    assert!(!fs::read_to_string(&old).unwrap().contains("RYOKU_POLKIT"));
+    assert!(
+        fs::read_to_string(&new)
+            .unwrap()
+            .contains("LOCAL_VALUE=keep")
+    );
+    // Preserve Lucky38's existing precedence over cursor.conf.
+    let mut files: Vec<_> = fs::read_dir(f.paths.config.join("environment.d"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    files.sort();
+    let mut cursor = String::new();
+    for path in files {
+        for line in fs::read_to_string(path).unwrap().lines() {
+            if let Some(value) = line.strip_prefix("XCURSOR_THEME=") {
+                cursor = value.into();
+            }
+        }
+    }
+    assert_eq!(cursor, "Bibata-Modern-Ice");
+    deploy::targets(&source(), &f.paths, &manifest, true).unwrap();
+    assert_eq!(
+        fs::read_to_string(f.paths.state.join("legacy/session-environment.conf")).unwrap(),
+        migrated
+    );
+    deploy::restore_files(&f.paths, &mut manifest).unwrap();
+    for (path, bytes, inode) in originals {
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        assert_eq!(deploy::fingerprint(&path).unwrap(), inode);
+    }
+}
+
+#[test]
+fn gtk_migration_preserves_unknown_and_broken_user_symlinks() {
+    let f = Fixture::new();
+    let css = f.paths.config.join("gtk-3.0/gtk.css");
+    fs::create_dir_all(css.parent().unwrap()).unwrap();
+    symlink("missing-custom.css", &css).unwrap();
+    let targets = deploy::targets(&source(), &f.paths, &f.manifest(), false).unwrap();
+    assert!(!targets.iter().any(|(path, _)| path == &css));
+    assert!(
+        targets
+            .iter()
+            .any(|(path, _)| path == &f.paths.config.join("gtk-4.0/gtk.css"))
+    );
+    assert_eq!(
+        fs::read_link(css).unwrap(),
+        PathBuf::from("missing-custom.css")
+    );
+}
+
+#[test]
+fn interrupted_legacy_environment_migration_keeps_later_unowned_edits() {
+    let f = Fixture::new();
+    let old = f.paths.config.join("environment.d/ryoku-session.conf");
+    let new = f
+        .paths
+        .config
+        .join("environment.d/session-desktop-foundation.conf");
+    fs::create_dir_all(old.parent().unwrap()).unwrap();
+    fs::write(&old, "# Ryoku session environment\nEDITOR=vim\n").unwrap();
+    fs::write(&new, "EDITOR=emacs\n").unwrap();
+    let mut manifest = f.manifest();
+    let targets = deploy::targets(&source(), &f.paths, &manifest, true).unwrap();
+    let (_, stub) = targets.iter().find(|(p, _)| p == &old).unwrap();
+    deploy::install_link(&f.paths, &mut manifest, &old, stub).unwrap();
+    // Failure happened before adopting the new file; it still belongs to its owner.
+    fs::write(&new, "EDITOR=helix\nLATER_EDIT=preserve\n").unwrap();
+    let targets = deploy::targets(&source(), &f.paths, &manifest, true).unwrap();
+    let (_, prepared) = targets.iter().find(|(p, _)| p == &new).unwrap();
+    let contents = fs::read_to_string(prepared).unwrap();
+    assert!(contents.contains("EDITOR=helix") && contents.contains("LATER_EDIT=preserve"));
+    assert!(!contents.contains("EDITOR=emacs"));
+    deploy::install_link(&f.paths, &mut manifest, &new, prepared).unwrap();
+    deploy::restore_files(&f.paths, &mut manifest).unwrap();
+    assert_eq!(
+        fs::read_to_string(&new).unwrap(),
+        "EDITOR=helix\nLATER_EDIT=preserve\n"
+    );
+    assert_eq!(
+        fs::read_to_string(&old).unwrap(),
+        "# Ryoku session environment\nEDITOR=vim\n"
+    );
+}

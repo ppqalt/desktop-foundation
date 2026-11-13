@@ -208,7 +208,7 @@ pub fn stage(
         }
         render::write_json(
             &target.join("metadata.json"),
-            &json!({"root":root,"input":original_input,"wallpaperHash":digest,"profile":selected,"reset":reset,"renderer":"rust-v1"}),
+            &json!({"root":root,"input":original_input,"wallpaperHash":digest,"profile":selected,"reset":reset,"renderer":render::VERSION}),
         )?;
         process::checked(
             &[
@@ -512,7 +512,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                 && render::read(&old.join("metadata.json"))?["wallpaperHash"]
                     == backdrop::hash(&selected_image)?
                 && selected_mode == c.mode
-                && render::read(&old.join("metadata.json"))?["renderer"] == "rust-v1"
+                && render::read(&old.join("metadata.json"))?["renderer"] == render::VERSION
         } else {
             false
         };

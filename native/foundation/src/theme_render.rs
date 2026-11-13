@@ -4,6 +4,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
+pub const VERSION: &str = "rust-v2-app-colors";
+
 pub fn read(path: &Path) -> Result<Value> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
 }
@@ -433,6 +435,72 @@ pub fn brave(p: &Value) -> Result<Value> {
         json!({"manifest_version":3,"name":"Desktop Foundation Graphite","version":version,"description":"Desktop Foundation wallpaper theme","theme":{"colors":colors}}),
     )
 }
+/// Colour roles only: GTK keeps its native widget layout and behavior.
+pub fn gtk_colors(p: &Value, modern: bool) -> Result<String> {
+    let roles = [
+        ("accent_bg_color", "accent"),
+        ("accent_fg_color", "background"),
+        ("accent_color", "accent"),
+        ("destructive_bg_color", "error"),
+        ("destructive_fg_color", "background"),
+        ("destructive_color", "error"),
+        ("window_bg_color", "background"),
+        ("window_fg_color", "foreground"),
+        ("view_bg_color", "background"),
+        ("view_fg_color", "foreground"),
+        ("headerbar_bg_color", "elevated"),
+        ("headerbar_fg_color", "foreground"),
+        ("headerbar_backdrop_color", "elevated"),
+        ("sidebar_bg_color", "elevated"),
+        ("sidebar_fg_color", "foreground"),
+        ("sidebar_backdrop_color", "elevated"),
+        ("secondary_sidebar_bg_color", "background"),
+        ("secondary_sidebar_fg_color", "foreground"),
+        ("secondary_sidebar_backdrop_color", "background"),
+        ("card_bg_color", "elevated"),
+        ("card_fg_color", "foreground"),
+        ("popover_bg_color", "elevated"),
+        ("popover_fg_color", "foreground"),
+        ("dialog_bg_color", "elevated"),
+        ("dialog_fg_color", "foreground"),
+        ("borders", "border"),
+        ("theme_bg_color", "background"),
+        ("theme_fg_color", "foreground"),
+        ("theme_base_color", "background"),
+        ("theme_text_color", "foreground"),
+        ("theme_selected_bg_color", "accent"),
+        ("theme_selected_fg_color", "background"),
+        ("theme_unfocused_bg_color", "background"),
+        ("theme_unfocused_fg_color", "muted"),
+        ("theme_unfocused_base_color", "background"),
+        ("theme_unfocused_text_color", "muted"),
+        ("theme_unfocused_selected_bg_color", "selected"),
+        ("theme_unfocused_selected_fg_color", "foreground"),
+    ];
+    let mut css = String::from(
+        "/* Desktop Foundation palette; generated with the current theme revision. */\n",
+    );
+    for (name, key) in roles {
+        css.push_str(&format!("@define-color {name} {};\n", role(p, key)?));
+    }
+    if modern {
+        css.push_str(":root {\n");
+        for (name, key) in roles {
+            // libadwaita 1.6+ uses native CSS properties. GTK3 only gets the
+            // named-colour compatibility block above; it cannot parse variables.
+            if !name.starts_with("theme_") && name != "borders" {
+                css.push_str(&format!(
+                    "  --{}: {};\n",
+                    name.replace('_', "-"),
+                    role(p, key)?
+                ));
+            }
+        }
+        css.push_str("}\n");
+    }
+    Ok(css)
+}
+
 pub fn render(root: &Path, target: &Path, p: &Value, profile: &str, reset: bool) -> Result<()> {
     for name in ["kitty", "fish", "fastfetch"] {
         copy_tree(
@@ -460,10 +528,7 @@ pub fn render(root: &Path, target: &Path, p: &Value, profile: &str, reset: bool)
     )?;
     let mut t = read(&root.join("theme/fallback/terminal.json"))?;
     if !reset {
-        for key in ["background", "foreground", "muted", "accent", "error"] {
-            t[key] = json!(&role(p, key)?[1..]);
-        }
-        t["selection"] = json!(&role(p, "selected")?[1..]);
+        t = theme::terminal_palette(p, &t)?;
     }
     write_json(&target.join("terminal/palette.json"), &t)?;
     fs::copy(
@@ -498,6 +563,8 @@ pub fn render(root: &Path, target: &Path, p: &Value, profile: &str, reset: bool)
         &target.join("gtk.json"),
         &json!({"colorScheme":"prefer-dark","accent":theme::gtk_accent(p)?}),
     )?;
+    write(&target.join("gtk-3.0/gtk.css"), &gtk_colors(p, false)?)?;
+    write(&target.join("gtk-4.0/gtk.css"), &gtk_colors(p, true)?)?;
     write(&target.join("spotify/color.ini"), &spotify_colors(p)?)?;
     write(&target.join("btop/desktop-foundation.theme"), &btop(p)?)?;
     write_json(

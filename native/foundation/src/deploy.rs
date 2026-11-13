@@ -12,6 +12,8 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
+mod legacy;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 const COMMAND: Duration = Duration::from_secs(30);
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -231,6 +233,7 @@ fn targets_for_profile(
         profile,
     )?);
     targets.extend(common(root, paths));
+    targets.extend(legacy::targets(root, paths, manifest, write)?);
     Ok(targets)
 }
 fn initial(root: &Path) -> Manifest {

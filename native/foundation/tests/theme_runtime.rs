@@ -118,6 +118,33 @@ fn renderers_keep_semantic_roles_and_reject_injection() {
                 p["accent"].as_str().unwrap()
             ))
     );
+    let terminal = render::read(&f.path("terminal/palette.json")).unwrap();
+    let fallback = render::read(&root.join("theme/fallback/terminal.json")).unwrap();
+    assert_ne!(terminal["ansi"], fallback["ansi"]);
+    assert!(kitty.contains(&format!(
+        "color4 #{}",
+        terminal["ansi"][4].as_str().unwrap()
+    )));
+    let reset = f.path("reset");
+    render::render(&root, &reset, &p, "default", true).unwrap();
+    assert_eq!(
+        render::read(&reset.join("terminal/palette.json")).unwrap(),
+        fallback
+    );
+    for (version, modern) in [("gtk-3.0", false), ("gtk-4.0", true)] {
+        let css = fs::read_to_string(f.path(&format!("{version}/gtk.css"))).unwrap();
+        assert_eq!(css.contains(":root"), modern);
+        assert_eq!(css.contains("--accent-bg-color"), modern);
+        assert!(css.contains(&format!(
+            "@define-color accent_bg_color {};",
+            p["accent"].as_str().unwrap()
+        )));
+        assert!(css.contains(&format!(
+            "@define-color window_bg_color {};",
+            p["background"].as_str().unwrap()
+        )));
+        assert!(!css.contains("Ryoku"));
+    }
     let niri = fs::read_to_string(f.path("niri.kdl")).unwrap();
     assert!(niri.contains("always-center-single-column"));
     assert!(niri.contains("center-focused-column \"never\""));
@@ -228,7 +255,7 @@ fn ensure_has_no_python_dependency_or_live_reloads() {
     assert!(revision.join("terminal/kitty/kitty.conf").is_file());
     assert_eq!(
         render::read(&revision.join("metadata.json")).unwrap()["renderer"],
-        "rust-v1"
+        render::VERSION
     );
     assert_eq!(
         render::read(&revision.join("metadata.json")).unwrap()["input"],

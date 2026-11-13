@@ -6,8 +6,8 @@
   "fastfetch": {"mode":"NEXT-LAUNCH","reload":"next one-shot invocation"},
   "mako": {"mode":"RELOADABLE","reload":"makoctl reload"},
   "overview": {"mode":"LIVE","reload":"foundation.reloadTheme IPC"},
-  "gtk": {"mode":"RELOADABLE","reload":"supported native accent-color enum; dark neutral surfaces unchanged"},
+  "gtk": {"mode":"RELOADABLE","reload":"native accent enum; generated GTK3/GTK4 CSS applies at next app launch"},
   "spotify": {"mode":"NEXT-LAUNCH","reload":"spicetify refresh --no-restart; native UI reload optional"},
   "brave": {"mode":"RELOADABLE","reload":"root-owned BrowserThemeColor policy and native Origin Nightly refresh; unpacked theme fallback"},
-  "btop": {"mode":"NEXT-LAUNCH","reload":"prepared theme only; no automatic application or reload"}
+  "btop": {"mode":"RELOADABLE","reload":"refresh the owned sidebar only; normal btop settings remain unchanged"}
 }

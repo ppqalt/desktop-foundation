@@ -17,12 +17,12 @@ The packaged Matugen executable extracts wallpaper colors once and exits. The
 Rust backend hashes the image, runs Matugen, derives semantic graphite roles,
 checks contrast and caches the result. Unchanged inputs reuse the cache. Rust
 also maps the accent to GNOME's supported enum and records owned preference
-changes for rollback; Python keeps installation and theme transaction orchestration.
+changes for rollback; Rust also owns theme staging, validation, publication and rollback.
 
 Background, elevated, icon, hover, selected and border roles use the wallpaper
 primary's hue at fixed graphite lightness. Neutral bases remove the old blue cast;
 surface saturation is capped at 18–25%. Wallpaper brightness cannot brighten the
-panels. Foreground and muted text stay near-neutral; shadows stay black.
+panels. Foreground and muted text stay near-neutral; the shell adds no shadows.
 Accents use primary and an 80/20 primary/secondary blend. Contrast targets are
 7:1 for foreground, 3:1 for muted text and 4.5:1 for accents on opaque panels.
 
@@ -64,8 +64,10 @@ tracked `theme/generated.json`; changing the shipped wallpaper is a separate edi
 Cache maintenance retains six theme revisions, 32 palettes and 16 overview images,
 protecting current and previous references. Use `scripts/foundation cache plan`
 to inspect candidates or `scripts/foundation cache prune` to remove eligible files.
-The hue-based palette uses the `graphite-v2` cache namespace; existing theme
-revisions and `graphite-v1` palettes remain available for rollback.
+The hue-based Material palette uses the `graphite-v3-material` cache namespace;
+older revisions remain available for rollback. Rendered application assets carry
+a separate renderer version, so an unchanged cached wallpaper palette does not
+keep obsolete adapter output after an update.
 
 ## Refresh
 
@@ -147,3 +149,46 @@ reload, usually Ctrl+Shift+R. See [Spotify setup](../apps/spotify/README.md).
 References: [Matugen](https://github.com/InioX/matugen),
 [Chromium themes](https://developer.chrome.com/docs/extensions/develop/ui/themes),
 [CDP Extensions](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/).
+
+## Terminal application colours
+
+ANSI palette colours now follow the wallpaper too, so applications using the
+terminal's 16-colour palette inherit the theme without application-specific edits.
+Chromatic slots retain their red/green/blue identities: Foundation shifts HLS hue
+at most 15 degrees toward the accent, then checks 4.5:1 text contrast against the
+terminal background. Neutral accents leave those hues unchanged. Black remains a
+dark surface slot; bright black follows muted text, and white follows foreground.
+This is a compact Foundation adaptation, not Google's HCT harmonization algorithm.
+True-colour applications still own their explicit colours. Reset preserves the
+original fallback terminal palette exactly.
+
+## GTK and legacy desktop migration
+
+Theme revisions now include GTK3 named colours and GTK4/libadwaita CSS variables.
+Accent/destructive background and foreground roles are paired; window, view,
+header, sidebar, card and popup surfaces use the existing graphite semantics.
+The adapter changes colours, not widget layout, fonts or control behavior. GTK3
+receives no GTK4-only syntax. Modern GTK4/libadwaita uses native CSS properties;
+[libadwaita's colour-role reference](https://gnome.pages.gitlab.gnome.org/libadwaita/doc/main/css-variables.html)
+and [GTK3's CSS reference](https://docs.gtk.org/gtk3/css-overview.html) describe those interfaces.
+
+The native installer/updater adopts missing GTK CSS files or generated files with
+identified Ryoku/Inir palette headers. It preserves unrecognized custom CSS and
+unowned symlinks. Adopted originals enter the normal deployment backup journal,
+so rollback restores the original files/inodes. Once owned, external replacements
+retain the usual deployment-conflict protection.
+
+On Lucky38, the identified `environment.d/ryoku-session.conf` is replaced by an
+inactive compatibility file. Its remaining preferences move into
+`session-desktop-foundation.conf`: custom editor, cursor, Qt and renderer settings stay,
+while Ryoku-only policy-agent flags and the exact obsolete QML module path go.
+Existing Foundation environment overrides retain precedence. Both original files
+are backed up, dry-run writes no generated source, and subsequent updates preserve
+the migrated preferences. Session environment changes take effect at next login;
+there is no forced logout or import into the running session.
+
+GTK's default icon theme is Adwaita, with an explicit core package dependency,
+instead of requiring the old `ryoku-folders` overlay. SDDM is not migrated or
+modified. Application CSS is guaranteed at next application launch; the existing
+native GNOME accent refresh remains available, but this does not promise that
+every running GTK application reloads its entire CSS on a revision switch.

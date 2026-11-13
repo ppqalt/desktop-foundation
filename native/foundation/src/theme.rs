@@ -428,6 +428,81 @@ pub fn derive(root: &Path, material: &Value, source: &str, digest: &str) -> Resu
     Ok(palette)
 }
 
+/// Foundation terminal adaptation, not Google's HCT harmonization algorithm.
+/// Keep ANSI colour identities; nudge hue at most 15 degrees toward the wallpaper.
+/// Every chromatic text slot retains 4.5:1 contrast on the graphite background.
+pub fn terminal_palette(palette: &Value, fallback: &Value) -> Result<Value> {
+    for key in [
+        "background",
+        "foreground",
+        "muted",
+        "accent",
+        "error",
+        "selected",
+        "elevated",
+    ] {
+        rgb(color(palette, key)?)?;
+    }
+    if !fallback.is_object() {
+        return Err(invalid("Expected a terminal palette object"));
+    }
+    let mut output = fallback.clone();
+    for key in ["background", "foreground", "muted", "accent", "error"] {
+        output[key] = json!(&color(palette, key)?[1..]);
+    }
+    output["selection"] = json!(&color(palette, "selected")?[1..]);
+    let base = fallback["ansi"]
+        .as_array()
+        .filter(|v| v.len() == 16)
+        .ok_or_else(|| invalid("Expected 16 fallback ANSI colors"))?;
+    let [accent_hue, _, accent_saturation] = rgb_to_hls(rgb(color(palette, "accent")?)?);
+    let background = color(palette, "background")?;
+    let mut ansi = Vec::with_capacity(16);
+    for (index, value) in base.iter().enumerate() {
+        let source = value
+            .as_str()
+            .filter(|s| s.len() == 6 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+            .ok_or_else(|| invalid("Invalid fallback ANSI color"))?;
+        let mut result = match index {
+            0 => color(palette, "elevated")?.to_string(),
+            7 => mix(
+                color(palette, "foreground")?,
+                color(palette, "muted")?,
+                0.20,
+                None,
+            )?,
+            8 => color(palette, "muted")?.to_string(),
+            15 => color(palette, "foreground")?.to_string(),
+            _ => {
+                let [hue, lightness, saturation] = rgb_to_hls(rgb(&format!("#{source}"))?);
+                let delta = (accent_hue - hue + 0.5).rem_euclid(1.0) - 0.5;
+                let shift = if accent_saturation < 0.12 {
+                    0.0
+                } else {
+                    delta.clamp(-1.0 / 24.0, 1.0 / 24.0)
+                };
+                hexcolor(hls_to_rgb([
+                    (hue + shift).rem_euclid(1.0),
+                    lightness,
+                    saturation,
+                ]))
+            }
+        };
+        if ![0, 8].contains(&index) {
+            while contrast(&result, background)? < 4.5 {
+                let next = mix(&result, "#ffffff", 0.10, None)?;
+                if next == result {
+                    return Err(invalid("Terminal text contrast cannot be satisfied"));
+                }
+                result = next;
+            }
+        }
+        ansi.push(json!(&result[1..]));
+    }
+    output["ansi"] = json!(ansi);
+    Ok(output)
+}
+
 fn material_colors(output: &Value) -> Result<Value> {
     let colors = output["colors"]
         .as_object()
@@ -643,6 +718,68 @@ pub fn generate(root: &Path, image: &Path) -> Result<Generation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn terminal_colors_follow_wallpaper_without_losing_ansi_identity_or_contrast() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let fallback = read_json(&root.join("theme/fallback/terminal.json")).unwrap();
+        for accent in [
+            "#ffb599", "#98ccf9", "#a5d69a", "#d0bcff", "#eeeeee", "#888888",
+        ] {
+            let palette = derive(
+                &root,
+                &json!({"primary":accent,"secondary":accent}),
+                "fixture",
+                "hash",
+            )
+            .unwrap();
+            let result = terminal_palette(&palette, &fallback).unwrap();
+            assert_eq!(result["ansi"].as_array().unwrap().len(), 16);
+            assert_eq!(
+                result["background"],
+                &palette["background"].as_str().unwrap()[1..]
+            );
+            assert_eq!(
+                result["ansi"][0],
+                &palette["elevated"].as_str().unwrap()[1..]
+            );
+            assert_eq!(
+                result["ansi"][15],
+                &palette["foreground"].as_str().unwrap()[1..]
+            );
+            for index in [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14] {
+                let old = format!("#{}", fallback["ansi"][index].as_str().unwrap());
+                let actual = format!("#{}", result["ansi"][index].as_str().unwrap());
+                assert!(contrast(&actual, color(&palette, "background").unwrap()).unwrap() >= 4.5);
+                let delta = (rgb_to_hls(rgb(&actual).unwrap())[0]
+                    - rgb_to_hls(rgb(&old).unwrap())[0])
+                    .abs();
+                let distance = delta.min(1.0 - delta);
+                assert!(
+                    distance <= 16.5 / 360.0,
+                    "ANSI {index} hue lost its identity: {actual}"
+                );
+                if accent == "#888888" {
+                    assert_eq!(actual.to_lowercase(), old.to_lowercase());
+                }
+            }
+        }
+    }
+    #[test]
+    fn terminal_palette_rejects_invalid_data_and_impossible_text_contrast() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut fallback = read_json(&root.join("theme/fallback/terminal.json")).unwrap();
+        let mut palette = baseline(&root).unwrap();
+        fallback["ansi"][3] = json!("bad\nvalue");
+        assert!(terminal_palette(&palette, &fallback).is_err());
+        fallback = read_json(&root.join("theme/fallback/terminal.json")).unwrap();
+        palette["background"] = json!("#ffffff");
+        assert!(terminal_palette(&palette, &fallback).is_err());
+        for value in ["", "é", "red\nexec command", "#123"] {
+            palette["background"] = json!(value);
+            assert!(terminal_palette(&palette, &fallback).is_err());
+        }
+    }
 
     #[test]
     fn native_gtk_accent_preserves_anchors_neutral_threshold_and_hue_wrap() {
