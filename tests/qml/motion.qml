@@ -245,6 +245,33 @@ ShellRoot {
             compare(pages.commits, commits + 4);
             compare(pages.completions, completions + 2);
         }
+        function test_page_back_slides_opposite_and_retargets_exit() {
+            const pane = createTemporaryObject(transitionComponent, null);
+            pane.request("audio", true);
+            wait(20);
+            verify(pane.offset < 0);
+            tryCompare(pane, "phase", "entering", 500);
+            verify(pane.offset > 0);
+            tryCompare(pane, "phase", "idle", 1000);
+            pane.request("overview", false);
+            wait(20);
+            verify(pane.offset > 0, "Back must exit opposite to forward navigation");
+            tryCompare(pane, "phase", "entering", 500);
+            verify(pane.offset < 0);
+            tryCompare(pane, "phase", "idle", 1000);
+            pane.request("audio", true);
+            wait(20);
+            const offset = pane.offset;
+            const opacity = pane.opacity;
+            pane.request("network", false);
+            compare(pane.offset, offset); // No jump when the latest intent reverses.
+            compare(pane.opacity, opacity);
+            tryVerify(() => pane.offset > 0, 150);
+            tryCompare(pane, "currentKey", "network", 500);
+            tryCompare(pane, "phase", "idle", 1000);
+            compare(pane.offset, 0);
+            compare(pane.opacity, 1);
+        }
         function test_page_handoff_latest_intent_and_reversal() {
             Theme.reducedMotion = true;
             pages.request("overview", false);

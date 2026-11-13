@@ -33,13 +33,15 @@ QtObject {
     }
     function request(key, forward = true): void {
         requestedKey = key;
-        direction = forward ? 1 : -1;
+        const nextDirection = forward ? 1 : -1;
+        const changedDirection = nextDirection !== direction;
+        direction = nextDirection;
         if (key === currentKey) {
             if (phase === "leaving") {
                 animate(true);
                 cancelled();
             }
-        } else if (phase !== "leaving") {
+        } else if (phase !== "leaving" || changedDirection) {
             animate(false);
         }
     }

@@ -183,3 +183,14 @@ continuity before testing the normal owned shutdown path.
 Offscreen tests establish logic and shared rendering. Private Niri tests establish
 Wayland loading/input/lifecycle behavior. Neither proves frame pacing under gaming
 load on the owner's physical GPU. No live shell reload is required for these tests.
+
+### Direction changes during page exit
+
+Forward page navigation exits toward the start edge and enters from the end;
+Back uses the opposite direction. This is the existing compact desktop adaptation,
+not a newly copied Material duration. `ContentTransition` now retargets an already
+running exit when the latest request changes direction, keeping the current
+position and opacity. Previously only the incoming direction changed, leaving the
+outgoing page moving the wrong way. `PagePane` is still the identical implementation
+in the gallery, Control Center, Clipboard and Nothing settings. The motion fixture
+checks both directions, interrupted direction changes and final settled state.
