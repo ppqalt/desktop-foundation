@@ -90,12 +90,15 @@ for package in "${firmware[@]}"; do
 		paru -S --needed "$package"
 	fi
 done
-rustup toolchain install 1.98.1 --profile minimal
+# Reuse a complete pinned toolchain without contacting the release server.
+# Check both tools: interrupted installations can leave only one usable binary.
+if ! rustup run 1.98.1 rustc --version >/dev/null 2>&1 || ! rustup run 1.98.1 cargo --version >/dev/null 2>&1; then
+	rustup toolchain install 1.98.1 --profile minimal
+fi
 if $dev; then
-	rustup default stable
-	rustup component add rustfmt clippy rust-analyzer
-	for command in rustc cargo rustfmt rust-analyzer; do "$command" --version; done
-	cargo clippy --version
+	rustup component add --toolchain 1.98.1 rustfmt clippy rust-analyzer
+	for command in rustc cargo rustfmt rust-analyzer; do rustup run 1.98.1 "$command" --version; done
+	rustup run 1.98.1 cargo clippy --version
 	for tool in qmllint qmlformat qmlls qmlprofiler qsb; do test -x "/usr/lib/qt6/bin/$tool"; done
 fi
 sudo systemctl enable --now bluetooth.service

@@ -13,7 +13,12 @@ privileged steps. The installer runs its selected doctor checks before reporting
 success; no separate validation command is needed to finish installation.
 
 A normal installation bootstraps missing build dependencies and builds the release
-backend automatically. A normal rerun rebuilds the selected checkout before
+backend automatically. Bootstrap reuses the pinned Rust toolchain when both
+`rustc` and Cargo work, avoiding an unnecessary toolchain-server check on reruns.
+If either tool is missing or fails its version check, bootstrap installs the pinned
+toolchain. `scripts/bootstrap --dev`
+adds development components to the pinned version without changing your global
+Rust default. A normal rerun rebuilds the selected checkout before
 starting its installer, so an older executable cannot omit newly added components.
 Inspection reuses the existing executable without building. It verifies any existing deployment owner before running
 package setup. Inspection (`--dry-run`, `--plan`, `--check`) never installs packages
