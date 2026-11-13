@@ -24,6 +24,7 @@ PanelWindow {
     property string nextSurface: ""
     property string page: "overview"
     property var returnFocus: null
+    property int pageFocusReason: Qt.OtherFocusReason
     readonly property var connectedDevices: (network.devices ?? []).filter(d => d.state === "connected")
     readonly property string networkSummary: !network.available ? "Unavailable" : !network.enabled ? "Off" : connectedDevices.length ? connectedDevices.map(d => d.kind === "ethernet" ? "Ethernet" : d.connection || d.name).join(" · ") : "Not connected"
     property var stateData: ({})
@@ -151,11 +152,15 @@ PanelWindow {
             root.applyRemembered();
             root.rememberedState?.restore();
             root.present();
-            outputMute.forceActiveFocus();
         });
+    }
+    function pageEntryControl(): var {
+        return root.page === "overview" ? (networkToggle.enabled ? networkToggle : audioDetails) : backAction;
     }
     function navigate(destination, origin = null): void {
         initialFocus = false;
+        const active = root.contentItem.Window.window?.activeFocusItem;
+        pageFocusReason = origin?.focusReason ?? active?.focusReason ?? Qt.OtherFocusReason;
         if (destination !== "overview")
             returnFocus = origin;
         pageMotion.request(destination, destination !== "overview");
@@ -165,10 +170,10 @@ PanelWindow {
         scroll.contentY = 0;
         if (root.closing || root.superseded)
             return;
-        if (destination === "overview" && returnFocus && returnFocus.visible)
+        if (destination === "overview" && returnFocus && returnFocus.visible && returnFocus.enabled)
             Material.restoreFocus(returnFocus, Qt.BacktabFocusReason);
         else
-            (root.page === "overview" ? networkToggle : backAction).forceActiveFocus();
+            Material.restoreFocus(root.pageEntryControl(), pageFocusReason);
     }
     function snapshot(): var {
         return {
@@ -315,6 +320,14 @@ PanelWindow {
     FocusViewport {
         viewport: scroll
     }
+    Connections {
+        target: root.contentItem.Window.window
+        function onActiveFocusItemChanged(): void {
+            const active = root.contentItem.Window.window?.activeFocusItem;
+            if (active?.activeFocusOnTab)
+                root.initialFocus = false;
+        }
+    }
     SidebarMotion {
         id: motion
         targetItem: root.contentItem
@@ -357,7 +370,7 @@ PanelWindow {
             initialFocus = false;
             Qt.callLater(() => {
                 if (!root.closing && !root.superseded && revision === root.requestRevision)
-                    Material.restoreFocus(outputMute.enabled ? outputMute : root.page === "overview" ? networkToggle : backAction);
+                    Material.restoreFocus(outputMute.enabled ? outputMute : root.pageEntryControl());
             });
         }
         if (!outputVolume.pressed)
@@ -453,6 +466,7 @@ PanelWindow {
         color: Qt.rgba(baseColor.r, baseColor.g, baseColor.b, root.sidebarStyle.opacity)
         FocusScope {
             id: focusScope
+            objectName: "controlCenterFocusScope"
             anchors.fill: parent
             anchors.margins: root.sidebarStyle.padding
             focus: true
@@ -467,7 +481,17 @@ PanelWindow {
                     root.dismiss();
                 event.accepted = true;
             }
+            // A first-open snapshot may leave focus on this scope while devices
+            // are unavailable. Navigation must enter usable controls immediately.
             Keys.onPressed: event => {
+                const active = root.contentItem.Window.window?.activeFocusItem;
+                const direction = Material.direction(event.key);
+                if (direction && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) && pageMotion.acceptsInput && (!active || active === focusScope || active === pageMotion)) {
+                    root.initialFocus = false;
+                    Material.restoreFocus(root.pageEntryControl(), Qt.TabFocusReason);
+                    event.accepted = true;
+                    return;
+                }
                 if (event.key === Qt.Key_R && event.modifiers & Qt.ControlModifier) {
                     root.error = "";
                     root.refreshError = "";
@@ -575,6 +599,7 @@ PanelWindow {
                                         onClicked: root.enqueue(["networking", root.network.enabled ? "off" : "on"])
                                     }
                                     ControlAction {
+                                        objectName: "networkDetails"
                                         Layout.fillWidth: true
                                         text: root.networkSummary
                                         badge: "›"
@@ -599,6 +624,7 @@ PanelWindow {
                                         font.pixelSize: Material.type.titleMedium
                                     }
                                     ControlAction {
+                                        id: audioDetails
                                         Layout.fillWidth: true
                                         visible: root.page === "overview"
                                         objectName: "audioDetails"
@@ -804,6 +830,7 @@ PanelWindow {
                                 visible: root.page === "network"
                                 ControlAction {
                                     Layout.fillWidth: true
+                                    objectName: "networkPageToggle"
                                     text: "Networking"
                                     symbol: "lan"
                                     compact: true
@@ -815,6 +842,7 @@ PanelWindow {
                                 }
                                 ControlAction {
                                     Layout.fillWidth: true
+                                    objectName: "wifiToggle"
                                     text: "Wi-Fi"
                                     detail: root.wifiAvailable ? "" : "No Wi-Fi adapter"
                                     badge: root.wifiAvailable ? root.network.wifi ? "On" : "Off" : "Unavailable"
@@ -827,6 +855,7 @@ PanelWindow {
                                     delegate: ControlAction {
                                         required property var modelData
                                         Layout.fillWidth: true
+                                        objectName: "networkDevice-" + modelData.name
                                         text: modelData.kind === "ethernet" ? "Ethernet" : modelData.kind === "wifi" ? "Wi-Fi" : modelData.name
                                         detail: modelData.name + " · " + (modelData.connection && modelData.connection !== "--" ? modelData.connection : modelData.state)
                                         badge: modelData.state === "connected" ? "Disconnect" : "Connect"

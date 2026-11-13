@@ -407,6 +407,25 @@ fn sidebar_entry_is_presented_before_discovery_and_can_be_cancelled() {
     );
 }
 
+#[test]
+fn control_center_keyboard_navigation_preserves_focus_and_reveals_controls() {
+    if !desktop_foundationctl::apps::executable("quickshell") {
+        eprintln!("Quickshell unavailable; cannot exercise private QML keyboard input");
+        return;
+    }
+    let output =
+        Command::new(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/test-control-center"))
+            .env("DF_CONTROL_KEYBOARD_TEST", "1")
+            .output()
+            .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 // The real native watch protocol against inert event-producing services.
 const WATCH_FAKE: &str = r#"#!/usr/bin/python3
 import json, os, pathlib, sys, time

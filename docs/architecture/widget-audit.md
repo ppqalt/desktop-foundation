@@ -154,3 +154,24 @@ reconnection, idle blocking and owned-child cleanup live in Rust. The finite
 snapshot fallback remains for standalone hosts/cache fixtures, without adding a
 second production watcher or retaining a hidden sidebar. See
 [Control Center](../control-center.md) for the current ownership and checks.
+
+### Control Center keyboard follow-up (2026-11-13)
+
+Control Center keeps the keyboard focus reason when committing a page, so keyboard
+navigation to Audio/Network retains the shared focus indicator. Focus acquisition
+on an interactive control retires pending first-snapshot focus placement; device
+readback must not move a user's current selection. The redundant unconditional
+mute-button focus request on construction is removed. Arrows/WASD on an empty
+page focus owner enter an available control, including when devices are unavailable.
+
+`DF_CONTROL_KEYBOARD_TEST=1 tests/test-control-center` exercises the production
+Control Center with inert system workers in a fixed short window: arrows/WASD,
+Tab/Shift+Tab, disabled Wi-Fi, Audio/Network entry and return, dropdown Escape,
+slider adjustment versus vertical navigation, focus reveal and readback without
+focus theft. The native integration suite invokes this fixture. Production
+controls still use the existing shared navigation, slider and dropdown handlers.
+
+A separate source copy was checked in the CachyOS/Niri VM with Wayland input and
+physical QMP key events; the owner's active desktop and the guest's installed
+checkout were not replaced. VM device coverage was its virtual audio/Ethernet;
+this check does not establish physical Bluetooth or recording hardware parity.
