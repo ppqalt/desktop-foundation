@@ -137,3 +137,9 @@ the command's process group; successful clipboard owners survive the helper's
 handoff. Application and native session startup paths use process replacement.
 SQLite is dynamically linked from the system. Nothing/CMF protocol commands use
 [their separate backend](nothing-controls.md).
+
+Qt/KDE colour adapters live in `qt_theme.rs`. They generate native palettes and
+prepare atomic, bounded preference bundles; deployment owns adoption/backups and
+the theme transaction owns activation/rollback. No Qt daemon or helper process is
+added. `state::optional_text` supplies bounded, no-follow configuration reads for
+Qt and the legacy GTK/session migration.

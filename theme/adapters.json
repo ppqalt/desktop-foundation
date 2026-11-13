@@ -6,6 +6,7 @@
   "fastfetch": {"mode":"NEXT-LAUNCH","reload":"next one-shot invocation"},
   "mako": {"mode":"RELOADABLE","reload":"makoctl reload"},
   "overview": {"mode":"LIVE","reload":"foundation.reloadTheme IPC"},
+  "qt": {"mode":"NEXT-LAUNCH","reload":"native qt6ct/KDE palette; current style, fonts and icons preserved"},
   "gtk": {"mode":"RELOADABLE","reload":"native accent enum; generated GTK3/GTK4 CSS applies at next app launch"},
   "spotify": {"mode":"NEXT-LAUNCH","reload":"spicetify refresh --no-restart; native UI reload optional"},
   "brave": {"mode":"RELOADABLE","reload":"root-owned BrowserThemeColor policy and native Origin Nightly refresh; unpacked theme fallback"},

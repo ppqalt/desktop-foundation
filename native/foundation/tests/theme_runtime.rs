@@ -520,3 +520,67 @@ fn native_spotify_refuses_externally_changed_owned_setting() {
         );
     }
 }
+
+#[test]
+fn niri_defaults_to_foundation_qt_backend_and_preserves_existing_choice() {
+    for (configured, expected) in [(None, "qt6ct"), (Some("gtk3"), "gtk3")] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"));
+        command
+            .arg("--root")
+            .arg(root())
+            .args(["render", "niri", "default"]);
+        if let Some(value) = configured {
+            command.env("QT_QPA_PLATFORMTHEME", value);
+        } else {
+            command.env_remove("QT_QPA_PLATFORMTHEME");
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8(output.stdout)
+                .unwrap()
+                .contains(&format!("QT_QPA_PLATFORMTHEME \"{expected}\""))
+        );
+    }
+}
+
+#[test]
+fn rollback_rejects_foreign_active_owner_before_preparing_any_qt_assets() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    let state = f.path("state/desktop-foundation");
+    let home = state.join("theme");
+    fs::create_dir_all(&home).unwrap();
+    let foreign = revision(&home, "foreign", &f.path("other-checkout"));
+    let previous = revision(&home, "previous-revision", &root());
+    render::write_json(
+        &previous.join("semantic.json"),
+        &render::read(&root().join("theme/generated.json")).unwrap(),
+    )
+    .unwrap();
+    symlink(&foreign, home.join("current")).unwrap();
+    symlink(&previous, home.join("previous")).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
+        .arg("--root")
+        .arg(root())
+        .args(["theme-runtime", "rollback"])
+        .env("HOME", &f.0)
+        .env("XDG_STATE_HOME", f.path("state"))
+        .env("XDG_CONFIG_HOME", f.path("config"))
+        .env("XDG_CACHE_HOME", f.path("cache"))
+        .env_remove("NIRI_SOCKET")
+        .env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("Another checkout owns runtime theme state")
+    );
+    assert_eq!(runtime::current(&home).unwrap().unwrap(), foreign);
+    assert!(!state.join("qt").exists());
+}

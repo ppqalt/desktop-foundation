@@ -233,6 +233,7 @@ fn targets_for_profile(
         profile,
     )?);
     targets.extend(common(root, paths));
+    targets.extend(crate::qt_theme::targets(paths, manifest)?);
     targets.extend(legacy::targets(root, paths, manifest, write)?);
     Ok(targets)
 }

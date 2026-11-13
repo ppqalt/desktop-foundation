@@ -32,6 +32,7 @@ pub mod preferences;
 pub mod preflight;
 pub mod process;
 pub mod profiler;
+pub mod qt_theme;
 pub mod recording;
 pub mod screenshot;
 pub mod session;

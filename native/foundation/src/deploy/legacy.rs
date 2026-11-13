@@ -1,27 +1,10 @@
 //! Adopt identified legacy shell configuration through the deployment journal.
 use super::{Manifest, Paths};
 use crate::{Result, deploy_units::Target, invalid, state};
-use std::{fs, io::Read, os::unix::fs::OpenOptionsExt, path::Path};
+use std::{fs, path::Path};
 
 fn text(path: &Path) -> Result<Option<String>> {
-    let metadata = match fs::symlink_metadata(path) {
-        Ok(value) => value,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.into()),
-    };
-    if !metadata.is_file() || metadata.len() > 65536 {
-        return Ok(None);
-    }
-    let file = fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-        .open(path)?;
-    if !file.metadata()?.is_file() {
-        return Ok(None);
-    }
-    let mut value = String::new();
-    file.take(65537).read_to_string(&mut value)?;
-    Ok((value.len() <= 65536).then_some(value))
+    state::optional_text(path, 65536)
 }
 fn legacy_css(value: &str) -> bool {
     let first = value.lines().next().unwrap_or("").to_ascii_lowercase();

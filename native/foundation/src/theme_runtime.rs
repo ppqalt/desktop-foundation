@@ -357,12 +357,19 @@ pub fn publish_with(
     Ok(())
 }
 fn publish(root: &Path, home: &Path, target: &Path, wallpaper: bool, live: bool) -> Result<()> {
-    publish_with(root, home, target, || {
-        if live {
-            reload(root, home, wallpaper)
-        } else {
-            Ok(())
-        }
+    check_owner(root, target)?;
+    if let Some(active) = current(home)? {
+        check_owner(root, &active)?;
+    }
+    let palette = render::read(&target.join("semantic.json"))?;
+    crate::qt_theme::with_assets(&crate::deploy::Paths::environment()?, &palette, || {
+        publish_with(root, home, target, || {
+            if live {
+                reload(root, home, wallpaper)
+            } else {
+                Ok(())
+            }
+        })
     })
 }
 fn retention(root: &Path) {
@@ -513,6 +520,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                     == backdrop::hash(&selected_image)?
                 && selected_mode == c.mode
                 && render::read(&old.join("metadata.json"))?["renderer"] == render::VERSION
+                && crate::qt_theme::ready(&crate::deploy::Paths::environment()?, &p)
         } else {
             false
         };

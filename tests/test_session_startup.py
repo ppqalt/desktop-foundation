@@ -55,6 +55,38 @@ class SessionStartup(unittest.TestCase):
             self.assertNotIn('desktop-foundation-wallpaper.service', names)
             self.assertNotIn('mako.service', names)
 
+    def test_qt_backend_reaches_launcher_services_without_touching_the_session(self):
+        import json
+        import os
+        import socket
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            scripts = base / 'scripts'; scripts.mkdir()
+            worker = scripts / 'session-start'
+            worker.write_text((ROOT / 'scripts/session-start').read_text()); worker.chmod(0o700)
+            package = scripts / 'niri-package'
+            package.write_text('#!/bin/sh\nexit 0\n'); package.chmod(0o700)
+            binary = base / 'bin'; binary.mkdir()
+            log = base / 'calls'
+            for name in ['systemctl', 'dbus-update-activation-environment']:
+                fake = binary / name
+                fake.write_text("#!/usr/bin/python3\nimport json,os,pathlib,sys\nwith pathlib.Path(os.environ['DF_TEST_LOG']).open('a') as out: out.write(json.dumps({'tool':pathlib.Path(sys.argv[0]).name,'args':sys.argv[1:],'qt':os.environ.get('QT_QPA_PLATFORMTHEME')})+'\\n')\n")
+                fake.chmod(0o700)
+            with socket.socket(socket.AF_UNIX) as compositor:
+                address = base / 'niri.sock'; compositor.bind(str(address))
+                for choice in [None, 'qt6ct', 'gtk3']:
+                    env = dict(os.environ, PATH=str(binary)+':/usr/bin:/bin', NIRI_SOCKET=str(address), DF_TEST_LOG=str(log))
+                    env.pop('QT_QPA_PLATFORMTHEME', None); env.pop('DISPLAY', None)
+                    if choice is not None: env['QT_QPA_PLATFORMTHEME'] = choice
+                    log.unlink(missing_ok=True)
+                    result = subprocess.run([str(worker)], env=env, capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    calls = [json.loads(line) for line in log.read_text().splitlines()]
+                    activation = next(call for call in calls if call['tool'] == 'dbus-update-activation-environment')
+                    self.assertEqual('QT_QPA_PLATFORMTHEME' in activation['args'], choice is not None)
+                    self.assertEqual(activation['qt'], choice)
+                    self.assertEqual(calls[-1]['args'], ['--user','start','--no-block','desktop-foundation-session.target'])
+
     def test_login_path_has_no_generation_or_reload(self):
         for name in ['session-start', 'shell-start', 'clipboard-start']:
             text = (ROOT / 'scripts' / name).read_text()

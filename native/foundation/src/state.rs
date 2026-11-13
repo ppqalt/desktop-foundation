@@ -3,7 +3,7 @@ use crate::{Result, invalid};
 use std::{
     env,
     fs::{self, File, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     os::unix::{
         ffi::OsStrExt,
         fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt},
@@ -15,6 +15,29 @@ use std::{
 };
 
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+/// Read a bounded regular configuration file without following unowned links.
+/// Missing, oversized and non-regular files remain outside automatic adoption.
+pub fn optional_text(path: &Path, limit: u64) -> Result<Option<String>> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(value) => value,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.into()),
+    };
+    if !metadata.is_file() || metadata.len() > limit {
+        return Ok(None);
+    }
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(path)?;
+    if !file.metadata()?.is_file() {
+        return Ok(None);
+    }
+    let mut value = String::new();
+    file.take(limit + 1).read_to_string(&mut value)?;
+    Ok((value.len() as u64 <= limit).then_some(value))
+}
 
 pub fn home() -> Result<PathBuf> {
     env::var_os("HOME")

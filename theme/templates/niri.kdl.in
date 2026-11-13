@@ -3,6 +3,7 @@ include @config@
 environment {
     DF_COMPOSITOR "niri"
     DF_FOUNDATION_ROOT @root@
+    QT_QPA_PLATFORMTHEME @qt_platform_theme@
 }
 spawn-at-startup @session_start@
 input { keyboard { xkb { layout @layout@; } repeat-delay @repeat_delay@; repeat-rate @repeat_rate@; } }

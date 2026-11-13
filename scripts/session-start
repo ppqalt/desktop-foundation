@@ -9,6 +9,7 @@ export DF_FOUNDATION_ROOT
 export DF_COMPOSITOR=niri
 vars=(WAYLAND_DISPLAY NIRI_SOCKET XDG_CURRENT_DESKTOP DF_COMPOSITOR DF_FOUNDATION_ROOT)
 if [[ -n ${DISPLAY:-} ]]; then vars+=(DISPLAY); fi
+if [[ -n ${QT_QPA_PLATFORMTHEME:-} ]]; then vars+=(QT_QPA_PLATFORMTHEME); fi
 systemctl --user unset-environment HYPRLAND_INSTANCE_SIGNATURE
 dbus-update-activation-environment --systemd "${vars[@]}"
 # A package replacement never restarts this compositor. Only a new, verified

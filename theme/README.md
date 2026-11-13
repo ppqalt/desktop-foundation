@@ -192,3 +192,40 @@ instead of requiring the old `ryoku-folders` overlay. SDDM is not migrated or
 modified. Application CSS is guaranteed at next application launch; the existing
 native GNOME accent refresh remains available, but this does not promise that
 every running GTK application reloads its entire CSS on a revision switch.
+
+## Qt and KDE applications
+
+Foundation generates one dual-format colour scheme: complete active, inactive and
+disabled Qt palettes (22 QPalette roles) plus KDE colour groups. It uses the same
+graphite semantics as the shell/GTK adapters. Highlight foreground/background
+remain paired; BrightText stays readable instead of borrowing an on-accent colour.
+
+Clean installations include qt6ct. The generated Niri environment defaults to
+`QT_QPA_PLATFORMTHEME=qt6ct`; an existing non-empty platform-theme choice is
+preserved. Session startup forwards that choice to D-Bus/systemd services so
+launcher applications receive the same backend as Niri-spawned apps. The installer
+initializes missing Qt/KDE configuration, adopts an
+unconfigured KDE palette, and migrates identified Ryoku/Inir selections. Explicit
+custom colour schemes and unknown symlinks remain outside automatic adoption.
+Style engines, icon themes, fonts, shortcuts and unrelated preferences are retained.
+
+Qt assets use a separate private bundle under
+`$XDG_STATE_HOME/desktop-foundation/qt/revisions/`. An atomic `qt/current` pointer
+keeps the selected palette and configuration together. Failed theme activation
+restores the previous Qt pointer. A colour rollback generates a new Qt bundle
+from the requested colours and current application preferences, so it does not
+restore obsolete font/icon choices. Preparation rejects concurrent configuration
+changes; marked bundle retention is bounded, and missing palette assets prevent
+the unchanged-theme fast path from silently skipping repair.
+
+The existing deployment journal backs up adopted `qt6ct.conf`/`kdeglobals` files
+and installs native palette entries into the Qt6ct picker and XDG KDE colour-scheme
+catalogue. The Qt6ct appearance picker can select `DesktopFoundation` directly.
+Rollback/uninstall restores original file content and identity. No application is
+force-restarted; Qt/KDE colours are reliable at the next application launch.
+Applications using independent palettes can retain those. SDDM is outside this
+adapter and is never changed.
+
+References: [Qt QPalette roles](https://doc.qt.io/qt-6/qpalette.html),
+[qt6ct's loader](https://github.com/trialuser02/qt6ct/blob/master/src/qt6ct-common/qt6ct.cpp),
+[KDE colour scheme implementation](https://github.com/KDE/kcolorscheme/blob/master/src/kcolorscheme.cpp).

@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
-pub const VERSION: &str = "rust-v2-app-colors";
+pub const VERSION: &str = "rust-v3-qt-colors";
 
 pub fn read(path: &Path) -> Result<Value> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
@@ -188,6 +188,15 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
             quoted(&root.join("compositor/niri/config.kdl").to_string_lossy()),
         ),
         ("root", quoted(&root.to_string_lossy())),
+        (
+            "qt_platform_theme",
+            quoted(
+                &std::env::var("QT_QPA_PLATFORMTHEME")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "qt6ct".into()),
+            ),
+        ),
         (
             "session_start",
             quoted(&root.join("scripts/session-start").to_string_lossy()),
@@ -563,6 +572,7 @@ pub fn render(root: &Path, target: &Path, p: &Value, profile: &str, reset: bool)
         &target.join("gtk.json"),
         &json!({"colorScheme":"prefer-dark","accent":theme::gtk_accent(p)?}),
     )?;
+    crate::qt_theme::render_palette(target, p)?;
     write(&target.join("gtk-3.0/gtk.css"), &gtk_colors(p, false)?)?;
     write(&target.join("gtk-4.0/gtk.css"), &gtk_colors(p, true)?)?;
     write(&target.join("spotify/color.ini"), &spotify_colors(p)?)?;
