@@ -266,6 +266,7 @@ ShellRoot {
         }
         Item {
             id: controls
+            property bool navigationBoundary: true
             visible: false
             x: 20
             y: 300
@@ -921,9 +922,11 @@ ShellRoot {
                 choice.currentIndex = 0;
                 firstControl.forceActiveFocus();
                 keyClick(Qt.Key_D);
-                verify(secondControl.activeFocus);
+                if (!secondControl.activeFocus)
+                    throw new Error("Right did not reach second control: " + card.Window.window?.activeFocusItem);
                 keyClick(Qt.Key_A);
-                verify(firstControl.activeFocus);
+                if (!firstControl.activeFocus)
+                    throw new Error("Left did not reach first control: " + card.Window.window?.activeFocusItem);
                 keyClick(Qt.Key_Return);
                 compare(controls.activated, 1);
                 slider.forceActiveFocus();
@@ -932,7 +935,8 @@ ShellRoot {
                 keyClick(Qt.Key_Space);
                 compare(controls.activated, 1);
                 keyClick(Qt.Key_W);
-                verify(firstControl.activeFocus);
+                if (!firstControl.activeFocus)
+                    throw new Error("Up did not reach first control: " + card.Window.window?.activeFocusItem);
                 choice.forceActiveFocus();
                 keyClick(Qt.Key_Space);
                 verify(choice.popup.visible);

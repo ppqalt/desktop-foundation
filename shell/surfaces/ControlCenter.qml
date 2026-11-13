@@ -467,6 +467,7 @@ PanelWindow {
         FocusScope {
             id: focusScope
             objectName: "controlCenterFocusScope"
+            property bool navigationBoundary: true
             anchors.fill: parent
             anchors.margins: root.sidebarStyle.padding
             focus: true

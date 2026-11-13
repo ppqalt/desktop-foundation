@@ -58,7 +58,11 @@ elif [ "$1 $2" = 'editor preview' ]; then
 elif [ "$*" = cachy-update ]; then
     exit 0
 elif [ "$*" = list ]; then
-    printf '%s\n' '{"images":[],"current":""}'
+    if [ "${DF_CONTROL_KEYBOARD_TEST:-0}" = 1 ]; then
+        printf '%s\n' '{"images":[{"path":"/fixture/0.png","name":"Zero"},{"path":"/fixture/1.png","name":"One"},{"path":"/fixture/2.png","name":"Two"},{"path":"/fixture/3.png","name":"Three"}],"current":""}'
+    else
+        printf '%s\n' '{"images":[],"current":""}'
+    fi
 else
     printf '%s\n' '{"success":true}'
 fi

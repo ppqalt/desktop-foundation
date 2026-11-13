@@ -175,3 +175,22 @@ A separate source copy was checked in the CachyOS/Niri VM with Wayland input and
 physical QMP key events; the owner's active desktop and the guest's installed
 checkout were not replaced. VM device coverage was its virtual audio/Ethernet;
 this check does not establish physical Bluetooth or recording hardware parity.
+
+### Continuous arrow traversal correction (2026-11-13)
+
+The preceding keyboard pass covered page focus and selected routes, but missed
+whole-section traversal. Centre-projection scoring could skip the audio columns
+from a full-width action, skip Cachy Update for better-aligned wallpapers, and
+move Right into a different row. The shared `Material.moveFocus` now compares
+control rectangles, visits the adjacent row before alignment tie-breaks, retains
+the horizontal column through wide rows, and clamps horizontal traversal to the
+current visual row. `navigationBoundary` limits a composition's candidates;
+Control Center marks its focus owner, and the widget test marks its overlapping
+test composition so navigation cannot enter controls drawn behind it.
+
+The keyboard fixture now includes enabled recording/replay controls and wallpaper
+tiles. It performs an uninterrupted arrow-only walk through Networking, both
+audio columns, Application volumes, Recording, Replay, all three Cachy Update
+buttons and Wallpapers, then back upward. No focus is assigned between those
+walk steps. Additional physical QMP key events in the VM confirm Details → Check
+→ Update and reverse traversal, row-edge clamping and return through audio.

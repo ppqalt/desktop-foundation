@@ -129,32 +129,63 @@ QtObject {
                 item.focusReason = reason;
         }
     }
+    // Preserve the chosen column when passing through full-width rows.
+    property var navigationItem: null
+    property real navigationX: 0
     // Presentation-only spatial focus navigation. Do not wrap at panel edges.
     function moveFocus(origin, dx, dy): void {
+        let boundary = origin;
+        while (boundary.parent && boundary.navigationBoundary !== true)
+            boundary = boundary.parent;
         const point = origin.mapToItem(null, 0, 0);
         const ox = point.x + origin.width / 2;
         const oy = point.y + origin.height / 2;
+        if (dx || navigationItem !== origin)
+            navigationX = ox;
         let best = null;
         let score = Infinity;
+        let bestGap = Infinity;
+        let bestOffset = Infinity;
         let candidate = origin.nextItemInFocusChain(true);
         for (let count = 0; candidate && candidate !== origin && count < 512; count++) {
-            if (candidate.visible && candidate.enabled && candidate.activeFocusOnTab && candidate.width > 0 && candidate.height > 0) {
+            let ancestor = candidate;
+            while (ancestor && ancestor !== boundary)
+                ancestor = ancestor.parent;
+            if (ancestor === boundary && candidate.visible && candidate.enabled && candidate.activeFocusOnTab && candidate.width > 0 && candidate.height > 0) {
                 const p = candidate.mapToItem(null, 0, 0);
                 const x = p.x + candidate.width / 2;
                 const y = p.y + candidate.height / 2;
-                if ((dx && (x - ox) * dx > 1) || (dy && (y - oy) * dy > 1)) {
-                    const gap = dx ? Math.max(p.y - oy, oy - p.y - candidate.height, 0) : Math.max(p.x - ox, ox - p.x - candidate.width, 0);
-                    const distance = (dx ? Math.abs(x - ox) : Math.abs(y - oy)) + (gap > 0 ? 10000 : 0) + gap * 4 + (dx ? Math.abs(y - oy) : Math.abs(x - ox)) * 0.05;
-                    if (distance < score) {
+                // Navigate between rectangles, not centre points. A wide row
+                // overlaps both audio columns even when its centre falls in the
+                // gutter; centre projection used to skip those controls entirely.
+                const horizontalGap = Math.max(p.x - point.x - origin.width, point.x - p.x - candidate.width, 0);
+                const verticalGap = Math.max(p.y - point.y - origin.height, point.y - p.y - candidate.height, 0);
+                const ahead = dx > 0 ? p.x >= point.x + origin.width - 1 : dx < 0 ? p.x + candidate.width <= point.x + 1 : dy > 0 ? p.y >= point.y + origin.height - 1 : p.y + candidate.height <= point.y + 1;
+                // Left/right stay within their visual row. Do not jump to an
+                // unrelated lower section when the current row has ended.
+                if (ahead && (!dx || verticalGap === 0)) {
+                    const gap = dx ? verticalGap : Math.max(p.x - navigationX, navigationX - p.x - candidate.width, 0);
+                    const distance = dx ? horizontalGap : verticalGap;
+                    const offset = dx ? Math.abs(y - oy) : Math.abs(x - navigationX);
+                    // Visit the nearest row first, then align within that row.
+                    // A perfectly aligned distant control must not beat the
+                    // next row just because that row's buttons sit to one side.
+                    if (distance < score || (distance === score && (gap < bestGap || (gap === bestGap && offset < bestOffset)))) {
                         best = candidate;
                         score = distance;
+                        bestGap = gap;
+                        bestOffset = offset;
                     }
                 }
             }
             candidate = candidate.nextItemInFocusChain(true);
         }
-        if (best)
+        if (best) {
+            navigationItem = best;
+            if (dx)
+                navigationX = best.mapToItem(null, 0, 0).x + best.width / 2;
             restoreFocus(best, Qt.TabFocusReason);
+        }
     }
     function direction(key): var {
         switch (key) {

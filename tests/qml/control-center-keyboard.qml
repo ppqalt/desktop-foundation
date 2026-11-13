@@ -25,6 +25,16 @@ ShellRoot {
     }
     ControlCenterFixture {
         id: panel
+        recording: ({
+                prepared: true,
+                bufferSeconds: 300,
+                state: {
+                    phase: "replay",
+                    replay: true,
+                    replay_status: "ready",
+                    control_protocol: 2
+                }
+            })
         width: 720
         height: 300
         minimumHeight: 300
@@ -76,6 +86,47 @@ ShellRoot {
                     fixture.check(false, "keyboard focus owner is not testable");
                 }
                 fixture.check(find(panel.contentItem, "networkToggle").activeFocus, "first arrow selects first available control");
+                function expectArrow(code, name, why) {
+                    panel.key(code);
+                    fixture.check(find(panel.contentItem, name)?.activeFocus, why + ": expected " + name + ", got " + panel.activeFocusItem?.objectName);
+                }
+                // One continuous walk. Never set focus between these steps.
+                expectArrow(Qt.Key_Right, "networkDetails", "Right stays on networking row");
+                expectArrow(Qt.Key_Right, "networkDetails", "Right clamps at row edge");
+                expectArrow(Qt.Key_Down, "inputDetails", "Down reaches adjacent audio row");
+                expectArrow(Qt.Key_Down, "inputVolume", "Down enters microphone volume");
+                expectArrow(Qt.Key_Down, "applicationsToggle", "Down reaches application volumes");
+                expectArrow(Qt.Key_Up, "inputVolume", "Up from full-width row retains the microphone column");
+                expectArrow(Qt.Key_Up, "inputDetails", "Up reaches microphone details");
+                expectArrow(Qt.Key_Up, "networkDetails", "Up returns to networking row");
+                expectArrow(Qt.Key_Left, "networkToggle", "Left returns to networking toggle");
+                expectArrow(Qt.Key_Down, "audioDetails", "Down enters left audio column");
+                expectArrow(Qt.Key_Down, "outputVolume", "Down enters output volume");
+                expectArrow(Qt.Key_Down, "applicationsToggle", "Down returns to application row");
+                expectArrow(Qt.Key_Down, "recordingAudioMode", "Down reaches recording options");
+                expectArrow(Qt.Key_Right, "recordingAction", "Right reaches Record");
+                expectArrow(Qt.Key_Right, "recordingAction", "Right does not jump to a lower section");
+                expectArrow(Qt.Key_Down, "replayToggle", "Down reaches replay toggle");
+                expectArrow(Qt.Key_Left, "saveReplay", "Left reaches replay save");
+                expectArrow(Qt.Key_Down, "cachyUpdateShortcut", "Down reaches updates");
+                expectArrow(Qt.Key_Left, "updateDetails", "Left reaches Cachy Update Details");
+                expectArrow(Qt.Key_Right, "cachyUpdateShortcut", "Right reaches Cachy Update Check");
+                expectArrow(Qt.Key_Right, "cachyUpdateLaunch", "Right reaches Cachy Update launch");
+                expectArrow(Qt.Key_Right, "cachyUpdateLaunch", "Right clamps at the update row edge");
+                expectArrow(Qt.Key_Left, "cachyUpdateShortcut", "Left returns to Cachy Update Check");
+                keys.tryVerify(() => !!find(panel.contentItem, "wallpaper-0"), 1000);
+                expectArrow(Qt.Key_Down, "wallpaper-3", "Down reaches the wallpaper grid");
+                expectArrow(Qt.Key_Left, "wallpaper-2", "Left stays in wallpaper row");
+                expectArrow(Qt.Key_Up, "updateDetails", "Up leaves wallpaper grid for nearest update control");
+                expectArrow(Qt.Key_Up, "saveReplay", "Up reaches adjacent replay row instead of skipping it");
+                expectArrow(Qt.Key_Left, "saveReplay", "Left clamps at replay row edge");
+                // Return up through the rows, still using arrows alone.
+                expectArrow(Qt.Key_Up, "recordingAudioMode", "Up reaches recording options");
+                expectArrow(Qt.Key_Up, "applicationsToggle", "Up reaches application volumes");
+                expectArrow(Qt.Key_Up, "inputVolume", "Up retains the column selected near replay controls");
+                expectArrow(Qt.Key_Up, "inputDetails", "Up reaches microphone details again");
+                expectArrow(Qt.Key_Up, "networkDetails", "Up reaches networking details again");
+                expectArrow(Qt.Key_Left, "networkToggle", "Left completes the full arrow walk");
                 panel.key(Qt.Key_D);
                 const networkDetails = find(panel.contentItem, "networkDetails");
                 fixture.check(networkDetails.activeFocus, "D navigates to network details");
