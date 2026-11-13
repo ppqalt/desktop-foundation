@@ -21,30 +21,37 @@ ShellRoot {
                 backend: Quickshell.env("DF_WALLPAPER_BACKEND")
             }
         }
+        // Observe completion instead of assuming sequential preview workers
+        // finish within a fixed second on a loaded CI or virtual machine.
         Timer {
-            interval: 1000
+            property bool scrolled: false
+            interval: 30
             running: true
+            repeat: true
             onTriggered: {
-                if (picker.columnCount !== 4 || picker.entries.length !== 36 || Object.keys(picker.previewUrls).length === 0 || picker.previewUrls[picker.entries[35].path]) {
-                    console.error("Initial previews were not bounded to the viewport");
-                    Qt.exit(1);
-                    return;
+                if (!scrolled) {
+                    // This 620x200 viewport intersects two four-tile rows.
+                    if (picker.entries.length !== 36 || !picker.previewUrls[picker.entries[7].path])
+                        return;
+                    if (picker.columnCount !== 4 || picker.previewUrls[picker.entries[35].path]) {
+                        console.error("Initial previews were not bounded to the viewport");
+                        Qt.exit(1);
+                        return;
+                    }
+                    scroll.contentY = scroll.contentHeight - scroll.height;
+                    scrolled = true;
+                } else if (picker.previewUrls[picker.entries[35].path]) {
+                    console.log("LAZY_WALLPAPER_CHECKS_PASSED");
+                    Qt.quit();
                 }
-                scroll.contentY = scroll.contentHeight - scroll.height;
-                finish.start();
             }
         }
         Timer {
-            id: finish
-            interval: 1000
+            interval: 6000
+            running: true
             onTriggered: {
-                if (!picker.previewUrls[picker.entries[35].path]) {
-                    console.error("Scrolled-to preview was not loaded");
-                    Qt.exit(1);
-                    return;
-                }
-                console.log("LAZY_WALLPAPER_CHECKS_PASSED");
-                Qt.quit();
+                console.error("Wallpaper preview readiness timed out: entries=" + picker.entries.length + " previews=" + Object.keys(picker.previewUrls).length);
+                Qt.exit(1);
             }
         }
     }
