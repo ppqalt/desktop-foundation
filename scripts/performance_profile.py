@@ -81,8 +81,8 @@ def atomic(path, content):
 
 
 def binfmt_changes():
-    lines = [s.strip() for s in VENDOR.read_text().splitlines() if s.strip() and not s.lstrip().startswith('#')]
-    if lines != [':DOSWin:M::MZ::/usr/bin/wine:']:
+    lines = [s.strip() for s in VENDOR.read_text().splitlines() if s.strip() and not s.lstrip().startswith('#')] if VENDOR.exists() else None
+    if lines is not None and lines != [':DOSWin:M::MZ::/usr/bin/wine:']:
         raise ValueError('Wine vendor registration changed; review before applying')
     return {WINE: None, CONDITION: CONDITION_TEXT}
 

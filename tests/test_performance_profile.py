@@ -65,6 +65,14 @@ class PerformanceProfileTests(unittest.TestCase):
             self.assertFalse(m.WINE.is_symlink())
             self.assertFalse(m.CONDITION.exists())
 
+    def test_fresh_profile_does_not_require_installing_wine(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.fixture(Path(directory))
+            m.VENDOR.unlink()
+            m.transaction('apply')
+            self.assertEqual(m.WINE.readlink(), Path('/dev/null'))
+            m.transaction('restore')
+
     def test_condition_keeps_other_formats_and_fails_open_on_query_errors(self):
         import subprocess
         text = m.CONDITION_TEXT.split("/bin/sh -c '", 1)[1].rsplit("'", 1)[0].replace('$$', '$').replace('%%', '%')

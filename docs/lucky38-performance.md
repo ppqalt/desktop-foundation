@@ -44,7 +44,9 @@ before uninstalling DF if the system-level optimization is no longer wanted.
 - Mask only Wine's automatic kernel `MZ` registration by its documented per-file
   `/etc/binfmt.d/wine.conf -> /dev/null` override. Explicit `wine program.exe`,
   desktop Wine launchers and Proton retain their normal executable paths. Direct
-  shell `./program.exe` requires explicit Wine after the next boot. Current live
+  shell `./program.exe` requires explicit Wine after the next boot. Wine itself
+  is not required or installed by this profile; the opt-out also covers a later
+  Wine installation. Current live
   handlers are deliberately left alone; there is no binfmt flush or service restart.
 - A scoped `systemd-binfmt.service` ExecCondition skips initialization only when
   the effective binfmt configuration has no rules. New non-Wine handlers continue
