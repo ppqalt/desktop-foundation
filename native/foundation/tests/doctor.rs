@@ -191,6 +191,19 @@ fn startup_timeline_uses_current_login_and_filters_stale_shell_logs() {
         report["metrics"]["shell_launch_to_first_frame_submitted_ms"],
         3000.0
     );
+    // The initial configuration predates instrumentation. A much later source
+    // reload cannot retrospectively supply its cold-login frame timestamp.
+    r.replies.insert("journalctl --user -b -o json --no-pager --grep Reload requested from client|Reloading finished in|listening on Wayland socket:|Configuration Loaded|DF_FRAME_SUBMITTED surface=".into(), [
+        row(14, "desktop-foundation-shell.service", "Configuration Loaded"),
+        row(20, "desktop-foundation-shell.service", "Configuration Loaded"),
+        row(21, "desktop-foundation-shell.service", "DF_FRAME_SUBMITTED surface=clock"),
+    ].join("\n"));
+    let reloaded = startup_report::collect(&r);
+    assert!(reloaded["metrics"]["shell_launch_to_first_frame_submitted_ms"].is_null());
+    assert_eq!(
+        reloaded["metrics"]["latest_configuration_to_frame_submitted_ms"],
+        1000.0
+    );
 }
 #[test]
 fn benchmark_failure_cannot_open_a_surface() {

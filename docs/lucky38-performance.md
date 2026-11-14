@@ -85,7 +85,9 @@ clock, popup, volume and Control Center windows. It adds no hidden window and no
 polling. A hidden/unopened surface has no first-frame marker. Frame submission is
 **not compositor presentation feedback**, animation completion or proof that the
 entire desktop is usable. Cold-login markers require the next login; a source
-reload is not a cold-login comparison.
+reload is not a cold-login comparison. Initial-configuration frame metrics and
+the latest reload's configuration-to-frame interval are reported separately;
+a reload cannot fill missing cold-login evidence.
 
 `boot-report` records NVIDIA module announcement, DRM/framebuffer and NVMe discovery
 using kernel source timestamps, separately from journal receipt times. Current
