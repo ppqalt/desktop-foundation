@@ -80,11 +80,13 @@ fn journal(r: &impl Runtime, user: bool, notes: &mut Vec<String>) -> Vec<(f64, S
     }
     args.extend(doctor::words(&["-b", "-o", "json", "--no-pager"]));
     if user {
-        args.extend(doctor::words(&["--grep","Reload requested from client|Reloading finished in|listening on Wayland socket:|Configuration Loaded"]));
+        args.extend(doctor::words(&["--grep","Reload requested from client|Reloading finished in|listening on Wayland socket:|Configuration Loaded|DF_FRAME_SUBMITTED surface="]));
     } else {
         args.extend(doctor::words(&[
             "-u",
             "greetd.service",
+            "-u",
+            "sddm.service",
             "--grep",
             "session opened for user ",
         ]));
@@ -93,7 +95,7 @@ fn journal(r: &impl Runtime, user: bool, notes: &mut Vec<String>) -> Vec<(f64, S
     if !reply.ok() {
         notes.push(format!(
             "{} journal unavailable: {}",
-            if user { "User" } else { "Greetd" },
+            if user { "User" } else { "Login manager" },
             reply.text
         ));
         return Vec::new();
@@ -172,6 +174,14 @@ pub fn collect(r: &impl Runtime) -> Value {
         {
             events.entry("shell_loaded".into()).or_insert(stamp);
         }
+        if unit == "desktop-foundation-shell.service"
+            && stamp >= shell
+            && message.contains("DF_FRAME_SUBMITTED surface=")
+        {
+            events
+                .entry("shell_first_frame_submitted".into())
+                .or_insert(stamp);
+        }
         if stamp <= shell
             && message.contains("Reload requested from client")
             && (message.contains("session\\x2dstart") || message.contains("(unit niri.service)"))
@@ -207,7 +217,7 @@ pub fn collect(r: &impl Runtime) -> Value {
         .map(|(k, v)| (k, ((v - origin) * 100000.0).round() / 100.0))
         .collect();
     let prior: BTreeMap<_, _> = events.iter().filter(|(_, v)| **v < origin).collect();
-    json!({"boot_id":doctor::text(r,Path::new("/proc/sys/kernel/random/boot_id")).unwrap_or_default().trim(),"niri_launch_boot_seconds":niri,"events_boot_seconds":events,"timeline_ms":timeline,"previous_user_manager_events_boot_seconds":prior,"origin":if events.contains_key("session_open"){"session_open"}else{"niri_launch"},"metrics":{"niri_ready_to_shell_launch_ms":delta(&events,"niri_active","shell_launch"),"shell_launch_to_loaded_ms":delta(&events,"shell_launch","shell_loaded"),"niri_launch_to_shell_loaded_ms":delta(&events,"niri_launch","shell_loaded"),"session_open_to_niri_ready_ms":delta(&events,"session_open","niri_active"),"foundation_reload_requests_before_shell":reloads,"all_reload_duration_before_shell_ms":reload_ms},"default_target_report":doctor::query(r,&["systemd-analyze","--user","time"]).text,"limitations":["Service activation is not visual readiness.","Configuration Loaded is QML initialization, not proof of presentation.","Wallpaper first presentation and precise first launcher frame are not instrumented.","Missing journal evidence produces null timings.","Retained user-manager services can precede this login."],"diagnostic_notes":notes})
+    json!({"collector_build":crate::diagnostics::build_info(),"boot_id":doctor::text(r,Path::new("/proc/sys/kernel/random/boot_id")).unwrap_or_default().trim(),"niri_launch_boot_seconds":niri,"events_boot_seconds":events,"timeline_ms":timeline,"previous_user_manager_events_boot_seconds":prior,"origin":if events.contains_key("session_open"){"session_open"}else{"niri_launch"},"metrics":{"niri_ready_to_shell_launch_ms":delta(&events,"niri_active","shell_launch"),"shell_launch_to_loaded_ms":delta(&events,"shell_launch","shell_loaded"),"shell_launch_to_first_frame_submitted_ms":delta(&events,"shell_launch","shell_first_frame_submitted"),"niri_launch_to_shell_loaded_ms":delta(&events,"niri_launch","shell_loaded"),"session_open_to_niri_ready_ms":delta(&events,"session_open","niri_active"),"foundation_reload_requests_before_shell":reloads,"all_reload_duration_before_shell_ms":reload_ms},"default_target_report":doctor::query(r,&["systemd-analyze","--user","time"]).text,"limitations":["Service activation is not visual readiness.","Configuration Loaded is QML initialization, not proof of presentation.","FrameSwapped records submission by a mapped surface, not compositor presentation or animation completion; hidden surfaces produce no marker.","Wallpaper first presentation and precise first launcher frame are not instrumented.","Missing journal evidence produces null timings.","Retained user-manager services can precede this login."],"diagnostic_notes":notes})
 }
 fn ipc(r: &impl Runtime, root: &Path, method: &str) -> Result<String> {
     let command = vec![

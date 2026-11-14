@@ -9,6 +9,7 @@ import "../components"
 // qmllint disable uncreatable-type
 PanelWindow {
     id: root
+    FrameReadiness { surface: "volume" }
     property var targetScreen: null
     property int level: 0
     property bool muted: false

@@ -177,16 +177,20 @@ fn startup_timeline_uses_current_login_and_filters_stale_shell_logs() {
     let row = |time: u64, unit: &str, msg: &str| {
         json!({"__MONOTONIC_TIMESTAMP":(time*1000000).to_string(),"_SYSTEMD_USER_UNIT":unit,"MESSAGE":msg}).to_string()
     };
-    r.replies.insert("journalctl --user -b -o json --no-pager --grep Reload requested from client|Reloading finished in|listening on Wayland socket:|Configuration Loaded".into(),[
- row(2,"desktop-foundation-shell.service","Configuration Loaded"),row(11,"niri.service","listening on Wayland socket: wayland-1"),row(14,"desktop-foundation-shell.service","Configuration Loaded")].join("\n"));
+    r.replies.insert("journalctl --user -b -o json --no-pager --grep Reload requested from client|Reloading finished in|listening on Wayland socket:|Configuration Loaded|DF_FRAME_SUBMITTED surface=".into(),[
+ row(2,"desktop-foundation-shell.service","Configuration Loaded"),row(11,"niri.service","listening on Wayland socket: wayland-1"),row(14,"desktop-foundation-shell.service","Configuration Loaded"),row(15,"desktop-foundation-shell.service","DF_FRAME_SUBMITTED surface=clock")].join("\n"));
     r.replies.insert(
-        "journalctl -b -o json --no-pager -u greetd.service --grep session opened for user ".into(),
+        "journalctl -b -o json --no-pager -u greetd.service -u sddm.service --grep session opened for user ".into(),
         row(9, "", "session opened for user fixture(uid=1000)"),
     );
     let report = startup_report::collect(&r);
     assert_eq!(report["origin"], "session_open");
     assert_eq!(report["metrics"]["shell_launch_to_loaded_ms"], 2000.0);
     assert_eq!(report["timeline_ms"]["niri_active"], 2000.0);
+    assert_eq!(
+        report["metrics"]["shell_launch_to_first_frame_submitted_ms"],
+        3000.0
+    );
 }
 #[test]
 fn benchmark_failure_cannot_open_a_surface() {

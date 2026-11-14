@@ -607,6 +607,17 @@ pub fn run_command(root: &Path, args: &[String]) -> Result<()> {
     manifest.compositor = Some("niri".into());
     save(&paths, &manifest)?;
     run(&["fc-cache".into(), "-f".into()])?;
+    // Reconcile only an explicit opt-in. Never prompt for privilege on updates.
+    if paths.state.join("performance-profile").try_exists()?
+        && let Err(error) = run(&[
+            root.join("scripts/performance-profile")
+                .to_string_lossy()
+                .into_owned(),
+            "reconcile".into(),
+        ])
+    {
+        eprintln!("Desktop deployed; performance profile pending: {error}");
+    }
     println!(
         "Deployed Niri profile {profile}; backups: {}",
         paths.state.display()

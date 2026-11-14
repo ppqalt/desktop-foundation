@@ -12,6 +12,7 @@ import "../components"
 // qmllint disable uncreatable-type
 PanelWindow {
     id: root
+    FrameReadiness { surface: "control-center" }
     required property var sidebarStyle
     property var recording: null
     property var targetScreen: null

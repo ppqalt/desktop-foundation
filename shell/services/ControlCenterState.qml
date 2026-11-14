@@ -147,7 +147,14 @@ QtObject {
         revision++;
         snapshot = next;
         pending = JSON.stringify(next);
-        pump();
+        if (!flush.running)
+            flush.start();
+    }
+    // Bound burst writes without delaying confirmed UI state or restarting a
+    // trailing-edge timer forever during a continuous volume drag.
+    property Timer flush: Timer {
+        interval: 250
+        onTriggered: root.pump()
     }
     function pump(): void {
         if (writer.running || !pending)
@@ -205,7 +212,8 @@ QtObject {
                 root.failed = root.inFlight;
                 console.warn("Could not remember Control Center state:", root.error);
             }
-            Qt.callLater(root.pump);
+            if (root.pending && !root.flush.running)
+                root.flush.start();
         }
     }
 }

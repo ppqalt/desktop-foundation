@@ -8,6 +8,7 @@ import "../theme"
 // qmllint disable uncreatable-type
 PanelWindow {
     id: root
+    FrameReadiness { surface: "popup" }
     property var targetScreen: null
     property bool sharedBackdrop: false
     property bool handoff: false

@@ -536,8 +536,15 @@ fn unavailable_files_refresh_without_forgetting_pins_and_copy_fails() {
         .unwrap();
     let id = f.entries()[0]["id"].as_str().unwrap().to_owned();
     h.pin(&id, true).unwrap();
+    assert!(
+        h.initialize().unwrap(),
+        "unchanged file references can reuse validated projections"
+    );
     fs::remove_file(&path).unwrap();
-    h.export().unwrap();
+    assert!(
+        !h.initialize().unwrap(),
+        "file availability changes invalidate reuse"
+    );
     assert_eq!(f.entries()[0]["unavailable"], true);
     assert_eq!(f.entries()[0]["pinned"], true);
     assert!(h.bundle(&id).is_err());
@@ -688,4 +695,66 @@ fn primary_payload_is_stored_once_and_rollback_writer_rows_are_adopted() {
         .query_row("SELECT count(*) FROM clip_formats", [], |r| r.get(0))
         .unwrap();
     assert_eq!(extra_copies, 0);
+}
+
+#[test]
+fn initialization_reuses_only_an_unchanged_validated_generation() {
+    use std::os::unix::fs::MetadataExt;
+    let f = Fixture::new();
+    {
+        let mut h = History::open(&f.0).unwrap();
+        h.store("text", b"preserved").unwrap();
+        assert!(h.initialize().unwrap());
+    }
+    let index = f.0.join("index.json");
+    let before = fs::metadata(&index).unwrap().ino();
+    let h = History::open(&f.0).unwrap();
+    assert!(
+        h.initialize().unwrap(),
+        "reopening unchanged SQLite must not invalidate cache"
+    );
+    assert_eq!(fs::metadata(&index).unwrap().ino(), before);
+    fs::write(&index, b"[]").unwrap();
+    assert!(!h.initialize().unwrap());
+    assert_eq!(f.entries()[0]["preview"], "preserved");
+    let cache = f.0.join("initialization-cache.json");
+    let mut future: serde_json::Value = serde_json::from_slice(&fs::read(&cache).unwrap()).unwrap();
+    future["version"] = serde_json::json!(255);
+    fs::write(&cache, serde_json::to_vec(&future).unwrap()).unwrap();
+    assert!(!h.initialize().unwrap());
+    fs::write(f.0.join("initialization-cache.json"), b"broken").unwrap();
+    assert!(!h.initialize().unwrap());
+    assert!(h.initialize().unwrap());
+    drop(h);
+    let db = Connection::open(f.0.join("history.sqlite")).unwrap();
+    db.execute("UPDATE clips SET payload=?", [b"changed".as_slice()])
+        .unwrap();
+    drop(db);
+    let h = History::open(&f.0).unwrap();
+    assert!(!h.initialize().unwrap());
+    assert_eq!(f.entries()[0]["preview"], "changed");
+}
+
+#[test]
+fn initialization_repairs_deleted_images_and_refuses_wal_shortcuts() {
+    let f = Fixture::new();
+    let mut h = History::open(&f.0).unwrap();
+    let data = b"\x89PNG\r\n\x1a\nfixture";
+    h.store("image", data).unwrap();
+    assert!(h.initialize().unwrap());
+    let image =
+        f.0.join(format!("{}.png", f.entries()[0]["id"].as_str().unwrap()));
+    fs::remove_file(&image).unwrap();
+    assert!(!h.initialize().unwrap());
+    assert_eq!(fs::read(&image).unwrap(), data);
+    // A changed projection must be byte-validated/repaired, not trusted by name.
+    fs::write(&image, b"corrupted").unwrap();
+    assert!(!h.initialize().unwrap());
+    assert_eq!(fs::read(&image).unwrap(), data);
+    drop(h);
+    let db = Connection::open(f.0.join("history.sqlite")).unwrap();
+    db.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
+    let h = History::open(&f.0).unwrap();
+    assert!(!h.initialize().unwrap());
+    assert!(!h.initialize().unwrap());
 }

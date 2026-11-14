@@ -342,3 +342,31 @@ fn command_uses_xdg_cache_without_python_and_failed_collection_preserves_snapsho
     assert!(String::from_utf8_lossy(&output.stderr).contains("Boot -1 journal unavailable"));
     assert_eq!(fs::read(&target).unwrap(), before);
 }
+
+#[test]
+fn nvidia_intervals_use_kernel_clock_without_claiming_causality() {
+    let rows = journal(vec![
+        record(
+            "nvidia: loading out-of-tree module taints kernel",
+            9000000,
+            Some(2000000),
+        ),
+        record(
+            "NVRM: loading NVIDIA UNIX Open Kernel Module",
+            9500000,
+            Some(3500000),
+        ),
+        record(
+            "nvme nvme0: pci function 0000:01:00.0",
+            9600000,
+            Some(3600000),
+        ),
+        record("[drm] Initialized nvidia-drm 0.0.0", 9700000, Some(4000000)),
+    ]);
+    let report = boot_report::collect_boot(&rows).unwrap();
+    assert_eq!(report["intervals_seconds"]["nvidia_module_to_drm"], 2.0);
+    assert_eq!(
+        report["intervals_seconds"]["nvidia_announcement_to_nvme_discovery"],
+        0.1
+    );
+}

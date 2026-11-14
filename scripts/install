@@ -51,6 +51,14 @@ for ((i = 0; i < ${#installer_args[@]}; i++)); do
 			exit 2
 		fi
 		;;
+	--performance-profile)
+		((i += 1))
+		case ${installer_args[i]:-} in lucky38 | off) ;; *)
+			printf '%s\n' 'Performance profile must be lucky38 or off.' >&2
+			exit 2
+			;;
+		esac
+		;;
 	--boot-profile)
 		((i += 1))
 		boot_profile=${installer_args[i]:-}
@@ -88,6 +96,7 @@ fi
 if $help; then
 	printf '%s\n' 'Usage: scripts/install [--minimal|--standard|--everything|--personal] [--extra NAME]' \
 		'  --profile NAME       Select a hardware profile' \
+		'  --performance-profile lucky38|off  Opt-in reversible host performance policy' \
 		'  --patched-niri       Install managed patched Niri (default)' \
 		'  --stock-niri         Restore/preserve stock Niri instead' \
 		'  --no-packages        No package operations; still builds, deploys and configures services' \

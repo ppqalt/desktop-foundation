@@ -1006,3 +1006,18 @@ fn missing_no_package_dependencies_stop_before_any_installer_effects() {
     assert!(r.commands.is_empty());
     assert!(!f.paths.home.exists());
 }
+
+#[test]
+fn performance_policy_is_explicit_and_lucky38_only() {
+    let f = Fixture::new();
+    assert!(Options::parse(&f.root, &["--performance-profile".into(), "tops".into()]).is_err());
+    let selected =
+        Options::parse(&f.root, &["--performance-profile".into(), "lucky38".into()]).unwrap();
+    assert_eq!(selected.performance_profile.as_deref(), Some("lucky38"));
+    assert!(
+        Options::parse(&f.root, &[])
+            .unwrap()
+            .performance_profile
+            .is_none()
+    );
+}

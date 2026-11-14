@@ -18,6 +18,7 @@ pub struct Options {
     pub recovery_only_dkms: bool,
     pub recovery_keys_confirmed: bool,
     pub profile: String,
+    pub performance_profile: Option<String>,
     pub dry_run: bool,
     pub check: bool,
 }
@@ -36,6 +37,7 @@ impl Options {
             recovery_only_dkms: false,
             recovery_keys_confirmed: false,
             profile: "default".into(),
+            performance_profile: None,
             dry_run: false,
             check: false,
         };
@@ -89,6 +91,16 @@ impl Options {
                 "--clean-boot" => o.clean_boot = true,
                 "--allow-recovery-only-dkms" => o.recovery_only_dkms = true,
                 "--recovery-keys-confirmed" => o.recovery_keys_confirmed = true,
+                "--performance-profile" => {
+                    i += 1;
+                    let value = args
+                        .get(i)
+                        .ok_or_else(|| invalid("Missing performance profile"))?;
+                    if !["lucky38", "off"].contains(&value.as_str()) {
+                        return Err(invalid("Performance profile must be lucky38 or off"));
+                    }
+                    o.performance_profile = Some(value.clone());
+                }
                 "--boot-profile" => {
                     i += 1;
                     o.eac_boot = match args.get(i).map(String::as_str) {
@@ -525,6 +537,19 @@ pub fn execute(
         r.validate_app("browser", &nightly["browser"])?;
     }
     if o.check {
+        if let Some(profile) = &o.performance_profile {
+            call(
+                r,
+                root,
+                "performance-profile",
+                if profile == "off" {
+                    vec!["disable"]
+                } else {
+                    vec!["enable", "lucky38"]
+                }
+                .as_slice(),
+            )?;
+        }
         doctor(r, root, o)?;
         if o.standard {
             if !r.executable("paru") {
@@ -644,6 +669,11 @@ pub fn execute(
         if o.standard {
             println!(
                 "Standard: paru, Brave Origin/settings, ChatGPT, Vesktop, GNOME utilities, recording and firmware"
+            );
+        }
+        if let Some(profile) = &o.performance_profile {
+            println!(
+                "Performance profile: {profile} (explicit, reversible; no firmware/GPU tuning)"
             );
         }
         if !o.extras.is_empty() {

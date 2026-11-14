@@ -16,7 +16,12 @@ mkdir -p "$base/shell/surfaces" "$base/native/foundation/target/release" "$base/
 for leaf in home runtime config state cache data; do mkdir -m 700 "$base/$leaf"; done
 ln -s "$root/shell/components" "$base/shell/components"
 ln -s "$root/shell/theme" "$base/shell/theme"
-ln -s "$root/shell/services" "$base/shell/services"
+if [[ -n ${DF_CONTROL_STATE_SOURCE:-} ]]; then
+	cp -r "$root/shell/services" "$base/shell/services"
+	cp "$DF_CONTROL_STATE_SOURCE" "$base/shell/services/ControlCenterState.qml"
+else
+	ln -s "$root/shell/services" "$base/shell/services"
+fi
 ln -s "$root/theme" "$base/theme"
 mkdir -p "$base/state/arch-update"
 printf '%s\n' 'repo-one 1 -> 2' 'repo-two 1 -> 2' >"$base/state/arch-update/last_updates_check_packages"
@@ -24,7 +29,9 @@ printf '%s\n' 'aur-one 1 -> 2' >"$base/state/arch-update/last_updates_check_aur"
 : >"$base/state/arch-update/last_updates_check_flatpak"
 printf '%s\n' '1000000000' '2026-11-08 00:00:00' >"$base/state/arch-update/last_updates_check_time"
 perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n    \}\n//; s/^    (?:screen:|implicitWidth:|margins.left:|exclusionMode:|WlrLayershell\.).*\n//mg' "$root/shell/surfaces/ControlCenter.qml" >"$base/shell/surfaces/ControlCenterFixture.qml"
-if [[ ${DF_CONTROL_KEYBOARD_TEST:-0} == 1 ]]; then
+if [[ ${DF_CONTROL_COALESCE_TEST:-0} == 1 ]]; then
+	cp "$root/tests/qml/control-center-coalescing.qml" "$base/shell.qml"
+elif [[ ${DF_CONTROL_KEYBOARD_TEST:-0} == 1 ]]; then
 	cp "$root/tests/qml/control-center-keyboard.qml" "$base/shell.qml"
 elif [[ ${DF_CONTROL_LIVE_TEST:-0} == 1 ]]; then
 	cp "$root/tests/qml/control-center-live.qml" "$base/shell.qml"
@@ -42,7 +49,7 @@ cat >"$base/native/foundation/target/release/desktop-foundationctl" <<'WORKER'
 #!/bin/sh
 shift 3
 printf '%s\n' "$*" >> "$DF_CONTROL_CALLS"
-if [ "${DF_CONTROL_MEMORY_TEST:-0}" = 1 ] || [ "${DF_CONTROL_LIVE_TEST:-0}" = 1 ]; then
+if [ "${DF_CONTROL_MEMORY_TEST:-0}" = 1 ] || [ "${DF_CONTROL_LIVE_TEST:-0}" = 1 ] || [ "${DF_CONTROL_COALESCE_TEST:-0}" = 1 ]; then
     exec /usr/bin/python3 "$DF_CONTROL_MEMORY_WORKER" "$@"
 fi
 if [ "$*" = 'wifi on' ]; then
@@ -148,6 +155,10 @@ fi
 if ! rg -q 'CONTROL_RESULT \{"failures":0\}' "$base/log" || rg -q 'CONTROL_FAIL|CONTROL_TIMEOUT|TypeError|ReferenceError|ERROR|QML (Warning|Error)|Qt Quick Layouts: Detected recursive|FAIL!|QtQuickTest::fail' "$base/log"; then
 	cat "$base/log" >&2
 	exit 1
+fi
+if [[ ${DF_CONTROL_COALESCE_TEST:-0} == 1 ]]; then
+	rg COALESCE_WRITES "$base/log"
+	exit 0
 fi
 if [[ ${DF_CONTROL_LIVE_TEST:-0} == 1 ]]; then
 	if rg -qx snapshot "$base/calls"; then

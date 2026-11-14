@@ -82,21 +82,12 @@ def plan():
             raise ValueError('Existing full mirror timer override requires review')
         changes[TIMER] = mirror_timer(timer.read_text())
         changes[SERVICE] = '[Unit]\nWants=network-online.target\nAfter=network-online.target nss-lookup.target\n'
-    wine = Path('/usr/lib/binfmt.d/wine.conf')
-    if wine.exists():
-        lines = [s.strip() for s in wine.read_text().splitlines() if s.strip() and not s.lstrip().startswith('#')]
-        if lines != [':DOSWin:M::MZ::/usr/bin/wine:']:
-            raise ValueError('Unexpected Wine registration; review first')
-        if WINE.exists() or WINE.is_symlink():
-            raise ValueError('Existing administrator Wine binfmt configuration; review first')
-        changes[WINE] = None  # documented binfmt.d per-file /dev/null mask
-        # Masking Wine alone is insufficient: systemd-binfmt still accesses
-        # the automount to flush all rules, even with an empty effective list.
-        # --tldr returns before accessing binfmt_misc; skip only when no rules
-        # remain, so installing another format later still works normally.
-        changes[BINFMT] = '''[Service]
-ExecCondition=/usr/bin/env SYSTEMD_COLORS=0 /bin/sh -c '/usr/lib/systemd/systemd-binfmt --tldr --no-pager | /usr/bin/grep -q "^[^\u0023[:space:]]"'
-'''
+    from performance_profile import binfmt_changes, WINE as PROFILE_WINE, CONDITION as PROFILE_CONDITION
+    for path, content in binfmt_changes().items():
+        target = {PROFILE_WINE: WINE, PROFILE_CONDITION: BINFMT}[path]
+        if target.exists() or target.is_symlink():
+            raise ValueError('Existing administrator binfmt configuration; review first')
+        changes[target] = content
     if not Path('/etc/default/grub.d/90-desktop-foundation-boot.cfg').exists():
         raise ValueError('Apply the repository clean-boot profile before optimizing GRUB')
     if 'default/grub.d/' not in Path('/usr/bin/grub-mkconfig').read_text():

@@ -77,3 +77,6 @@ Check available perf events and kernel permissions before capturing. Use QML
 profiling alongside heaptrack to inspect binding evaluation, allocation and
 animation activity. See [tooling](tooling.md) for dependencies and
 [startup](startup.md) for the session service layout.
+
+The opt-in [Lucky38 performance profile](lucky38-performance.md) covers the
+EAC-compatible binfmt policy, clipboard generations, cache coalescing and readiness instrumentation.

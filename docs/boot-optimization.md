@@ -87,3 +87,6 @@ Saved reports use `$XDG_CACHE_HOME/desktop-foundation/boot-audit/optimization`
 Kernel source timestamps and journal receipt timestamps are separate timelines.
 GRUB menu interaction affects loader duration; greetd's service-start timestamp
 measures service launch. See [performance](performance.md) for measurement tools.
+
+For EAC-compatible Lucky38 binfmt policy, use the independent opt-in
+[performance profile](lucky38-performance.md). Do not run the GRUB plan on EAC.

@@ -104,6 +104,7 @@ pub fn collect_boot(rows: &str) -> Result<Value> {
             ("udev_cleanup", "Starting Cleanup udev Database..."),
             ("switch_root", "Switching root."),
             ("greetd_started", "Started Greeter daemon."),
+            ("sddm_started", "Started Simple Desktop Display Manager."),
             (
                 "binfmt_start",
                 "Starting Set Up Additional Binary Formats...",
@@ -142,6 +143,11 @@ pub fn collect_boot(rows: &str) -> Result<Value> {
             };
             if let Some(source) = source {
                 for (name, needle) in [
+                    ("nvidia_module_start", "nvidia: loading out-of-tree module"),
+                    ("nvidia_module_announced", "NVRM: loading NVIDIA UNIX"),
+                    ("nvidia_drm_ready", "[drm] Initialized nvidia-drm"),
+                    ("nvidia_framebuffer", "[drm] fb0: nvidia-drmdrmfb"),
+                    ("nvme_discovery", "nvme nvme0: pci function"),
                     ("unpack_start", "Trying to unpack rootfs image"),
                     ("unpack_end", "Freeing initrd memory:"),
                     ("init_process", "Run /init as init process"),
@@ -171,6 +177,18 @@ pub fn collect_boot(rows: &str) -> Result<Value> {
             "switch_root",
         ),
         ("binfmt", &events, "binfmt_start", "binfmt_end"),
+        (
+            "nvidia_module_to_drm",
+            &kernel,
+            "nvidia_module_start",
+            "nvidia_drm_ready",
+        ),
+        (
+            "nvidia_announcement_to_nvme_discovery",
+            &kernel,
+            "nvidia_module_announced",
+            "nvme_discovery",
+        ),
     ] {
         if let (Some(start), Some(end)) = (data.get(start), data.get(end)) {
             durations.insert(name, ((end - start) * 1e6_f64).round() / 1e6);
@@ -196,7 +214,7 @@ pub fn collect(options: &Options, r: &impl Runtime) -> Result<Value> {
                 "json",
                 "--no-pager",
                 "--grep",
-                "Reached target Initrd|Cleanup udev Database|Switching root|Started Greeter daemon|Additional Binary Formats|Startup finished in|Trying to unpack rootfs image|Freeing initrd memory:|Run /init as init process|initializing kernel modesetting|STB initialized|fb0: amdgpudrmfb frame buffer device",
+                "Reached target Initrd|Cleanup udev Database|Switching root|Started Greeter daemon|Started Simple Desktop Display Manager|nvidia: loading|NVRM: loading NVIDIA UNIX|Initialized nvidia-drm|fb0: nvidia-drmdrmfb|nvme nvme0: pci function|Additional Binary Formats|Startup finished in|Trying to unpack rootfs image|Freeing initrd memory:|Run /init as init process|initializing kernel modesetting|STB initialized|fb0: amdgpudrmfb frame buffer device",
             ],
         );
         if !reply.ok() {
@@ -211,6 +229,22 @@ pub fn collect(options: &Options, r: &impl Runtime) -> Result<Value> {
         }
         boots.push(boot);
     }
+    let binfmt = doctor::query(
+        r,
+        &[
+            "systemctl",
+            "show",
+            "systemd-binfmt.service",
+            "-p",
+            "ExecMainStartTimestampMonotonic",
+            "-p",
+            "ExecMainExitTimestampMonotonic",
+            "-p",
+            "InvocationID",
+            "-p",
+            "ConditionResult",
+        ],
+    );
     let mut medians = BTreeMap::new();
     if let Some(stages) = boots[0]["stages_seconds"].as_object() {
         for key in stages.keys() {
@@ -231,9 +265,9 @@ pub fn collect(options: &Options, r: &impl Runtime) -> Result<Value> {
         }
     }
     Ok(
-        json!({"boots":boots,"stage_medians_seconds":medians,"current_session":startup_report::collect(r),"limitations":[
+        json!({"boots":boots,"stage_medians_seconds":medians,"current_binfmt_unit_metadata":binfmt.text,"current_session":startup_report::collect(r),"limitations":[
         "Bootloader time includes time spent choosing entries.",
-        "greetd_started is a service timestamp, not a measured first visible frame.",
+        "Login-manager service timestamps are not measured first visible frames.",
         "Kernel source timestamps and journal receipt timestamps are separate timelines.",
         "Initramfs unpack interval includes other overlapping kernel work.",
         "Saved labels do not by themselves prove a change was deployed."]}),

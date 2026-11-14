@@ -15,6 +15,7 @@ pub const MAX_TOTAL: usize = 32 * 1024 * 1024;
 pub const MAX_ITEMS: usize = 100;
 const TEXT: &str = "text/plain;charset=utf-8";
 mod formats;
+mod generation;
 mod projections;
 pub use formats::supported_mime;
 use formats::{
@@ -27,7 +28,7 @@ pub struct Format {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Entry {
     pub id: String,
     pub mime: String,
@@ -116,7 +117,9 @@ impl History {
             return Err(invalid("Refusing symlink clipboard database"));
         }
         let mut db = Connection::open(&database)?;
-        fs::set_permissions(&database, fs::Permissions::from_mode(0o600))?;
+        if fs::metadata(&database)?.permissions().mode() & 0o777 != 0o600 {
+            fs::set_permissions(&database, fs::Permissions::from_mode(0o600))?;
+        }
         db.busy_timeout(Duration::from_secs(5))?;
         db.execute_batch("PRAGMA secure_delete=ON; PRAGMA foreign_keys=ON;")?;
         migrate(&mut db)?;
@@ -348,6 +351,15 @@ impl History {
         self.export()
     }
 
+    /// Reuse only a previously validated, unchanged private generation.
+    pub fn initialize(&self) -> Result<bool> {
+        if generation::unchanged(&self.directory) {
+            return Ok(true);
+        }
+        self.export()?;
+        Ok(false)
+    }
+
     pub fn export(&self) -> Result<()> {
         // Build and validate the full projection before publishing. Invalid
         // metadata cannot overwrite the last complete index.
@@ -357,6 +369,7 @@ impl History {
             .collect::<std::result::Result<_, _>>()?;
         let mut entries = Vec::new();
         let mut images = std::collections::HashSet::new();
+        let mut references = std::collections::BTreeSet::new();
         let mut projection_cache = projections::Cache::load(&self.directory);
         let mut projection_bytes: Vec<(String, PathBuf, Vec<u8>)> = Vec::new();
         let mut counts = [0usize; 2];
@@ -378,6 +391,7 @@ impl History {
                 return Err(invalid("Clipboard history retention limit exceeded"));
             }
             let paths = files(&formats)?;
+            references.extend(paths.iter().cloned());
             // Availability and folder classification share the same snapshot.
             // File references remain live; their contents are never read.
             let path_metadata: Vec<_> = paths.iter().map(|path| fs::metadata(path).ok()).collect();
@@ -526,6 +540,7 @@ impl History {
             fs::File::open(&self.directory)?.sync_all()?;
         }
         projection_cache.publish(&self.directory, &images);
+        generation::publish(&self.directory, &references);
         Ok(())
     }
 }

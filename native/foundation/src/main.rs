@@ -88,7 +88,7 @@ fn run() -> Result<()> {
     }
     if args.iter().any(|s| s == "--help" || s == "-h") {
         println!(
-            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  app-roles roles|apply|check [--personal]\n  app-roles validate ROLE|desktop NAME|conflicts|restore\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  install [--minimal|--standard|--everything|--personal] [--extra NAME] [--profile NAME] [--no-packages] [--no-greeter] [--clean-boot] [--dry-run|--check]\n  deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]\n  dns plan|status|verify|journals|apply|restore
+            "Foundation commands:\n  clipboard [--state DIRECTORY] init|watch|store text|store image|store --mime MIME\n  clipboard [--state DIRECTORY] copy|copy-plain|pin|unpin|delete ID\n  clipboard [--state DIRECTORY] clear|clear-all\n  apps launch [terminal|browser|files|pdf|image|text] [--check]\n  app-roles roles|apply|check [--personal]\n  app-roles validate ROLE|desktop NAME|conflicts|restore\n  volume up|down\n  bluetooth power on|off\n  bluetooth codecs DEVICE_PATH\n  bluetooth connect|disconnect|reconnect DEVICE_PATH\n  bluetooth codec DEVICE_PATH --codec sbc|sbc_xq|aac|ldac\n  screenshot [--backend niri] region|window|output\n  power suspend|logout|reboot|poweroff [--check]\n  actions list|plan ID|invoke ID\n  cache plan|prune\n  theme generate IMAGE\n  theme derive --source SOURCE --hash HASH (material JSON on stdin)\n  theme gtk-accent (palette JSON on stdin)\n  install [--minimal|--standard|--everything|--personal] [--extra NAME] [--profile NAME] [--performance-profile lucky38|off] [--no-packages] [--no-greeter] [--clean-boot] [--dry-run|--check]\n  deploy [install|restore] [--profile NAME] [--compositor niri] [--dry-run] [--update]\n  dns plan|status|verify|journals|apply|restore
   config input [--profile NAME]\n  preferences-setup install [--theme-only]|restore\n  ui-preferences\n  system-setup install|restore\n  preflight [--profile NAME] [--compositor niri] [--update]\n  theme-runtime generate|apply|reset|wallpaper|rollback|promote|ensure\n  wallpapers list|probe FILE\n  preferences [--state DIRECTORY] set TYPE KEY VALUE|check|prepare-restore|restore|gtk-refresh\n  wallpaper start\n  notifications start|check-owner\n  system packages [--config FILE]\n  shell call METHOD [ARGS...]\n  local-ai start|status|plan\n  control-center toggle|snapshot|volume|mute|select|bluetooth|networking|wifi|connection|device|network-settings\n  update [--dry-run|--check] [--branch NAME] [--version TAG] [--select|--local]\n  app-mods install|check|restore|plan [spicetify|geode] [--skip-unavailable]\n  geode install|status|restore [--game-dir PATH]\n  build-info\n  doctor [--installation] [--personal|--core] [--no-greeter]|--json\n  doctor --startup [--save LABEL] [--compare] [--benchmark]\n  boot-report [--boots COUNT] [--save LABEL]\n  session-acceptance\n  spotify-check\n  transparency toggle|monitor|check|recover\n  monitor toggle|close|status|refresh\n  niri-package status|install [--package FILE] [--gui-auth]|restore [--gui-auth]|activate\n  browser-theme status|apply COLOR|remove"
         );
         return Ok(());
@@ -110,6 +110,9 @@ fn run() -> Result<()> {
         Some("transparency") => desktop_foundationctl::transparency::run(&root, &args[1..]),
         Some("system-setup") => desktop_foundationctl::system_setup::run(&root, &args[1..]),
         Some("install") => desktop_foundationctl::install::run(&root, &args[1..]),
+        Some("performance-opt-in") if args.len() == 2 => {
+            desktop_foundationctl::performance::select(&root, &args[1])
+        }
         Some("deploy") => deploy::run_command(&root, &args[1..]),
         Some("preferences-setup") => preferences::setup(&root, &args[1..]),
         Some("wallpapers") if args.as_slice() == ["wallpapers", "list"] => {
@@ -510,7 +513,7 @@ fn run_clipboard(mut args: Vec<String>) -> Result<()> {
     }
     let mut history = clipboard::History::open(&directory)?;
     match action {
-        "init" => history.export(),
+        "init" => history.initialize().map(|_| ()),
         "clear" => history.clear(),
         "clear-all" => history.clear_all(),
         "pin" => history.pin(&args[1], true),
