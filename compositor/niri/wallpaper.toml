@@ -1,4 +1,4 @@
-# Shipped Niri wallpaper default. Use scripts/wallpaper-set for runtime changes.
-# fill preserves aspect ratio and crops excess edges; fit shows the whole image.
-image = "~/.local/share/wallpapers/wallhaven-135w7w.png"
-mode = "fill"
+# No renderer on fresh installations; Niri supplies its gray background.
+# The neutral swatch supplies initial palette/overview metadata only.
+image = "neutral.png"
+mode = "none"

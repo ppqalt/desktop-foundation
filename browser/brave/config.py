@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Allowlisted Brave Origin Nightly export and reversible, one-time preference seeding."""
+"""Allowlisted Brave Origin export and reversible, one-time preference seeding."""
 import argparse
+import ctypes
+import errno
+import stat
 import fcntl
 import hashlib
 import json
@@ -12,6 +15,7 @@ import shlex
 import subprocess
 import tempfile
 
+CHANNEL = 'auto'
 HERE = Path(__file__).resolve().parent
 MISSING = object()
 STORE = 'https://clients2.google.com/service/update2/crx'
@@ -68,16 +72,33 @@ def atomic(path, data):
             candidate.unlink(missing_ok=True)
 
 
-def default_root():
-    # Derive the installed channel's actual wrapper path rather than assuming
-    # stable Brave or using a directory left over from another channel.
-    wrapper = shutil.which('brave-origin-nightly')
+def config_base():
+    return Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
+
+
+def channel_name(root=None):
+    if CHANNEL != 'auto':
+        return CHANNEL
+    if root is not None and root.name == 'Brave-Origin-Nightly':
+        return 'nightly'
+    return 'stable' if shutil.which('brave-origin') else 'nightly'
+
+
+def flags_path(root):
+    return config_base() / ('brave-origin-nightly-flags.conf' if channel_name(root) == 'nightly' else 'brave-origin-flags.conf')
+
+
+def default_root(channel=None):
+    selected = channel or channel_name()
+    wrapper = shutil.which('brave-origin' if selected == 'stable' else 'brave-origin-nightly')
     if not wrapper:
-        raise RuntimeError('Install brave-origin-nightly-bin first')
+        raise RuntimeError('Install brave-origin-bin' if selected == 'stable' else 'Install optional brave-origin-nightly-bin')
+    # Current stable packaging uses upstream XDG discovery; older Nightly
+    # wrappers explicitly exported a home-relative directory instead.
     match = re.search(r'CHROME_USER_DATA_DIR=~/(\.config/BraveSoftware/[^\s]+)', Path(wrapper).read_text())
-    if not match:
-        raise RuntimeError('Origin Nightly wrapper layout changed; specify --user-data-dir explicitly')
-    return Path.home() / match[1]
+    if match:
+        return Path.home() / match[1]
+    return config_base() / 'BraveSoftware' / ('Brave-Origin' if selected == 'stable' else 'Brave-Origin-Nightly')
 
 
 def process_roots():
@@ -87,7 +108,7 @@ def process_roots():
             continue
         try:
             executable = os.readlink(proc / 'exe')
-            if '/brave-origin-nightly/' not in executable or Path(executable).name != 'brave':
+            if 'brave-origin' not in executable or Path(executable).name not in ('brave', 'brave-origin') or proc.stat().st_uid != os.getuid():
                 continue
             arguments = [x.decode(errors='replace') for x in (proc / 'cmdline').read_bytes().split(b'\0')]
             root = next((x.split('=', 1)[1] for x in arguments if x.startswith('--user-data-dir=')), None)
@@ -96,7 +117,7 @@ def process_roots():
             if not root:
                 environment = (proc / 'environ').read_bytes().split(b'\0')
                 root = next((x.split(b'=', 1)[1].decode() for x in environment if x.startswith(b'CHROME_USER_DATA_DIR=')), None)
-            result.append(Path(root).expanduser().resolve() if root else default_root().resolve())
+            result.append(Path(root).expanduser().resolve() if root else (config_base() / 'BraveSoftware' / ('Brave-Origin-Nightly' if 'nightly' in executable else 'Brave-Origin')).resolve())
         except (OSError, ValueError, IndexError):
             continue
     return result
@@ -104,9 +125,9 @@ def process_roots():
 
 def locate(explicit=None, profile=None):
     roots = sorted(set(process_roots()))
-    root = Path(explicit).expanduser().resolve() if explicit else Path(os.environ['CHROME_USER_DATA_DIR']).expanduser().resolve() if os.environ.get('CHROME_USER_DATA_DIR') else roots[0] if len(roots) == 1 else default_root().resolve()
-    if not explicit and len(roots) > 1:
-        raise RuntimeError('Multiple Origin Nightly data roots are open; specify --user-data-dir')
+    root = Path(explicit).expanduser().resolve() if explicit else default_root().resolve() if CHANNEL != 'auto' else Path(os.environ['CHROME_USER_DATA_DIR']).expanduser().resolve() if os.environ.get('CHROME_USER_DATA_DIR') else roots[0] if len(roots) == 1 else default_root().resolve()
+    if not explicit and CHANNEL == 'auto' and len(roots) > 1:
+        raise RuntimeError('Multiple Brave Origin data roots are open; specify --user-data-dir')
     state = read(root / 'Local State')
     name = profile or state.get('profile', {}).get('last_used')
     if not name:
@@ -166,7 +187,7 @@ def export(root, profile):
     source = read(profile / 'Preferences')
     provider = get(source, 'default_search_provider_data.template_url_data.prepopulate_id')
     atomic(HERE / 'search.json', {'provider': 'Brave Search', 'deployment': 'native-default'} if provider == 550 else {'deployment': 'manual', 'reason': 'Non-default provider excluded; configure interactively'})
-    flags = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'brave-origin-nightly-flags.conf'
+    flags = flags_path(root)
     safe_flags = []
     if flags.exists() and flags.resolve() != HERE / 'flags.conf':
         for argument in shlex.split(flags.read_text(), comments=True):
@@ -189,9 +210,9 @@ def load_seeds():
     return seeds
 
 
-def apply(root, profile, refresh=False):
+def apply(root, profile, refresh=False, install=False):
     if busy(root):
-        print('WARN: Brave Origin Nightly is open or owns SingletonLock. Nothing changed. Close Brave, then run scripts/post-install brave.')
+        print('WARN: Brave Origin is open or owns SingletonLock. Nothing changed. Close Brave, then run scripts/post-install brave.')
         return False
     seeds = load_seeds()
     state = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'desktop-foundation/brave'
@@ -201,6 +222,9 @@ def apply(root, profile, refresh=False):
     with (state / 'lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         record = read(journal)
+        if install and not record and (profile / 'Preferences').exists():
+            print('Existing Brave profile preserved; use scripts/brave-config apply explicitly to seed its settings.')
+            return True
         if record.get('complete') and not refresh:
             print('Brave preferences already seeded; interactive changes preserved.')
             return True
@@ -220,7 +244,7 @@ def apply(root, profile, refresh=False):
                 entries[key]['managed'] = value
                 put(data, key, value)
             candidates[target] = data
-        flags = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'brave-origin-nightly-flags.conf'
+        flags = flags_path(root)
         source = HERE / 'flags.conf'
         if 'flags' not in record:
             record['flags'] = {'path': str(flags), 'source': str(source),
@@ -288,13 +312,138 @@ def restore(root, profile):
     print('Original allowlisted preferences and flags restored; unrelated browser state retained.')
 
 
+# Transient browser coordination/cache files must never cross channel roots.
+MIGRATION_SKIP = {'SingletonLock', 'SingletonSocket', 'SingletonCookie', 'DevToolsActivePort',
+                  'Cache', 'Code Cache', 'GPUCache', 'ShaderCache', 'GrShaderCache', 'DawnCache', 'Crashpad'}
+
+
+def version_tuple(value):
+    value = value.strip().split(':')[-1].split('-')[0]
+    if not re.fullmatch(r'[0-9]+(?:\.[0-9]+){2,3}', value):
+        raise RuntimeError('Browser version metadata is unavailable or ambiguous')
+    parts = tuple(map(int, value.split('.')))
+    if len(parts) == 4:
+        if parts[1] != 1:
+            raise RuntimeError('Unrecognized Nightly profile version; do not force a downgrade')
+        return parts[1:]
+    return parts
+
+
+def profile_inventory(root):
+    entries = {}
+    for directory, folders, files in os.walk(root, followlinks=False):
+        folders[:] = [name for name in folders if name not in MIGRATION_SKIP]
+        for name in folders + files:
+            if name in MIGRATION_SKIP:
+                continue
+            path = Path(directory) / name
+            info = path.lstat()
+            if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)):
+                raise RuntimeError('Profile contains an unsupported special file: ' + str(path.relative_to(root)))
+            entries[str(path.relative_to(root))] = (stat.S_IFMT(info.st_mode), (0 if stat.S_ISDIR(info.st_mode) else info.st_size), info.st_mtime_ns,
+                                                    os.readlink(path) if path.is_symlink() else None)
+    return entries
+
+
+def migrate(source=None, destination=None, target_version=None):
+    target = Path(destination) if destination else config_base() / 'BraveSoftware/Brave-Origin'
+    if target.exists() or target.is_symlink():
+        return {'status': 'existing', 'reason': 'Stable profile preserved; no channel profiles merged'}
+    if source is None:
+        source = default_root('nightly') if shutil.which('brave-origin-nightly') else config_base() / 'BraveSoftware/Brave-Origin-Nightly'
+    source = Path(source)
+    if not source.exists():
+        return {'status': 'fresh', 'reason': 'No Nightly profile to migrate'}
+    state = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'desktop-foundation/brave'
+    state.mkdir(parents=True, exist_ok=True, mode=0o700)
+    def pending(reason):
+        value = {'status': 'pending', 'source': str(source), 'destination': str(target), 'reason': reason}
+        atomic(state / 'migration.json', value)
+        return value
+    if source.is_symlink() or not source.is_dir():
+        return pending('Nightly root must be a regular directory; select the actual profile root explicitly')
+    with (state / 'migration.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if target.exists() or target.is_symlink():
+            return {'status': 'existing', 'reason': 'Stable profile preserved'}
+        if busy(source) or busy(target):
+            return pending('Close both browser channels normally before migration; original profile unchanged')
+        try:
+            previous = version_tuple((source / 'Last Version').read_text())
+            if target_version is None:
+                result = subprocess.run(['/usr/bin/pacman', '-Q', 'brave-origin-bin'], text=True, capture_output=True, timeout=10, check=True)
+                target_version = result.stdout.split()[1]
+            if previous > version_tuple(target_version):
+                return pending('Nightly profile is newer than Stable; wait for a compatible Stable version. No downgrade override used')
+        except (OSError, RuntimeError, subprocess.SubprocessError, IndexError) as error:
+            return pending(str(error))
+        before = profile_inventory(source)
+        required = sum(entry[1] for entry in before.values() if entry[0] == stat.S_IFREG)
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if shutil.disk_usage(target.parent).free < required + max(256 * 1024**2, required // 10):
+            return pending('Insufficient free space for an independent profile copy')
+        temporary = Path(tempfile.mkdtemp(prefix='.df-origin-migrate-', dir=target.parent))
+        try:
+            atomic(state / 'migration.json', {'status': 'copying', 'source': str(source), 'destination': str(target), 'staging': str(temporary)})
+            shutil.copytree(source, temporary, dirs_exist_ok=True, symlinks=True,
+                            ignore=lambda directory, names: [name for name in names if name in MIGRATION_SKIP])
+            temporary.chmod(0o700)
+            # Metadata, file contents and symlink targets must match before
+            # publication; recheck the source and both process locks afterwards.
+            if profile_inventory(source) != before or profile_inventory(temporary) != before:
+                return pending('Profile changed while copying; close the browser and retry')
+            for relative, info in before.items():
+                if info[0] != stat.S_IFREG:
+                    continue
+                def file_hash(path):
+                    result = hashlib.sha256()
+                    with path.open('rb') as stream:
+                        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                            result.update(chunk)
+                    return result.digest()
+                if file_hash(source / relative) != file_hash(temporary / relative):
+                    return pending('Profile copy integrity check failed; original preserved')
+                with (temporary / relative).open('rb') as stream:
+                    os.fsync(stream.fileno())
+            for directory, _, _ in os.walk(temporary, topdown=False, followlinks=False):
+                descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+                try: os.fsync(descriptor)
+                finally: os.close(descriptor)
+            if busy(source) or busy(target) or profile_inventory(source) != before:
+                return pending('Browser started or profile changed during migration; retry after closing it')
+            # Linux no-replace publication: never replace even an empty Stable
+            # directory created concurrently by another application.
+            rename = ctypes.CDLL(None, use_errno=True).renameat2
+            rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+            if rename(-100, os.fsencode(temporary), -100, os.fsencode(target), 1) != 0:
+                code = ctypes.get_errno()
+                return pending('Stable profile appeared during migration' if code == errno.EEXIST else os.strerror(code))
+            descriptor = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try: os.fsync(descriptor)
+            finally: os.close(descriptor)
+            value = {'status': 'migrated', 'source': str(source), 'destination': str(target), 'originalPreserved': True}
+            atomic(state / 'migration.json', value)
+            return value
+        finally:
+            if temporary.exists():
+                shutil.rmtree(temporary)  # Only this invocation's private staging copy.
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['export', 'apply', 'restore', 'extensions'])
+    parser.add_argument('action', choices=['export', 'apply', 'restore', 'extensions', 'migrate'])
+    parser.add_argument('--channel', choices=['auto', 'stable', 'nightly'], default='auto')
+    parser.add_argument('--install', action='store_true', help='Seed fresh profiles only; preserve existing unowned preferences')
     parser.add_argument('--user-data-dir')
     parser.add_argument('--profile')
     parser.add_argument('--refresh', action='store_true', help='Explicitly reapply allowlisted defaults, overwriting only those settings')
     args = parser.parse_args()
+    global CHANNEL
+    CHANNEL = args.channel
+    if args.action == 'migrate':
+        result = migrate(source=args.user_data_dir)
+        print(json.dumps(result))
+        return 75 if result['status'] == 'pending' else 0
     if args.action == 'extensions':
         for extension in read(HERE / 'extensions.json'):
             print(extension['name'] + ': ' + extension['url'])
@@ -305,9 +454,12 @@ def main():
     elif args.action == 'restore':
         restore(root, profile)
     else:
-        apply(root, profile, args.refresh)
-        print('Default browser:', subprocess.check_output(['xdg-settings', 'get', 'default-web-browser'], text=True).strip())
+        applied = apply(root, profile, args.refresh, args.install)
+        if not applied and args.install:
+            print('Brave settings pending; desktop installation can continue. No browser was restarted.')
+        elif not args.install:
+            print('Default browser:', subprocess.check_output(['xdg-settings', 'get', 'default-web-browser'], text=True).strip())
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

@@ -120,7 +120,7 @@ Keep this path stable so palette changes retain the same theme identity.
 For approved DevTools refresh in Brave Origin Nightly:
 
 ```sh
-scripts/brave-theme-reload --configure-root "$HOME/.config/BraveSoftware/Brave-Origin-Nightly"
+scripts/brave-theme-reload --configure-root "$HOME/.config/BraveSoftware/Brave-Origin"
 ```
 
 Enable **Allow remote debugging for this browser instance** at
@@ -229,3 +229,8 @@ adapter and is never changed.
 References: [Qt QPalette roles](https://doc.qt.io/qt-6/qpalette.html),
 [qt6ct's loader](https://github.com/trialuser02/qt6ct/blob/master/src/qt6ct-common/qt6ct.cpp),
 [KDE colour scheme implementation](https://github.com/KDE/kcolorscheme/blob/master/src/kcolorscheme.cpp).
+
+The theme reload binding also accepts `Brave-Origin-Nightly` explicitly; stable
+and Nightly retain independent browser roots. Managed BrowserThemeColor policy
+uses the upstream shared Brave policy directory and refreshes either running
+channel without opening a browser.

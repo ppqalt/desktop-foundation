@@ -158,6 +158,41 @@ pub fn command(root: &Path, name: &str) -> Result<Vec<String>> {
     let role = role(root, name)?;
     let desktop = desktop_path(&role.desktop)?;
     if !executable(&role.executable) || desktop.is_none() {
+        if let Some(mime) = match name {
+            "browser" => Some("x-scheme-handler/https"),
+            "files" => Some("inode/directory"),
+            _ => None,
+        } {
+            let reply = process::checked(
+                &[
+                    "xdg-mime".into(),
+                    "query".into(),
+                    "default".into(),
+                    mime.into(),
+                ],
+                None,
+                std::time::Duration::from_secs(5),
+                true,
+            )?;
+            let default = String::from_utf8_lossy(&reply.stdout).trim().to_owned();
+            if default != role.desktop
+                && !default.contains('/')
+                && default.ends_with(".desktop")
+                && executable("gio")
+                && let Some(entry) = desktop_path(&default)?
+            {
+                let mut command = vec![
+                    root.join("scripts/launch").to_string_lossy().into_owned(),
+                    "gio".into(),
+                    "launch".into(),
+                    entry.to_string_lossy().into_owned(),
+                ];
+                if name == "files" {
+                    command.push(state::home()?.to_string_lossy().into_owned());
+                }
+                return Ok(command);
+            }
+        }
         return Err(invalid(format!(
             "Missing {name}: install {} ({})",
             role.package, role.desktop
@@ -167,7 +202,13 @@ pub fn command(root: &Path, name: &str) -> Result<Vec<String>> {
     validate_entry(&read(&desktop, 256 * 1024)?, &role.executable)?;
     let mut command = vec![
         root.join("scripts/launch").to_string_lossy().into_owned(),
-        role.executable,
+        if role.executable == "brave-origin" {
+            root.join("scripts/brave-origin-launch")
+                .to_string_lossy()
+                .into_owned()
+        } else {
+            role.executable
+        },
     ];
     if name == "files" {
         command.push(state::home()?.to_string_lossy().into_owned());

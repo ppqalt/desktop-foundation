@@ -217,6 +217,14 @@ trait Host {
 struct Native;
 impl Host for Native {
     fn validate(&self, store: &Store) -> Result<()> {
+        if store.base == Path::new("/")
+            && let Some(manager) = crate::install::system_display_manager()?
+            && manager != "greetd.service"
+        {
+            return Err(invalid(format!(
+                "Existing {manager} owns login; preserve it with --no-greeter"
+            )));
+        }
         process::checked(
             &[
                 "/usr/bin/pacman".into(),

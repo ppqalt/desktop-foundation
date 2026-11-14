@@ -17,8 +17,18 @@ pub const POLICY: &str = "/etc/brave/policies/managed/70-desktop-foundation-them
 pub const OWNER: &str = "/etc/desktop-foundation/browser-policy.json";
 const DIRECTORY: &str = "/var/lib/desktop-foundation/browser-policy";
 const LIMIT: u64 = 128 * 1024;
-const WRAPPER: &str = "/usr/bin/brave-origin-nightly";
-const BROWSER: &str = "/opt/brave.com/brave-origin-nightly/brave";
+const CHANNELS: [(&str, &str, &str); 2] = [
+    (
+        "/usr/bin/brave-origin",
+        "/opt/brave-origin-bin/brave-origin",
+        "Brave-Origin",
+    ),
+    (
+        "/usr/bin/brave-origin-nightly",
+        "/opt/brave.com/brave-origin-nightly/brave-origin",
+        "Brave-Origin-Nightly",
+    ),
+];
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -327,11 +337,7 @@ fn bounded(path: &Path, maximum: u64) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn browser_root() -> Result<PathBuf> {
-    Ok(state::xdg("XDG_CONFIG_HOME", ".config")?.join("BraveSoftware/Brave-Origin-Nightly"))
-}
-
-fn main_process(root: &Path) -> Result<Option<u32>> {
+fn main_process(root: &Path, browser: &Path) -> Result<Option<u32>> {
     let expected = fs::canonicalize(root)?;
     for entry in fs::read_dir("/proc")? {
         let entry = entry?;
@@ -345,7 +351,7 @@ fn main_process(root: &Path) -> Result<Option<u32>> {
         let path = entry.path();
         let probe = || -> Result<bool> {
             if fs::metadata(&path)?.uid() != unsafe { libc::getuid() }
-                || fs::read_link(path.join("exe"))? != Path::new(BROWSER)
+                || fs::read_link(path.join("exe"))? != browser
             {
                 return Ok(false);
             }
@@ -394,25 +400,27 @@ fn main_process(root: &Path) -> Result<Option<u32>> {
 }
 
 fn refresh_running() -> Result<bool> {
-    let root = browser_root()?;
-    if !root.is_dir() || main_process(&root)?.is_none() {
-        return Ok(false);
+    let config = state::xdg("XDG_CONFIG_HOME", ".config")?;
+    let mut refreshed = false;
+    for (wrapper, binary, name) in CHANNELS {
+        let root = config.join("BraveSoftware").join(name);
+        if !root.is_dir() || main_process(&root, Path::new(binary))?.is_none() {
+            continue;
+        }
+        process::checked(
+            &[
+                wrapper.into(),
+                format!("--user-data-dir={}", root.display()),
+                "--refresh-platform-policy".into(),
+                "--no-startup-window".into(),
+            ],
+            None,
+            Duration::from_secs(8),
+            true,
+        )?;
+        refreshed = true;
     }
-    // The native singleton client returns without opening a window. A bounded
-    // child process group is cleaned up if the existing browser exits during
-    // handoff and the request accidentally becomes a cold headless start.
-    process::checked(
-        &[
-            WRAPPER.into(),
-            format!("--user-data-dir={}", root.display()),
-            "--refresh-platform-policy".into(),
-            "--no-startup-window".into(),
-        ],
-        None,
-        Duration::from_secs(8),
-        true,
-    )?;
-    Ok(true)
+    Ok(refreshed)
 }
 
 /// Unprivileged runtime entry: policy publication is delegated to the installed helper.

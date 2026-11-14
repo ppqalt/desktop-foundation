@@ -30,6 +30,9 @@ pub trait Runtime {
     fn env(&self, key: &str) -> Option<String>;
     fn protected_helper(&self, path: &Path) -> bool;
     fn role_check(&self, root: &Path, personal: bool) -> Result<Value>;
+    fn standard_role_check(&self, root: &Path) -> Result<Value> {
+        self.role_check(root, false)
+    }
     fn validate_role(&self, name: &str, app: &Value) -> Result<()>;
     fn conflicts(&self, root: &Path, paths: &deploy::Paths) -> Result<Vec<String>>;
     fn mods(&self, root: &Path, config: &Path) -> Result<Vec<String>>;
@@ -38,6 +41,9 @@ pub trait Runtime {
 }
 pub struct Native;
 impl Runtime for Native {
+    fn standard_role_check(&self, root: &Path) -> Result<Value> {
+        application_roles::check_standard(root)
+    }
     fn query(&self, args: &[String]) -> Reply {
         let journal = args.first().is_some_and(|s| s == "journalctl");
         let timeout = if args.first().is_some_and(|s| s == "quickshell") {
@@ -172,6 +178,8 @@ pub struct Options {
     pub installation: bool,
     pub personal: bool,
     pub core: bool,
+    pub standard: bool,
+    pub eac_profile: bool,
     pub no_greeter: bool,
     pub json: bool,
     pub startup: bool,
@@ -188,6 +196,8 @@ impl Options {
                 "--installation" => o.installation = true,
                 "--personal" => o.personal = true,
                 "--core" => o.core = true,
+                "--standard" => o.standard = true,
+                "--eac-profile" => o.eac_profile = true,
                 "--no-greeter" => o.no_greeter = true,
                 "--json" => o.json = true,
                 "--startup" => o.startup = true,
@@ -206,8 +216,8 @@ impl Options {
             }
             i += 1;
         }
-        if o.personal && o.core {
-            return Err(invalid("Choose --personal or --core"));
+        if (o.personal as u8 + o.core as u8 + o.standard as u8) > 1 {
+            return Err(invalid("Choose --personal, --standard or --core"));
         }
         if o.json && args != ["--json"] {
             return Err(invalid("--json must be used alone"));
@@ -376,6 +386,10 @@ pub fn session(root: &Path, paths: &deploy::Paths, r: &impl Runtime) -> Report {
     if query(r, &["systemctl", "is-active", "greetd.service"]).ok() {
         pam(&mut out, r);
     }
+    let no_wallpaper = text(r, &paths.state.join("theme/current/wallpaper.toml"))
+        .ok()
+        .and_then(|value| toml::from_str::<toml::Value>(&value).ok())
+        .is_some_and(|value| value.get("mode").and_then(toml::Value::as_str) == Some("none"));
     for name in ["swaybg", "wl-clip-persist", "oo7-daemon"] {
         let reply = query(r, &["pgrep", "-x", name]);
         let count = if reply.ok() {
@@ -383,7 +397,16 @@ pub fn session(root: &Path, paths: &deploy::Paths, r: &impl Runtime) -> Report {
         } else {
             0
         };
-        out.check(count == 1, format!("{name} instances: {count}"), false);
+        out.check(
+            count
+                == if name == "swaybg" && no_wallpaper {
+                    0
+                } else {
+                    1
+                },
+            format!("{name} instances: {count}"),
+            false,
+        );
     }
     out.check(
         !query(r, &["pgrep", "-x", "gnome-keyring-d"]).ok(),
@@ -403,6 +426,9 @@ pub fn session(root: &Path, paths: &deploy::Paths, r: &impl Runtime) -> Report {
         "desktop-foundation-wallpaper.service",
         "desktop-foundation-notifications.service",
     ] {
+        if no_wallpaper && unit == "desktop-foundation-wallpaper.service" {
+            continue;
+        }
         let reply = query(r, &["systemctl", "--user", "is-active", unit]);
         out.check(reply.ok(), format!("{unit}: {}", reply.text), false);
     }
@@ -507,6 +533,9 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
         Some("core"),
         (!o.no_greeter).then_some("greeter"),
         o.personal.then_some("personal"),
+        o.standard.then_some("standard"),
+        (o.personal || o.standard).then_some("firmware"),
+        (o.personal || o.standard).then_some("recording"),
     ]
     .into_iter()
     .flatten()
@@ -525,7 +554,7 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
         .is_ok_and(|v| v.trim().ends_with("-cachyos-eac"));
     for unit in [
         Some("bluetooth"),
-        (!eac).then_some("apparmor"),
+        (!eac && !o.eac_profile).then_some("apparmor"),
         (!o.no_greeter).then_some("greetd"),
     ]
     .into_iter()
@@ -549,6 +578,8 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
             "EAC LSM policy (AppArmor intentionally excluded); boot-integrate verify checks full EAC readiness",
             false,
         );
+    } else if o.eac_profile {
+        out.check(false, "EAC boot verification pending; desktop installation does not establish firmware readiness", true);
     } else {
         let apparmor = Path::new("/sys/module/apparmor/parameters/enabled");
         out.check(r.exists(apparmor), "Kernel has AppArmor support", false);
@@ -657,11 +688,6 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
     ] {
         out.check(r.exists(&root.join(name)), format!("Backend {name}"), false);
     }
-    out.check(
-        r.exists(&paths.data.join("wallpapers/wallhaven-135w7w.png")),
-        "Stable wallpaper",
-        false,
-    );
     for family in [
         "Google Sans Flex",
         "Google Sans Code",
@@ -682,7 +708,7 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
             false,
         );
     }
-    if o.personal {
+    if o.personal || o.standard {
         let v = r.query(&[
             root.join("scripts/foundation")
                 .to_string_lossy()
@@ -695,11 +721,18 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
             "Brave managed theme policy adapter",
             false,
         );
+        let executable = if o.standard {
+            "brave-origin"
+        } else {
+            "brave-origin-nightly"
+        };
         out.check(
-            r.executable("brave-origin-nightly"),
-            "Personal executable brave-origin-nightly",
+            r.executable(executable),
+            format!("Browser executable {executable}"),
             false,
         );
+    }
+    if o.personal {
         if let Some(mods) = out.result(r.mods(root, &paths.config), "Application modifications")
             && mods.iter().any(|s| s == "spicetify")
         {
@@ -775,9 +808,13 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
     } else {
         o.personal
     };
-    if (o.personal || r.exists(&journal))
+    if (o.personal || o.standard || r.exists(&journal))
         && let Some(roles) = out.result(
-            r.role_check(root, selected_personal),
+            if o.standard {
+                r.standard_role_check(root)
+            } else {
+                r.role_check(root, selected_personal)
+            },
             "Application defaults",
         )
     {

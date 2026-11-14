@@ -23,7 +23,10 @@ cat >"$base/repo/scripts/build-backend" <<'SH'
 #!/bin/sh
 printf 'build\n' >> "$DF_TEST_LOG"
 mkdir -p "$(dirname "$0")/../native/foundation/target/release"
-printf '#!/bin/sh\n' > "$(dirname "$0")/../native/foundation/target/release/desktop-foundationctl"
+cat > "$(dirname "$0")/../native/foundation/target/release/desktop-foundationctl" <<'BIN'
+#!/bin/sh
+printf '{"sources":{"matchesBinary":%s}}\n' "${DF_FIXTURE_CURRENT:-true}"
+BIN
 chmod +x "$(dirname "$0")/../native/foundation/target/release/desktop-foundationctl"
 SH
 cat >"$base/repo/scripts/foundation" <<'SH'
@@ -61,6 +64,8 @@ rm "$base/log"
 "$base/repo/scripts/install-all"
 [[ $(cat "$base/log") == $'build\nfoundation install --personal' ]]
 rm "$base/log"
+if DF_FIXTURE_CURRENT=false "$base/repo/scripts/install" --dry-run >"$base/stale" 2>&1; then exit 1; fi
+[[ ! -e $base/log ]]
 "$base/repo/scripts/install" --dry-run
 [[ $(cat "$base/log") == 'foundation install --dry-run' ]]
 rm "$base/repo/native/foundation/target/release/desktop-foundationctl" "$base/log"

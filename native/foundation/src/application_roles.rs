@@ -38,7 +38,7 @@ impl Entry {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Journal {
     #[serde(skip_serializing_if = "Option::is_none")]
     profile: Option<String>,
@@ -572,6 +572,36 @@ fn query(args: &[&str]) -> Result<String> {
         .into())
 }
 
+/// Standard owns its installed browser, not the user's unrelated MIME choices.
+/// Changed defaults are verified by apply_selected before its journal commits.
+pub fn check_standard(root: &Path) -> Result<Value> {
+    let desired = roles(root, false)?;
+    validate("browser", &desired["browser"])?;
+    let mut messages = vec!["PASS Standard browser launch entry".to_owned()];
+    // Parse and report historical ownership drift without overwriting it.
+    for conflict in conflicts()? {
+        messages.push(format!("WARN preserved user choice: {conflict}"));
+    }
+    let browser = configured_role("browser", &desired["browser"])?;
+    for mime in browser.mimes {
+        let actual = query(&["xdg-mime", "query", "default", &mime])?;
+        messages.push(format!(
+            "{} {mime}: {}",
+            if actual == browser.desktop {
+                "PASS"
+            } else {
+                "INFO preserved default"
+            },
+            if actual.is_empty() {
+                "(unset)"
+            } else {
+                &actual
+            }
+        ));
+    }
+    Ok(json!({"messages": messages, "failures": []}))
+}
+
 pub fn check(root: &Path, personal: bool) -> Result<Value> {
     let desired = roles(root, personal)?;
     let mut failures = conflicts()?;
@@ -619,7 +649,16 @@ pub fn check(root: &Path, personal: bool) -> Result<Value> {
 }
 
 pub fn apply(root: &Path, personal: bool) -> Result<Value> {
-    let desired = roles(root, personal)?;
+    apply_selected(root, personal, false)
+}
+fn apply_selected(root: &Path, personal: bool, browser_only: bool) -> Result<Value> {
+    let mut desired = roles(root, personal)?;
+    if browser_only {
+        desired
+            .as_object_mut()
+            .unwrap()
+            .retain(|name, _| name == "browser");
+    }
     let mut changes = BTreeMap::new();
     for (name, value) in desired.as_object().unwrap() {
         validate(name, value)?;
@@ -634,7 +673,35 @@ pub fn apply(root: &Path, personal: bool) -> Result<Value> {
     let text = original.as_deref().unwrap_or("");
     let current = values(text)?;
     let (mut saved, legacy) = transaction(&paths, text, original.is_some())?;
-    ownership(&saved, &current, false)?;
+    if browser_only {
+        changes.retain(|mime, value| {
+            let existing = current.get(mime).map(String::as_str).unwrap_or("");
+            let first = existing.split(';').next().unwrap_or("");
+            if first.is_empty()
+                || matches!(
+                    first,
+                    "brave-origin-nightly.desktop" | "brave-origin.desktop"
+                )
+            {
+                let mut ids = vec!["brave-origin.desktop"];
+                ids.extend(existing.split(';').filter(|id| {
+                    !id.is_empty()
+                        && !matches!(*id, "brave-origin-nightly.desktop" | "brave-origin.desktop")
+                }));
+                *value = Some(ids.join(";") + ";");
+                true
+            } else {
+                false
+            }
+        });
+        let mut affected = saved.clone();
+        affected
+            .entries
+            .retain(|mime, _| changes.contains_key(mime));
+        ownership(&affected, &current, false)?;
+    } else {
+        ownership(&saved, &current, false)?;
+    }
     let replaced = replace(text, &changes)?;
     for (mime, value) in &changes {
         let entry = saved.entries.entry(mime.clone()).or_insert_with(|| Entry {
@@ -644,7 +711,13 @@ pub fn apply(root: &Path, personal: bool) -> Result<Value> {
         });
         entry.extra.insert("pending".into(), json!(value));
     }
-    let profile = if personal { "personal" } else { "core" };
+    let profile = if browser_only {
+        "standard"
+    } else if personal {
+        "personal"
+    } else {
+        "core"
+    };
     saved.profile = Some(profile.into());
     publish(&paths.journal, &saved)?;
     archive_legacy(&paths, legacy.as_deref())?;
@@ -656,6 +729,18 @@ pub fn apply(root: &Path, personal: bool) -> Result<Value> {
         entry.extra.remove("pending");
     }
     publish(&paths.journal, &saved)?;
+    if browser_only {
+        for mime in changes.keys() {
+            if query(&["xdg-mime", "query", "default", mime])? != "brave-origin.desktop" {
+                return Err(invalid(
+                    "Stable browser MIME readback failed; existing defaults and rollback journal retained",
+                ));
+            }
+        }
+        return Ok(
+            json!({"profile": profile, "changed": replaced != text, "preservedForeignDefaults": true}),
+        );
+    }
     if !check(root, personal)?["failures"]
         .as_array()
         .unwrap()
@@ -721,6 +806,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<Value> {
                 _ => check(root, personal),
             }
         }
+        "browser-default" if args.len() == 1 => apply_selected(root, false, true),
         "validate" if args.len() == 2 => {
             let mut input = Vec::new();
             std::io::stdin()

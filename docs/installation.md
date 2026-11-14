@@ -12,7 +12,7 @@ bootstrap/build, and the normal-user workflow requests authentication for its
 privileged steps. The installer runs its selected doctor checks before reporting
 success; no separate validation command is needed to finish installation.
 
-A normal installation bootstraps missing build dependencies and builds the release
+A normal installation checks ownership and managed links first, bootstraps only missing compiler/build dependencies (without starting desktop services), and builds the release
 backend automatically. Bootstrap reuses the pinned Rust toolchain when both
 `rustc` and Cargo work, avoiding an unnecessary toolchain-server check on reruns.
 If either tool is missing or fails its version check, bootstrap installs the pinned
@@ -20,9 +20,9 @@ toolchain. `scripts/bootstrap --dev`
 adds development components to the pinned version without changing your global
 Rust default. A normal rerun rebuilds the selected checkout before
 starting its installer, so an older executable cannot omit newly added components.
-Inspection reuses the existing executable without building. It verifies any existing deployment owner before running
+Inspection uses an existing executable only after its source digest matches this checkout. A stale executable is rejected without rebuilding or changing the desktop. It verifies any existing deployment owner before running
 package setup. Inspection (`--dry-run`, `--plan`, `--check`) never installs packages
-or builds the backend; run `scripts/bootstrap` and `scripts/build-backend` first if
+or builds the backend; run `scripts/bootstrap --build-only` and `scripts/build-backend` first if
 you want to use those inspection options on a completely fresh checkout.
 
 ```sh
@@ -41,8 +41,7 @@ or deployment actions. `--no-greeter` always preserves the login setup. The keyr
 greetd. Choose Niri at login. `scripts/doctor` remains available for later
 troubleshooting. See [keyring setup](keyring.md).
 
-Use Standard to add Brave Origin Nightly, paru, ChatGPT and Vesktop without
-changing application defaults:
+Standard adds paru, stable Brave Origin from the CachyOS pacman repository, ChatGPT, Vesktop, Nautilus, Papers, Loupe, GNOME Text Editor, GPU Screen Recorder/FFmpeg and firmware. Browser MIME defaults migrate only from unset/Nightly entries; unrelated defaults are preserved:
 
 ```sh
 scripts/install --standard --dry-run
@@ -58,16 +57,15 @@ scripts/install --minimal --extra geode
 
 Geode also selects Steam and may remain pending until Geometry Dash has been
 installed and launched once. The currently selectable extras are `steam`,
-`spicetify`, `geode` and `recording`; Odysseus continues to use its existing manual setup.
-The minimal and standard paths do not automatically install the optional
-firmware bundle. `--clean-boot` and the legacy personal installer retain it.
+`spicetify`, `geode`, `recording` and `brave-nightly`; Odysseus continues to use its existing manual setup.
+Minimal leaves recording, the firmware bundle, GNOME utilities and browser provisioning optional. Standard and Personal include recording and firmware; Personal retains its legacy application/add-on choices.
 
 Successful installations save their selected layer, extras, hardware profile
 and greeter choice in `$XDG_STATE_HOME/desktop-foundation/installation.toml`.
 Running `scripts/install` again reuses them; an explicit layer replaces the
 saved layer and extras. `--no-packages` and `--dry-run` are one-time options.
 
-The legacy personal installer remains available:
+The legacy Personal installer (`--everything` is also an alias) remains available:
 
 ```sh
 scripts/install-all --dry-run
@@ -85,7 +83,7 @@ than surfacing after a replay has been captured. See [personal applications](per
 | --- | --- |
 | `--dry-run` or `--plan` | Show packages, application roles, deployment paths and ownership conflicts |
 | `--check` | Inspect the selected installation layer |
-| `--no-packages` | Build and deploy using installed dependencies; leave compositor packages alone |
+| `--no-packages` | No package operations; still builds/deploys and may configure selected services, security and login |
 | `--stock-niri` | Save a stock-compositor preference; restore a managed patched installation to its signed original |
 | `--patched-niri` | Build/install patched Niri (default for every profile) |
 | `--no-greeter` | Always preserve the login setup; automatic detection already preserves configured managers |
@@ -102,7 +100,7 @@ See [AppArmor](APPARMOR.md) for the read-only check and native bootloader guidan
 The installed Niri must accept the generated KDL, including its blur and
 background effects. The installer checks that configuration before deployment.
 Greeter setup checks tuigreet's None background before writing login files. Existing display-manager configuration is detected through systemd's
-`display-manager.service` alias. Broken aliases and custom unit files are preserved
+`display-manager.service` alias and active/enabled SDDM, GDM, LightDM, LXDM and greetd units. Broken aliases and custom unit files are preserved
 rather than treated as permission to replace login. Existing PAM settings remain
 untouched when its manager is preserved; keyring auto-unlock then depends on that
 manager's existing PAM integration.
@@ -176,3 +174,51 @@ profile. Older saved selections preserve their existing stack. Use
 [Secure Boot and recovery](secure-boot.md) for firmware checkpoints, driver
 limitations, update hooks and recovery acceptance. `--clean-boot` remains a
 separate legacy GRUB operation and cannot be combined with EAC.
+
+## Browser channels and migration
+
+Standard installs `brave-origin-bin` through pacman without AUR fallback. Paru is
+still included for general use. Add `--extra brave-nightly` for parallel Nightly;
+this does not change Standard's selected browser. Legacy Personal keeps its
+existing Nightly browser choice.
+
+The shared policy sets only `BrowserThemeColor`; both channels use Brave's
+`/etc/brave/policies/managed` directory. The existing allowlisted preference seed
+applies once to fresh profiles; existing unowned profiles and later interactive
+changes are preserved. Open browsers defer setup rather than being restarted.
+
+`brave-config migrate` copies a closed, compatible Nightly root to a previously
+absent Stable root, verifies file contents and publishes without replacing a
+concurrently created destination. It never merges or removes profiles, exports
+keys, resets data, or overrides downgrade protection. Existing Stable roots are
+preserved. Newer Nightly roots remain pending until Stable is compatible; DF's
+browser shortcut retains Nightly for that launch instead of opening an empty
+Stable profile. Direct package desktop entries are upstream launchers; avoid
+opening a new Stable profile yourself if you intend to migrate the old root.
+
+Use `brave-config apply --channel stable` or `--channel nightly` for explicit
+preference management. Custom source roots can be supplied to `migrate` with
+`--user-data-dir`; ambiguous/custom profiles are never merged automatically.
+Copied encrypted storage remains dependent on the original account/keyring.
+A byte-verified copy is not proof of browser sign-in/password compatibility.
+
+## Completion
+
+The installer reports **desktop installation** independently from firmware/EAC
+readiness, optional add-on first use and physical recovery acceptance. Safe boot
+checkpoints retain their journal and saved selection after desktop deployment;
+rerun the same installer command after the requested manual firmware/reboot step.
+Real package/signature/ownership errors remain errors. Verified EAC boot can be
+finalized without requiring optional LTS/snapshot boot acceptance. Unperformed
+recovery acceptance is explicitly recorded as unverified.
+
+A fresh desktop starts without a wallpaper renderer, using Niri's gray background;
+existing wallpaper selections remain active on reinstall. Replay starts by the
+existing recording preference only when the saved installation selects recording
+(Standard/Personal or the recording extra), not merely because the recorder happens
+to be installed. Explicit user replay autostart preferences remain authoritative.
+NetworkManager/Bluetooth are enabled and started after validation;
+active networkd/ConnMan configurations are preserved instead of replaced.
+
+See [audit resolutions](installer-audit-resolution.md) and
+[Secure Boot and recovery](secure-boot.md).

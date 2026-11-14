@@ -42,6 +42,7 @@ LIMIT = 8 * 1024 * 1024
 
 class Checkpoint(RuntimeError):
     """Persistent work needs a firmware reboot or an explicit owner action."""
+    desktop_safe = False
 
 
 def command(*args, required=True, interactive=False, timeout=30, input=None, boot_manager=False):
@@ -595,7 +596,9 @@ class Transaction:
         self.data['phase'] = name
         self.data['checkpoint'] = message
         self.save()
-        raise Checkpoint(message)
+        error = Checkpoint(message)
+        error.desktop_safe = name in {'firmware-prerequisites', 'firmware-setup', 'firmware-enable', 'boot-test', 'boot-selection-failed', 'eac-verification-failed', 'recovery-keys', 'existing-bootnext'}
+        raise error
 
 
 def verify_upstream():
@@ -1015,6 +1018,7 @@ def recovery_acceptance(facts, tx, kind=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['preflight', 'plan', 'status', 'resume', 'repair', 'verify', 'select-next', 'select-order', 'restore-order', 'finalize', 'refresh', 'accept-lts', 'accept-snapshot'])
+    parser.add_argument('--desktop', action='store_true', help='Allow safe firmware checkpoints after desktop deployment')
     parser.add_argument('--summary', action='store_true')
     parser.add_argument('--no-packages', action='store_true')
     parser.add_argument('--recovery-keys-confirmed', action='store_true')
@@ -1065,6 +1069,8 @@ def main():
                 proof = verified_boot(f)
                 recovery_verify(f)
                 tx.data['verified_boot'] = {'boot_id': f['boot_id'], 'kernel': f['kernel'], 'eac_status': proof}
+                tx.data['checkpoint'] = None
+                tx.data['error'] = None
                 if args.action == 'finalize':
                     n = ensure_entries(f)
                     eac = resolve_entry(n, f['esp']['partuuid'], EAC_PATH)
@@ -1077,7 +1083,9 @@ def main():
                         raise RuntimeError('Daily BootOrder did not read back')
                     tx.data['default'] = 'eac'
                 recovery_acceptance(f, tx)
-                tx.data['phase'] = 'complete' if tx.data.get('default') == 'eac' and tx.data.get('recovery_acceptance', {}).get('lts') and tx.data.get('recovery_acceptance', {}).get('snapshot') else 'verified-boot-recovery-acceptance-pending'
+                tx.data['installation_complete'] = tx.data.get('default') == 'eac'
+                tx.data['recovery_verified'] = bool(tx.data.get('recovery_acceptance', {}).get('lts') and tx.data.get('recovery_acceptance', {}).get('snapshot'))
+                tx.data['phase'] = 'installed-recovery-verified' if tx.data['installation_complete'] and tx.data['recovery_verified'] else 'installed-recovery-unverified' if tx.data['installation_complete'] else 'verified-boot'
                 tx.save()
             elif args.action == 'refresh':
                 if tx.data.get('pending') == 'packages':
@@ -1117,7 +1125,7 @@ if __name__ == '__main__':
         raise SystemExit(main())
     except Checkpoint as error:
         print('Foundation boot checkpoint: ' + str(error), file=sys.stderr)
-        raise SystemExit(75)
+        raise SystemExit(75 if '--desktop' not in sys.argv or error.desktop_safe else 1)
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
         print('Foundation boot: ' + str(error) + '. Journal and recovery files retained.', file=sys.stderr)
         raise SystemExit(1)

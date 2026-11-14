@@ -76,7 +76,7 @@ pub fn config(root: &Path, home: &Path) -> Result<Wallpaper> {
     };
     let mut config: Wallpaper =
         toml::from_str(&fs::read_to_string(path)?).map_err(|e| invalid(e.to_string()))?;
-    if !["fill", "fit", "center", "tile"].contains(&config.mode.as_str()) {
+    if !["fill", "fit", "center", "tile", "none"].contains(&config.mode.as_str()) {
         return Err(invalid("Invalid wallpaper mode"));
     }
     config.image = expand(&config.image)?;
@@ -141,7 +141,7 @@ pub fn stage(
     reset: bool,
     selected: &str,
 ) -> Result<PathBuf> {
-    if !["fill", "fit", "center", "tile"].contains(&mode) {
+    if !["fill", "fit", "center", "tile", "none"].contains(&mode) {
         return Err(invalid("Invalid wallpaper scaling mode"));
     }
     let image = expand(image)?.canonicalize()?;
@@ -164,7 +164,7 @@ pub fn stage(
         if backdrop::hash(&image)? != digest {
             return Err(invalid("Wallpaper changed during staging"));
         }
-        let overview = backdrop::prepare(&copied, mode)?;
+        let overview = backdrop::prepare(&copied, if mode == "none" { "fill" } else { mode })?;
         fs::copy(overview, target.join("overview.png"))?;
         render::render(root, &target, p, selected, reset)?;
         render::write(
@@ -450,7 +450,9 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             let value = args
                 .get(index)
                 .ok_or_else(|| invalid("Missing wallpaper mode"))?;
-            if mode.is_some() || !["fill", "fit", "center", "tile"].contains(&value.as_str()) {
+            if mode.is_some()
+                || !["fill", "fit", "center", "tile", "none"].contains(&value.as_str())
+            {
                 return Err(invalid("Invalid wallpaper mode"));
             }
             mode = Some(value.clone());

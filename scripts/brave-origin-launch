@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+status=0
+"$root/scripts/brave-config" migrate || status=$?
+if [[ $status == 75 ]]; then
+	if command -v brave-origin-nightly >/dev/null 2>&1; then
+		printf '%s\n' 'Stable profile migration pending; retaining Nightly for this launch.' >&2
+		exec brave-origin-nightly "$@"
+	fi
+	printf '%s\n' 'Stable migration is pending. Original profile preserved; inspect scripts/brave-config migrate.' >&2
+	exit 75
+fi
+[[ $status == 0 ]] || exit "$status"
+exec brave-origin --user-data-dir="${XDG_CONFIG_HOME:-$HOME/.config}/BraveSoftware/Brave-Origin" "$@"

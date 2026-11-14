@@ -462,6 +462,42 @@ pub fn bindings(root: &Path) -> Result<String> {
     text.push_str("}\n");
     Ok(text)
 }
+fn installation_allows_replay(root: &Path, sources: &[PathBuf]) -> Result<bool> {
+    // An explicit user preference remains authoritative after a profile change.
+    for source in sources
+        .iter()
+        .filter(|path| **path != root.join("config/recording.toml"))
+    {
+        let value: toml::Value =
+            toml::from_str(&fs::read_to_string(source)?).map_err(|e| invalid(e.to_string()))?;
+        if value
+            .get("replay_auto_start")
+            .and_then(toml::Value::as_bool)
+            == Some(true)
+        {
+            return Ok(true);
+        }
+    }
+    let selection =
+        state::xdg("XDG_STATE_HOME", ".local/state")?.join("desktop-foundation/installation.toml");
+    if !selection.exists() {
+        return Ok(true);
+    } // Older installations preserve their explicit behavior.
+    let value: toml::Value =
+        toml::from_str(&fs::read_to_string(selection)?).map_err(|e| invalid(e.to_string()))?;
+    Ok(matches!(
+        value.get("layer").and_then(toml::Value::as_str),
+        Some("standard" | "personal")
+    ) || value
+        .get("extras")
+        .and_then(toml::Value::as_array)
+        .is_some_and(|extras| {
+            extras
+                .iter()
+                .any(|extra| extra.as_str() == Some("recording"))
+        }))
+}
+
 pub fn run(root: &Path, args: &[String]) -> Result<()> {
     match args
         .iter()
@@ -483,7 +519,11 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         ["replay-toggle"] => runtime::replay_request(false),
         ["serve"] => runtime::serve(root),
         ["autostart"] => {
-            if settings(root)?.0.replay_auto_start && apps::executable("gpu-screen-recorder") {
+            let (config, sources) = settings(root)?;
+            if installation_allows_replay(root, &sources)?
+                && config.replay_auto_start
+                && apps::executable("gpu-screen-recorder")
+            {
                 runtime::replay_set(true)?;
             }
             Ok(())

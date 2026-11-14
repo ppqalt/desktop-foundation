@@ -6,7 +6,8 @@ A barless CachyOS and Niri desktop with Material-inspired widgets, wallpaper col
 
 Fresh installs prepare the EAC kernel with independent Limine/LTS snapshot recovery.
 Existing installations preserve their boot setup. Firmware steps may require a
-manual reboot and rerunning the same command; see [Secure Boot and recovery](docs/secure-boot.md).
+manual reboot and rerunning the same command. Desktop deployment can finish
+with boot verification pending; see [Secure Boot and recovery](docs/secure-boot.md).
 
 ```sh
 git clone https://github.com/ppqalt/desktop-foundation.git
@@ -16,7 +17,7 @@ cd desktop-foundation
 
 This installs the full desktop and application setup, including recording/replay
 tools and patched Niri. Use `./scripts/install-core` for Minimal, or
-`./scripts/install --standard` for Standard. Existing login managers are preserved
+`./scripts/install --standard` for Standard (paru, stable Brave Origin from pacman, GNOME utilities, recording and firmware). Existing login managers are preserved
 automatically. Every profile builds and installs patched Niri; your running
 session stays open and the patch activates at the next login. Stock recovery is
 retained. See [installation](docs/installation.md) for requirements and options.

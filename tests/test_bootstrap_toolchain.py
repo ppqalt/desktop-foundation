@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BootstrapToolchain(unittest.TestCase):
-    def run_bootstrap(self, missing='', dev=False, install_fails=False):
+    def run_bootstrap(self, missing='', dev=False, install_fails=False, build_only=False):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             scripts = base / 'repo/scripts'
@@ -21,7 +21,7 @@ class BootstrapToolchain(unittest.TestCase):
             tools.mkdir()
             log = base / 'commands'
             for name, content in {
-                'pacman': 'exit 0',
+                'pacman': 'printf "pacman %s\\n" "$*" >> "$LOG"; exit 0',
                 'sudo': 'printf "sudo %s\\n" "$*" >> "$LOG"',
                 'rustup': '''printf 'rustup %s\\n' "$*" >> "$LOG"
 if [ "$1" = run ] && [ "$4" = --version ] && [ "$3" = "$MISSING" ]; then exit 1; fi
@@ -38,9 +38,18 @@ if [ "$1 $2" = 'toolchain install' ] && [ "$FAIL_INSTALL" = 1 ]; then exit 1; fi
             if dev:
                 text = (scripts / 'bootstrap').read_text().replace('test -x "/usr/lib/qt6/bin/$tool"', ': "$tool"')
                 (scripts / 'bootstrap').write_text(text)
-            result = subprocess.run(['bash', str(scripts / 'bootstrap')] + (['--dev'] if dev else []),
+            result = subprocess.run(['bash', str(scripts / 'bootstrap')] + (['--dev'] if dev else []) + (['--build-only'] if build_only else []),
                                     env=env, text=True, capture_output=True, timeout=10)
             return result, log.read_text().splitlines()
+
+    def test_build_bootstrap_does_not_install_runtime_or_start_services(self):
+        result, commands = self.run_bootstrap(build_only=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('pacman -T rustup', commands)
+        self.assertIn('pacman -T sqlite', commands)
+        self.assertIn('pacman -T dav1d', commands)
+        self.assertIn('pacman -T wayland', commands)
+        self.assertFalse(any('quickshell' in command or 'bluetooth' in command or 'systemctl' in command for command in commands))
 
     def test_complete_pinned_toolchain_is_reused(self):
         result, commands = self.run_bootstrap()

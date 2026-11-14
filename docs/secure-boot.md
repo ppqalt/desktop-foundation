@@ -14,9 +14,9 @@ this profile. Existing DF installations, including older saved selections withou
 ./scripts/install --boot-profile existing
 ```
 
-The boot preflight precedes package/compiler bootstrap. The boot operation itself
-precedes desktop deployment; a firmware checkpoint stops installation with the
-recovery journal retained. Rerun the same command after the requested manual
+The boot preflight precedes package/compiler bootstrap. Desktop deployment proceeds before boot preparation. Safe firmware checkpoints
+leave desktop installation complete, with boot integration pending and its
+recovery journal retained; package/signature/ownership defects still fail. Rerun the same command after the requested manual
 firmware action/reboot. Administrator authentication uses sudo, never a bypass.
 `--clean-boot` is the legacy GRUB path and conflicts with the EAC profile.
 
@@ -110,8 +110,10 @@ observed boot identities using `accept-lts` and `accept-snapshot`. These command
 check kernel/root/firmware identity; they cannot prove a usable graphical login.
 Acceptance is also recorded on the ESP so an overlay-backed snapshot can carry
 its explicit boot proof back to the normal root.
-`complete` requires EAC daily selection and both recovery boot proofs. File
-readiness, verified EAC boot and pending recovery acceptance remain distinct.
+`installation_complete` requires verified EAC daily selection. Optional physical
+LTS/snapshot boot proofs independently set `recovery_verified`; without them the
+phase is `installed-recovery-unverified`. They do not block desktop installation.
+File readiness, verified EAC boot and recovery acceptance remain distinct.
 A Btrfs snapshot alone never backs up the ESP. Upstream
 `limine-snapper-sync` controls separate ESP snapshot-copy retention using
 `LIMIT_USAGE_PERCENT` and `MAX_SNAPSHOT_ENTRIES`; existing settings are preserved.

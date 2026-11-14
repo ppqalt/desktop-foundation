@@ -52,9 +52,11 @@ add_manifest() {
 	packages+=("${manifest[@]}")
 }
 dev=false
+build_only=false
 install_firmware=false
 for option in "$@"; do
 	case $option in
+	--build-only) build_only=true ;;
 	--greeter) add_manifest greeter ;;
 	--personal) add_manifest personal ;;
 	--firmware) install_firmware=true ;;
@@ -63,11 +65,14 @@ for option in "$@"; do
 		add_manifest dev
 		;;
 	*)
-		printf 'Usage: %s [--greeter] [--personal] [--firmware] [--dev]\n' "$0" >&2
+		printf 'Usage: %s [--build-only] [--greeter] [--personal] [--firmware] [--dev]\n' "$0" >&2
 		exit 2
 		;;
 	esac
 done
+if $build_only; then
+	packages=(rustup gcc pkgconf sqlite dav1d wayland git)
+fi
 contents=''
 if $install_firmware; then contents=$(read_manifest firmware); fi
 firmware=()
@@ -101,5 +106,5 @@ if $dev; then
 	rustup run 1.98.1 cargo clippy --version
 	for tool in qmllint qmlformat qmlls qmlprofiler qsb; do test -x "/usr/lib/qt6/bin/$tool"; done
 fi
-sudo systemctl enable --now bluetooth.service
+
 printf 'Dependencies ready. Install configuration: %s/scripts/install --no-packages\n' "$root"

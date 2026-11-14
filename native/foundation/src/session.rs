@@ -43,7 +43,10 @@ fn parse_config(contents: &str) -> Result<WallpaperConfig> {
     if config.image.is_empty() || config.image.contains('\0') {
         return Err(invalid("Wallpaper image must be a nonempty path"));
     }
-    if !matches!(config.mode.as_str(), "fill" | "fit" | "center" | "tile") {
+    if !matches!(
+        config.mode.as_str(),
+        "fill" | "fit" | "center" | "tile" | "none"
+    ) {
         return Err(invalid(
             "Choose an aspect-preserving wallpaper mode: fill, fit, center or tile",
         ));
@@ -187,6 +190,9 @@ pub fn wallpaper(root: &Path) -> Result<()> {
         root.join("compositor/niri/wallpaper.toml")
     };
     let config = read_config(&path)?;
+    if config.mode == "none" {
+        return Ok(());
+    }
     let image = image_path(root, &config, runtime)?;
     let executable = swaybg(&state)?;
     if !current.exists() {
@@ -252,7 +258,7 @@ mod tests {
         let config = parse_config("image = '/a wallpaper/image with spaces.png'\n").unwrap();
         assert_eq!(config.image, "/a wallpaper/image with spaces.png");
         assert_eq!(config.mode, "fill");
-        for mode in ["fill", "fit", "center", "tile"] {
+        for mode in ["fill", "fit", "center", "tile", "none"] {
             assert_eq!(
                 parse_config(&format!("image = '/image.png'\nmode = '{mode}'\n"))
                     .unwrap()

@@ -29,6 +29,7 @@ packages = [
     "bluez",
     "bluez-utils",
     "networkmanager",
+    "cachy-update",
     "blueman",
     "niri",
     "swaybg",

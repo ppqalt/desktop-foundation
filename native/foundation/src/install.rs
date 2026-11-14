@@ -46,8 +46,8 @@ impl Options {
                 arg if arg.starts_with("--profile=") || arg.starts_with("--hardware-profile=") => {
                     o.profile = arg.split_once('=').expect("matched option").1.into();
                 }
-                "--core" | "--minimal" | "--personal" | "--standard" => {
-                    let personal = args[i] == "--personal";
+                "--core" | "--minimal" | "--personal" | "--everything" | "--standard" => {
+                    let personal = matches!(args[i].as_str(), "--personal" | "--everything");
                     let selected = if personal {
                         "personal"
                     } else if args[i] == "--standard" {
@@ -65,11 +65,12 @@ impl Options {
                 "--extra" => {
                     i += 1;
                     let extra = args.get(i).ok_or_else(|| invalid("Missing extra name"))?;
-                    if !["steam", "spicetify", "geode", "recording"].contains(&extra.as_str())
+                    if !["steam", "spicetify", "geode", "recording", "brave-nightly"]
+                        .contains(&extra.as_str())
                         || o.extras.contains(extra)
                     {
                         return Err(invalid(
-                            "Unknown or duplicate extra; choose steam, spicetify, geode or recording",
+                            "Unknown or duplicate extra; choose steam, spicetify, geode, recording or brave-nightly",
                         ));
                     }
                     o.extras.push(extra.clone());
@@ -196,6 +197,11 @@ pub fn manifest(root: &Path, group: &str) -> Result<Vec<String>> {
 pub trait Runtime {
     fn query(&mut self, args: &[String]) -> Result<bool>;
     fn command(&mut self, args: &[String]) -> Result<()>;
+    /// true = setup ready; false = a safe, durable user-action checkpoint.
+    fn checkpoint_command(&mut self, args: &[String]) -> Result<bool> {
+        self.command(args)?;
+        Ok(true)
+    }
     fn executable(&self, name: &str) -> bool;
     fn validate_app(&self, name: &str, app: &Value) -> Result<()>;
     fn desktop_exists(&self, name: &str) -> Result<bool>;
@@ -212,12 +218,23 @@ pub trait Runtime {
 }
 pub struct Native;
 impl Runtime for Native {
+    fn checkpoint_command(&mut self, args: &[String]) -> Result<bool> {
+        let program = args.first().ok_or_else(|| invalid("Empty setup command"))?;
+        let status = Command::new(program).args(&args[1..]).status()?;
+        match status.code() {
+            Some(0) => Ok(true),
+            Some(75) => Ok(false),
+            _ => Err(invalid(format!(
+                "Setup failed ({status}): {program}; saved journals retained"
+            ))),
+        }
+    }
     fn eac_kernel(&self) -> bool {
         fs::read_to_string("/proc/sys/kernel/osrelease")
             .is_ok_and(|s| s.trim().ends_with("-cachyos-eac"))
     }
     fn display_manager(&self) -> Result<Option<String>> {
-        configured_display_manager(Path::new("/etc/systemd/system/display-manager.service"))
+        system_display_manager()
     }
     fn query(&mut self, args: &[String]) -> Result<bool> {
         Ok(process::run(args, None, Duration::from_secs(10), true)?
@@ -351,8 +368,19 @@ pub fn provision(
             "Unrelated existing application variant: {name}; resolve it explicitly"
         )));
     }
-    if r.query(&words(&["pacman", "-Si", package]))? {
-        r.command(&words(&["sudo", "pacman", "-Syu", "--needed", package]))?;
+    let repository_package = if package == "brave-origin-bin" {
+        "cachyos/brave-origin-bin"
+    } else {
+        package
+    };
+    if r.query(&words(&["pacman", "-Si", repository_package]))? {
+        r.command(&words(&[
+            "sudo",
+            "pacman",
+            "-Syu",
+            "--needed",
+            repository_package,
+        ]))?;
     } else if aur {
         call(r, root, "paru-bootstrap", &[])?;
         r.command(&words(&["paru", "-S", "--needed", package]))?;
@@ -385,6 +413,45 @@ pub fn configured_display_manager(alias: &Path) -> Result<Option<String>> {
         Err(error) => Err(error.into()),
     }
 }
+pub fn system_display_manager() -> Result<Option<String>> {
+    detect_display_manager(
+        Path::new("/etc/systemd/system/display-manager.service"),
+        |check, manager| {
+            Ok(process::run(
+                &words(&["/usr/bin/systemctl", check, "--quiet", manager]),
+                None,
+                Duration::from_secs(5),
+                true,
+            )?
+            .status
+            .success())
+        },
+    )
+}
+fn detect_display_manager(
+    alias: &Path,
+    mut probe: impl FnMut(&str, &str) -> Result<bool>,
+) -> Result<Option<String>> {
+    if let Some(manager) = configured_display_manager(alias)? {
+        return Ok(Some(manager));
+    }
+    // Prefer running managers over merely enabled ones, including alias-free setups.
+    for check in ["is-active", "is-enabled"] {
+        for manager in [
+            "sddm.service",
+            "gdm.service",
+            "lightdm.service",
+            "lxdm.service",
+            "greetd.service",
+        ] {
+            if probe(check, manager)? {
+                return Ok(Some(manager.into()));
+            }
+        }
+    }
+    Ok(None)
+}
+
 fn resolve_greeter(r: &impl Runtime, options: &Options) -> Result<Options> {
     let mut resolved = options.clone();
     if !options.auto_greeter && !options.greeter {
@@ -424,8 +491,17 @@ fn check_recording_tools(r: &impl Runtime) -> Result<()> {
 fn doctor(r: &mut impl Runtime, root: &Path, o: &Options) -> Result<()> {
     let mut args = vec![
         "--installation",
-        if o.personal { "--personal" } else { "--core" },
+        if o.personal {
+            "--personal"
+        } else if o.standard {
+            "--standard"
+        } else {
+            "--core"
+        },
     ];
+    if o.eac_boot {
+        args.push("--eac-profile");
+    }
     if !o.greeter {
         args.push("--no-greeter");
     }
@@ -440,14 +516,21 @@ pub fn execute(
 ) -> Result<()> {
     let resolved = resolve_greeter(r, o)?;
     let o = &resolved;
-    let recording_selected = o.personal || o.extras.iter().any(|e| e == "recording");
+    let recording_selected = o.personal || o.standard || o.extras.iter().any(|e| e == "recording");
     if (o.check || !o.packages) && recording_selected {
         check_recording_tools(r)?;
+    }
+    if (o.check || !o.packages) && o.extras.iter().any(|extra| extra == "brave-nightly") {
+        let nightly = application_roles::roles(root, true)?;
+        r.validate_app("browser", &nightly["browser"])?;
     }
     if o.check {
         doctor(r, root, o)?;
         if o.standard {
-            let roles = application_roles::roles(root, true)?;
+            if !r.executable("paru") {
+                return Err(invalid("Standard requires paru"));
+            }
+            let roles = application_roles::roles(root, false)?;
             let apps: Value = crate::theme_render::read(&root.join("apps/personal.json"))?;
             for (name, app) in [
                 ("browser", &roles["browser"]),
@@ -455,9 +538,6 @@ pub fn execute(
                 ("vesktop", &apps["vesktop"]),
             ] {
                 r.validate_app(name, app)?;
-            }
-            if !r.executable("paru") {
-                return Err(invalid("Standard profile requires paru"));
             }
         }
         if o.extras.iter().any(|e| e == "steam" || e == "geode") {
@@ -476,7 +556,7 @@ pub fn execute(
         }
         return Ok(());
     }
-    let roles = application_roles::roles(root, o.personal || o.standard)?;
+    let roles = application_roles::roles(root, o.personal)?;
     let mods = if o.personal {
         app_mods::configured_at(root, &paths.config)?
     } else {
@@ -515,8 +595,9 @@ pub fn execute(
         (o.patched_niri && o.packages).then_some("niri-build"),
         o.greeter.then_some("greeter"),
         o.personal.then_some("personal"),
-        (o.personal || o.clean_boot).then_some("firmware"),
-        (o.personal || o.extras.iter().any(|e| e == "recording")).then_some("recording"),
+        o.standard.then_some("standard"),
+        (o.personal || o.standard || o.clean_boot).then_some("firmware"),
+        recording_selected.then_some("recording"),
     ]
     .into_iter()
     .flatten()
@@ -524,6 +605,9 @@ pub fn execute(
         for name in manifest(root, group)? {
             packages.push((group, name));
         }
+    }
+    if o.extras.iter().any(|extra| extra == "brave-nightly") {
+        app_record("browser", &application_roles::roles(root, true)?["browser"])?;
     }
     let conflicts = r.conflicts(root, paths, o.personal)?;
     if o.dry_run {
@@ -558,7 +642,9 @@ pub fn execute(
             }
         );
         if o.standard {
-            println!("Standard: Brave Origin Nightly, paru, ChatGPT, Vesktop");
+            println!(
+                "Standard: paru, Brave Origin/settings, ChatGPT, Vesktop, GNOME utilities, recording and firmware"
+            );
         }
         if !o.extras.is_empty() {
             println!("Extras: {}", o.extras.join(", "));
@@ -655,7 +741,22 @@ pub fn execute(
         }
     }
     if !o.packages {
+        let mut missing = Vec::new();
+        for (_, name) in &packages {
+            if !installed(r, name)? {
+                missing.push(name.as_str());
+            }
+        }
+        if !missing.is_empty() {
+            return Err(invalid(format!(
+                "Missing selected-profile packages with --no-packages: {}; nothing deployed",
+                missing.join(", ")
+            )));
+        }
         if o.standard {
+            if !r.executable("paru") {
+                return Err(invalid("Standard requires paru when --no-packages is used"));
+            }
             for (name, app) in [
                 ("browser", &roles["browser"]),
                 ("chatgpt", &personal["chatgpt"]),
@@ -663,33 +764,14 @@ pub fn execute(
             ] {
                 r.validate_app(name, app)?;
             }
-            if !r.executable("paru") {
-                return Err(invalid("Standard requires paru when --no-packages is used"));
-            }
         }
         if o.extras.iter().any(|e| e == "steam" || e == "geode") {
             r.validate_app("steam", &personal["steam"])?;
         }
     }
-    if o.eac_boot {
-        let mut boot_args = vec!["resume"];
-        if !o.packages {
-            boot_args.push("--no-packages");
-        }
-        if o.recovery_only_dkms {
-            boot_args.push("--allow-recovery-only-dkms");
-        }
-        if o.recovery_keys_confirmed {
-            boot_args.push("--recovery-keys-confirmed");
-        }
-        // A firmware checkpoint stops before desktop deployment. The same
-        // command resumes after reboot; only a verified EAC boot can finalize.
-        call(r, root, "boot-integrate", &boot_args)?;
-        call(r, root, "boot-integrate", &["finalize"])?;
-    }
     // Detect unsupported activation before authentication, builds or deployment.
     // The privileged writer repeats the same read-only prerequisites later.
-    if !r.eac_kernel() && !o.clean_boot && !r.apparmor_enabled() {
+    if !o.eac_boot && !r.eac_kernel() && !o.clean_boot && !r.apparmor_enabled() {
         call(r, root, "apparmor-setup", &["check"])?;
     }
     r.command(&words(&["sudo", "-v"]))?;
@@ -698,11 +780,14 @@ pub fn execute(
         if o.greeter {
             bootstrap.push("--greeter");
         }
-        if o.personal || o.clean_boot {
+        if o.personal || o.standard || o.clean_boot {
             bootstrap.push("--firmware");
         }
         call(r, root, "bootstrap", &bootstrap)?;
-        if o.personal || o.extras.iter().any(|e| e == "recording") {
+        if o.standard {
+            missing_packages(r, &manifest(root, "standard")?)?;
+        }
+        if recording_selected {
             missing_packages(r, &manifest(root, "recording")?)?;
         }
     }
@@ -727,14 +812,32 @@ pub fn execute(
         &["--compositor", "niri", "--profile", &o.profile],
     )?;
     call(r, root, "preferences", &["install", "--theme-only"])?;
-    let mut services = words(&["sudo", "systemctl", "enable", "bluetooth.service"]);
-    if !r.eac_kernel() {
-        services.push("apparmor.service".into());
+    let externally_managed_network = r.query(&words(&[
+        "systemctl",
+        "is-active",
+        "--quiet",
+        "systemd-networkd.service",
+    ]))? || r.query(&words(&[
+        "systemctl",
+        "is-active",
+        "--quiet",
+        "connman.service",
+    ]))?;
+    let mut services = words(&["sudo", "systemctl", "enable", "--now", "bluetooth.service"]);
+    if !externally_managed_network {
+        services.push("NetworkManager.service".into());
+    } else {
+        println!(
+            "Preserving external network manager; NetworkManager controls remain unavailable until explicitly configured."
+        );
+    }
+    if !o.eac_boot && !r.eac_kernel() {
+        r.command(&words(&["sudo", "systemctl", "enable", "apparmor.service"]))?;
     }
     r.command(&services)?;
     if o.clean_boot {
         sudo_script(r, root, "boot-setup")?;
-    } else if !r.eac_kernel() && !r.apparmor_enabled() {
+    } else if !o.eac_boot && !r.eac_kernel() && !r.apparmor_enabled() {
         sudo_script(r, root, "apparmor-setup")?;
     }
     if o.greeter {
@@ -774,9 +877,43 @@ pub fn execute(
         if !r.executable("paru") {
             call(r, root, "paru-bootstrap", &[])?;
         }
-        provision(r, root, "browser", &roles["browser"], true)?;
+        provision(r, root, "browser", &roles["browser"], false)?;
         for name in ["chatgpt", "vesktop"] {
             provision(r, root, name, &personal[name], true)?;
+        }
+    }
+    if o.standard {
+        sudo_script(r, root, "browser-policy-setup")?;
+        call(r, root, "theme-apply", &[])?;
+    }
+    if o.standard {
+        if r.checkpoint_command(&script(root, "brave-config", &["migrate"]))? {
+            call(
+                r,
+                root,
+                "brave-config",
+                &["apply", "--install", "--channel", "stable"],
+            )?;
+            call(r, root, "applications", &["browser-default"])?;
+        } else {
+            println!(
+                "Stable Brave migration pending; Nightly profile and existing MIME choices preserved."
+            );
+        }
+    } else if o.personal {
+        call(
+            r,
+            root,
+            "brave-config",
+            &["apply", "--install", "--channel", "nightly"],
+        )?;
+    }
+    if o.extras.iter().any(|extra| extra == "brave-nightly") {
+        let nightly = application_roles::roles(root, true)?;
+        if o.packages {
+            provision(r, root, "browser", &nightly["browser"], true)?;
+        } else {
+            r.validate_app("browser", &nightly["browser"])?;
         }
     }
     if !o.extras.is_empty() {
@@ -801,8 +938,36 @@ pub fn execute(
             }
         }
     }
+    if o.eac_boot {
+        let mut boot_args = vec!["resume", "--desktop"];
+        if !o.packages {
+            boot_args.push("--no-packages");
+        }
+        if o.recovery_only_dkms {
+            boot_args.push("--allow-recovery-only-dkms");
+        }
+        if o.recovery_keys_confirmed {
+            boot_args.push("--recovery-keys-confirmed");
+        }
+        // Desktop files are already installed. Only safe, durable firmware
+        // checkpoints defer boot readiness; real boot defects still fail.
+        if r.checkpoint_command(&script(root, "boot-integrate", &boot_args))? {
+            call(r, root, "boot-integrate", &["finalize"])?;
+        } else {
+            println!(
+                "Boot integration pending: firmware/reboot verification required. Desktop deployment is installed; rerun the same install command to resume."
+            );
+        }
+    }
     doctor(r, root, o)?;
-    println!("Install complete. Choose Niri at your next login. Restore: scripts/uninstall.");
+    if o.personal || o.extras.iter().any(|e| e == "spicetify" || e == "geode") {
+        println!(
+            "Application add-ons: first-use/game-dependent setup may remain pending; inspect scripts/install-app-mods plan."
+        );
+    }
+    println!(
+        "Desktop installation complete. Choose Niri at your next login. Restore: scripts/uninstall."
+    );
     Ok(())
 }
 
@@ -861,9 +1026,16 @@ fn selection(root: &Path, state_dir: &Path, args: &[String]) -> Result<Options> 
     if saved.recovery_only_dkms && !args.iter().any(|s| s == "--allow-recovery-only-dkms") {
         effective.push("--allow-recovery-only-dkms".into());
     }
-    let explicit_layer = args
-        .iter()
-        .any(|s| ["--minimal", "--core", "--standard", "--personal"].contains(&s.as_str()));
+    let explicit_layer = args.iter().any(|s| {
+        [
+            "--minimal",
+            "--core",
+            "--standard",
+            "--personal",
+            "--everything",
+        ]
+        .contains(&s.as_str())
+    });
     if !explicit_layer {
         effective.push(format!("--{}", saved.layer));
     }
@@ -971,6 +1143,25 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod selection_tests {
     use super::*;
+    #[test]
+    fn alias_free_manager_is_preserved_and_active_beats_enabled() {
+        let missing = std::env::temp_dir().join(format!("df-no-dm-alias-{}", std::process::id()));
+        let found = detect_display_manager(&missing, |check, manager| {
+            Ok((check == "is-active" && manager == "gdm.service")
+                || (check == "is-enabled" && manager == "sddm.service"))
+        })
+        .unwrap();
+        assert_eq!(found.as_deref(), Some("gdm.service"));
+        assert_eq!(
+            detect_display_manager(&missing, |check, manager| Ok(
+                check == "is-enabled" && manager == "lightdm.service"
+            ))
+            .unwrap()
+            .as_deref(),
+            Some("lightdm.service")
+        );
+    }
+
     #[test]
     fn fresh_boot_default_and_existing_selection_are_distinct() {
         let base = std::env::temp_dir().join(format!("df-boot-selection-{}", std::process::id()));

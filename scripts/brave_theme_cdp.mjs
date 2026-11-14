@@ -91,8 +91,8 @@ async function main() {
   const args = process.argv.slice(2);
   if (args[0] === '--configure-root' && args.length === 2) {
     const root = path.resolve(args[1]);
-    if (!fs.statSync(root).isDirectory() || path.basename(root) !== 'Brave-Origin-Nightly') {
-      throw Error('Select the actual Brave-Origin-Nightly user-data root');
+    if (!fs.statSync(root).isDirectory() || !['Brave-Origin', 'Brave-Origin-Nightly'].includes(path.basename(root))) {
+      throw Error('Select the actual Brave Origin stable or Nightly user-data root');
     }
     fs.mkdirSync(state, {recursive: true});
     fs.writeFileSync(binding, JSON.stringify({root}, null, 2) + '\n', {mode: 0o600});
@@ -104,13 +104,13 @@ async function main() {
     console.log('Adapter connection disabled. Turn off remote debugging in Brave UI too.');
     return;
   }
-  if (args.length) throw Error('Usage: brave-theme-reload [--configure-root /path/Brave-Origin-Nightly | --disable]');
+  if (args.length) throw Error('Usage: brave-theme-reload [--configure-root /path/Brave-Origin | --disable]');
   if (!fs.existsSync(binding)) {
     console.log(`Brave theme prepared: ${themePath}; DevTools adapter not opted in (native Load unpacked required).`);
     return;
   }
   const root = JSON.parse(fs.readFileSync(binding, 'utf8')).root;
-  if (!path.isAbsolute(root) || path.basename(root) !== 'Brave-Origin-Nightly') throw Error('Invalid browser binding');
+  if (!path.isAbsolute(root) || !['Brave-Origin', 'Brave-Origin-Nightly'].includes(path.basename(root))) throw Error('Invalid browser binding');
   const discovery = path.join(root, 'DevToolsActivePort');
   if (!fs.existsSync(discovery)) throw Error('Brave approved remote debugging is unavailable; enable it in brave://inspect/#remote-debugging');
   const version = JSON.parse(fs.readFileSync(path.join(themePath, 'manifest.json'), 'utf8')).version;

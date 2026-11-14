@@ -15,9 +15,10 @@ clean_boot=false
 for ((i = 0; i < ${#installer_args[@]}; i++)); do
 	option=${installer_args[i]}
 	case $option in
-	--core | --minimal | --standard | --personal)
+	--core | --minimal | --standard | --personal | --everything)
 		selected=${option#--}
 		[[ $selected != core ]] || selected=minimal
+		[[ $selected != everything ]] || selected=personal
 		if [[ -n $layer && $layer != "$selected" ]]; then
 			printf '%s\n' 'Choose one installation profile.' >&2
 			exit 2
@@ -27,7 +28,7 @@ for ((i = 0; i < ${#installer_args[@]}; i++)); do
 	--extra)
 		((i += 1))
 		extra=${installer_args[i]:-}
-		case $extra in steam | spicetify | geode | recording) ;; *)
+		case $extra in steam | spicetify | geode | recording | brave-nightly) ;; *)
 			printf 'Invalid or missing extra: %s\n' "$extra" >&2
 			exit 2
 			;;
@@ -85,11 +86,11 @@ if [[ $boot_profile == eac ]] && $clean_boot; then
 	exit 2
 fi
 if $help; then
-	printf '%s\n' 'Usage: scripts/install [--minimal|--standard|--personal] [--extra NAME]' \
+	printf '%s\n' 'Usage: scripts/install [--minimal|--standard|--everything|--personal] [--extra NAME]' \
 		'  --profile NAME       Select a hardware profile' \
 		'  --patched-niri       Install managed patched Niri (default)' \
 		'  --stock-niri         Restore/preserve stock Niri instead' \
-		'  --no-packages        Preserve installed packages; deploy only' \
+		'  --no-packages        No package operations; still builds, deploys and configures services' \
 		'  --greeter            Configure greetd when no other manager owns login' \
 		'  --no-greeter         Preserve the existing login manager' \
 		'  Default: keep a configured login manager; otherwise install greetd' \
@@ -97,13 +98,51 @@ if $help; then
 		'  --allow-recovery-only-dkms  Retain unsupported DKMS modules only for conventional kernels' \
 		'  --clean-boot         Apply the selected supported boot cleanup' \
 		'  --dry-run|--check    Inspect without package or build changes' \
-		'Extras: steam, spicetify, geode, recording'
+		'Extras: steam, spicetify, geode, recording, brave-nightly'
 	exit 0
 fi
 # Provision/build as the login user; sudo is acquired only by the selected steps.
 if ! $dry && ! $check && [[ ${EUID} == 0 ]]; then
 	printf '%s\n' 'Run the installer as your normal login user, without sudo; it requests administrator authentication when needed. Nothing bootstrapped.' >&2
 	exit 1
+fi
+# Do not provision packages from a different checkout before the native
+# installer gets its opportunity to enforce deployment ownership.
+state_base=${XDG_STATE_HOME:-$HOME/.local/state}
+[[ $state_base = /* ]] || {
+	printf '%s\n' 'XDG_STATE_HOME must be absolute.' >&2
+	exit 1
+}
+manifest="$state_base/desktop-foundation/manifest.json"
+if [[ -e $manifest || -L $manifest ]]; then
+	if ! command -v python3 >/dev/null 2>&1; then
+		printf '%s\n' 'Python is required to verify existing deployment ownership before bootstrapping.' >&2
+		exit 1
+	fi
+	python3 - "$manifest" "$root" <<'PY'
+import json, os, pathlib, stat, sys
+path = pathlib.Path(sys.argv[1])
+try:
+    if not stat.S_ISREG(path.lstat().st_mode):
+        raise ValueError("deployment manifest must be a regular file")
+    with path.open("rb") as file:
+        contents = file.read(1024 * 1024 + 1)
+    if len(contents) > 1024 * 1024:
+        raise ValueError("manifest is too large")
+    manifest = json.loads(contents)
+    owner = manifest["root"]
+    if not isinstance(owner, str) or not os.path.isabs(owner):
+        raise ValueError("invalid owner")
+    if os.path.realpath(owner) != os.path.realpath(sys.argv[2]):
+        raise ValueError("a different checkout owns deployment")
+    for entry in manifest.get("entries", []):
+        target = pathlib.Path(entry["path"])
+        if not target.is_absolute() or not target.is_symlink() or str(target.readlink()) not in [entry["source"], entry.get("pending_source")]:
+            raise ValueError("externally changed deployed path: " + str(target))
+except (OSError, ValueError, KeyError, TypeError) as error:
+    print(f"Cannot bootstrap this checkout: {error}. Nothing changed.", file=sys.stderr)
+    sys.exit(1)
+PY
 fi
 # Boot preflight precedes even compiler/package bootstrap. Old installations
 # without a boot selection preserve their stack; only genuinely fresh installs
@@ -139,50 +178,27 @@ PYBOOT
 		"$root/scripts/boot-integrate" preflight --admin --summary "${boot_dkms[@]}"
 	fi
 fi
+if ($dry || $check) && [[ -x $root/native/foundation/target/release/desktop-foundationctl ]]; then
+	"$root/native/foundation/target/release/desktop-foundationctl" --root "$root" doctor --json | /usr/bin/python3 -I -c '
+import json, sys
+if json.load(sys.stdin).get("sources", {}).get("matchesBinary") is not True:
+    raise SystemExit("Installer binary differs from local source. Run scripts/build-backend before inspection; nothing changed.")
+'
+fi
 if [[ ! -x $root/native/foundation/target/release/desktop-foundationctl ]]; then
 	no_packages=false
 	for option in "$@"; do
 		case $option in
 		--dry-run | --plan | --check | --help | -h)
-			printf '%s\n' 'Build the native installer first: scripts/build-backend (scripts/bootstrap supplies missing build tools).' >&2
+			printf '%s\n' 'Build the native installer first with scripts/bootstrap --build-only and scripts/build-backend. Inspection made no changes.' >&2
 			exit 1
 			;;
 		--no-packages) no_packages=true ;;
 		esac
 	done
-	# Do not provision packages from a different checkout before the native
-	# installer gets its opportunity to enforce deployment ownership.
-	state_base=${XDG_STATE_HOME:-$HOME/.local/state}
-	[[ $state_base = /* ]] || {
-		printf '%s\n' 'XDG_STATE_HOME must be absolute.' >&2
-		exit 1
-	}
-	manifest="$state_base/desktop-foundation/manifest.json"
-	if [[ -e $manifest || -L $manifest ]]; then
-		if ! command -v python3 >/dev/null 2>&1; then
-			printf '%s\n' 'Python is required to verify existing deployment ownership before bootstrapping.' >&2
-			exit 1
-		fi
-		python3 - "$manifest" "$root" <<'PY'
-import json, os, pathlib, sys
-path = pathlib.Path(sys.argv[1])
-try:
-    with path.open("rb") as file:
-        contents = file.read(1024 * 1024 + 1)
-    if len(contents) > 1024 * 1024:
-        raise ValueError("manifest is too large")
-    owner = json.loads(contents)["root"]
-    if not isinstance(owner, str) or not os.path.isabs(owner):
-        raise ValueError("invalid owner")
-    if os.path.realpath(owner) != os.path.realpath(sys.argv[2]):
-        raise ValueError("a different checkout owns deployment")
-except (OSError, ValueError, KeyError, TypeError) as error:
-    print(f"Cannot bootstrap this checkout: {error}. Nothing changed.", file=sys.stderr)
-    sys.exit(1)
-PY
-	fi
+
 	if ! $no_packages; then
-		"$root/scripts/bootstrap"
+		"$root/scripts/bootstrap" --build-only
 	fi
 	if ! command -v cargo >/dev/null 2>&1; then
 		printf '%s\n' 'Cargo is missing; install the build dependencies before using --no-packages.' >&2

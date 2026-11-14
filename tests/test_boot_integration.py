@@ -23,6 +23,15 @@ def firmware(eac='0002'):
 
 
 class BootPlanning(unittest.TestCase):
+    def test_only_safe_firmware_checkpoints_allow_desktop_completion(self):
+        tx = object.__new__(b.Transaction)
+        tx.data = {}
+        with patch.object(tx, 'save'):
+            for name, safe in [('firmware-setup', True), ('boot-test', True), ('packages', False), ('certificate-change', False)]:
+                with self.assertRaises(b.Checkpoint) as error:
+                    tx.checkpoint(name, 'fixture')
+                self.assertEqual(error.exception.desktop_safe, safe)
+
     def test_complete_certificate_identity_and_database_guid(self):
         der = b'fixture DER certificate'
         kind = bytes.fromhex('a159c0a5e494a74a87b5ab155c2bf072')

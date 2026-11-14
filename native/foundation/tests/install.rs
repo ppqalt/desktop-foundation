@@ -93,6 +93,7 @@ impl Fixture {
         for group in [
             "core",
             "personal",
+            "standard",
             "greeter",
             "firmware",
             "recording",
@@ -161,6 +162,7 @@ struct Fake {
     eac: bool,
     bad_boot: bool,
     failure: Option<String>,
+    boot_pending: bool,
 }
 impl Fake {
     fn named(&self, name: &str) -> bool {
@@ -171,6 +173,10 @@ impl Fake {
     }
 }
 impl Runtime for Fake {
+    fn checkpoint_command(&mut self, args: &[String]) -> Result<bool> {
+        self.command(args)?;
+        Ok(!self.boot_pending)
+    }
     fn display_manager(&self) -> Result<Option<String>> {
         Ok(self.manager.clone())
     }
@@ -295,7 +301,10 @@ fn check_only_dispatches_read_only_doctor() {
 #[test]
 fn core_without_packages_never_installs_packages_or_personal_adapters() {
     let f = Fixture::new();
-    let mut r = Fake::default();
+    let mut r = Fake {
+        installed: true,
+        ..Fake::default()
+    };
     let o = f.options(&["--core", "--no-greeter", "--no-packages"]);
     install::execute(&f.root, &f.paths, &o, &mut r).unwrap();
     for name in [
@@ -337,7 +346,10 @@ fn core_without_packages_never_installs_packages_or_personal_adapters() {
 #[test]
 fn personal_without_packages_validates_first_and_uses_shared_modification_checks() {
     let f = Fixture::new();
-    let mut r = Fake::default();
+    let mut r = Fake {
+        installed: true,
+        ..Fake::default()
+    };
     install::execute(
         &f.root,
         &f.paths,
@@ -477,7 +489,10 @@ fn configuration_override_and_clean_boot_are_explicit() {
         desktop_foundationctl::app_mods::configured_at(&f.root, &f.paths.config).unwrap(),
         ["spicetify"]
     );
-    let mut r = Fake::default();
+    let mut r = Fake {
+        installed: true,
+        ..Fake::default()
+    };
     install::execute(
         &f.root,
         &f.paths,
@@ -524,7 +539,10 @@ fn invalid_package_and_modification_inputs_are_rejected_before_commands() {
 fn core_ignores_unselected_personal_modification_configuration() {
     let f = Fixture::new();
     fs::write(f.root.join("config/app-mods.json"), "not JSON").unwrap();
-    let mut r = Fake::default();
+    let mut r = Fake {
+        installed: true,
+        ..Fake::default()
+    };
     install::execute(
         &f.root,
         &f.paths,
@@ -578,15 +596,22 @@ fn standard_installs_only_requested_apps_and_does_not_change_defaults() {
     .unwrap();
     assert_eq!(*r.validations.borrow(), ["browser", "chatgpt", "vesktop"]);
     assert!(r.named("paru-bootstrap"));
-    assert!(!r.named("applications"));
+    assert!(
+        r.commands
+            .iter()
+            .any(|c| c.last().is_some_and(|arg| arg == "browser-default"))
+    );
     assert!(!r.named("install-app-mods"));
-    assert!(!r.named("browser-policy-setup"));
+    assert!(r.named("browser-policy-setup"));
 }
 
 #[test]
 fn selected_extra_does_not_apply_unselected_modifications() {
     let f = Fixture::new();
-    let mut r = Fake::default();
+    let mut r = Fake {
+        installed: true,
+        ..Fake::default()
+    };
     install::execute(
         &f.root,
         &f.paths,
@@ -679,7 +704,10 @@ fn default_and_everything_install_patched_niri_before_configuration_deployment()
 #[test]
 fn stock_selection_uses_recorded_recovery_and_no_packages_never_runs_package_component() {
     let f = Fixture::new();
-    let mut r = Fake::default();
+    let mut r = Fake {
+        installed: true,
+        ..Fake::default()
+    };
     install::execute(&f.root, &f.paths, &f.options(&["--stock-niri"]), &mut r).unwrap();
     assert!(r.commands.iter().any(|c| {
         Path::new(&c[0])
@@ -687,7 +715,10 @@ fn stock_selection_uses_recorded_recovery_and_no_packages_never_runs_package_com
             .is_some_and(|n| n == "niri-package")
             && c[1] == "restore"
     }));
-    let mut r = Fake::default();
+    let mut r = Fake {
+        installed: true,
+        ..Fake::default()
+    };
     install::execute(&f.root, &f.paths, &f.options(&["--no-packages"]), &mut r).unwrap();
     assert!(!r.named("niri-package"));
 }
@@ -889,8 +920,8 @@ fn eac_install_preserves_lsm_policy_and_stops_at_firmware_checkpoint() {
         .is_err()
     );
     assert!(blocked.named("boot-integrate"));
-    assert!(!blocked.named("deploy"));
-    assert!(!blocked.named("bootstrap"));
+    assert!(blocked.named("deploy"));
+    assert!(blocked.named("bootstrap"));
     assert!(!blocked.named("apparmor-setup"));
     assert!(
         Options::parse(
@@ -899,4 +930,79 @@ fn eac_install_preserves_lsm_policy_and_stops_at_firmware_checkpoint() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn firmware_pending_keeps_desktop_installed_without_claiming_finalization() {
+    let f = Fixture::new();
+    let mut r = Fake {
+        boot_pending: true,
+        ..Default::default()
+    };
+    install::execute(
+        &f.root,
+        &f.paths,
+        &f.options(&["--boot-profile", "eac"]),
+        &mut r,
+    )
+    .unwrap();
+    let deploy = r
+        .commands
+        .iter()
+        .position(|c| c.iter().any(|arg| arg.ends_with("/deploy")))
+        .unwrap();
+    let boot = r
+        .commands
+        .iter()
+        .position(|c| c.iter().any(|arg| arg.ends_with("/boot-integrate")))
+        .unwrap();
+    assert!(deploy < boot);
+    assert!(r.commands[boot].iter().any(|arg| arg == "--desktop"));
+    assert!(
+        !r.commands
+            .iter()
+            .any(|c| c.iter().any(|arg| arg == "finalize"))
+    );
+    assert!(r.named("doctor"));
+}
+
+#[test]
+fn everything_alias_preserves_personal_compatibility_and_standard_keeps_extras_out_of_minimal() {
+    let f = Fixture::new();
+    assert!(f.options(&["--everything"]).personal);
+    let mut standard = Fake {
+        installed: true,
+        variant: true,
+        ..Default::default()
+    };
+    install::execute(
+        &f.root,
+        &f.paths,
+        &f.options(&["--standard"]),
+        &mut standard,
+    )
+    .unwrap();
+    assert!(standard.named("brave-config"));
+    assert!(standard.named("browser-policy-setup"));
+    assert!(!standard.named("install-app-mods"));
+    let mut minimal = Fake::default();
+    install::execute(&f.root, &f.paths, &f.options(&["--minimal"]), &mut minimal).unwrap();
+    assert!(!minimal.named("brave-config"));
+    assert!(!minimal.named("browser-policy-setup"));
+    assert!(!minimal.named("install-app-mods"));
+}
+
+#[test]
+fn missing_no_package_dependencies_stop_before_any_installer_effects() {
+    let f = Fixture::new();
+    let mut r = Fake::default();
+    let error =
+        install::execute(&f.root, &f.paths, &f.options(&["--no-packages"]), &mut r).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("Missing selected-profile packages")
+    );
+    assert!(r.commands.is_empty());
+    assert!(!f.paths.home.exists());
 }

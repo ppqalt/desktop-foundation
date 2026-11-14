@@ -83,10 +83,7 @@ pub fn targets(
     if write {
         durable::private_directory(&generated)?;
     }
-    let mut targets = vec![(
-        data.join("wallpapers/wallhaven-135w7w.png"),
-        root.join("wallpapers/wallhaven-135w7w.png"),
-    )];
+    let mut targets = Vec::new();
     for (name, content) in definitions(root, state) {
         let source = generated.join(&name);
         if write && fs::read_to_string(&source).ok().as_deref() != Some(&content) {
