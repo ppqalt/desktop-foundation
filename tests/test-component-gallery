@@ -6,7 +6,7 @@ state=$(mktemp -d)
 trap 'rm -f -- "$log"; rmdir -- "$state"' EXIT
 for gallery_width in "${DF_GALLERY_WIDTH:-760}" 360; do
 	if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
-		QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software XDG_STATE_HOME="$state" \
+		QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic QT_QUICK_BACKEND=software XDG_STATE_HOME="$state" \
 		DF_GALLERY_TEST=1 DF_GALLERY_WIDTH="$gallery_width" timeout 10s "$root/scripts/component-gallery" >"$log" 2>&1; then
 		cat "$log" >&2
 		exit 1

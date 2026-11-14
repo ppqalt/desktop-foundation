@@ -27,7 +27,7 @@ env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNATURE 
 	HOME="$base/home" XDG_RUNTIME_DIR="$base/runtime" XDG_STATE_HOME="$base/state" XDG_CACHE_HOME="$base/cache" \
 	XDG_DATA_HOME="$base/data" XDG_CONFIG_HOME="$base/config" XDG_DATA_DIRS="$base/data" DF_FOUNDATION_ROOT="$base" \
 	DF_ACTION_LOG="$base/actions.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$base/absent-user-bus" \
-	DBUS_SYSTEM_BUS_ADDRESS="unix:path=$base/absent-system-bus" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+	DBUS_SYSTEM_BUS_ADDRESS="unix:path=$base/absent-system-bus" QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic QT_QUICK_BACKEND=software \
 	timeout 8s quickshell --path "$base" >"$base/log" 2>&1
 rg -q 'POWER_RESULT \{"failures":0\}' "$base/log"
 if rg -q 'POWER_FAIL|TypeError|ReferenceError|Failed to load configuration' "$base/log"; then exit 1; fi

@@ -68,7 +68,7 @@ class SourceReload(unittest.TestCase):
                 env.pop(name,None)
             for name,leaf in [('HOME','home'),('XDG_RUNTIME_DIR','runtime'),('XDG_STATE_HOME','state'),('XDG_CACHE_HOME','cache'),('XDG_DATA_HOME','data'),('XDG_CONFIG_HOME','config')]:
                 path=base/leaf;path.mkdir(mode=0o700);env[name]=str(path)
-            env.update(QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software',
+            env.update(QT_QPA_PLATFORM='offscreen', QT_QPA_PLATFORMTHEME='basic',QT_QUICK_BACKEND='software',
                        QS_NO_RELOAD_POPUP='1',
                        DBUS_SESSION_BUS_ADDRESS='unix:path='+str(base/'absent-user-bus'),
                        DBUS_SYSTEM_BUS_ADDRESS='unix:path='+str(base/'absent-system-bus'))

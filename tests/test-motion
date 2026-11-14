@@ -7,7 +7,7 @@ state=$(mktemp -d)
 trap 'rm -f -- "$fixture" "$log"; rmdir -- "$state"' EXIT
 cp "$root/tests/qml/motion.qml" "$fixture"
 if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
-	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+	QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic QT_QUICK_BACKEND=software \
 	DF_FOUNDATION_ROOT="$root" XDG_STATE_HOME="$state" \
 	timeout 15s quickshell -p "$fixture" >"$log" 2>&1; then
 	cat "$log" >&2

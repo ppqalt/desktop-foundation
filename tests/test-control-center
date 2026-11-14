@@ -146,7 +146,7 @@ if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u HYPRLAND_INSTANCE_SIGNA
 	-u DBUS_SESSION_BUS_ADDRESS -u DBUS_SYSTEM_BUS_ADDRESS -u QS_CONFIG_PATH -u QS_CONFIG_NAME \
 	HOME="$base/home" XDG_RUNTIME_DIR="$base/runtime" XDG_CONFIG_HOME="$base/config" \
 	XDG_STATE_HOME="$base/state" XDG_CACHE_HOME="$base/cache" XDG_DATA_HOME="$base/data" \
-	XDG_DATA_DIRS="$base/data" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+	XDG_DATA_DIRS="$base/data" QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic QT_QUICK_BACKEND=software \
 	DF_FOUNDATION_ROOT="$base" DF_CONTROL_CALLS="$base/calls" DF_CONTROL_SNAPSHOT="$base/snapshot.json" DF_CONTROL_MEMORY_WORKER="$base/memory-worker.py" \
 	timeout 12s quickshell --path "$base" >"$base/log" 2>&1; then
 	cat "$base/log" >&2

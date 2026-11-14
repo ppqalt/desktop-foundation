@@ -20,7 +20,7 @@ mkdir -m 700 "$base/state/desktop-foundation/replay-editor/0123456789abcdef00000
 if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET -u DBUS_SESSION_BUS_ADDRESS \
 	HOME="$base" XDG_STATE_HOME="$base/state" XDG_CONFIG_HOME="$base/user" XDG_RUNTIME_DIR="$base/runtime" \
 	DF_FOUNDATION_ROOT="$root" DF_EDITOR_BINARY="${DF_EDITOR_BINARY:-$root/native/foundation/target/release/desktop-foundationctl}" \
-	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software timeout 35s quickshell --path "$base/shell" >"$base/log" 2>&1; then
+	QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic QT_QUICK_BACKEND=software timeout 35s quickshell --path "$base/shell" >"$base/log" 2>&1; then
 	cat "$base/log" >&2
 	exit 1
 fi

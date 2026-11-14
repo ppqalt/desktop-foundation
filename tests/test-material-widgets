@@ -36,7 +36,7 @@ for surface in Power Volume Launcher Clipboard ModalBackdrop; do
 done
 perl -0pe 's/PanelWindow \{/Window {/; s/    anchors \{\n        top: true\n        bottom: true\n        left: true\n        right: true\n    \}\n//; s/^    (?:screen:|exclusionMode:|WlrLayershell\.).*\n//mg; s#import "../theme"#import "../shell/theme"\nimport "../shell/components"#' "$root/shell/components/PopupWindow.qml" >"$fixture_surfaces/PopupWindowFixture.qml"
 if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
-	QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+	QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic QT_QUICK_BACKEND=software \
 	DF_CLIPBOARD_WORKER="$fixture_worker" DF_FIXTURE_CALLS="$fixture_calls" DF_FOUNDATION_ROOT="$root" XDG_STATE_HOME="$fixture_state" \
 	timeout 12s quickshell -p "$fixture_qml" >"$fixture_log" 2>&1; then
 	cat "$fixture_log" >&2

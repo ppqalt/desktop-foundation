@@ -8,7 +8,9 @@ import "../theme"
 // qmllint disable uncreatable-type
 PanelWindow {
     id: root
-    FrameReadiness { surface: "clock" }
+    FrameReadiness {
+        surface: "clock"
+    }
     property var targetScreen: null
     property bool entered: false
     property string recordingPhase: "idle"

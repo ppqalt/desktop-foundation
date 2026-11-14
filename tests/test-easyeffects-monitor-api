@@ -17,6 +17,7 @@ trap cleanup EXIT
 export HOME="$fixture/home" XDG_CONFIG_HOME="$fixture/config" XDG_DATA_HOME="$fixture/data" XDG_CACHE_HOME="$fixture/cache"
 export XDG_RUNTIME_DIR="$fixture" PIPEWIRE_RUNTIME_DIR="$fixture" PIPEWIRE_REMOTE=pipewire-0
 export QT_QPA_PLATFORM=offscreen
+export QT_QPA_PLATFORMTHEME=basic
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$fixture/bus" GTK_USE_PORTAL=0 QT_USE_PORTAL=0 NO_AT_BRIDGE=1
 unset WAYLAND_DISPLAY DISPLAY PULSE_SERVER
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"

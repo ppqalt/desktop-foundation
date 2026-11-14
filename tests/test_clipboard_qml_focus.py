@@ -258,7 +258,7 @@ class ClipboardFocus(unittest.TestCase):
                                ('XDG_CONFIG_HOME', 'config'), ('XDG_STATE_HOME', 'state'),
                                ('XDG_CACHE_HOME', 'cache'), ('XDG_DATA_HOME', 'data')):
                 private = base / leaf; private.mkdir(mode=0o700); env[name] = str(private)
-            env.update(QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software',
+            env.update(QT_QPA_PLATFORM='offscreen', QT_QPA_PLATFORMTHEME='basic', QT_QUICK_BACKEND='software',
                        DF_FOUNDATION_ROOT=str(base), DF_CLIPBOARD_WORKER=str(worker),
                        DF_CLIPBOARD_STATE=str(state), XDG_DATA_DIRS=str(base / 'data'))
             result = subprocess.run(['quickshell', '--path', str(base)], env=env,

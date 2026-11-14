@@ -288,7 +288,7 @@ print(json.dumps(result))
                                ('XDG_CONFIG_HOME', 'config'), ('XDG_STATE_HOME', 'state'),
                                ('XDG_CACHE_HOME', 'cache'), ('XDG_DATA_HOME', 'data')):
                 private = base / leaf; private.mkdir(mode=0o700); env[name] = str(private)
-            env.update(QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software',
+            env.update(QT_QPA_PLATFORM='offscreen', QT_QPA_PLATFORMTHEME='basic', QT_QUICK_BACKEND='software',
                        DF_FOUNDATION_ROOT=str(base), XDG_DATA_DIRS=str(base / 'data'))
             if env.get('DF_QOL_VISUAL_DIR'):
                 Path(env['DF_QOL_VISUAL_DIR']).mkdir(parents=True, exist_ok=True)
