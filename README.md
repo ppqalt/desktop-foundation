@@ -47,10 +47,11 @@ df-update
 
 [All shortcuts](docs/input-bindings.md) · [Theme](theme/README.md) · [Updates](docs/updating.md) · [Recovery](docs/recovery.md)
 
-### Optional Lucky38 performance policy
+### Automatic Lucky38 performance policy
 
 General clipboard/cache/readiness improvements ship with normal DF updates.
-Lucky38 can additionally opt into reversible binfmt startup policy with
-`--performance-profile lucky38` on the normal installer; updates preserve and
-reconcile that choice. Other hardware stays unchanged. See
+The normal installer automatically selects reversible binfmt startup policy
+only for the matching Lucky38 motherboard/CPU/GPU combination. No extra command
+is required. `--performance-profile off` disables it persistently; updates preserve
+and reconcile the choice. Other hardware stays unchanged. See
 [performance policy, trade-offs and rollback](docs/lucky38-performance.md).

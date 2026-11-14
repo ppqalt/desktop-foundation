@@ -28,11 +28,16 @@ def run(*args):
 
 def hardware():
     board = Path('/sys/class/dmi/id/board_name').read_text().strip()
-    cpu = Path('/proc/cpuinfo').read_text()
-    gpu = run('/usr/bin/nvidia-smi', '--query-gpu=name', '--format=csv,noheader').strip()
-    if board != 'TUF B450-PRO GAMING' or 'AMD Ryzen 7 5700X3D' not in cpu or gpu != 'NVIDIA GeForce RTX 3060':
+    vendor = Path('/sys/class/dmi/id/board_vendor').read_text().strip()
+    models = [line.split(':', 1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines() if line.split(':', 1)[0].strip() == 'model name']
+    displays = []
+    for device in Path('/sys/bus/pci/devices').iterdir():
+        if (device / 'class').read_text().strip().startswith('0x03'):
+            displays.append(((device / 'vendor').read_text().strip(), (device / 'device').read_text().strip()))
+    if vendor != 'ASUSTeK COMPUTER INC.' or board != 'TUF B450-PRO GAMING' or not models or any(model != 'AMD Ryzen 7 5700X3D 8-Core Processor' for model in models) or displays != [('0x10de', '0x2487')]:
         raise ValueError('Lucky38 performance profile does not match this board/CPU/GPU')
-    return {'board': board, 'cpu': 'Ryzen 7 5700X3D', 'gpu': gpu, 'root': run('/usr/bin/findmnt', '-n', '-o', 'UUID', '/').strip()}
+    return {'board': board, 'cpu': 'Ryzen 7 5700X3D', 'gpu': 'NVIDIA GeForce RTX 3060', 'root': run('/usr/bin/findmnt', '-n', '-o', 'UUID', '/').strip()}
+
 
 
 def identity(path):

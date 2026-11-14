@@ -1,13 +1,20 @@
 # Lucky38 performance profile
 
-Performance policy is opt-in and independent of Minimal/Standard/Personal selection.
-Only Lucky38's verified TUF B450-PRO GAMING / 5700X3D / RTX 3060 hardware is covered.
+Performance policy is automatically selected only for the matching Lucky38
+hardware combination, independently of Minimal/Standard/Personal selection.
+The match requires ASUSTeK TUF B450-PRO GAMING, the exact Ryzen 7 5700X3D
+CPU model and a single NVIDIA display adapter with PCI ID `10de:2487`.
+Detection reads DMI, CPU info and PCI sysfs; no driver, hostname, network or
+NVIDIA management utility is required. Missing or different hardware does not
+select this profile; an identical hardware combination also matches.
 Tops, firmware changes and NVIDIA module ordering are outside this pass.
 
-Install in one normal DF transaction:
+Install normally; matching hardware gets the policy in the same transaction:
 
 ```sh
-./scripts/install --standard --profile lucky38 --performance-profile lucky38
+./scripts/install --standard
+# Override automatic selection, permanently until explicitly re-enabled:
+./scripts/install --standard --performance-profile off
 ```
 
 Existing installation:
@@ -22,9 +29,12 @@ Existing installation:
 ./scripts/performance-profile disable
 ```
 
-The explicit selection lives in the deployment owner's state as
+The detected or explicit selection lives in the deployment owner's state as
 `performance-profile`. Installation and `df-update` deploy paths reconcile that
-selection automatically. An unchanged effective policy requires no new privilege.
+selection automatically. An explicit `off` selection survives reinstalls.
+`--check` and `--dry-run` never activate, restore or save performance policy.
+The privileged helper independently rechecks the hardware before system changes. An unchanged effective policy requires no new
+privilege.
 A changed/missing privileged helper or policy needs authenticated repair; updates
 never open a password prompt, overwrite foreign files, or silently claim repair.
 They report pending administrator work in the updater output and retain the

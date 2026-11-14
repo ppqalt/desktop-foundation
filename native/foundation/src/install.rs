@@ -222,6 +222,9 @@ pub trait Runtime {
     fn eac_kernel(&self) -> bool {
         false
     }
+    fn lucky38_hardware(&self) -> bool {
+        false
+    }
     fn apparmor_enabled(&self) -> bool;
     fn clean_boot_supported(&self) -> bool;
     fn display_manager(&self) -> Result<Option<String>> {
@@ -230,6 +233,9 @@ pub trait Runtime {
 }
 pub struct Native;
 impl Runtime for Native {
+    fn lucky38_hardware(&self) -> bool {
+        crate::performance::detect_in(Path::new("/"))
+    }
     fn checkpoint_command(&mut self, args: &[String]) -> Result<bool> {
         let program = args.first().ok_or_else(|| invalid("Empty setup command"))?;
         let status = Command::new(program).args(&args[1..]).status()?;
@@ -526,7 +532,15 @@ pub fn execute(
     o: &Options,
     r: &mut impl Runtime,
 ) -> Result<()> {
-    let resolved = resolve_greeter(r, o)?;
+    let mut resolved = resolve_greeter(r, o)?;
+    if resolved.performance_profile.is_none() {
+        resolved.performance_profile = match crate::performance::selection(&paths.state)?.as_deref()
+        {
+            Some("off") => Some("off".into()),
+            _ if r.lucky38_hardware() => Some("lucky38".into()),
+            _ => None,
+        };
+    }
     let o = &resolved;
     let recording_selected = o.personal || o.standard || o.extras.iter().any(|e| e == "recording");
     if (o.check || !o.packages) && recording_selected {
@@ -537,19 +551,6 @@ pub fn execute(
         r.validate_app("browser", &nightly["browser"])?;
     }
     if o.check {
-        if let Some(profile) = &o.performance_profile {
-            call(
-                r,
-                root,
-                "performance-profile",
-                if profile == "off" {
-                    vec!["disable"]
-                } else {
-                    vec!["enable", "lucky38"]
-                }
-                .as_slice(),
-            )?;
-        }
         doctor(r, root, o)?;
         if o.standard {
             if !r.executable("paru") {
@@ -673,7 +674,7 @@ pub fn execute(
         }
         if let Some(profile) = &o.performance_profile {
             println!(
-                "Performance profile: {profile} (explicit, reversible; no firmware/GPU tuning)"
+                "Performance profile: {profile} (hardware/saved/explicit selection; reversible; no firmware/GPU tuning)"
             );
         }
         if !o.extras.is_empty() {
@@ -988,6 +989,19 @@ pub fn execute(
                 "Boot integration pending: firmware/reboot verification required. Desktop deployment is installed; rerun the same install command to resume."
             );
         }
+    }
+    if let Some(profile) = &o.performance_profile {
+        call(
+            r,
+            root,
+            "performance-profile",
+            if profile == "off" {
+                vec!["disable"]
+            } else {
+                vec!["enable", "lucky38"]
+            }
+            .as_slice(),
+        )?;
     }
     doctor(r, root, o)?;
     if o.personal || o.extras.iter().any(|e| e == "spicetify" || e == "geode") {

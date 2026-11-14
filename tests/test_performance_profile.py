@@ -18,6 +18,20 @@ class PerformanceProfileTests(unittest.TestCase):
             self.addCleanup(p.stop)
         m.VENDOR.write_text(':DOSWin:M::MZ::/usr/bin/wine:\n')
 
+    def test_privileged_hardware_recheck_uses_the_same_driver_free_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            files = {'sys/class/dmi/id/board_vendor':'ASUSTeK COMPUTER INC.', 'sys/class/dmi/id/board_name':'TUF B450-PRO GAMING', 'proc/cpuinfo':'model name : AMD Ryzen 7 5700X3D 8-Core Processor', 'sys/bus/pci/devices/gpu/class':'0x030000', 'sys/bus/pci/devices/gpu/vendor':'0x10de', 'sys/bus/pci/devices/gpu/device':'0x2487'}
+            for name, value in files.items():
+                path=root/name;path.parent.mkdir(parents=True, exist_ok=True);path.write_text(value)
+            with patch.object(m, 'Path', side_effect=lambda p: root/str(p).lstrip('/')), patch.object(m, 'run', return_value='fixture-root'):
+                self.assertEqual(m.hardware()['gpu'], 'NVIDIA GeForce RTX 3060')
+                for name in ['sys/class/dmi/id/board_name','proc/cpuinfo','sys/bus/pci/devices/gpu/device']:
+                    (root/name).write_text('other')
+                    with self.assertRaisesRegex(ValueError, 'does not match'):
+                        m.hardware()
+                    (root/name).write_text(files[name])
+
     def test_apply_idempotence_and_restore_preserve_unrelated_rules(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -160,6 +160,7 @@ struct Fake {
     root: bool,
     no_apparmor: bool,
     eac: bool,
+    lucky38: bool,
     bad_boot: bool,
     failure: Option<String>,
     boot_pending: bool,
@@ -229,6 +230,9 @@ impl Runtime for Fake {
         } else {
             deploy::inspect(root, paths)
         }
+    }
+    fn lucky38_hardware(&self) -> bool {
+        self.lucky38
     }
     fn eac_kernel(&self) -> bool {
         self.eac
@@ -1008,7 +1012,7 @@ fn missing_no_package_dependencies_stop_before_any_installer_effects() {
 }
 
 #[test]
-fn performance_policy_is_explicit_and_lucky38_only() {
+fn performance_policy_flags_are_validated_without_side_effects() {
     let f = Fixture::new();
     assert!(Options::parse(&f.root, &["--performance-profile".into(), "tops".into()]).is_err());
     let selected =
@@ -1020,4 +1024,49 @@ fn performance_policy_is_explicit_and_lucky38_only() {
             .performance_profile
             .is_none()
     );
+}
+
+#[test]
+fn automatic_performance_selection_is_read_only_when_checking_and_opt_out_wins() {
+    let f = Fixture::new();
+    for flag in ["--check", "--dry-run"] {
+        let mut r = Fake {
+            installed: true,
+            lucky38: true,
+            ..Fake::default()
+        };
+        let o = f.options(&["--core", "--no-greeter", flag]);
+        install::execute(&f.root, &f.paths, &o, &mut r).unwrap();
+        assert!(
+            !r.named("performance-profile"),
+            "{flag} must not activate policy"
+        );
+        assert!(!f.paths.state.join("performance-profile").exists());
+    }
+    let mut r = Fake {
+        installed: true,
+        lucky38: true,
+        ..Fake::default()
+    };
+    let o = f.options(&["--core", "--no-greeter", "--no-packages"]);
+    install::execute(&f.root, &f.paths, &o, &mut r).unwrap();
+    assert!(
+        r.commands
+            .iter()
+            .any(|c| c.ends_with(&["enable".into(), "lucky38".into()]))
+    );
+    fs::create_dir_all(&f.paths.state).unwrap();
+    fs::write(f.paths.state.join("performance-profile"), "off\n").unwrap();
+    let mut r = Fake {
+        installed: true,
+        lucky38: true,
+        ..Fake::default()
+    };
+    install::execute(&f.root, &f.paths, &o, &mut r).unwrap();
+    assert!(
+        !r.commands
+            .iter()
+            .any(|c| c.ends_with(&["enable".into(), "lucky38".into()]))
+    );
+    assert!(r.commands.iter().any(|c| c.ends_with(&["disable".into()])));
 }

@@ -34,7 +34,10 @@ enable)
 	;;
 verify) ;;
 disable)
-	[[ -f $marker && ! -L $marker ]] || exit 0
+	if [[ ! -e $marker && ! -L $marker ]] || [[ -f $marker && ! -L $marker && $(cat -- "$marker") == off ]]; then
+		"$root/scripts/foundation" performance-opt-in off
+		exit 0
+	fi
 	;;
 reconcile)
 	[[ -f $marker && ! -L $marker && $(cat -- "$marker") == lucky38 ]] || exit 0
