@@ -4,6 +4,17 @@ import re
 from pathlib import Path
 
 
+def eac_running(root=Path('/')):
+    """Identify policy from the actual running kernel, never its LSM alone."""
+    release = root / 'proc/sys/kernel/osrelease'
+    return release.is_file() and release.read_text().strip().endswith('-cachyos-eac')
+
+
+def reject_eac_boot(root=Path('/')):
+    if eac_running(root):
+        raise ValueError('EAC boot policy is managed by boot-integrate; GRUB/AppArmor cleanup must not modify it')
+
+
 def kernel_lsms(configs):
     lists = []
     for config in configs:
@@ -27,6 +38,7 @@ def kernel_lsms(configs):
 
 
 def installed_lsms():
+    reject_eac_boot()
     configs = []
     for modules in Path('/usr/lib/modules').iterdir():
         if not (modules / 'pkgbase').is_file():

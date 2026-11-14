@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import shlex
-from boot_policy import installed_lsms
+from boot_policy import installed_lsms, eac_running
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = Path('/etc/default/grub.d/60-desktop-foundation.cfg')
@@ -21,7 +21,7 @@ def digest(path):
 
 def activation_plan(*, check_lsms=True):
     """Read-only prerequisites shared by preflight and the privileged writer."""
-    if not Path('/sys/module/apparmor').exists():
+    if check_lsms and not Path('/sys/module/apparmor').exists():
         raise RuntimeError('Running kernel lacks AppArmor capability; install a supported kernel first. No boot files changed.')
     generator = Path('/usr/bin/grub-mkconfig')
     if not generator.is_file() or 'default/grub.d/' not in generator.read_text():
@@ -35,6 +35,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['check', 'install', 'restore'])
     args = parser.parse_args()
+    if args.action in ('check', 'install') and eac_running(Path('/')):
+        print('EAC kernel: preserving upstream LSM policy; AppArmor is intentionally excluded.')
+        return
     if args.action == 'check':
         enabled = Path('/sys/module/apparmor/parameters/enabled')
         if enabled.is_file() and enabled.read_text().strip() == 'Y':

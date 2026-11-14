@@ -1,6 +1,6 @@
 # AppArmor
 
-Core installation installs AppArmor and enables `apparmor.service`. Kernel
+Conventional-kernel installation installs AppArmor and enables `apparmor.service`. Kernel
 activation and profile loading are separate requirements. Check both after reboot:
 
 ```sh
@@ -11,6 +11,14 @@ scripts/doctor
 ```
 
 The kernel activation file must report `Y`.
+
+## EAC policy
+
+The EAC kernel intentionally excludes AppArmor from its required LSM list.
+Installation preserves that upstream policy and does not enable AppArmor for it.
+Doctor checks this distinction without claiming full EAC readiness; use
+[boot integration verification](secure-boot.md) for that. Do not append AppArmor
+to EAC entries or apply legacy GRUB cleanup while running EAC.
 
 ## GRUB setup
 
@@ -58,7 +66,7 @@ restored kernel arguments. Service enablement has a separate lifecycle; use
 
 ## Other bootloaders
 
-Use the base installation's kernel-command-line or UKI tools to set `apparmor=1`
+For conventional kernels, use the base installation's kernel-command-line or UKI tools to set `apparmor=1`
 and include `apparmor` in `lsm=`, preserving the other required LSMs. Regenerate
 its boot artifacts and enable `apparmor.service`. Use those native tools for
 systemd-boot and dracut configurations.

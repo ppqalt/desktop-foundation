@@ -72,3 +72,7 @@ AppArmor-only setup uses `sudo scripts/apparmor-setup restore`. Greetd/PAM setup
 uses `sudo scripts/system-setup restore`. Changes to kernel arguments take effect
 after reboot. See [AppArmor](APPARMOR.md), [console routing](greeter-console.md) and
 [boot setup](boot-optimization.md) for each helper's requirements.
+
+For the EAC/systemd-boot profile, use the separate
+[Secure Boot and recovery workflow](secure-boot.md). Legacy GRUB restore commands
+are not an EAC conversion or certificate-recovery mechanism.

@@ -69,6 +69,8 @@ def validate_menu(before, after):
 
 
 def plan():
+    from boot_policy import reject_eac_boot
+    reject_eac_boot(Path('/'))
     changes = {}
     timer = Path('/usr/lib/systemd/system/cachyos-rate-mirrors.timer')
     if timer.exists():

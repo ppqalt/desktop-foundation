@@ -40,6 +40,8 @@ def save(entry):
 
 
 def plan():
+    from boot_policy import reject_eac_boot
+    reject_eac_boot(Path('/'))
     generator = Path('/usr/bin/grub-mkconfig')
     if not generator.exists() or 'default/grub.d/' not in generator.read_text():
         raise ValueError('Requires GRUB drop-in support; other bootloaders are not modified')

@@ -14,6 +14,9 @@ pub struct Options {
     pub patched_niri: bool,
     pub packages: bool,
     pub clean_boot: bool,
+    pub eac_boot: bool,
+    pub recovery_only_dkms: bool,
+    pub recovery_keys_confirmed: bool,
     pub profile: String,
     pub dry_run: bool,
     pub check: bool,
@@ -29,6 +32,9 @@ impl Options {
             patched_niri: true,
             packages: true,
             clean_boot: false,
+            eac_boot: false,
+            recovery_only_dkms: false,
+            recovery_keys_confirmed: false,
             profile: "default".into(),
             dry_run: false,
             check: false,
@@ -80,6 +86,16 @@ impl Options {
                 }
                 "--no-packages" => o.packages = false,
                 "--clean-boot" => o.clean_boot = true,
+                "--allow-recovery-only-dkms" => o.recovery_only_dkms = true,
+                "--recovery-keys-confirmed" => o.recovery_keys_confirmed = true,
+                "--boot-profile" => {
+                    i += 1;
+                    o.eac_boot = match args.get(i).map(String::as_str) {
+                        Some("eac") => true,
+                        Some("existing") => false,
+                        _ => return Err(invalid("Boot profile must be eac or existing")),
+                    };
+                }
                 "--dry-run" | "--plan" => o.dry_run = true,
                 "--check" => o.check = true,
                 "--profile" | "--hardware-profile" => {
@@ -92,6 +108,9 @@ impl Options {
                 _ => return Err(invalid(format!("Unknown installer option: {}", args[i]))),
             }
             i += 1;
+        }
+        if o.eac_boot && o.clean_boot {
+            return Err(invalid("EAC boot profile cannot use GRUB --clean-boot"));
         }
         if o.dry_run && o.check {
             return Err(invalid("Choose --dry-run or --check"));
@@ -182,6 +201,9 @@ pub trait Runtime {
     fn desktop_exists(&self, name: &str) -> Result<bool>;
     fn uid(&self) -> u32;
     fn conflicts(&self, root: &Path, paths: &deploy::Paths, personal: bool) -> Result<Vec<String>>;
+    fn eac_kernel(&self) -> bool {
+        false
+    }
     fn apparmor_enabled(&self) -> bool;
     fn clean_boot_supported(&self) -> bool;
     fn display_manager(&self) -> Result<Option<String>> {
@@ -190,6 +212,10 @@ pub trait Runtime {
 }
 pub struct Native;
 impl Runtime for Native {
+    fn eac_kernel(&self) -> bool {
+        fs::read_to_string("/proc/sys/kernel/osrelease")
+            .is_ok_and(|s| s.trim().ends_with("-cachyos-eac"))
+    }
     fn display_manager(&self) -> Result<Option<String>> {
         configured_display_manager(Path::new("/etc/systemd/system/display-manager.service"))
     }
@@ -568,10 +594,16 @@ pub fn execute(
         } else {
             println!("Application defaults: unchanged");
         }
-        println!("Services: Bluetooth/AppArmor enabled; display manager is not restarted.");
+        println!(
+            "Services: Bluetooth enabled; AppArmor follows the running kernel policy; display manager is not restarted."
+        );
         println!(
             "Boot: {}",
-            if o.clean_boot {
+            if o.eac_boot {
+                "resumable upstream EAC + independently signed Limine/LTS recovery"
+            } else if r.eac_kernel() {
+                "preserve EAC LSM policy and dedicated upstream-signed loader"
+            } else if o.clean_boot {
                 "explicit reversible GRUB/mkinitcpio setup"
             } else {
                 "preserve boot stack; configure AppArmor if needed"
@@ -607,9 +639,9 @@ pub fn execute(
             conflicts.join(", ")
         )));
     }
-    if o.clean_boot && !r.clean_boot_supported() {
+    if o.clean_boot && (r.eac_kernel() || !r.clean_boot_supported()) {
         return Err(invalid(
-            "--clean-boot requires an existing mkinitcpio/GRUB system; dracut is never converted",
+            "--clean-boot requires conventional mkinitcpio/GRUB; EAC policy and dracut are never converted",
         ));
     }
     if o.personal && !o.packages {
@@ -639,9 +671,25 @@ pub fn execute(
             r.validate_app("steam", &personal["steam"])?;
         }
     }
+    if o.eac_boot {
+        let mut boot_args = vec!["resume"];
+        if !o.packages {
+            boot_args.push("--no-packages");
+        }
+        if o.recovery_only_dkms {
+            boot_args.push("--allow-recovery-only-dkms");
+        }
+        if o.recovery_keys_confirmed {
+            boot_args.push("--recovery-keys-confirmed");
+        }
+        // A firmware checkpoint stops before desktop deployment. The same
+        // command resumes after reboot; only a verified EAC boot can finalize.
+        call(r, root, "boot-integrate", &boot_args)?;
+        call(r, root, "boot-integrate", &["finalize"])?;
+    }
     // Detect unsupported activation before authentication, builds or deployment.
     // The privileged writer repeats the same read-only prerequisites later.
-    if !o.clean_boot && !r.apparmor_enabled() {
+    if !r.eac_kernel() && !o.clean_boot && !r.apparmor_enabled() {
         call(r, root, "apparmor-setup", &["check"])?;
     }
     r.command(&words(&["sudo", "-v"]))?;
@@ -679,16 +727,14 @@ pub fn execute(
         &["--compositor", "niri", "--profile", &o.profile],
     )?;
     call(r, root, "preferences", &["install", "--theme-only"])?;
-    r.command(&words(&[
-        "sudo",
-        "systemctl",
-        "enable",
-        "bluetooth.service",
-        "apparmor.service",
-    ]))?;
+    let mut services = words(&["sudo", "systemctl", "enable", "bluetooth.service"]);
+    if !r.eac_kernel() {
+        services.push("apparmor.service".into());
+    }
+    r.command(&services)?;
     if o.clean_boot {
         sudo_script(r, root, "boot-setup")?;
-    } else if !r.apparmor_enabled() {
+    } else if !r.eac_kernel() && !r.apparmor_enabled() {
         sudo_script(r, root, "apparmor-setup")?;
     }
     if o.greeter {
@@ -770,6 +816,13 @@ struct SavedSelection {
     greeter: bool,
     #[serde(default = "patched_default")]
     patched_niri: bool,
+    #[serde(default = "existing_boot_profile")]
+    boot_profile: String,
+    #[serde(default)]
+    recovery_only_dkms: bool,
+}
+fn existing_boot_profile() -> String {
+    "existing".into()
 }
 fn patched_default() -> bool {
     true
@@ -779,7 +832,16 @@ fn selection(root: &Path, state_dir: &Path, args: &[String]) -> Result<Options> 
     let path = state_dir.join("installation.toml");
     let file = match fs::File::open(path) {
         Ok(file) => file,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Options::parse(root, args),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let mut defaults = Vec::new();
+            if !state_dir.join("manifest.json").exists()
+                && !args.iter().any(|s| s == "--boot-profile")
+            {
+                defaults.extend(["--boot-profile".into(), "eac".into()]);
+            }
+            defaults.extend_from_slice(args);
+            return Options::parse(root, &defaults);
+        }
         Err(e) => return Err(e.into()),
     };
     let mut text = String::new();
@@ -793,6 +855,12 @@ fn selection(root: &Path, state_dir: &Path, args: &[String]) -> Result<Options> 
         return Err(invalid("Unsupported saved installation selection"));
     }
     let mut effective = Vec::new();
+    if !args.iter().any(|s| s == "--boot-profile") {
+        effective.extend(["--boot-profile".into(), saved.boot_profile]);
+    }
+    if saved.recovery_only_dkms && !args.iter().any(|s| s == "--allow-recovery-only-dkms") {
+        effective.push("--allow-recovery-only-dkms".into());
+    }
     let explicit_layer = args
         .iter()
         .any(|s| ["--minimal", "--core", "--standard", "--personal"].contains(&s.as_str()));
@@ -849,8 +917,12 @@ fn save_selection(dir: &Path, o: &Options) -> Result<()> {
         .collect::<Vec<_>>()
         .join(", ");
     let document = format!(
-        "version = 1\nlayer = \"{layer}\"\nextras = [{extras}]\nhardware_profile = \"{}\"\ngreeter = {}\npatched_niri = {}\n",
-        o.profile, o.greeter, o.patched_niri
+        "version = 1\nlayer = \"{layer}\"\nextras = [{extras}]\nhardware_profile = \"{}\"\ngreeter = {}\npatched_niri = {}\nboot_profile = \"{}\"\nrecovery_only_dkms = {}\n",
+        o.profile,
+        o.greeter,
+        o.patched_niri,
+        if o.eac_boot { "eac" } else { "existing" },
+        o.recovery_only_dkms
     );
     state::atomic(&dir.join("installation.toml"), document.as_bytes(), 0o600)
 }
@@ -899,6 +971,35 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod selection_tests {
     use super::*;
+    #[test]
+    fn fresh_boot_default_and_existing_selection_are_distinct() {
+        let base = std::env::temp_dir().join(format!("df-boot-selection-{}", std::process::id()));
+        fs::create_dir_all(base.join("profiles/default")).unwrap();
+        let dir = base.join("state");
+        fs::create_dir_all(&dir).unwrap();
+        assert!(selection(&base, &dir, &[]).unwrap().eac_boot);
+        fs::write(dir.join("manifest.json"), "{}").unwrap();
+        assert!(!selection(&base, &dir, &[]).unwrap().eac_boot);
+        let selected = Options::parse(
+            &base,
+            &[
+                "--boot-profile".into(),
+                "eac".into(),
+                "--allow-recovery-only-dkms".into(),
+            ],
+        )
+        .unwrap();
+        save_selection(&dir, &selected).unwrap();
+        let reused = selection(&base, &dir, &[]).unwrap();
+        assert!(reused.eac_boot && reused.recovery_only_dkms);
+        assert!(
+            !selection(&base, &dir, &["--boot-profile".into(), "existing".into()])
+                .unwrap()
+                .eac_boot
+        );
+        fs::remove_dir_all(base).unwrap();
+    }
+
     #[test]
     fn automatically_preserved_manager_choice_survives_the_next_install() {
         struct ExistingManager;

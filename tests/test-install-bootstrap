@@ -10,6 +10,11 @@ mkdir -p "$base/repo/scripts" "$base/state" "$base/home"
 sed "s/\${EUID}/\${DF_FIXTURE_UID}/g" "$root/scripts/install" >"$base/repo/scripts/install"
 export DF_FIXTURE_UID=1000
 cp "$root/scripts/install-all" "$root/scripts/install-core" "$base/repo/scripts/"
+cat >"$base/repo/scripts/boot-integrate" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >> "$DF_TEST_BOOT_LOG"
+[ "${DF_TEST_BOOT_BLOCK:-0}" != 1 ]
+SH
 cat >"$base/repo/scripts/bootstrap" <<'SH'
 #!/bin/sh
 printf 'bootstrap\n' >> "$DF_TEST_LOG"
@@ -26,14 +31,14 @@ cat >"$base/repo/scripts/foundation" <<'SH'
 printf 'foundation %s\n' "$*" >> "$DF_TEST_LOG"
 SH
 chmod +x "$base/repo/scripts/"*
-export HOME="$base/home" XDG_STATE_HOME="$base/state" DF_TEST_LOG="$base/log"
+export HOME="$base/home" XDG_STATE_HOME="$base/state" DF_TEST_LOG="$base/log" DF_TEST_BOOT_LOG="$base/boot-log"
 # Invalid commands must fail before either compiler or provisioner is touched.
 for mode in missing present; do
 	if [[ $mode == present ]]; then
 		"$base/repo/scripts/build-backend"
 		rm "$base/log"
 	fi
-	for invalid in --typo --extra '--extra recording --extra recording' '--core --standard' '--profile ../default' '--profile=' '--dry-run --check' '--personal --extra recording'; do
+	for invalid in --typo --extra '--extra recording --extra recording' '--core --standard' '--profile ../default' '--profile=' '--dry-run --check' '--personal --extra recording' '--boot-profile invalid' '--boot-profile eac --clean-boot'; do
 		read -r -a options <<<"$invalid"
 		if "$base/repo/scripts/install" "${options[@]}" >"$base/error" 2>&1; then exit 1; fi
 		[[ ! -e $base/log ]]
@@ -47,7 +52,10 @@ done
 if DF_FIXTURE_UID=0 "$base/repo/scripts/install" --core >"$base/root-error" 2>&1; then exit 1; fi
 rg -q 'normal login user' "$base/root-error"
 [[ ! -e $base/log ]]
+if DF_TEST_BOOT_BLOCK=1 "$base/repo/scripts/install" --core >"$base/blocked" 2>&1; then exit 1; fi
+[[ ! -e $base/log ]]
 "$base/repo/scripts/install" --core
+rg -q 'preflight --admin --summary' "$base/boot-log"
 [[ $(cat "$base/log") == $'bootstrap\nbuild\nfoundation install --core' ]]
 rm "$base/log"
 "$base/repo/scripts/install-all"

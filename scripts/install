@@ -9,6 +9,9 @@ extras=()
 dry=false
 check=false
 help=false
+boot_profile=''
+boot_dkms=()
+clean_boot=false
 for ((i = 0; i < ${#installer_args[@]}; i++)); do
 	option=${installer_args[i]}
 	case $option in
@@ -47,7 +50,19 @@ for ((i = 0; i < ${#installer_args[@]}; i++)); do
 			exit 2
 		fi
 		;;
-	--no-packages | --clean-boot | --greeter | --no-greeter | --patched-niri | --stock-niri) ;;
+	--boot-profile)
+		((i += 1))
+		boot_profile=${installer_args[i]:-}
+		case $boot_profile in eac | existing) ;; *)
+			printf '%s\n' 'Boot profile must be eac or existing.' >&2
+			exit 2
+			;;
+		esac
+		;;
+	--allow-recovery-only-dkms) boot_dkms=(--allow-recovery-only-dkms) ;;
+	--recovery-keys-confirmed) ;;
+	--clean-boot) clean_boot=true ;;
+	--no-packages | --greeter | --no-greeter | --patched-niri | --stock-niri) ;;
 	--dry-run | --plan) dry=true ;;
 	--check) check=true ;;
 	--help | -h) help=true ;;
@@ -65,6 +80,10 @@ if [[ $layer == personal ]] && ((${#extras[@]})); then
 	printf '%s\n' '--personal already selects its application extras.' >&2
 	exit 2
 fi
+if [[ $boot_profile == eac ]] && $clean_boot; then
+	printf '%s\n' 'EAC boot profile cannot use GRUB --clean-boot.' >&2
+	exit 2
+fi
 if $help; then
 	printf '%s\n' 'Usage: scripts/install [--minimal|--standard|--personal] [--extra NAME]' \
 		'  --profile NAME       Select a hardware profile' \
@@ -74,6 +93,8 @@ if $help; then
 		'  --greeter            Configure greetd when no other manager owns login' \
 		'  --no-greeter         Preserve the existing login manager' \
 		'  Default: keep a configured login manager; otherwise install greetd' \
+		'  --boot-profile eac|existing  Fresh installs default to EAC; existing installs preserve boot' \
+		'  --allow-recovery-only-dkms  Retain unsupported DKMS modules only for conventional kernels' \
 		'  --clean-boot         Apply the selected supported boot cleanup' \
 		'  --dry-run|--check    Inspect without package or build changes' \
 		'Extras: steam, spicetify, geode, recording'
@@ -83,6 +104,40 @@ fi
 if ! $dry && ! $check && [[ ${EUID} == 0 ]]; then
 	printf '%s\n' 'Run the installer as your normal login user, without sudo; it requests administrator authentication when needed. Nothing bootstrapped.' >&2
 	exit 1
+fi
+# Boot preflight precedes even compiler/package bootstrap. Old installations
+# without a boot selection preserve their stack; only genuinely fresh installs
+# acquire the new EAC default. The native installer repeats this selection.
+if ! $dry && ! $check; then
+	state_base=${XDG_STATE_HOME:-$HOME/.local/state}
+	boot_settings=$(
+		/usr/bin/python3 -I - "$state_base/desktop-foundation" "$boot_profile" "${boot_dkms[*]}" <<'PYBOOT'
+import pathlib, sys, tomllib
+state = pathlib.Path(sys.argv[1])
+if not state.is_absolute():
+    raise SystemExit('XDG_STATE_HOME must be absolute')
+selection = state / 'installation.toml'
+saved = tomllib.loads(selection.read_text()) if selection.exists() else {}
+value = sys.argv[2]
+if not value:
+    if selection.exists():
+        value = saved.get('boot_profile', 'existing')
+    else:
+        value = 'existing' if (state / 'manifest.json').exists() else 'eac'
+if value not in ('eac', 'existing'):
+    raise SystemExit('Invalid saved boot profile')
+print(value, 'allow' if sys.argv[3] or saved.get('recovery_only_dkms', False) else 'no')
+PYBOOT
+	)
+	read -r boot_profile boot_allow <<<"$boot_settings"
+	if [[ $boot_allow == allow ]]; then boot_dkms=(--allow-recovery-only-dkms); fi
+	if [[ $boot_profile == eac ]] && $clean_boot; then
+		printf '%s\n' 'EAC boot profile cannot use GRUB --clean-boot.' >&2
+		exit 2
+	fi
+	if [[ $boot_profile == eac ]]; then
+		"$root/scripts/boot-integrate" preflight --admin --summary "${boot_dkms[@]}"
+	fi
 fi
 if [[ ! -x $root/native/foundation/target/release/desktop-foundationctl ]]; then
 	no_packages=false

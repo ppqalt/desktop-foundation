@@ -521,9 +521,11 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
             }
         }
     }
+    let eac = text(r, Path::new("/proc/sys/kernel/osrelease"))
+        .is_ok_and(|v| v.trim().ends_with("-cachyos-eac"));
     for unit in [
         Some("bluetooth"),
-        Some("apparmor"),
+        (!eac).then_some("apparmor"),
         (!o.no_greeter).then_some("greetd"),
     ]
     .into_iter()
@@ -535,19 +537,33 @@ pub fn installation(root: &Path, paths: &deploy::Paths, o: &Options, r: &impl Ru
             false,
         );
     }
-    let apparmor = Path::new("/sys/module/apparmor/parameters/enabled");
-    out.check(r.exists(apparmor), "Kernel has AppArmor support", false);
-    out.check(
-        text(r, apparmor).is_ok_and(|v| v.trim() == "Y"),
-        "AppArmor kernel enforcement; see docs/APPARMOR.md",
-        o.installation,
-    );
-    if !o.installation {
+    if eac {
+        let cmdline = text(r, Path::new("/proc/cmdline")).unwrap_or_default();
+        let lsms: Vec<_> = cmdline
+            .split_whitespace()
+            .filter(|s| s.starts_with("lsm="))
+            .collect();
         out.check(
-            query(r, &["systemctl", "is-active", "apparmor.service"]).ok(),
-            "AppArmor profile service active",
+            lsms == ["lsm=landlock,lockdown,yama,integrity,bpf"]
+                && !cmdline.split_whitespace().any(|s| s.starts_with("apparmor=")),
+            "EAC LSM policy (AppArmor intentionally excluded); boot-integrate verify checks full EAC readiness",
             false,
         );
+    } else {
+        let apparmor = Path::new("/sys/module/apparmor/parameters/enabled");
+        out.check(r.exists(apparmor), "Kernel has AppArmor support", false);
+        out.check(
+            text(r, apparmor).is_ok_and(|v| v.trim() == "Y"),
+            "AppArmor kernel enforcement; see docs/APPARMOR.md",
+            o.installation,
+        );
+        if !o.installation {
+            out.check(
+                query(r, &["systemctl", "is-active", "apparmor.service"]).ok(),
+                "AppArmor profile service active",
+                false,
+            );
+        }
     }
     let failed = query(r, &["systemctl", "--failed", "--no-legend", "--plain"]);
     out.check(

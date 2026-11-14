@@ -33,7 +33,7 @@ scripts/install-core
 The default installation provides the Niri desktop, Quickshell and terminal
 configuration. It builds both Rust backends and the pinned patched Niri package, retains a signed
 stock-compositor recovery package, deploys configuration and enables
-Bluetooth and AppArmor. Existing application associations are left alone. When no display-manager service is configured, the installer provides greetd
+Bluetooth and the selected kernel security policy (AppArmor for conventional kernels; upstream LSM policy for EAC). Existing application associations are left alone. When no display-manager service is configured, the installer provides greetd
 with tuigreet and a plain background. An existing configured manager (including
 SDDM, GDM, LightDM or greetd) is preserved automatically. An explicit
 `--greeter` cannot replace another manager and is rejected before native package
@@ -93,7 +93,7 @@ than surfacing after a replay has been captured. See [personal applications](per
 | `--greeter` | Explicitly configure greetd; another configured manager is never replaced |
 | `--clean-boot` | Apply the GRUB/mkinitcpio cleanup and boot optimization helpers |
 
-If AppArmor needs activation, its kernel/bootloader prerequisites are checked
+On a conventional kernel, if AppArmor needs activation, its kernel/bootloader prerequisites are checked
 before native installation authentication, component builds or deployment. The
 initial CLI bootstrap/build may already have run. Existing activation is preserved;
 unsupported boot setups stop early rather than failing after desktop deployment.
@@ -140,7 +140,7 @@ installation and the later configuration steps have separate recovery paths.
 
 ## Boot and login integration
 
-AppArmor requires kernel activation as well as profile loading. If activation is
+Conventional-kernel AppArmor requires kernel activation as well as profile loading. EAC intentionally uses the upstream LSM policy instead. If activation is
 needed, the installer uses the supported GRUB helper. Other bootloaders require
 their native kernel-command-line tools; see [AppArmor](APPARMOR.md).
 
@@ -167,3 +167,12 @@ also restores greetd/PAM files. Packages remain installed. Spotify's optional
 links, configuration and tool backup use `scripts/spotify-setup restore`.
 Privileged boot helpers have separate restore commands. Follow
 [recovery](recovery.md) when restoring an interrupted deployment or boot setup.
+
+## EAC boot profile
+
+Fresh installations select the resumable EAC/systemd-boot + Limine/LTS recovery
+profile. Older saved selections preserve their existing stack. Use
+`--boot-profile eac` or `--boot-profile existing` explicitly. See
+[Secure Boot and recovery](secure-boot.md) for firmware checkpoints, driver
+limitations, update hooks and recovery acceptance. `--clean-boot` remains a
+separate legacy GRUB operation and cannot be combined with EAC.

@@ -158,6 +158,7 @@ struct Fake {
     no_pacman: bool,
     root: bool,
     no_apparmor: bool,
+    eac: bool,
     bad_boot: bool,
     failure: Option<String>,
 }
@@ -222,6 +223,9 @@ impl Runtime for Fake {
         } else {
             deploy::inspect(root, paths)
         }
+    }
+    fn eac_kernel(&self) -> bool {
+        self.eac
     }
     fn apparmor_enabled(&self) -> bool {
         !self.no_apparmor
@@ -853,4 +857,46 @@ fn apparmor_activation_is_detected_before_any_mutation_and_rechecked_by_writer()
     let mut active = Fake::default();
     install::execute(&f.root, &f.paths, &options, &mut active).unwrap();
     assert!(!active.named("apparmor-setup"));
+}
+
+#[test]
+fn eac_install_preserves_lsm_policy_and_stops_at_firmware_checkpoint() {
+    let f = Fixture::new();
+    let mut active = Fake {
+        eac: true,
+        no_apparmor: true,
+        ..Default::default()
+    };
+    install::execute(&f.root, &f.paths, &f.options(&[]), &mut active).unwrap();
+    assert!(!active.named("apparmor-setup"));
+    assert!(
+        !active
+            .commands
+            .iter()
+            .any(|c| c.iter().any(|s| s == "apparmor.service"))
+    );
+    let mut blocked = Fake {
+        failure: Some("boot-integrate".into()),
+        ..Default::default()
+    };
+    assert!(
+        install::execute(
+            &f.root,
+            &f.paths,
+            &f.options(&["--boot-profile", "eac"]),
+            &mut blocked
+        )
+        .is_err()
+    );
+    assert!(blocked.named("boot-integrate"));
+    assert!(!blocked.named("deploy"));
+    assert!(!blocked.named("bootstrap"));
+    assert!(!blocked.named("apparmor-setup"));
+    assert!(
+        Options::parse(
+            &f.root,
+            &["--boot-profile".into(), "eac".into(), "--clean-boot".into()]
+        )
+        .is_err()
+    );
 }

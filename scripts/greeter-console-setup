@@ -30,6 +30,9 @@ def main():
     args = parser.parse_args()
     if os.geteuid() != 0:
         parser.error('Run with sudo')
+    if args.action == 'install':
+        from boot_policy import reject_eac_boot
+        reject_eac_boot(Path('/'))
     journal = STATE / 'manifest.json'
     entry = json.loads(journal.read_text()) if journal.exists() else None
     if args.action == 'restore':

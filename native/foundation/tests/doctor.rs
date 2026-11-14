@@ -263,5 +263,46 @@ fn installation_reports_corrupt_journal_and_theme_hash_mismatch_without_session_
             .iter()
             .any(|args| args.first().is_some_and(|s| s == "quickshell"))
     );
+    r.files.insert(
+        PathBuf::from("/proc/sys/kernel/osrelease"),
+        b"7.3.3-2-cachyos-eac".to_vec(),
+    );
+    r.files.insert(
+        PathBuf::from("/proc/cmdline"),
+        b"root=UUID=fixture lsm=landlock,lockdown,yama,integrity,bpf".to_vec(),
+    );
+    let eac = doctor::installation(
+        &root,
+        &paths,
+        &Options {
+            installation: true,
+            no_greeter: true,
+            ..Default::default()
+        },
+        &r,
+    );
+    assert!(
+        eac.lines
+            .iter()
+            .any(|line| line.starts_with("PASS: EAC LSM policy"))
+    );
+    assert!(!eac.failures.iter().any(|line| line.contains("AppArmor")));
+    r.files
+        .insert(PathBuf::from("/proc/cmdline"), b"lsm=apparmor".to_vec());
+    let bad = doctor::installation(
+        &root,
+        &paths,
+        &Options {
+            installation: true,
+            no_greeter: true,
+            ..Default::default()
+        },
+        &r,
+    );
+    assert!(
+        bad.failures
+            .iter()
+            .any(|line| line.contains("EAC LSM policy"))
+    );
     std::fs::remove_dir_all(root).unwrap();
 }

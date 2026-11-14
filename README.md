@@ -4,6 +4,10 @@ A barless CachyOS and Niri desktop with Material-inspired widgets, wallpaper col
 
 ## Install
 
+Fresh installs prepare the EAC kernel with independent Limine/LTS snapshot recovery.
+Existing installations preserve their boot setup. Firmware steps may require a
+manual reboot and rerunning the same command; see [Secure Boot and recovery](docs/secure-boot.md).
+
 ```sh
 git clone https://github.com/ppqalt/desktop-foundation.git
 cd desktop-foundation
