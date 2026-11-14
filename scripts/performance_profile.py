@@ -18,7 +18,7 @@ BINFMT = '/usr/lib/systemd/systemd-binfmt'
 # Failure to read effective configuration must run the normal service, not skip
 # unrelated handlers. A per-file mask leaves explicit wine/Proton invocations intact.
 CONDITION_TEXT = '''[Service]
-ExecCondition=/bin/sh -c 'config=$$(/usr/lib/systemd/systemd-binfmt --cat-config --no-pager) || exit 0; printf "%%s\\n" "$$config" | /usr/bin/grep -q "^[^\u0023[:space:]]"; result=$$?; [ "$$result" -ne 1 ]'
+ExecCondition=/bin/sh -c 'config=$$(/usr/lib/systemd/systemd-binfmt --cat-config --no-pager) || exit 0; printf "%%s\\n" "$$config" | /usr/bin/grep -q "^[[:space:]]*[^\u0023[:space:]]"; result=$$?; [ "$$result" -ne 1 ]'
 '''
 
 
@@ -98,8 +98,31 @@ def check_files(journal, wanted):
             raise ValueError('Externally modified performance file: ' + path)
 
 
+def restore_owned(journal):
+    # All original paths were absent. Never replace administrator files.
+    check_files(journal, 'managed')
+    journal['phase'] = 'restoring'
+    save(journal)
+    for path, record in journal['files'].items():
+        if record['original'] is not None:
+            raise ValueError('Unsupported original file; journal preserved')
+        Path(path).unlink(missing_ok=True)
+        record['managed'] = None
+        save(journal)
+    run('/usr/bin/systemctl', 'daemon-reload')
+    journal['phase'] = 'restored'
+    save(journal)
+
+
+def expected(content):
+    return {'symlink': '/dev/null'} if content is None else {'sha256': hashlib.sha256(content.encode()).hexdigest(), 'mode': 0o644}
+
+
 def transaction(action):
     machine = hardware()
+    if action == 'verify-eac':
+        print(run('/usr/bin/eac-status'), end='')
+        return
     if action == 'check':
         for path, content in binfmt_changes().items():
             wanted = {'symlink': '/dev/null'} if content is None else {'sha256': hashlib.sha256(content.encode()).hexdigest(), 'mode': 0o644}
@@ -130,27 +153,18 @@ def transaction(action):
             if not journal or journal['phase'] == 'restored':
                 print('Nothing to restore')
                 return
-            # All original paths were absent. Never replace administrator files.
-            check_files(journal, 'managed')
-            journal['phase'] = 'restoring'
-            save(journal)
-            for path, record in journal['files'].items():
-                if record['original'] is not None:
-                    raise ValueError('Unsupported original file; journal preserved')
-                Path(path).unlink(missing_ok=True)
-                record['managed'] = None
-                save(journal)
-            run('/usr/bin/systemctl', 'daemon-reload')
-            # No binfmt handler was unregistered at apply; live Wine stays intact.
-            journal['phase'] = 'restored'
-            save(journal)
+            restore_owned(journal)
             print('Lucky38 performance files restored; no session or boot restart')
             return
         if journal and journal['phase'] == 'installed':
             check_files(journal, 'managed')
-            binfmt_changes()  # Revalidate vendor contract after package updates.
-            print('Lucky38 performance profile already installed; rollback retained')
-            return
+            changes = binfmt_changes()  # Revalidate vendor contract after package updates.
+            if all(identity(path) == expected(content) for path, content in changes.items()):
+                print('Lucky38 performance profile already installed; rollback retained')
+                return
+            # Only still-owned files can be replaced. An interruption between
+            # restore and prepare leaves original defaults, not a broken boot.
+            restore_owned(journal)
         if journal and journal['phase'] != 'restored':
             raise ValueError('Interrupted transaction: restore before retrying')
         changes = binfmt_changes()
@@ -162,8 +176,7 @@ def transaction(action):
         save(journal)
         for path, content in changes.items():
             # Write intent first, so interrupted writes remain recoverable.
-            expected = {'symlink': '/dev/null'} if content is None else {'sha256': hashlib.sha256(content.encode()).hexdigest(), 'mode': 0o644}
-            journal['files'][str(path)]['managed'] = expected
+            journal['files'][str(path)]['managed'] = expected(content)
             save(journal)
             if content is None:
                 path.symlink_to('/dev/null')
@@ -180,7 +193,7 @@ def transaction(action):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['plan', 'check', 'apply', 'status', 'restore'])
+    parser.add_argument('action', choices=['plan', 'check', 'apply', 'status', 'restore', 'verify-eac'])
     args = parser.parse_args()
     if os.geteuid() != 0 and args.action not in ('plan', 'check'):
         parser.error('Administrator authentication required')

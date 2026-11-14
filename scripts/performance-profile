@@ -15,8 +15,9 @@ plan)
 	;;
 status)
 	if [[ -f $marker && ! -L $marker ]] && [[ $(cat -- "$marker") == lucky38 ]]; then
-		printf '%s\n' 'Lucky38 opted in; system files:'
-		ls -ld /etc/binfmt.d/wine.conf /etc/systemd/system/systemd-binfmt.service.d/40-desktop-foundation-performance.conf 2>/dev/null || true
+		if cmp -s "$root/scripts/performance_profile.py" "$helper" && /usr/bin/python3 -I "$helper" check 2>/dev/null; then exit 0; fi
+		printf '%s\n' 'Lucky38 selected; performance policy needs administrator reconciliation.'
+		exit 3
 	else
 		printf '%s\n' 'Performance profile: off'
 	fi
@@ -31,6 +32,7 @@ enable)
 	# Owner marker is written by Rust's private/atomic state helper below.
 	"$root/scripts/foundation" performance-opt-in lucky38
 	;;
+verify) ;;
 disable)
 	[[ -f $marker && ! -L $marker ]] || exit 0
 	;;
@@ -40,7 +42,7 @@ reconcile)
 	if cmp -s "$root/scripts/performance_profile.py" "$helper" && /usr/bin/python3 -I "$helper" check >/dev/null 2>&1; then exit 0; fi
 	;;
 *)
-	printf '%s\n' 'Usage: performance-profile plan|enable lucky38|disable|status|reconcile' >&2
+	printf '%s\n' 'Usage: performance-profile plan|enable lucky38|disable|verify|status|reconcile' >&2
 	exit 2
 	;;
 esac
@@ -85,7 +87,9 @@ if ! setup_helper; then
 	[[ $action == reconcile ]] && exit 0
 	exit 1
 fi
-if [[ $action == disable ]]; then
+if [[ $action == verify ]]; then
+	"${elevate[@]}" /usr/bin/python3 -I "$helper" verify-eac
+elif [[ $action == disable ]]; then
 	"${elevate[@]}" /usr/bin/python3 -I "$helper" restore
 	"$root/scripts/foundation" performance-opt-in off
 elif ! "${elevate[@]}" /usr/bin/python3 -I "$helper" apply; then

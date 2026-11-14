@@ -18,6 +18,7 @@ Existing installation:
 # Optional graphical administrator authentication:
 ./scripts/performance-profile enable lucky38 --gui-auth
 ./scripts/performance-profile status
+./scripts/performance-profile verify --gui-auth # authoritative eac-status, read-only
 ./scripts/performance-profile disable
 ```
 
@@ -26,7 +27,10 @@ The explicit selection lives in the deployment owner's state as
 selection automatically. An unchanged effective policy requires no new privilege.
 A changed/missing privileged helper or policy needs authenticated repair; updates
 never open a password prompt, overwrite foreign files, or silently claim repair.
-They report pending administrator work and retain the selection/journal. Re-run
+They report pending administrator work in the updater output and retain the
+selection/journal. `status` returns exit code 3 for a selected but unreconciled
+policy. Policy upgrades replace only unchanged DF-owned files, preserving the
+original-default rollback across interruptions. Re-run
 `enable lucky38` to finish it. Profile failures do not undo a successful desktop
 update or claim the performance policy itself was installed.
 

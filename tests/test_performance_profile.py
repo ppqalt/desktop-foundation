@@ -73,10 +73,26 @@ class PerformanceProfileTests(unittest.TestCase):
             self.assertEqual(m.WINE.readlink(), Path('/dev/null'))
             m.transaction('restore')
 
+    def test_owned_policy_upgrade_is_reversible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.fixture(Path(directory))
+            m.transaction('apply')
+            with patch.object(m, 'CONDITION_TEXT', m.CONDITION_TEXT + '# policy update\n'):
+                m.transaction('apply')
+                self.assertIn('# policy update', m.CONDITION.read_text())
+                m.transaction('restore')
+                self.assertFalse(m.CONDITION.exists())
+                self.assertFalse(m.WINE.is_symlink())
+
+    def test_eac_verification_delegates_only_to_authoritative_read_only_tool(self):
+        with patch.object(m, 'hardware', return_value={}), patch.object(m, 'run', return_value='verified\n') as command:
+            m.transaction('verify-eac')
+            command.assert_called_once_with('/usr/bin/eac-status')
+
     def test_condition_keeps_other_formats_and_fails_open_on_query_errors(self):
         import subprocess
         text = m.CONDITION_TEXT.split("/bin/sh -c '", 1)[1].rsplit("'", 1)[0].replace('$$', '$').replace('%%', '%')
-        for output, query_exit, expected in [('# heading\n\n', 0, 1), (':other:M::AB::/usr/bin/other:\n', 0, 0), ('', 1, 0)]:
+        for output, query_exit, expected in [('# heading\n\n', 0, 1), (':other:M::AB::/usr/bin/other:\n', 0, 0), ('   :other:M::AB::/usr/bin/other:\n', 0, 0), ('', 1, 0)]:
             with tempfile.TemporaryDirectory() as directory:
                 tool = Path(directory)/'binfmt'
                 tool.write_text('#!/bin/sh\ncat <<\'DATA\'\n'+output+'\nDATA\nexit '+str(query_exit)+'\n')

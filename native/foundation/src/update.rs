@@ -1042,6 +1042,23 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             "Updated {branch} to {}; local work preserved.",
             &candidate[..12]
         );
+        if home.join("performance-profile").is_file()
+            && process::checked_capture(
+                &[
+                    root.join("scripts/performance-profile")
+                        .to_string_lossy()
+                        .into_owned(),
+                    "status".into(),
+                ],
+                SHORT,
+                16 * 1024,
+            )
+            .is_err()
+        {
+            println!(
+                "Performance policy pending administrator reconciliation: scripts/performance-profile enable lucky38"
+            );
+        }
         Ok(())
     })();
     result.map_err(|error| {
