@@ -277,6 +277,18 @@ fn boot_user() -> Result<Option<String>> {
     }
     Ok(Some(policy.user))
 }
+fn add_initial_session(config: &mut toml::Value, user: &str) -> Result<()> {
+    let table = config
+        .as_table_mut()
+        .ok_or_else(|| invalid("Expected greetd table"))?;
+    let session = toml::Value::try_from(json!({"user": user, "command": "/usr/bin/niri-session"}))
+        .map_err(|_| invalid("Invalid initial session"))?;
+    if table.contains_key("initial_session") {
+        return Err(invalid("Existing initial session must not be replaced"));
+    }
+    table.insert("initial_session".into(), session);
+    Ok(())
+}
 fn prepare_login() -> Result<()> {
     let base = protected(Path::new("/etc/greetd/config.toml"), false)?
         .ok_or_else(|| invalid("Missing greetd configuration"))?;
@@ -316,10 +328,7 @@ fn prepare_login() -> Result<()> {
                     user.as_bytes(),
                     0o600,
                 )?;
-                config["initial_session"] = toml::Value::try_from(
-                    json!({"user": user, "command": "/usr/bin/niri-session"}),
-                )
-                .map_err(|_| invalid("Invalid initial session"))?;
+                add_initial_session(&mut config, &user)?;
             }
             Ok(None) => (),
             Err(_) => eprintln!(
@@ -819,5 +828,20 @@ mod tests {
         entry.original_mode = 0o644;
         entry.backup = Some(PathBuf::from("/etc/shadow"));
         assert!(validate_entry(POLICY, &entry).is_err());
+    }
+    #[test]
+    fn initial_session_inserts_a_new_toml_table_without_overwriting_login() {
+        let mut config: toml::Value =
+            toml::from_str("[default_session]\nuser='greeter'\ncommand='tuigreet'\n").unwrap();
+        add_initial_session(&mut config, "account").unwrap();
+        assert_eq!(config["default_session"]["user"].as_str(), Some("greeter"));
+        assert_eq!(config["initial_session"]["user"].as_str(), Some("account"));
+        let rendered = toml::to_string(&config).unwrap();
+        let again: toml::Value = toml::from_str(&rendered).unwrap();
+        assert_eq!(
+            again["initial_session"]["command"].as_str(),
+            Some("/usr/bin/niri-session")
+        );
+        assert!(add_initial_session(&mut config, "other").is_err());
     }
 }
