@@ -212,6 +212,17 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
             "inactive_border",
             border("windowInactive", "inactiveBorder")?,
         ),
+        (
+            "shadow_state",
+            if v["shadow"]["enabled"]
+                .as_bool()
+                .ok_or_else(|| invalid("Invalid shadow enabled setting"))?
+            {
+                "on".into()
+            } else {
+                "off".into()
+            },
+        ),
         ("shadow_range", number(&v["shadow"]["range"])?),
         ("shadow_x", number(&v["shadow"]["offset"]["x"])?),
         ("shadow_left_x", (-shadow_x).to_string()),

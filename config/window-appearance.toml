@@ -14,10 +14,10 @@ brightness = 1.0
 saturationBoost = 0.06
 popupEnabled = false
 [shadow]
-enabled = false
-color = "#080b10"
-activeOpacity = 0.42
-inactiveOpacity = 0.12
+enabled = true
+color = "#000000"
+activeOpacity = 0.65
+inactiveOpacity = 0.40
 range = 18
 falloffPower = 3
 [shadow.offset]
