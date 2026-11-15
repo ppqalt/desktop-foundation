@@ -36,8 +36,12 @@ choice or `--boot-profile existing` says otherwise. Older desktop deployments
 inherit their recorded hardware profile. Firmware changes, recovery-key consent
 and the first verified EAC boot remain resumable checkpoints: repeat the same
 command afterward. No automatic reboot, key clearing or claim of physical recovery
-acceptance occurs. Once signing-key trust is established, upstream EAC provisioning
-uses its noninteractive mode; initial enrollment retains upstream consent.
+acceptance occurs. After firmware prerequisites and any required recovery-key confirmation,
+upstream EAC provisioning uses its supported noninteractive mode, including
+idempotent enrollment. There are no additional package or enrollment questions.
+Niri dependency installation, rollback, restoration and the paru source-build
+fallback also run without package confirmation prompts. Sudo authentication
+remains required; no passwordless administrator access is installed.
 
 Niri recovery first uses a readable exact signed stock package. If system cache
 permissions prevent access, it downloads the exact repository version and detached

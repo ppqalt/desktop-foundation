@@ -115,7 +115,14 @@ impl Effects for Native {
             }
         }
         if !missing.is_empty() {
-            let mut command = args(&["sudo", "pacman", "-Syu", "--needed"]);
+            let mut command = args(&[
+                "sudo",
+                "pacman",
+                "-Syu",
+                "--needed",
+                "--noconfirm",
+                "--ask=4",
+            ]);
             command.extend(missing);
             self.interactive(&command)?;
         }
@@ -612,7 +619,7 @@ pub fn install(
         let recovery = j.previous.as_ref().unwrap_or(&j.original).clone();
         verified(paths, &recovery, e)?;
         if !installed(paths, &recovery, e) {
-            e.interactive(&args(&["sudo","pacman","-U",text(&recovery.archive)?])).map_err(|rollback|invalid(format!("{error}; package recovery also failed: {rollback}. Recovery archives and journal retained")))?;
+            e.interactive(&args(&["sudo","pacman","-U","--noconfirm","--ask=4",text(&recovery.archive)?])).map_err(|rollback|invalid(format!("{error}; package recovery also failed: {rollback}. Recovery archives and journal retained")))?;
             if !installed(paths, &recovery, e) {
                 return Err(invalid(format!(
                     "{error}; recovery payload verification failed; journal retained"
@@ -776,7 +783,14 @@ pub fn restore(root: &Path, paths: &Paths, e: &mut impl Effects) -> Result<()> {
         owner(root, paths)?;
         e.render(root, &profile(paths)?)?;
     }
-    e.interactive(&args(&["sudo", "pacman", "-U", text(&j.original.archive)?]))?;
+    e.interactive(&args(&[
+        "sudo",
+        "pacman",
+        "-U",
+        "--noconfirm",
+        "--ask=4",
+        text(&j.original.archive)?,
+    ]))?;
     if !installed(paths, &j.original, e) {
         return Err(invalid(
             "Stock Niri restore did not verify; journal retained",

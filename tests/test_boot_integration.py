@@ -134,7 +134,7 @@ class BootPlanning(unittest.TestCase):
             with self.assertRaisesRegex(b.Checkpoint, 'unrelated BootNext'):
                 b.select_boot(Transaction(), {'esp': {'partuuid': PART}, 'boot_id': 'test'}, 'next')
 
-    def test_trusted_eac_setup_is_noninteractive_but_initial_enrollment_is_not(self):
+    def test_eac_setup_is_noninteractive_after_prerequisites_and_recovery_consent(self):
         class Transaction:
             data = {}
             def save(self): pass
@@ -147,7 +147,18 @@ class BootPlanning(unittest.TestCase):
             with patch.object(b, 'verify_upstream'), patch.object(b, 'scan', return_value=after), patch.object(b, 'command') as command:
                 b.run_upstream(Transaction(), facts, False)
                 arguments = command.call_args.args
-                self.assertEqual('--yes' in arguments, trusted)
+                self.assertIn('--yes', arguments)
+
+    def test_unconfirmed_recovery_credentials_stop_before_unattended_enrollment(self):
+        class Transaction:
+            data = {}
+            def checkpoint(self, name, message): raise b.Checkpoint(name)
+        facts = {'eac_ca_enrolled': False, 'keys': {'db': {'local_enrolled': False}},
+                 'encryption': {'tpm_bound': True, 'bitlocker_possible': False}}
+        with patch.object(b, 'verify_upstream'), patch.object(b, 'command') as command:
+            with self.assertRaisesRegex(b.Checkpoint, 'recovery-keys'):
+                b.run_upstream(Transaction(), facts, False)
+            command.assert_not_called()
 
     def test_refresh_route_has_no_enrollment_or_firmware_mutation(self):
         identity = {'root_uuid': 'root', 'esp_partuuid': PART}

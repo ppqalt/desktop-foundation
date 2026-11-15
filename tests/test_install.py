@@ -112,12 +112,12 @@ class ParuBootstrap(unittest.TestCase):
             (tools / 'makepkg').write_text('#!/bin/bash\n[[ $EUID != 0 ]] || exit 99\nprintf "makepkg %s\\n" "$*" >> "$DF_TEST_LOG"\n')
             for command in ['sudo', 'git', 'makepkg']:
                 (tools / command).chmod(0o755)
-            result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/paru-bootstrap')], input='y\n', text=True,
+            result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/paru-bootstrap')], stdin=subprocess.DEVNULL, text=True,
                                     env={**os.environ, 'PATH': str(tools), 'DF_TEST_LOG': str(log)}, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             commands = log.read_text()
             self.assertIn('sudo pacman -Syu --needed --noconfirm --ask=4 base-devel git', commands)
-            self.assertIn('makepkg -si', commands)
+            self.assertIn('makepkg -si --noconfirm', commands)
             self.assertNotIn('sudo makepkg', commands)
 
     def test_signed_paru_requires_no_aur_recipe_prompt(self):

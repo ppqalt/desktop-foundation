@@ -814,9 +814,10 @@ def run_upstream(tx, facts, recovered_keys):
             tx.checkpoint('recovery-keys', 'Confirm possession of BitLocker/TPM-bound LUKS recovery credentials with --recovery-keys-confirmed before enrollment')
         tx.data['recovery_keys_confirmed'] = True
         tx.save()
-    # Upstream compares DER identities before appending db. Never call sbctl's
-    # non-idempotent partial append independently or use -y for enrollment.
-    command('/usr/bin/eac-setup', *([] if enrollment_needed else ['--yes']), interactive=True, boot_manager=True)
+    # Firmware prerequisites and recovery-credential consent are checked above.
+    # Upstream owns idempotent DER enrollment/readback; its supported --yes
+    # suppresses package and enrollment prompts, never the prerequisite checks.
+    command('/usr/bin/eac-setup', '--yes', interactive=True, boot_manager=True)
     after = scan()
     if facts['setup_mode'] is not True and any(facts['keys'][name]['fingerprints'] != after['keys'][name]['fingerprints'] for name in ('PK', 'KEK')):
         tx.checkpoint('certificate-change', 'PK/KEK changed unexpectedly during db enrollment; stop and inspect firmware state')

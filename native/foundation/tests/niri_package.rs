@@ -129,7 +129,7 @@ impl Effects for Fake {
             )?;
             return Ok(());
         }
-        if ![4, 6].contains(&args.len()) || args[..3] != ["sudo", "pacman", "-U"] {
+        if args.len() != 6 || args[..5] != ["sudo", "pacman", "-U", "--noconfirm", "--ask=4"] {
             return Err(invalid("Unexpected privileged operation"));
         }
         let path = Path::new(args.last().unwrap());

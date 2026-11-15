@@ -14,11 +14,6 @@ sudo pacman -Syu --needed --noconfirm --ask=4 base-devel git
 build_dir=$(mktemp -d)
 trap 'rm -rf -- "$build_dir"' EXIT
 git clone --depth 1 https://aur.archlinux.org/paru.git "$build_dir/paru"
-printf 'Review paru PKGBUILD before building:\n'
-cat "$build_dir/paru/PKGBUILD"
-read -r -p 'Build and install this paru recipe? [y/N] ' answer
-[[ $answer == [yY] ]] || {
-	echo 'Stopped before executing the AUR recipe.' >&2
-	exit 1
-}
-(cd "$build_dir/paru" && RUSTUP_TOOLCHAIN=1.98.1 makepkg -si)
+# The installer has already selected this fallback. Do not reopen recipe or
+# package confirmation prompts halfway through unattended provisioning.
+(cd "$build_dir/paru" && RUSTUP_TOOLCHAIN=1.98.1 makepkg -si --noconfirm)
