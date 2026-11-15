@@ -752,3 +752,24 @@ fn wrong_or_ambiguous_identity_and_invalid_embedded_signature_never_replace_niri
         assert_eq!(fs::read(&f.paths.binary).unwrap(), b"stock-binary");
     }
 }
+
+#[test]
+fn shadow_patch_participates_in_recipe_identity_and_preserves_signed_recovery() {
+    let mut f = Fixture::new();
+    f.install().unwrap();
+    let before = niri_package::read(&f.paths).unwrap().unwrap();
+    fs::write(
+        f.root.join("patches/niri/shadow-stacking.patch"),
+        "fixture shadow plane correction",
+    )
+    .unwrap();
+    f.install().unwrap();
+    let after = niri_package::read(&f.paths).unwrap().unwrap();
+    assert_ne!(before.recipe, after.recipe);
+    assert_eq!(f.e.builds, 2);
+    assert_eq!(after.original.sha256, before.original.sha256);
+    assert_eq!(
+        after.original.signature_sha256,
+        before.original.signature_sha256
+    );
+}

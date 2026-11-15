@@ -18,11 +18,11 @@ enabled = true
 color = "#000000"
 activeOpacity = 1.0
 inactiveOpacity = 1.0
-range = 4
+range = 32
 falloffPower = 3
 [shadow.offset]
 x = 0
-y = 0
+y = 5
 [focus]
 inactiveDim = 0.0
 borderWidth = 0

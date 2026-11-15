@@ -179,6 +179,10 @@ fn recipe(root: &Path) -> Result<String> {
         &root.join("patches/niri/overview-ctrl-scroll.patch"),
         1024 * 1024,
     )?);
+    let shadows = root.join("patches/niri/shadow-stacking.patch");
+    if shadows.try_exists()? {
+        data.extend(bytes(&shadows, 1024 * 1024)?);
+    }
     Ok(digest(&data))
 }
 fn identity(e: &mut impl Effects, path: &Path) -> Result<(String, String)> {

@@ -33,7 +33,7 @@ mkdir -p -- "$package_state"
 }
 work=$(mktemp -d "$package_state/build.XXXXXXXX")
 trap 'rm -r -- "$work"' EXIT
-cp -- "$root/patches/niri/PKGBUILD" "$root/patches/niri/overview-ctrl-scroll.patch" "$work/"
+cp -- "$root/patches/niri/PKGBUILD" "$root/patches/niri/"*.patch "$work/"
 # Read the reviewed recipe's literal version through makepkg's own metadata;
 # do not duplicate its version in the installer/updater.
 metadata=$(cd -- "$work" && env -u CARGO_TARGET_DIR makepkg --printsrcinfo)
@@ -46,12 +46,14 @@ END {if (v == "" || r == "") exit 1; print (e != "" && e != "0" ? e ":" : "") v 
 # artifacts with makepkg provenance for this exact reviewed recipe and patch.
 recipe_hash=$(sha256sum "$root/patches/niri/PKGBUILD")
 recipe_hash=${recipe_hash%% *}
-patch_hash=$(sha256sum "$root/patches/niri/overview-ctrl-scroll.patch")
-patch_hash=${patch_hash%% *}
-if ! grep -Fq "$patch_hash" "$root/patches/niri/PKGBUILD"; then
-	printf '%s\n' 'Niri patch differs from the reviewed recipe checksum; nothing reused or built.' >&2
-	exit 1
-fi
+for patch in "$root/patches/niri/"*.patch; do
+	patch_hash=$(sha256sum "$patch")
+	patch_hash=${patch_hash%% *}
+	if ! grep -Fq "$patch_hash" "$root/patches/niri/PKGBUILD"; then
+		printf '%s\n' 'Niri patch differs from the reviewed recipe checksum; nothing reused or built.' >&2
+		exit 1
+	fi
+done
 for archive in "$package_state"/package.*/*.pkg.tar.*; do
 	[[ -f $archive && ! -L $archive && -O $archive && $archive != *.sig ]] || continue
 	directory=${archive%/*}

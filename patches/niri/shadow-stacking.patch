@@ -1,0 +1,246 @@
+diff --git a/src/layout/floating.rs b/src/layout/floating.rs
+index d102f40d..3524c4ac 100644
+--- a/src/layout/floating.rs
++++ b/src/layout/floating.rs
+@@ -1074,15 +1074,25 @@ impl<W: LayoutElement> FloatingSpace<W> {
+         }
+ 
+         let active = self.active_window_id.clone();
++        // Like tiled windows, static floating shadows form one plane below
++        // floating content. Keep the floating plane above the tiled plane.
++        let mut shadows = Vec::new();
+         for (tile, tile_pos) in self.tiles_with_render_positions() {
+             // For the active tile, draw the focus ring.
+             let focus_ring = focus_ring && Some(tile.window().id()) == active.as_ref();
+ 
+             let xray_pos = xray_pos.offset(tile_pos);
+             tile.render(ctx.r(), tile_pos, xray_pos, focus_ring, &mut |elem| {
+-                push(elem.into())
++                if matches!(elem, TileRenderElement::Shadow(_)) {
++                    shadows.push(elem);
++                } else {
++                    push(elem.into());
++                }
+             });
+         }
++        for shadow in shadows {
++            push(shadow.into());
++        }
+     }
+ 
+     pub fn interactive_resize_begin(&mut self, window: W::Id, edges: ResizeEdge) -> bool {
+diff --git a/src/layout/scrolling.rs b/src/layout/scrolling.rs
+index 007bcaf5..efb1e776 100644
+--- a/src/layout/scrolling.rs
++++ b/src/layout/scrolling.rs
+@@ -2919,6 +2919,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
+         }
+ 
+         let mut first = true;
++        // Renderer elements are front-to-back. Keep static shadows behind all
++        // tiled content so focus order cannot move a halo onto its neighbour.
++        // Opening/closing snapshots retain their existing atomic animations.
++        let mut shadows = Vec::new();
+ 
+         // This matches self.tiles_in_render_order().
+         let view_off = Point::from((-self.view_pos(), 0.));
+@@ -2958,10 +2962,17 @@ impl<W: LayoutElement> ScrollingSpace<W> {
+ 
+                 let xray_pos = xray_pos.offset(tile_pos);
+                 tile.render(ctx.r(), tile_pos, xray_pos, focus_ring, &mut |elem| {
+-                    push(elem.into())
++                    if matches!(elem, TileRenderElement::Shadow(_)) {
++                        shadows.push(elem);
++                    } else {
++                        push(elem.into());
++                    }
+                 });
+             }
+         }
++        for shadow in shadows {
++            push(shadow.into());
++        }
+     }
+ 
+     pub fn window_under(&self, pos: Point<f64, Logical>) -> Option<(&W, HitType)> {
+diff --git a/src/layout/tests.rs b/src/layout/tests.rs
+index 31265dd9..626b59d3 100644
+--- a/src/layout/tests.rs
++++ b/src/layout/tests.rs
+@@ -15,6 +15,7 @@ use super::*;
+ 
+ mod animations;
+ mod fullscreen;
++mod shadows;
+ 
+ impl<W: LayoutElement> Default for Layout<W> {
+     fn default() -> Self {
+@@ -168,6 +169,21 @@ impl LayoutElement for TestWindow {
+         false
+     }
+ 
++    fn render_normal<R: NiriRenderer>(
++        &self,
++        _ctx: RenderCtx<R>,
++        location: Point<f64, Logical>,
++        _scale: Scale<f64>,
++        alpha: f32,
++        push: &mut dyn FnMut(LayoutElementRenderElement<R>),
++    ) {
++        use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
++        use smithay::backend::renderer::element::Kind;
++        let color = if self.0.id % 2 == 0 { [0.35, 0.65, 0.45, 1.] } else { [0.65, 0.35, 0.45, 1.] };
++        let buffer = SolidColorBuffer::new(self.size().to_f64(), color);
++        push(SolidColorRenderElement::from_buffer(&buffer, location, alpha, Kind::Unspecified).into());
++    }
++
+     fn request_size(
+         &mut self,
+         size: Size<i32, Logical>,
+diff --git a/src/layout/tests/shadows.rs b/src/layout/tests/shadows.rs
+new file mode 100644
+index 00000000..f3a470fb
+--- /dev/null
++++ b/src/layout/tests/shadows.rs
+@@ -0,0 +1,141 @@
++//! Real offscreen EGL rendering. No host Wayland socket, session or output.
++use super::*;
++use crate::render_helpers::{render_to_vec, resources, shaders, RenderTarget};
++use smithay::backend::allocator::Fourcc;
++use smithay::backend::egl::{native::EGLSurfacelessDisplay, EGLContext, EGLDisplay};
++use smithay::backend::renderer::gles::GlesRenderer;
++
++fn frame(layout: &mut Layout<TestWindow>, renderer: &mut GlesRenderer) -> Vec<u8> {
++    let output = layout.outputs().next().unwrap().clone();
++    layout.update_render_elements(Some(&output));
++    let mut elements = Vec::new();
++    layout
++        .monitor_for_output(&output)
++        .unwrap()
++        .render_workspaces(
++            RenderCtx {
++                renderer,
++                target: RenderTarget::Output,
++                xray: None,
++            },
++            false,
++            &mut |element| elements.push(element),
++        );
++    render_to_vec(
++        renderer,
++        (1920, 1080).into(),
++        1.0.into(),
++        Transform::Normal,
++        Fourcc::Abgr8888,
++        elements.iter().rev(),
++    )
++    .unwrap()
++}
++
++fn save(name: &str, pixels: &[u8]) {
++    let Some(directory) = std::env::var_os("DF_SHADOW_ARTIFACTS") else {
++        return;
++    };
++    let path = std::path::PathBuf::from(directory).join(format!("{name}.png"));
++    let mut encoder = png::Encoder::new(std::fs::File::create(path).unwrap(), 1920, 1080);
++    encoder.set_color(png::ColorType::Rgba);
++    encoder.set_depth(png::BitDepth::Eight);
++    encoder
++        .write_header()
++        .unwrap()
++        .write_image_data(pixels)
++        .unwrap();
++}
++
++fn run_case(floating: bool, opacity: f32) {
++    let config = Config::parse_mem(r##"
++        layout {
++            gaps 12
++            center-focused-column "never"
++            default-column-width { fixed 600; }
++            focus-ring { off; }
++            border { off; }
++            shadow { on; softness 32; spread 12; offset x=0 y=5; color "#000000ff"; inactive-color "#000000ff"; }
++        }
++        animations { off; }
++    "##).unwrap();
++    let mut layout = Layout::new(Clock::with_time(Duration::ZERO), &config);
++    check_ops_on_layout(
++        &mut layout,
++        [
++            Op::AddOutput(1),
++            Op::AddWindow {
++                params: TestWindowParams {
++                    is_floating: floating,
++                    rules: Some(ResolvedWindowRules {
++                        opacity: Some(opacity),
++                        ..Default::default()
++                    }),
++                    ..TestWindowParams::new(1)
++                },
++            },
++            Op::Communicate(1),
++            Op::AddWindow {
++                params: TestWindowParams {
++                    is_floating: floating,
++                    rules: Some(ResolvedWindowRules {
++                        opacity: Some(opacity),
++                        ..Default::default()
++                    }),
++                    ..TestWindowParams::new(2)
++                },
++            },
++            Op::Communicate(2),
++        ],
++    );
++    if floating {
++        layout.move_floating_window(
++            Some(&1),
++            PositionChange::SetFixed(100.),
++            PositionChange::SetFixed(100.),
++            false,
++        );
++        layout.move_floating_window(
++            Some(&2),
++            PositionChange::SetFixed(212.),
++            PositionChange::SetFixed(100.),
++            false,
++        );
++    }
++    layout.clock.set_unadjusted(Duration::from_secs(10));
++    layout.advance_animations();
++    let mut renderer = unsafe {
++        let display = EGLDisplay::new(EGLSurfacelessDisplay).unwrap();
++        let context = EGLContext::new(&display).unwrap();
++        GlesRenderer::new(context).unwrap()
++    };
++    resources::init(&mut renderer);
++    shaders::init(&mut renderer);
++    layout.activate_window(&1);
++    let left = frame(&mut layout, &mut renderer);
++    layout.activate_window(&2);
++    let right = frame(&mut layout, &mut renderer);
++    if !floating && opacity == 1. {
++        save("focus-left", &left);
++        save("focus-right", &right);
++    }
++    let different = left
++        .chunks_exact(4)
++        .zip(right.chunks_exact(4))
++        .filter(|(a, b)| a != b)
++        .count();
++    assert_eq!(different, 0, "Changing only focus changed rendered pixels");
++}
++
++#[test]
++fn egl_shadow_pixels_do_not_change_when_tiled_focus_changes() {
++    run_case(false, 1.);
++}
++#[test]
++fn egl_shadow_pixels_stay_stable_for_translucent_tiled_windows() {
++    run_case(false, 0.8);
++}
++#[test]
++fn egl_shadow_pixels_do_not_change_between_adjacent_floating_windows() {
++    run_case(true, 1.);
++}
