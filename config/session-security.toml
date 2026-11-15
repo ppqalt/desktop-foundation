@@ -1,0 +1,2 @@
+# Idle locking is opt-in. Suspend always requires a confirmed session lock.
+idle_lock_seconds = 0

@@ -57,6 +57,7 @@ class Update(unittest.TestCase):
         for relative in ['native/foundation/target/release/desktop-foundationctl',
                          'native/foundation/target/release/foundation-oo7-ready',
                          'native/foundation/target/release/foundation-browser-policy',
+                         'native/foundation/target/release/foundation-auth',
                          'native/nothing/target/release/foundation-nothing']:
             p = self.root / relative; p.parent.mkdir(parents=True, exist_ok=True); p.write_text('old backend'); p.chmod(0o755)
         for name in ['sudo', 'pacman', 'paru', 'yay']:
@@ -92,7 +93,7 @@ if os.environ.get('DF_FAIL_STAGE') == name:
     sys.exit(7)
 if name in ['build-backend', 'build-nothing']:
     crate = 'foundation' if name == 'build-backend' else 'nothing'
-    names = ['desktop-foundationctl','foundation-oo7-ready','foundation-browser-policy'] if crate == 'foundation' else ['foundation-nothing']
+    names = ['desktop-foundationctl','foundation-oo7-ready','foundation-browser-policy','foundation-auth'] if crate == 'foundation' else ['foundation-nothing']
     target = root / 'native' / crate / 'target/release'
     target.mkdir(parents=True, exist_ok=True)
     for binary in names:

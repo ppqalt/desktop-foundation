@@ -1,0 +1,9 @@
+[Unit]
+Description=Confirm Desktop Foundation sessions are locked before sleep
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/desktop-foundation-auth before-sleep
+TimeoutStartSec=20

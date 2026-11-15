@@ -37,3 +37,24 @@ jobs:
           cargo clippy --locked --manifest-path native/nothing/Cargo.toml --all-targets -- -D warnings
           cargo test --locked --manifest-path native/nothing/Cargo.toml
           cargo build --locked --release --manifest-path native/nothing/Cargo.toml
+  lock-ui:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actual compositor and QML test dependencies
+        run: pacman -Syu --needed --noconfirm python quickshell niri weston swaylock mesa libglvnd fontconfig rust sqlite dav1d wayland dbus ttf-dejavu
+      - name: Prepare unprivileged isolated test account
+        run: |
+          useradd --create-home df-test
+          chown -R df-test:df-test "$GITHUB_WORKSPACE"
+      - name: Build backend and run required lock UI and private compositor tests
+        env:
+          DF_REQUIRE_QML_TESTS: '1'
+          DF_RUN_NESTED_LOCK_TESTS: '1'
+        run: |
+          runuser -u df-test -- mkdir -p /home/df-test/.local/share/fonts
+          runuser -u df-test -- ln -s "$GITHUB_WORKSPACE/fonts" /home/df-test/.local/share/fonts/desktop-foundation
+          runuser -u df-test -- fc-cache -f
+          runuser -u df-test -- cargo build --locked --manifest-path native/foundation/Cargo.toml --bins
+          runuser -u df-test -- env DF_REQUIRE_QML_TESTS=1 DF_RUN_NESTED_LOCK_TESTS=1 python -m unittest discover -s tests -p test_locking_qml.py -v

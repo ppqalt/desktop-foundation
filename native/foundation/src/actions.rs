@@ -118,7 +118,13 @@ const SPECS: &[ActionSpec] = &[
 ];
 pub fn power_command(root: &Path, action: &str) -> Result<Vec<String>> {
     match action {
-        "suspend" | "reboot" | "poweroff" => Ok(vec!["systemctl".into(), action.into()]),
+        "suspend" => Ok(vec![
+            root.join("scripts/lock-screen")
+                .to_string_lossy()
+                .into_owned(),
+            "suspend".into(),
+        ]),
+        "reboot" | "poweroff" => Ok(vec!["systemctl".into(), action.into()]),
         "logout" => Ok(vec![
             root.join("scripts/session-exit")
                 .to_string_lossy()
@@ -214,6 +220,10 @@ mod tests {
         assert_eq!(
             power_command(Path::new("/checkout"), "poweroff").unwrap(),
             ["systemctl", "poweroff"]
+        );
+        assert_eq!(
+            power_command(Path::new("/checkout"), "suspend").unwrap(),
+            ["/checkout/scripts/lock-screen", "suspend"]
         );
         assert!(power_command(Path::new("/checkout"), "reboot; touch /tmp/no").is_err());
         assert!(plan(Path::new("/checkout"), "unknown").is_err());

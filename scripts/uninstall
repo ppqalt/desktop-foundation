@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ $# -gt 1 || $# == 1 && ${1:-} != --greeter ]]; then
+	printf 'Usage: %s [--greeter]\n' "$0" >&2
+	exit 2
+fi
+if [[ -f /var/lib/desktop-foundation/authentication/manifest.json ]]; then
+	# Remove the sleep dependency before removing its user locker unit.
+	sudo "$root/scripts/authentication-setup" restore
+fi
 if [[ ${1:-} == --greeter ]]; then
 	sudo "$root/scripts/system-setup" restore
 elif [[ $# != 0 ]]; then

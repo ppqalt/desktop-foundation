@@ -39,6 +39,7 @@ class Backend(unittest.TestCase):
         (self.root / 'config/application-roles.json').write_text(json.dumps(self.roles))
         self.fake('launch', directory=self.root / 'scripts')
         self.fake('session-exit', directory=self.root / 'scripts')
+        self.fake('lock-screen', directory=self.root / 'scripts')
 
     def fake(self, name, body='pass', directory=None):
         file = (directory or self.bin) / name
@@ -84,7 +85,7 @@ class Backend(unittest.TestCase):
         self.assertTrue(all(action['available'] for action in catalog))
         self.assertEqual(next(a for a in catalog if a['id'] == 'power.reboot')['invocation_policy'], 'session-change')
         for action in ['suspend', 'reboot', 'poweroff', 'logout']:
-            expected = [str(self.root / 'scripts/session-exit')] if action == 'logout' else ['systemctl', action]
+            expected = [str(self.root / 'scripts/session-exit')] if action == 'logout' else [str(self.root / 'scripts/lock-screen'), 'suspend'] if action == 'suspend' else ['systemctl', action]
             self.assertEqual(json.loads(self.invoke('power', '--check', action).stdout), expected)
             self.assertEqual(json.loads(self.invoke('actions', 'plan', 'power.' + action).stdout), expected)
         self.assertNotEqual(self.invoke('actions', 'invoke', 'power.reboot;touch', check=False).returncode, 0)

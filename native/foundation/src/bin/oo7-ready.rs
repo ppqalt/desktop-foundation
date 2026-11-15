@@ -31,6 +31,11 @@ fn main() {
         }
         libc::alarm(10);
     }
+    if desktop_foundationctl::authentication::skip_initial_keyring().unwrap_or(false) {
+        // PAM default=1 skips the following oo7 password handoff. No password
+        // exists on this path; skip both the wait and the handoff silently.
+        std::process::exit(1);
+    }
     let result = desktop_foundationctl::keyring::ready();
     // SAFETY: cancel our alarm before formatting a fixed diagnostic result.
     unsafe { libc::alarm(0) };

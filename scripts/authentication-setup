@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+"$root/scripts/foundation" authentication "$@"
+if [[ ${1:-} == install || ${1:-} == restore ]]; then
+	# The native journal sets this marker only when crypttab actually changed.
+	if [[ -f /var/lib/desktop-foundation/authentication/rebuild-required ]]; then
+		"$root/scripts/plymouth-setup" rebuild
+		rm -- /var/lib/desktop-foundation/authentication/rebuild-required
+	fi
+fi

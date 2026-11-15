@@ -298,3 +298,14 @@ Vendor-signed EAC EFI executables are preserved and checked for changes. Custom
 UKI-only/signing setups require explicit review and are not silently rewritten.
 A fresh encrypted boot still requires physical verification; image inspection is
 not evidence that the passphrase prompt and subsequent login worked on hardware.
+
+### Authentication and session locking
+
+Package-enabled profiles install `swaylock` (recovery) and `swayidle` (event-driven
+lock/optional idle notifications), native authentication assets and user lock units.
+Super+L locks; Super+Right retains focus-right navigation. Idle locking defaults off;
+confirmed locking before suspend is mandatory. DF-owned greetd can authorize one
+initial Niri session after a verified supported LUKS2 root unlock, without saving
+or reusing the passphrase. Existing display managers remain conventional.
+See [authentication and recovery](authentication.md) for the trust policy, keyring
+behavior, configuration and hardware acceptance limits.

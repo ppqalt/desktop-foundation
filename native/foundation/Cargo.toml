@@ -10,6 +10,10 @@ default-run = "desktop-foundationctl"
 bench = []
 
 [[bin]]
+name = "foundation-auth"
+path = "src/bin/auth.rs"
+
+[[bin]]
 name = "foundation-oo7-ready"
 path = "src/bin/oo7-ready.rs"
 
@@ -31,7 +35,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 shell-words = "1"
-toml = { version = "0.9", default-features = false, features = ["parse", "serde"] }
+toml = { version = "0.9", default-features = false, features = ["parse", "serde", "display"] }
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }

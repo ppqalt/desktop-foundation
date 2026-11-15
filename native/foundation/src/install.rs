@@ -888,6 +888,15 @@ pub fn execute(
     if o.greeter {
         sudo_script(r, root, "system-setup")?;
     }
+    if o.packages {
+        let mut args = vec!["sudo".into()];
+        let mut flags = vec!["install"];
+        if !o.greeter {
+            flags.push("--locker-only");
+        }
+        args.extend(script(root, "authentication-setup", &flags));
+        r.command(&args)?;
+    }
     if o.clean_boot && o.greeter {
         sudo_script(r, root, "greeter-console-setup")?;
     }

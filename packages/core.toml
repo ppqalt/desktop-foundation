@@ -32,6 +32,8 @@ packages = [
     "cachy-update",
     "blueman",
     "niri",
+    "swaylock",
+    "swayidle",
     "swaybg",
     "mako",
     "xwayland-satellite",

@@ -81,3 +81,9 @@ selected profile and otherwise uses `session/keyring/`. Lucky38 preserves its
 existing GNOME Keyring setup there. Fresh default installations retain oo7 and
 its packaged `dbus-org.freedesktop.secrets.service` alias. Profile changes retarget
 managed links through the existing ownership journal without rebasing originals.
+
+DF-authorized encrypted-root initial sessions deliberately supply no login password.
+The root-owned authentication gate creates a non-secret, one-use marker for that
+account; the readiness executable consumes it and skips both the wait and oo7 PAM
+handoff for this one opening. Later normal password logins retain the existing path.
+No LUKS password cache is reused. See [authentication](authentication.md).

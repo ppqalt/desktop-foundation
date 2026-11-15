@@ -108,12 +108,25 @@ ShellRoot {
                         },
                         {
                             name: "Power"
-                        }
+                        },
+                        {name: "Session lock"}
                     ]
                     onActivated: index => {
-                        const items = [null, actionsGroup, inputGroup, desktopGroup, motionGroup, powerGroup];
+                        const items = [null, actionsGroup, inputGroup, desktopGroup, motionGroup, powerGroup, lockGroup];
                         if (items[index])
                             galleryScroll.contentY = Math.min(galleryScroll.contentHeight - galleryScroll.height, Math.max(0, items[index].y * window.previewZoom));
+                    }
+                }
+                ControlGroup {
+                    id: lockGroup
+                    Layout.fillWidth: true
+                    Text { text: "Session lock"; color: Material.colors.on_surface; font.family: Theme.typography.family; font.pixelSize: Material.type.titleMedium }
+                    LockContent {
+                        Layout.fillWidth: true
+                        implicitHeight: 240
+                        accountName: "Example account"
+                        onSubmitted: { takeResponse(); errorText = "Incorrect password"; focusPassword(); }
+                        onCancelled: errorText = ""
                     }
                 }
                 ControlGroup {

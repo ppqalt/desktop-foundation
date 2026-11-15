@@ -228,9 +228,39 @@ def restore():
     print('Original packages and boot files restored. Firmware boot order unchanged.')
 
 
+def rebuild():
+    if not os.path.ismount('/boot'):
+        raise ValueError('Mount the installed /boot before rebuilding')
+    if not DROPIN.is_file() or DROPIN.read_text() != POLICY:
+        raise ValueError('Install the no-Plymouth policy before rebuilding')
+    for preset in Path('/etc/mkinitcpio.d').glob('*.preset'):
+        if any(line.strip().startswith(('default_uki=', 'fallback_uki=')) for line in preset.read_text().splitlines()):
+            raise ValueError('Locally generated UKI preset requires signing review')
+    if Path('/etc/default/limine').is_file() and any(
+            line.split('#', 1)[0].strip().replace(' ', '').strip().replace("'", '').replace('\"', '') == 'ENABLE_UKI=yes'
+            for line in Path('/etc/default/limine').read_text().splitlines()):
+        raise ValueError('Locally generated UKIs require explicit signing review')
+    efi = {str(p): identity(p) for p in Path('/boot').rglob('*')
+           if p.is_file() and p.suffix.lower() == '.efi'}
+    build = generator()
+    if build == ['limine-mkinitcpio'] and list(Path('/etc/mkinitcpio.d').glob('*.preset')):
+        run('mkinitcpio', '-P')
+    run(*build)
+    verify()
+    if any(identity(Path(p)) != value for p, value in efi.items()):
+        raise ValueError('Existing EFI executable changed during rebuild')
+    journal = STATE / 'manifest.json'
+    if journal.exists():
+        tx = json.loads(journal.read_text())
+        if tx['status'] == 'installed':
+            tx['boot_managed'] = {str(p.relative_to('/boot')): identity(p)
+                                  for p in Path('/boot').rglob('*') if p.is_file()}
+            save(tx)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['plan', 'install', 'restore'])
+    parser.add_argument('action', choices=['plan', 'install', 'restore', 'rebuild'])
     args = parser.parse_args()
     if args.action == 'plan':
         print('Remove:', ', '.join(installed()) or '(none)')
@@ -247,7 +277,9 @@ def main():
     fd = os.open(STATE / 'lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        if args.action == 'restore':
+        if args.action == 'rebuild':
+            rebuild()
+        elif args.action == 'restore':
             restore()
         else:
             apply()

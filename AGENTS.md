@@ -179,7 +179,7 @@ here and link specialized references rather than duplicating their contents.
 `native/foundation/Cargo.toml` defines the `desktop-foundationctl` package using
 Rust 2024. `src/main.rs` parses commands and dispatches to modules exported by
 `src/lib.rs`. Supporting binaries are `foundation-oo7-ready` and
-`foundation-browser-policy`; `foundation-measure` is gated by the `bench` feature.
+`foundation-browser-policy`, plus the root-owned one-shot `foundation-auth`; `foundation-measure` is gated by the `bench` feature.
 Dependencies include serde/JSON/TOML, system SQLite through rusqlite, image,
 SHA-256 and Wayland client/protocol crates. Do not add a framework merely to
 wrap an existing native command.
@@ -211,6 +211,7 @@ PipeWire SBC/SBC-XQ/AAC/LDAC playback change.
 | `update.rs`, `preflight.rs`, `source_identity.rs` | Isolated update/build validation and source identity |
 | `monitor.rs`, `monitor_config.rs`, `monitor_shader.rs` | Kitty/btop panel lifecycle, persistent settings, appearance/motion |
 | `shell.rs`, `session.rs`, `screenshot.rs` | Shell IPC, native session routes, capture |
+| `authentication.rs`, `locking.rs` | Password-free encrypted-root login policy, secure lock supervision and suspend authorization; see `docs/authentication.md` |
 | `browser_policy.rs`, `keyring.rs`, `system_setup.rs` | Narrow privileged integration contracts and reversible greetd/PAM installation |
 | `local_ai.rs`, `app_mods.rs`, `geode.rs`, `spotify_theme.rs` | On-demand AI and scoped application adapters/modifications |
 | `state.rs`, `process.rs`, `ui_preferences.rs`, `diagnostics.rs`, `doctor.rs`, `startup_report.rs`, `boot_report.rs`, `packages.rs` | Filesystem/lock primitives, finite subprocesses, accessibility preference read, diagnostics/cache |
@@ -666,3 +667,15 @@ Before completion, check: ownership preserved; shared architecture respected;
 interaction and failure paths covered; relevant tests actually passed; generated
 outputs and reload verified when applied; unrelated edits still present; only
 focused files staged; no publication without authorization.
+
+## Secure session-lock exception
+
+The session lock is a security boundary, not a dismissible popup. Super+L uses
+`scripts/lock-screen` and a separate on-demand Quickshell configuration with
+`WlSessionLock`; it intentionally bypasses SurfaceRouter, ordinary shell reloads,
+outside-click/Escape dismissal and popup lifecycle. Only PAM success releases
+coverage, and Niri's secure acknowledgement gates readiness/suspend. Never add an
+unlock IPC action or substitute a layer-shell overlay. PAM uses Quickshell's
+native PAM interface; Rust owns supervision and privileged policy without ever
+handling account or LUKS passwords. The gallery reuses `LockContent` presentation
+with inert actions. See `docs/authentication.md` for trust and acceptance limits.

@@ -31,7 +31,7 @@ binds {
     "Super+Shift+H" { move-column-left; }
     "Super+Right" { focus-column-right; }
     "Super+Shift+Right" { move-column-right; }
-    "Super+L" { focus-column-right; }
+    "Super+L" repeat=false { spawn-sh "exec \"$DF_FOUNDATION_ROOT/scripts/lock-screen\" lock"; }
     "Super+Shift+L" { move-column-right; }
     "Super+Up" { focus-window-up; }
     "Super+Shift+Up" { move-window-up; }

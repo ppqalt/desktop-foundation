@@ -18,10 +18,11 @@ use std::{
 const OFFICIAL: &str = "https://github.com/ppqalt/desktop-foundation.git";
 const SHORT: Duration = Duration::from_secs(30);
 const BUILD: Duration = Duration::from_secs(1800);
-const BINARIES: [&str; 4] = [
+const BINARIES: [&str; 5] = [
     "native/foundation/target/release/desktop-foundationctl",
     "native/foundation/target/release/foundation-oo7-ready",
     "native/foundation/target/release/foundation-browser-policy",
+    "native/foundation/target/release/foundation-auth",
     "native/nothing/target/release/foundation-nothing",
 ];
 
