@@ -16,9 +16,9 @@ popupEnabled = false
 [shadow]
 enabled = true
 color = "#000000"
-activeOpacity = 0.85
-inactiveOpacity = 0.85
-range = 24
+activeOpacity = 1.0
+inactiveOpacity = 1.0
+range = 32
 falloffPower = 3
 [shadow.offset]
 x = 0
