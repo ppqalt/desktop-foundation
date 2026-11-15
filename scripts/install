@@ -12,6 +12,7 @@ help=false
 boot_profile=''
 boot_dkms=()
 clean_boot=false
+packages=true
 for ((i = 0; i < ${#installer_args[@]}; i++)); do
 	option=${installer_args[i]}
 	case $option in
@@ -71,7 +72,8 @@ for ((i = 0; i < ${#installer_args[@]}; i++)); do
 	--allow-recovery-only-dkms) boot_dkms=(--allow-recovery-only-dkms) ;;
 	--recovery-keys-confirmed) ;;
 	--clean-boot) clean_boot=true ;;
-	--no-packages | --greeter | --no-greeter | --patched-niri | --stock-niri) ;;
+	--no-packages) packages=false ;;
+	--greeter | --no-greeter | --patched-niri | --stock-niri) ;;
 	--dry-run | --plan) dry=true ;;
 	--check) check=true ;;
 	--help | -h) help=true ;;
@@ -163,7 +165,8 @@ if ! $dry && ! $check && [[ -t 0 ]]; then
 	sudo_keepalive=$!
 	trap 'kill "$sudo_keepalive" 2>/dev/null || true; wait "$sudo_keepalive" 2>/dev/null || true' EXIT
 fi
-# Boot preflight precedes even compiler/package bootstrap. Fresh installs and
+# Boot preflight follows discovery-tool bootstrap and precedes desktop/compiler
+# provisioning. Fresh installs and
 # first explicit Standard installs select EAC; saved boot choices persist.
 # The native installer repeats this selection.
 if ! $dry && ! $check; then
@@ -194,6 +197,9 @@ PYBOOT
 		exit 2
 	fi
 	if [[ $boot_profile == eac ]]; then
+		# Software needed for truthful discovery is provisioned automatically;
+		# the subsequent preflight itself remains read-only.
+		if $packages; then "$root/scripts/bootstrap" --boot-discovery-only; fi
 		"$root/scripts/boot-integrate" preflight --admin --summary "${boot_dkms[@]}"
 	fi
 fi

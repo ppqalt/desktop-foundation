@@ -25,6 +25,11 @@ repository priority. The solver chooses providers, accepts replacements and
 removes declared conflicts atomically, retaining signature/dependency checks.
 There is no broad file overwrite or dependency bypass.
 
+EAC automatically bootstraps missing firmware, signing, disk and encryption
+inspection tools before its read-only preflight; it does not ask you to install
+them manually. Missing mkinitcpio is installed by the boot transaction. Existing
+dracut-based boot layouts are not silently converted.
+
 A fresh checkout may first need a small compiler bootstrap transaction. Building
 patched Niri requires a later local-package transaction. EAC retains its own
 journaled kernel/driver transaction so interrupted boot preparation can resume.

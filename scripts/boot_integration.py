@@ -35,7 +35,7 @@ EAC_OPTIONS = ('lockdown=integrity', 'lsm=landlock,lockdown,yama,integrity,bpf',
 PACKAGES = ('linux-cachyos-eac', 'linux-lts', 'systemd-boot-cachyos-signed',
             'cachyos-eac-signing-key', 'sbctl', 'sbsigntools', 'tpm2-tools',
             'efibootmgr', 'limine', 'limine-mkinitcpio-hook', 'snapper',
-            'snap-pac', 'limine-snapper-sync')
+            'snap-pac', 'limine-snapper-sync', 'mkinitcpio', 'openssl', 'btrfs-progs', 'cryptsetup', 'pciutils')
 MIN_SETTINGS = '1.4.4'
 LIMIT = 8 * 1024 * 1024
 
@@ -410,7 +410,7 @@ def plan(facts, allow_dkms=False):
     check('tpm', 'ready' if facts['tpm2'] else 'firmware', 'Enable TPM 2.0 / AMD fTPM / Intel PTT')
     check('iommu', 'ready' if facts['iommu_firmware'] else 'firmware', 'Enable IOMMU / AMD-Vi / Intel VT-d')
     check('nvram', 'ready' if facts['nvram'] is not None else 'explicit-action', 'Firmware entries must be readable before any boot mutation')
-    check('initramfs', 'ready' if 'mkinitcpio' in facts['initramfs'] and 'dracut' not in facts['initramfs'] else 'explicit-action', 'Use the supported Limine/mkinitcpio workflow; dracut is not converted automatically')
+    check('initramfs', 'explicit-action' if 'dracut' in facts['initramfs'] else 'ready' if 'mkinitcpio' in facts['initramfs'] else 'repairable', 'Use the supported Limine/mkinitcpio workflow; dracut is not converted automatically')
     check('uki', 'explicit-action' if facts['limine'].get('ENABLE_UKI', 'no') == 'yes' else 'ready', 'Limine UKIs must remain disabled for EAC')
     check('limine-fallback', 'explicit-action' if facts['limine'].get('ENABLE_LIMINE_FALLBACK') == 'yes' else 'ready', 'Explicit fallback replacement is enabled; preserve other OS fallback loaders before proceeding')
     try:

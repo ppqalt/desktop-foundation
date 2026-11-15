@@ -17,6 +17,10 @@ printf '%s\n' "$*" >> "$DF_TEST_BOOT_LOG"
 SH
 cat >"$base/repo/scripts/bootstrap" <<'SH'
 #!/bin/sh
+if [ "${1:-}" = --boot-discovery-only ]; then
+    printf 'discovery\n' >> "$DF_TEST_BOOT_LOG"
+    exit 0
+fi
 printf 'bootstrap\n' >> "$DF_TEST_LOG"
 SH
 cat >"$base/repo/scripts/build-backend" <<'SH'
@@ -59,6 +63,7 @@ if DF_TEST_BOOT_BLOCK=1 "$base/repo/scripts/install" --core >"$base/blocked" 2>&
 [[ ! -e $base/log ]]
 "$base/repo/scripts/install" --core
 rg -q 'preflight --admin --summary' "$base/boot-log"
+rg -q '^discovery$' "$base/boot-log"
 [[ $(cat "$base/log") == $'bootstrap\nbuild\nfoundation install --core' ]]
 rm "$base/log"
 "$base/repo/scripts/install-all"
@@ -69,7 +74,9 @@ if DF_FIXTURE_CURRENT=false "$base/repo/scripts/install" --dry-run >"$base/stale
 "$base/repo/scripts/install" --dry-run
 [[ $(cat "$base/log") == 'foundation install --dry-run' ]]
 rm "$base/repo/native/foundation/target/release/desktop-foundationctl" "$base/log"
+rm -f "$base/boot-log"
 "$base/repo/scripts/install" --core --no-packages
+if [[ -f $base/boot-log ]] && rg -q '^discovery$' "$base/boot-log"; then exit 1; fi
 [[ $(cat "$base/log") == $'build\nfoundation install --core --no-packages' ]]
 rm "$base/repo/native/foundation/target/release/desktop-foundationctl" "$base/log"
 if "$base/repo/scripts/install" --dry-run >/dev/null 2>&1; then exit 1; fi

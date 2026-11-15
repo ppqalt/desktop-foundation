@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BootstrapToolchain(unittest.TestCase):
-    def run_bootstrap(self, missing='', dev=False, install_fails=False, build_only=False, standard=False, packages_missing=False, catalog=""):
+    def run_bootstrap(self, missing='', dev=False, install_fails=False, build_only=False, standard=False, packages_missing=False, catalog="", discovery=False):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             scripts = base / 'repo/scripts'
@@ -38,7 +38,7 @@ if [ "$1 $2" = 'toolchain install' ] && [ "$FAIL_INSTALL" = 1 ]; then exit 1; fi
             if dev:
                 text = (scripts / 'bootstrap').read_text().replace('test -x "/usr/lib/qt6/bin/$tool"', ': "$tool"')
                 (scripts / 'bootstrap').write_text(text)
-            result = subprocess.run(['bash', str(scripts / 'bootstrap')] + (['--dev'] if dev else []) + (['--build-only'] if build_only else []) + (['--standard', '--firmware', '--recording', '--niri-build'] if standard else []),
+            result = subprocess.run(['bash', str(scripts / 'bootstrap')] + (['--dev'] if dev else []) + (['--build-only'] if build_only else []) + (['--boot-discovery-only'] if discovery else []) + (['--standard', '--firmware', '--recording', '--niri-build'] if standard else []),
                                     env=env, text=True, capture_output=True, timeout=10)
             return result, log.read_text().splitlines() if log.exists() else []
 
@@ -65,6 +65,17 @@ if [ "$1 $2" = 'toolchain install' ] && [ "$FAIL_INSTALL" = 1 ]; then exit 1; fi
         self.assertNotIn('cachyos/paru', installs[0])
         self.assertIn('cachyos/rustup', installs[0])
         self.assertIn('nautilus', installs[0])
+
+    def test_boot_discovery_installs_tools_without_compiler_or_boot_configuration(self):
+        result, commands = self.run_bootstrap(discovery=True, packages_missing=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installs = [c.split() for c in commands if c.startswith('sudo pacman ')]
+        self.assertEqual(len(installs), 1)
+        for package in ['efibootmgr', 'openssl', 'util-linux', 'btrfs-progs', 'cryptsetup', 'pciutils', 'python']:
+            self.assertIn(package, installs[0])
+        self.assertIn('--noconfirm', installs[0])
+        self.assertFalse(any('rustup' in c or 'systemctl' in c or 'eac-setup' in c for c in commands))
+        self.assertNotIn('linux-cachyos-eac', installs[0])
 
     def test_build_bootstrap_does_not_install_runtime_or_start_services(self):
         result, commands = self.run_bootstrap(build_only=True)

@@ -53,10 +53,12 @@ add_manifest() {
 }
 dev=false
 build_only=false
+boot_discovery_only=false
 install_firmware=false
 for option in "$@"; do
 	case $option in
 	--build-only) build_only=true ;;
+	--boot-discovery-only) boot_discovery_only=true ;;
 	--greeter) add_manifest greeter ;;
 	--personal) add_manifest personal ;;
 	--standard) add_manifest standard ;;
@@ -68,13 +70,18 @@ for option in "$@"; do
 		add_manifest dev
 		;;
 	*)
-		printf 'Usage: %s [--build-only] [--greeter] [--personal] [--standard] [--recording] [--niri-build] [--firmware] [--dev]\n' "$0" >&2
+		printf 'Usage: %s [--build-only|--boot-discovery-only] [--greeter] [--personal] [--standard] [--recording] [--niri-build] [--firmware] [--dev]\n' "$0" >&2
 		exit 2
 		;;
 	esac
 done
 if $build_only; then
 	packages=(rustup gcc pkgconf sqlite dav1d wayland git)
+fi
+if $boot_discovery_only; then
+	# Inspect firmware, signing identities, encrypted roots and snapshot topology
+	# before the boot planner runs. No kernel/bootloader packages in this batch.
+	packages=(efibootmgr openssl util-linux btrfs-progs cryptsetup pciutils python)
 fi
 if $install_firmware; then add_manifest firmware; fi
 # A single solver transaction handles the selected profile and its dependencies.
@@ -102,6 +109,7 @@ if ((${#missing[@]})); then
 	# allow solver-approved removals, retain signature and dependency checks.
 	sudo pacman -Syu --needed --noconfirm --ask=4 "${missing[@]}"
 fi
+if $boot_discovery_only; then exit 0; fi
 # Reuse a complete pinned toolchain without contacting the release server.
 # Check both tools: interrupted installations can leave only one usable binary.
 if ! rustup run 1.98.1 rustc --version >/dev/null 2>&1 || ! rustup run 1.98.1 cargo --version >/dev/null 2>&1; then
