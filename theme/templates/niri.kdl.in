@@ -17,7 +17,7 @@ layout {
     default-column-width { proportion 0.5; }
     focus-ring { off; }
     border { on; width @border_width@; active-color @active_border@; inactive-color @inactive_border@; }
-    shadow { @shadow_state@; softness @shadow_range@; spread 12; offset x=@shadow_x@ y=@shadow_y@; color @shadow_active@; inactive-color @shadow_active@; draw-behind-window false; }
+    shadow { @shadow_state@; softness @shadow_range@; spread 5; offset x=@shadow_x@ y=@shadow_y@; color @shadow_active@; inactive-color @shadow_active@; draw-behind-window false; }
 }
 blur { passes @blur_passes@; offset @blur_offset@; noise @blur_noise@; saturation @blur_saturation@; }
 window-rule {
