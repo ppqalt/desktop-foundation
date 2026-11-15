@@ -48,9 +48,21 @@ Niri dependency installation, rollback, restoration and the paru source-build
 fallback also run without package confirmation prompts. Sudo authentication
 remains required; no passwordless administrator access is installed.
 
-Niri recovery first uses a readable exact signed stock package. If system cache
-permissions prevent access, it downloads the exact repository version and detached
-signature over HTTPS into private state and verifies both before replacing Niri.
+Niri recovery first uses a readable exact signed stock package. Pacman locations
+may point to an already cached `file://` archive or a configured HTTP(S) mirror.
+DF uses the detached signature embedded in pacman's repository metadata (`%g`)
+when available, otherwise the repository's `.sig` endpoint. Both paths require
+verification with pacman's trusted keyring and the exact installed package
+identity before replacing Niri. An unreadable cache automatically falls back to
+a mirror using private download state; system cache permissions stay unchanged.
+
+After updating the failed checkout to the fixed source, repeat
+`./scripts/install --standard`. Existing packages and Cargo build outputs are
+reused. Completed patched-Niri archives are reused only when makepkg's
+`.BUILDINFO` matches the current PKGBUILD, its patch checksum matches, and the
+package identity matches the recipe. Candidate validation and signed rollback
+verification still run before installation; deployment and subsequent setup
+then continue automatically.
 Unavailable historical stock packages or invalid signatures stop safely; cache
 permissions are never relaxed. The active compositor keeps running.
 

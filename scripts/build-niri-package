@@ -42,6 +42,29 @@ expected_version=$(awk -F ' = ' '
 /^[[:space:]]pkgrel = / {r=$2}
 /^[[:space:]]epoch = / {e=$2}
 END {if (v == "" || r == "") exit 1; print (e != "" && e != "0" ? e ":" : "") v "-" r}' <<<"$metadata")
+# Completed builds survive later installer failures. Adopt only private owned
+# artifacts with makepkg provenance for this exact reviewed recipe and patch.
+recipe_hash=$(sha256sum "$root/patches/niri/PKGBUILD")
+recipe_hash=${recipe_hash%% *}
+patch_hash=$(sha256sum "$root/patches/niri/overview-ctrl-scroll.patch")
+patch_hash=${patch_hash%% *}
+if ! grep -Fq "$patch_hash" "$root/patches/niri/PKGBUILD"; then
+	printf '%s\n' 'Niri patch differs from the reviewed recipe checksum; nothing reused or built.' >&2
+	exit 1
+fi
+for archive in "$package_state"/package.*/*.pkg.tar.*; do
+	[[ -f $archive && ! -L $archive && -O $archive && $archive != *.sig ]] || continue
+	directory=${archive%/*}
+	[[ ! -L $directory && -O $directory && $(stat -c %a "$directory") == 700 ]] || continue
+	[[ $(stat -c %s "$archive") -le 268435456 ]] || continue
+	build_info=$(bsdtar -xOf "$archive" .BUILDINFO 2>/dev/null) || continue
+	grep -Fxq "pkgbuild_sha256sum = $recipe_hash" <<<"$build_info" || continue
+	identity=$(pacman -Qp "$archive" 2>/dev/null) || continue
+	[[ $identity == "niri-foundation $expected_version" ]] || continue
+	printf 'Reusing completed Niri build: %s\n' "$archive" >&2
+	if $print_path; then printf '%s\n' "$archive"; else printf 'Niri package verified: %s\n' "$archive"; fi
+	exit 0
+done
 mkdir -m 700 "$work/packages"
 (
 	cd -- "$work"

@@ -331,6 +331,99 @@ fn retain(paths: &Paths, source: &Path, signed: bool, e: &mut impl Effects) -> R
         signature_sha256,
     })
 }
+const STOCK_FORMAT: &str = "%n\t%v\t%l\t%g";
+struct StockSource {
+    location: String,
+    signature: Option<Vec<u8>>,
+}
+fn stock_source(output: &[u8], installed: &str) -> Result<StockSource> {
+    let output = std::str::from_utf8(output).map_err(|_| invalid("Invalid stock Niri metadata"))?;
+    let mut selected = None;
+    for line in output.lines() {
+        let fields: Vec<_> = line.split('\t').collect();
+        if fields.len() != 4
+            || fields[0] != "niri"
+            || format!("{} {}", fields[0], fields[1]) != installed
+        {
+            continue;
+        }
+        if selected.is_some() {
+            return Err(invalid("Ambiguous stock Niri repository metadata"));
+        }
+        let location = fields[2];
+        if !["https://", "http://", "file:///"]
+            .iter()
+            .any(|scheme| location.starts_with(scheme))
+            || location.chars().any(char::is_control)
+        {
+            return Err(invalid("Unsupported stock Niri package location"));
+        }
+        let signature = if fields[3].is_empty() || fields[3] == "(null)" {
+            None
+        } else {
+            if fields[3].len() > 64 * 1024
+                || !fields[3]
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"+/=".contains(&b))
+            {
+                return Err(invalid("Invalid repository package signature encoding"));
+            }
+            let decoded = process::checked(
+                &args(&["/usr/bin/base64", "--decode"]),
+                Some(fields[3].as_bytes().to_vec()),
+                Duration::from_secs(5),
+                true,
+            )?
+            .stdout;
+            if decoded.is_empty() || decoded.len() > 64 * 1024 {
+                return Err(invalid("Invalid repository package signature size"));
+            }
+            Some(decoded)
+        };
+        selected = Some(StockSource {
+            location: location.into(),
+            signature,
+        });
+    }
+    selected.ok_or_else(|| invalid(format!("Exact signed stock package {installed} is not in the configured repositories; no compositor replaced")))
+}
+fn query_stock(e: &mut impl Effects, installed: &str, cache: Option<&Path>) -> Result<StockSource> {
+    let version = installed
+        .strip_prefix("niri ")
+        .ok_or_else(|| invalid("Invalid stock Niri identity"))?;
+    let mut command = args(&[
+        "pacman",
+        "-Sp",
+        "--print-format",
+        STOCK_FORMAT,
+        "--nodeps",
+        "--nodeps",
+    ]);
+    if let Some(cache) = cache {
+        command.extend(args(&["--cachedir", text(cache)?]));
+    }
+    command.push(format!("niri={version}"));
+    stock_source(&e.capture(&command)?, installed)
+}
+fn fetch_stock(e: &mut impl Effects, location: &str, target: &Path) -> Result<()> {
+    state::atomic(target, b"", 0o600)?;
+    e.interactive(&args(&[
+        "curl",
+        "--fail",
+        "--location",
+        "--proto",
+        "=https,http,file",
+        "--proto-redir",
+        "=https,http",
+        "--max-time",
+        "300",
+        "--max-filesize",
+        "268435456",
+        "--output",
+        text(target)?,
+        location,
+    ]))
+}
 fn stock(paths: &Paths, e: &mut impl Effects) -> Result<Artifact> {
     let installed = String::from_utf8(e.capture(&args(&["pacman", "-Q", "niri"]))?)
         .map_err(|_| invalid("Invalid stock Niri version"))?;
@@ -376,51 +469,27 @@ fn stock(paths: &Paths, e: &mut impl Effects) -> Result<Artifact> {
     let source = if let Some(path) = find(e)? {
         path
     } else {
-        // System caches can be root-only (including pacman's download sandbox).
-        // Download the exact repository version into our private owned directory
-        // instead of weakening cache permissions or recursively copying it.
-        let version = installed.strip_prefix("niri ").expect("validated");
-        let output = e.capture(&args(&[
-            "pacman",
-            "-Sp",
-            "--print-format",
-            "%l",
-            "--nodeps",
-            &format!("niri={version}"),
-        ]))?;
-        let output = String::from_utf8(output).map_err(|_| invalid("Invalid stock Niri URL"))?;
-        let urls: Vec<_> = output.lines().filter(|line| !line.is_empty()).collect();
-        if urls.len() != 1 || !urls[0].starts_with("https://") {
-            return Err(invalid(
-                "The exact signed stock Niri archive is unavailable; no compositor replaced",
-            ));
-        }
+        // pacman may print a cached file:// location rather than a mirror URL.
+        // %g supplies the detached signature embedded in the sync database;
+        // a separate .sig endpoint is not required when it is present.
+        let mut source = query_stock(e, installed, None)?;
         let archive = paths.directory.join("stock-download.pkg.tar.zst");
-        for (url, target) in [
-            (urls[0].to_owned(), archive.clone()),
-            (
-                format!("{}.sig", urls[0]),
-                PathBuf::from(format!("{}.sig", text(&archive)?)),
-            ),
-        ] {
-            // atomic() refuses symlinks and publishes private regular files.
-            state::atomic(&target, b"", 0o600)?;
-            e.interactive(&args(&[
-                "curl",
-                "--fail",
-                "--location",
-                "--proto",
-                "=https",
-                "--proto-redir",
-                "=https",
-                "--max-time",
-                "300",
-                "--max-filesize",
-                "268435456",
-                "--output",
-                text(&target)?,
-                &url,
-            ]))?;
+        if let Err(error) = fetch_stock(e, &source.location, &archive) {
+            if !source.location.starts_with("file:///") {
+                return Err(error);
+            }
+            // A root-only cache must not block recovery. Ask pacman for a
+            // mirror using a private empty cache; never change system access.
+            let cache = paths.directory.join("stock-mirror-cache");
+            state::private_directory(&cache)?;
+            source = query_stock(e, installed, Some(&cache))?;
+            fetch_stock(e, &source.location, &archive)?;
+        }
+        let signature = PathBuf::from(format!("{}.sig", text(&archive)?));
+        if let Some(data) = source.signature {
+            state::atomic(&signature, &data, 0o600)?;
+        } else {
+            fetch_stock(e, &format!("{}.sig", source.location), &signature)?;
         }
         archive
     };

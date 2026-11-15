@@ -1081,3 +1081,27 @@ fn automatic_performance_selection_is_read_only_when_checking_and_opt_out_wins()
     );
     assert!(r.commands.iter().any(|c| c.ends_with(&["disable".into()])));
 }
+
+#[test]
+fn standard_resumes_after_niri_acquisition_failure_without_reinstalling_adopted_apps() {
+    let f = Fixture::new();
+    let options = f.options(&["--standard", "--no-greeter"]);
+    let mut r = Fake {
+        installed: true,
+        failure: Some("niri-package".into()),
+        ..Fake::default()
+    };
+    assert!(install::execute(&f.root, &f.paths, &options, &mut r).is_err());
+    assert!(!r.named("deploy") && !r.named("doctor"));
+    r.failure = None;
+    r.commands.clear();
+    install::execute(&f.root, &f.paths, &options, &mut r).unwrap();
+    assert!(r.named("niri-package") && r.named("deploy") && r.named("doctor"));
+    assert!(
+        !r.commands
+            .iter()
+            .any(|c| c.first().is_some_and(|s| s == "pacman" || s == "paru")
+                || c.get(1).is_some_and(|s| s == "pacman"))
+    );
+    assert_eq!(*r.validations.borrow(), ["browser", "chatgpt", "vesktop"]);
+}

@@ -33,6 +33,8 @@ struct Fake {
     builds: usize,
     calls: Vec<Vec<String>>,
     bad_signature: bool,
+    stock_metadata: Option<String>,
+    fail_file_download: bool,
     bad_identity: bool,
     bad_validation: bool,
     fail_build: bool,
@@ -77,14 +79,14 @@ impl Effects for Fake {
                 Ok(format!("{} {}\n", self.name, self.version).into_bytes())
             }
             ["pacman", "-Q", _] => Err(invalid("not installed")),
-            [
-                "pacman",
-                "-Sp",
-                "--print-format",
-                "%l",
-                "--nodeps",
-                "niri=26.04-1.1",
-            ] => Ok(b"https://mirror.example/niri.pkg.tar.zst\n".to_vec()),
+            ["pacman", "-Sp", ..] => {
+                if !parts.contains(&"--cachedir")
+                    && let Some(metadata) = &self.stock_metadata
+                {
+                    return Ok(metadata.as_bytes().to_vec());
+                }
+                Ok(b"niri\t26.04-1.1\thttps://mirror.example/niri.pkg.tar.zst\t\n".to_vec())
+            }
             ["pacman-conf", "CacheDir"] => Ok(format!("{}\n", self.cache.display()).into_bytes()),
             ["pacman", "-Qp", path] => {
                 let bytes = fs::read(path)?;
@@ -118,6 +120,9 @@ impl Effects for Fake {
     fn interactive(&mut self, args: &[String]) -> Result<()> {
         self.calls.push(args.to_vec());
         if args.first().is_some_and(|s| s == "curl") {
+            if self.fail_file_download && args.last().unwrap().starts_with("file:///") {
+                return Err(invalid("inert unreadable cache"));
+            }
             let target = args.iter().position(|s| s == "--output").unwrap() + 1;
             fs::write(
                 &args[target],
@@ -223,6 +228,8 @@ impl Fixture {
                 builds: 0,
                 calls: vec![],
                 bad_signature: false,
+                stock_metadata: None,
+                fail_file_download: false,
                 bad_identity: false,
                 bad_validation: false,
                 fail_build: false,
@@ -693,4 +700,55 @@ fn downloaded_recovery_with_bad_signature_never_replaces_compositor() {
     assert!(niri_package::install(&f.root, &f.paths, None, &mut f.e).is_err());
     assert_eq!(fs::read(&f.paths.binary).unwrap(), b"stock-binary");
     assert_eq!(f.e.mutations(), 0);
+}
+
+#[test]
+fn cached_file_location_uses_embedded_signature_without_sig_endpoint() {
+    let mut f = Fixture::new();
+    fs::remove_dir_all(&f.e.cache).unwrap();
+    f.e.stock_metadata =
+        Some("niri\t26.04-1.1\tfile:///cache/niri.pkg.tar.zst\tdmFsaWQgc2lnbmF0dXJl\n".into());
+    f.install().unwrap();
+    assert_eq!(f.e.calls.iter().filter(|c| c[0] == "curl").count(), 1);
+    assert!(
+        niri_package::read(&f.paths)
+            .unwrap()
+            .unwrap()
+            .original
+            .signature
+            .is_some()
+    );
+}
+
+#[test]
+fn inaccessible_cached_location_requeries_private_cache_and_verifies_recovery() {
+    let mut f = Fixture::new();
+    fs::remove_dir_all(&f.e.cache).unwrap();
+    f.e.stock_metadata =
+        Some("niri\t26.04-1.1\tfile:///private/niri.pkg.tar.zst\tdmFsaWQgc2lnbmF0dXJl\n".into());
+    f.e.fail_file_download = true;
+    f.install().unwrap();
+    assert!(
+        f.e.calls
+            .iter()
+            .any(|c| c.iter().any(|s| s == "--cachedir"))
+    );
+    niri_package::restore(&f.root, &f.paths, &mut f.e).unwrap();
+    assert_eq!(fs::read(&f.paths.binary).unwrap(), b"stock-binary");
+}
+
+#[test]
+fn wrong_or_ambiguous_identity_and_invalid_embedded_signature_never_replace_niri() {
+    for metadata in [
+        "niri\t99.0-1\thttps://mirror.example/niri.pkg.tar.zst\tdmFsaWQgc2lnbmF0dXJl\n",
+        "niri\t26.04-1.1\thttps://mirror.example/niri.pkg.tar.zst\t!invalid!\n",
+        "niri\t26.04-1.1\thttps://mirror.example/a\t\nniri\t26.04-1.1\thttps://mirror.example/b\t\n",
+    ] {
+        let mut f = Fixture::new();
+        fs::remove_dir_all(&f.e.cache).unwrap();
+        f.e.stock_metadata = Some(metadata.into());
+        assert!(f.install().is_err());
+        assert_eq!(f.e.mutations(), 0);
+        assert_eq!(fs::read(&f.paths.binary).unwrap(), b"stock-binary");
+    }
 }
