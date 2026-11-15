@@ -877,6 +877,9 @@ pub fn execute(
         r.command(&words(&["sudo", "systemctl", "enable", "apparmor.service"]))?;
     }
     r.command(&services)?;
+    if o.packages {
+        sudo_script(r, root, "plymouth-setup")?;
+    }
     if o.clean_boot {
         sudo_script(r, root, "boot-setup")?;
     } else if !o.eac_boot && !r.eac_kernel() && !r.apparmor_enabled() {

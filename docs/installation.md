@@ -276,3 +276,25 @@ active networkd/ConnMan configurations are preserved instead of replaced.
 
 See [audit resolutions](installer-audit-resolution.md) and
 [Secure Boot and recovery](secure-boot.md).
+
+### Plymouth and encrypted boot
+
+Package-enabled installations (Minimal, Standard and Everything/Personal) remove
+Plymouth and the two CachyOS Plymouth themes through `scripts/plymouth-setup`.
+This is independent of `--clean-boot` and does not change the kernel LSM policy,
+root/encryption identifiers, firmware boot order or the selected display manager.
+`--no-packages`, dry-run and inspection do not remove packages.
+
+The helper keeps the original mkinitcpio configuration and installs a final hook
+filter: `sd-encrypt` remains intact, and legacy `plymouth-encrypt` is replaced with
+`encrypt`. Both Limine-managed images and older preset images are rebuilt and
+inspected before package removal. Encrypted systemd images must contain the
+console password agent. Boot files and exact cached package archives are retained
+under `/var/lib/desktop-foundation/plymouth/`; rerunning the install resumes an
+interrupted rebuild without replacing those originals. Unavailable exact package
+archives stop cleanup rather than discard package recovery.
+
+Vendor-signed EAC EFI executables are preserved and checked for changes. Custom
+UKI-only/signing setups require explicit review and are not silently rewritten.
+A fresh encrypted boot still requires physical verification; image inspection is
+not evidence that the passphrase prompt and subsequent login worked on hardware.

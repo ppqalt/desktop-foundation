@@ -76,3 +76,18 @@ after reboot. See [AppArmor](APPARMOR.md), [console routing](greeter-console.md)
 For the EAC/systemd-boot profile, use the separate
 [Secure Boot and recovery workflow](secure-boot.md). Legacy GRUB restore commands
 are not an EAC conversion or certificate-recovery mechanism.
+
+### Plymouth cleanup recovery
+
+`scripts/plymouth-setup install` is a separate cleanup from the legacy GRUB boot
+policy. For an interrupted cleanup, mount the correct installed `/boot` and rerun
+the same command as administrator inside that installation. Keep
+`/var/lib/desktop-foundation/plymouth/` intact: it contains the original boot tree,
+exact package archives, detached signatures when available, and transaction state.
+
+To reverse a completed cleanup, use `sudo ./scripts/plymouth-setup restore` from
+the owning checkout. It refuses to overwrite boot files or policy changed after
+cleanup. This reinstalls the saved packages and restores the original boot files;
+it also restores Plymouth's original behavior, including any preexisting fault.
+Incomplete or externally modified transactions require inspection of the retained
+backup instead of a blind restore. No firmware boot entries are edited.

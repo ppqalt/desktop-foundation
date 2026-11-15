@@ -1,0 +1,259 @@
+#!/usr/bin/env python3
+"""Remove Plymouth without changing encryption, LSMs or bootloader selection.
+
+Uses the existing boot policy implementation, not the legacy GRUB cleanup.
+Run inside the installed system (or a correctly mounted recovery chroot).
+"""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+from boot_policy import remove_plymouth
+
+STATE = Path('/var/lib/desktop-foundation/plymouth')
+PACKAGES = ('cachyos-plymouth-bootanimation', 'cachyos-plymouth-theme', 'plymouth')
+DROPIN = Path('/etc/mkinitcpio.conf.d/zz-desktop-foundation-no-plymouth.conf')
+POLICY = '''# Managed by Desktop Foundation: retain console encryption unlocking.
+df_hooks=()
+for df_hook in "${HOOKS[@]}"; do
+    case "$df_hook" in
+        plymouth) ;;
+        plymouth-encrypt) df_hooks+=(encrypt) ;;
+        *) df_hooks+=("$df_hook") ;;
+    esac
+done
+HOOKS=("${df_hooks[@]}")
+unset df_hook df_hooks
+'''
+
+
+def run(*args, capture=False):
+    result = subprocess.run(args, check=True, text=True,
+                            stdout=subprocess.PIPE if capture else None)
+    return result.stdout if capture else ''
+
+
+def identity(path):
+    if path.is_symlink():
+        raise ValueError('Refusing symlink: ' + str(path))
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+def atomic(path, data, mode=0o600):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(dir=path.parent)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+            os.fchmod(stream.fileno(), mode)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def save(tx):
+    atomic(STATE / 'manifest.json', (json.dumps(tx, indent=2) + '\n').encode())
+
+
+def installed():
+    return [p for p in PACKAGES if subprocess.run(
+        ['pacman', '-Q', p], stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL).returncode == 0]
+
+
+def generator():
+    if Path('/etc/default/limine').is_file() and shutil.which('limine-mkinitcpio'):
+        return ['limine-mkinitcpio']
+    if Path('/boot/grub/grub.cfg').is_file() and shutil.which('grub-mkconfig'):
+        return ['mkinitcpio', '-P']
+    if Path('/boot/loader').is_dir() and shutil.which('mkinitcpio'):
+        return ['mkinitcpio', '-P']
+    raise ValueError('Unsupported boot image generator; no changes made')
+
+
+def configuration(text):
+    # Validate the base array before installing an effective final hook filter.
+    # Do not replace encryption UUIDs or the original hook order.
+    remove_plymouth(text.replace('plymouth-encrypt', 'encrypt'))
+    return POLICY
+
+
+def images():
+    return [p for p in Path('/boot').rglob('*') if p.is_file()
+            and (p.name == 'initramfs' or p.name.startswith('initramfs-'))]
+
+
+def verify():
+    found = images()
+    if not found:
+        raise ValueError('No external initramfs images found; inspect UKI workflow explicitly')
+    # Historical snapshot images are recovery artifacts: do not rewrite them.
+    current = [p for p in found if 'snapshots' not in str(p).lower()]
+    if not current:
+        raise ValueError('No current initramfs images found')
+    for image in current:
+        listing = run('lsinitcpio', str(image), capture=True)
+        if any(x in listing for x in ('usr/bin/plymouth', 'usr/sbin/plymouth', 'hooks/plymouth')):
+            raise ValueError('Plymouth remains embedded: ' + str(image))
+        if 'systemd-cryptsetup' in listing and 'systemd-ask-password-console' not in listing:
+            raise ValueError('Encrypted image lacks console password agent: ' + str(image))
+
+
+def apply():
+    packages = installed()
+    journal = STATE / 'manifest.json'
+    if journal.exists():
+        tx = json.loads(journal.read_text())
+        if tx['status'] == 'installed' and not packages and DROPIN.read_text() == POLICY:
+            print('Plymouth already removed; console unlock policy retained.')
+            return
+        if tx['status'] in ('prepared', 'images-verified', 'failed'):
+            if DROPIN.exists() and DROPIN.read_text() != POLICY:
+                raise ValueError('Policy changed outside the interrupted transaction')
+            if not Path(tx['boot_backup']).is_dir() or any(not Path(p).is_file() for p in tx['packages']):
+                raise ValueError('Recovery backup missing; refusing to resume')
+            finish(tx)
+            return
+        raise ValueError('Saved Plymouth transaction exists; inspect it before retrying')
+    if not packages and 'plymouth' not in Path('/etc/mkinitcpio.conf').read_text().split('HOOKS=')[-1]:
+        print('Plymouth is not installed or configured.')
+        return
+    configuration(Path('/etc/mkinitcpio.conf').read_text())
+    for preset in Path('/etc/mkinitcpio.d').glob('*.preset'):
+        if any(line.strip().startswith(('default_uki=', 'fallback_uki=')) for line in preset.read_text().splitlines()):
+            raise ValueError('Locally generated UKI preset requires signing review')
+    build = generator()
+    verify_images = images()
+    if not verify_images:
+        raise ValueError('UKI-only boot requires its signing workflow; no changes made')
+    if Path('/etc/default/limine').is_file() and any(
+            line.strip().replace(' ', '') in ('ENABLE_UKI=yes', 'ENABLE_UKI="yes"', "ENABLE_UKI='yes'")
+            for line in Path('/etc/default/limine').read_text().splitlines()):
+        raise ValueError('Locally generated UKIs require explicit signing review')
+    if not os.path.ismount('/boot'):
+        raise ValueError('Mount the installed /boot before continuing')
+    if DROPIN.exists() or DROPIN.is_symlink():
+        raise ValueError('Unjournaled Plymouth policy already exists')
+    # Pacman checks dependencies without cascading removal to unrelated software.
+    if packages:
+        run('pacman', '-R', '--print', '--print-format', '%n', *packages, capture=True)
+    boot_size = sum(p.stat().st_size for p in Path('/boot').rglob('*') if p.is_file())
+    if shutil.disk_usage('/var/lib').free < boot_size + 256 * 1024**2:
+        raise ValueError('Insufficient space for boot recovery backup')
+    STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    tx = {'status': 'prepared', 'packages': [], 'boot_backup': str(STATE / 'boot'),
+          'policy': str(DROPIN), 'generator': build}
+    for package in packages:
+        expected = run('pacman', '-Q', package, capture=True).strip()
+        archive = next((p for p in Path('/var/cache/pacman/pkg').glob(package + '-*.pkg.tar.*')
+                        if not p.name.endswith('.sig') and subprocess.run(
+                            ['pacman', '-Qp', str(p)], capture_output=True, text=True).stdout.strip() == expected), None)
+        if archive is None:
+            raise ValueError('Exact rollback archive unavailable: ' + expected)
+        target = STATE / archive.name
+        shutil.copy2(archive, target)
+        if Path(str(archive) + '.sig').exists():
+            shutil.copy2(str(archive) + '.sig', str(target) + '.sig')
+        tx['packages'].append(str(target))
+    shutil.copytree('/boot', STATE / 'boot', symlinks=True)
+    tx['efi'] = {str(p): identity(p) for p in Path('/boot').rglob('*')
+                 if p.is_file() and p.suffix.lower() == '.efi'}
+    save(tx)
+    finish(tx)
+
+
+def finish(tx):
+    if not os.path.ismount('/boot'):
+        raise ValueError('Mount the installed /boot before resuming')
+    for preset in Path('/etc/mkinitcpio.d').glob('*.preset'):
+        if any(line.strip().startswith(('default_uki=', 'fallback_uki=')) for line in preset.read_text().splitlines()):
+            raise ValueError('Locally generated UKI preset requires signing review')
+    try:
+        atomic(DROPIN, POLICY.encode(), 0o644)
+        if tx['generator'] == ['limine-mkinitcpio'] and list(Path('/etc/mkinitcpio.d').glob('*.preset')):
+            run('mkinitcpio', '-P')
+        run(*tx['generator'])
+        verify()
+        tx['status'] = 'images-verified'
+        save(tx)
+        packages = installed()
+        if packages:
+            run('pacman', '-R', '--noconfirm', *packages)
+        verify()
+        if any(identity(Path(p)) != value for p, value in tx['efi'].items()):
+            raise ValueError('An existing EFI executable changed; retain recovery backup')
+        if installed():
+            raise ValueError('Plymouth package removal did not complete')
+        tx['status'] = 'installed'
+        tx['policy_sha256'] = identity(DROPIN)
+        tx['boot_managed'] = {str(p.relative_to('/boot')): identity(p)
+                              for p in Path('/boot').rglob('*') if p.is_file()}
+        save(tx)
+        print('Plymouth removed. Console encryption unlocking retained; reboot verification pending.')
+    except Exception:
+        tx['status'] = 'failed'
+        save(tx)
+        print('Plymouth cleanup incomplete. Boot backup and package archives retained at ' + str(STATE))
+        raise
+
+
+def restore():
+    tx = json.loads((STATE / 'manifest.json').read_text())
+    if tx['status'] != 'installed':
+        raise ValueError('Incomplete transaction: inspect retained backups before manual recovery')
+    if identity(DROPIN) != tx['policy_sha256']:
+        raise ValueError('Plymouth policy modified outside this transaction')
+    current = {str(p.relative_to('/boot')): identity(p)
+               for p in Path('/boot').rglob('*') if p.is_file()}
+    if current != tx['boot_managed']:
+        raise ValueError('Boot files changed since cleanup; refusing to overwrite later updates')
+    if tx['packages']:
+        run('pacman', '-U', '--noconfirm', *tx['packages'])
+    DROPIN.unlink()
+    # Restore exact prior boot images after any package hooks have run.
+    for p in Path('/boot').rglob('*'):
+        if p.is_file() and not (STATE / 'boot' / p.relative_to('/boot')).exists():
+            p.unlink()
+    shutil.copytree(STATE / 'boot', '/boot', dirs_exist_ok=True)
+    tx['status'] = 'restored'
+    save(tx)
+    print('Original packages and boot files restored. Firmware boot order unchanged.')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['plan', 'install', 'restore'])
+    args = parser.parse_args()
+    if args.action == 'plan':
+        print('Remove:', ', '.join(installed()) or '(none)')
+        print('Preserve encryption hooks, UUIDs, signed vendor kernels and firmware boot order.')
+        print('Rebuild:', ' '.join(generator()))
+        return
+    if os.geteuid() != 0:
+        parser.error('Administrator authentication required')
+    os.umask(0o077)
+    STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = STATE.lstat()
+    if not STATE.is_dir() or STATE.is_symlink() or info.st_uid != 0 or info.st_mode & 0o077:
+        raise ValueError('Unsafe Plymouth recovery directory')
+    fd = os.open(STATE / 'lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if args.action == 'restore':
+            restore()
+        else:
+            apply()
+    finally:
+        os.close(fd)
+
+
+if __name__ == '__main__':
+    main()

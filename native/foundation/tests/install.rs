@@ -328,6 +328,7 @@ fn core_without_packages_never_installs_packages_or_personal_adapters() {
         "install-app-mods",
         "browser-policy-setup",
         "boot-setup",
+        "plymouth-setup",
         "system-setup",
     ] {
         assert!(!r.named(name), "{name}");
@@ -611,6 +612,7 @@ fn standard_installs_only_requested_apps_and_does_not_change_defaults() {
     .unwrap();
     assert_eq!(*r.validations.borrow(), ["browser", "chatgpt", "vesktop"]);
     assert!(r.named("paru-bootstrap"));
+    assert!(r.named("plymouth-setup"));
     assert!(
         r.commands
             .iter()
@@ -903,6 +905,7 @@ fn apparmor_activation_is_detected_before_any_mutation_and_rechecked_by_writer()
     let mut active = Fake::default();
     install::execute(&f.root, &f.paths, &options, &mut active).unwrap();
     assert!(!active.named("apparmor-setup"));
+    assert!(active.named("plymouth-setup"));
 }
 
 #[test]
@@ -915,6 +918,7 @@ fn eac_install_preserves_lsm_policy_and_stops_at_firmware_checkpoint() {
     };
     install::execute(&f.root, &f.paths, &f.options(&[]), &mut active).unwrap();
     assert!(!active.named("apparmor-setup"));
+    assert!(active.named("plymouth-setup"));
     assert!(
         !active
             .commands
@@ -1104,4 +1108,27 @@ fn standard_resumes_after_niri_acquisition_failure_without_reinstalling_adopted_
                 || c.get(1).is_some_and(|s| s == "pacman"))
     );
     assert_eq!(*r.validations.borrow(), ["browser", "chatgpt", "vesktop"]);
+}
+
+#[test]
+fn plymouth_cleanup_is_shared_by_package_profiles_and_failure_cannot_report_success() {
+    for profile in ["--minimal", "--standard", "--everything", "--personal"] {
+        let f = Fixture::new();
+        let mut r = Fake {
+            installed: true,
+            failure: Some("plymouth-setup".into()),
+            ..Fake::default()
+        };
+        assert!(
+            install::execute(
+                &f.root,
+                &f.paths,
+                &f.options(&[profile, "--no-greeter"]),
+                &mut r,
+            )
+            .is_err()
+        );
+        assert!(r.named("plymouth-setup"), "{profile}");
+        assert!(!r.named("doctor"), "{profile}");
+    }
 }
