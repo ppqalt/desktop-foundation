@@ -1,1 +1,4 @@
-packages = ["gpu-screen-recorder", "ffmpeg"]
+packages = [
+    "gpu-screen-recorder",
+    "ffmpeg",
+]

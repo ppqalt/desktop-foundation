@@ -103,7 +103,7 @@ if $help; then
 		'  --greeter            Configure greetd when no other manager owns login' \
 		'  --no-greeter         Preserve the existing login manager' \
 		'  Default: keep a configured login manager; otherwise install greetd' \
-		'  --boot-profile eac|existing  Fresh installs default to EAC; existing installs preserve boot' \
+		'  --boot-profile eac|existing  Fresh/first Standard installs use EAC; saved boot choices persist' \
 		'  --allow-recovery-only-dkms  Retain unsupported DKMS modules only for conventional kernels' \
 		'  --clean-boot         Apply the selected supported boot cleanup' \
 		'  --dry-run|--check    Inspect without package or build changes' \
@@ -153,13 +153,23 @@ except (OSError, ValueError, KeyError, TypeError) as error:
     sys.exit(1)
 PY
 fi
-# Boot preflight precedes even compiler/package bootstrap. Old installations
-# without a boot selection preserve their stack; only genuinely fresh installs
-# acquire the new EAC default. The native installer repeats this selection.
+# Keep only this interactive installation's sudo ticket alive during compilation.
+# Never alter sudoers, collect a password, or keep authentication alive afterward.
+if ! $dry && ! $check && [[ -t 0 ]]; then
+	sudo -v
+	(
+		while sleep 45; do sudo -n -v || exit; done
+	) &
+	sudo_keepalive=$!
+	trap 'kill "$sudo_keepalive" 2>/dev/null || true; wait "$sudo_keepalive" 2>/dev/null || true' EXIT
+fi
+# Boot preflight precedes even compiler/package bootstrap. Fresh installs and
+# first explicit Standard installs select EAC; saved boot choices persist.
+# The native installer repeats this selection.
 if ! $dry && ! $check; then
 	state_base=${XDG_STATE_HOME:-$HOME/.local/state}
 	boot_settings=$(
-		/usr/bin/python3 -I - "$state_base/desktop-foundation" "$boot_profile" "${boot_dkms[*]}" <<'PYBOOT'
+		/usr/bin/python3 -I - "$state_base/desktop-foundation" "$boot_profile" "${boot_dkms[*]}" "$layer" <<'PYBOOT'
 import pathlib, sys, tomllib
 state = pathlib.Path(sys.argv[1])
 if not state.is_absolute():
@@ -171,7 +181,7 @@ if not value:
     if selection.exists():
         value = saved.get('boot_profile', 'existing')
     else:
-        value = 'existing' if (state / 'manifest.json').exists() else 'eac'
+        value = 'existing' if (state / 'manifest.json').exists() and sys.argv[4] != 'standard' else 'eac'
 if value not in ('eac', 'existing'):
     raise SystemExit('Invalid saved boot profile')
 print(value, 'allow' if sys.argv[3] or saved.get('recovery_only_dkms', False) else 'no')
@@ -228,4 +238,4 @@ else
 		"$root/scripts/build-backend"
 	fi
 fi
-exec "$root/scripts/foundation" install "$@"
+"$root/scripts/foundation" install "$@"

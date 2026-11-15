@@ -816,7 +816,7 @@ def run_upstream(tx, facts, recovered_keys):
         tx.save()
     # Upstream compares DER identities before appending db. Never call sbctl's
     # non-idempotent partial append independently or use -y for enrollment.
-    command('/usr/bin/eac-setup', interactive=True, boot_manager=True)
+    command('/usr/bin/eac-setup', *([] if enrollment_needed else ['--yes']), interactive=True, boot_manager=True)
     after = scan()
     if facts['setup_mode'] is not True and any(facts['keys'][name]['fingerprints'] != after['keys'][name]['fingerprints'] for name in ('PK', 'KEK')):
         tx.checkpoint('certificate-change', 'PK/KEK changed unexpectedly during db enrollment; stop and inspect firmware state')
@@ -933,7 +933,7 @@ def resume(tx, args):
             if not args.no_packages:
                 # Conflict removals are reviewed in this one solver transaction;
                 # never pacman -R a working DKMS driver before replacements exist.
-                command('/usr/bin/pacman', '-Syu', '--needed', *p['packages'], interactive=True)
+                command('/usr/bin/pacman', '-Syu', '--needed', '--noconfirm', '--ask=4', *p['packages'], interactive=True)
             after = scan()
             if any(name not in after['packages'] for name in p['packages']):
                 raise Checkpoint('Package readback is incomplete; resume the package transaction')

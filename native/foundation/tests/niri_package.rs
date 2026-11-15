@@ -77,6 +77,14 @@ impl Effects for Fake {
                 Ok(format!("{} {}\n", self.name, self.version).into_bytes())
             }
             ["pacman", "-Q", _] => Err(invalid("not installed")),
+            [
+                "pacman",
+                "-Sp",
+                "--print-format",
+                "%l",
+                "--nodeps",
+                "niri=26.04-1.1",
+            ] => Ok(b"https://mirror.example/niri.pkg.tar.zst\n".to_vec()),
             ["pacman-conf", "CacheDir"] => Ok(format!("{}\n", self.cache.display()).into_bytes()),
             ["pacman", "-Qp", path] => {
                 let bytes = fs::read(path)?;
@@ -109,10 +117,22 @@ impl Effects for Fake {
     }
     fn interactive(&mut self, args: &[String]) -> Result<()> {
         self.calls.push(args.to_vec());
-        if args.len() != 4 || args[..3] != ["sudo", "pacman", "-U"] {
+        if args.first().is_some_and(|s| s == "curl") {
+            let target = args.iter().position(|s| s == "--output").unwrap() + 1;
+            fs::write(
+                &args[target],
+                if args.last().unwrap().ends_with(".sig") {
+                    b"valid signature".as_slice()
+                } else {
+                    b"stock-archive".as_slice()
+                },
+            )?;
+            return Ok(());
+        }
+        if ![4, 6].contains(&args.len()) || args[..3] != ["sudo", "pacman", "-U"] {
             return Err(invalid("Unexpected privileged operation"));
         }
-        let path = Path::new(&args[3]);
+        let path = Path::new(args.last().unwrap());
         let data = fs::read(path)?;
         let stock = data == b"stock-archive";
         if (!stock && self.fail_before) || (stock && self.fail_recovery) {
@@ -631,4 +651,46 @@ fn native_capture_extracts_real_package_binary_above_snapshot_limit() {
         .unwrap();
     assert_eq!(extracted, content);
     assert!(native.capture(&["/bin/true".into()]).unwrap().is_empty());
+}
+
+#[test]
+fn absent_cache_downloads_exact_signed_stock_privately_before_replacing() {
+    let mut f = Fixture::new();
+    fs::remove_dir_all(&f.e.cache).unwrap();
+    niri_package::install(&f.root, &f.paths, None, &mut f.e).unwrap();
+    assert_eq!(
+        fs::read(
+            niri_package::read(&f.paths)
+                .unwrap()
+                .unwrap()
+                .original
+                .archive
+        )
+        .unwrap(),
+        b"stock-archive"
+    );
+}
+
+#[test]
+fn unreadable_system_cache_does_not_block_signed_recovery_download() {
+    let mut f = Fixture::new();
+    fs::set_permissions(&f.e.cache, fs::Permissions::from_mode(0o000)).unwrap();
+    let result = niri_package::install(&f.root, &f.paths, None, &mut f.e);
+    fs::set_permissions(&f.e.cache, fs::Permissions::from_mode(0o700)).unwrap();
+    result.unwrap();
+    assert!(
+        f.e.calls
+            .iter()
+            .any(|args| args.first().is_some_and(|s| s == "curl"))
+    );
+}
+
+#[test]
+fn downloaded_recovery_with_bad_signature_never_replaces_compositor() {
+    let mut f = Fixture::new();
+    fs::remove_dir_all(&f.e.cache).unwrap();
+    f.e.bad_signature = true;
+    assert!(niri_package::install(&f.root, &f.paths, None, &mut f.e).is_err());
+    assert_eq!(fs::read(&f.paths.binary).unwrap(), b"stock-binary");
+    assert_eq!(f.e.mutations(), 0);
 }

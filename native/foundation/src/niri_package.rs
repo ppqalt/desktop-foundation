@@ -337,7 +337,14 @@ fn stock(paths: &Paths, e: &mut impl Effects) -> Result<Artifact> {
         for dir in caches.lines() {
             let entries = match fs::read_dir(dir) {
                 Ok(v) => v,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
+                    ) =>
+                {
+                    continue;
+                }
                 Err(error) => return Err(error.into()),
             };
             for entry in entries {
@@ -347,6 +354,8 @@ fn stock(paths: &Paths, e: &mut impl Effects) -> Result<Artifact> {
                     && name.contains(".pkg.tar.")
                     && !name.ends_with(".sig")
                     && path.with_file_name(format!("{name}.sig")).is_file()
+                    && fs::File::open(&path).is_ok()
+                    && fs::File::open(path.with_file_name(format!("{name}.sig"))).is_ok()
                 {
                     let out = e.capture(&args(&["pacman", "-Qp", text(&path)?]))?;
                     if String::from_utf8_lossy(&out).trim() == installed {
@@ -360,19 +369,61 @@ fn stock(paths: &Paths, e: &mut impl Effects) -> Result<Artifact> {
     let source = if let Some(path) = find(e)? {
         path
     } else {
+        // System caches can be root-only (including pacman's download sandbox).
+        // Download the exact repository version into our private owned directory
+        // instead of weakening cache permissions or recursively copying it.
         let version = installed.strip_prefix("niri ").expect("validated");
-        e.interactive(&args(&[
-            "sudo",
+        let output = e.capture(&args(&[
             "pacman",
-            "-Sw",
-            "--noconfirm",
+            "-Sp",
+            "--print-format",
+            "%l",
+            "--nodeps",
             &format!("niri={version}"),
         ]))?;
-        find(e)?.ok_or_else(|| {
-            invalid("The exact signed stock Niri archive is unavailable; no compositor replaced")
-        })?
+        let output = String::from_utf8(output).map_err(|_| invalid("Invalid stock Niri URL"))?;
+        let urls: Vec<_> = output.lines().filter(|line| !line.is_empty()).collect();
+        if urls.len() != 1 || !urls[0].starts_with("https://") {
+            return Err(invalid(
+                "The exact signed stock Niri archive is unavailable; no compositor replaced",
+            ));
+        }
+        let archive = paths.directory.join("stock-download.pkg.tar.zst");
+        for (url, target) in [
+            (urls[0].to_owned(), archive.clone()),
+            (
+                format!("{}.sig", urls[0]),
+                PathBuf::from(format!("{}.sig", text(&archive)?)),
+            ),
+        ] {
+            // atomic() refuses symlinks and publishes private regular files.
+            state::atomic(&target, b"", 0o600)?;
+            e.interactive(&args(&[
+                "curl",
+                "--fail",
+                "--location",
+                "--proto",
+                "=https",
+                "--proto-redir",
+                "=https",
+                "--max-time",
+                "300",
+                "--max-filesize",
+                "268435456",
+                "--output",
+                text(&target)?,
+                &url,
+            ]))?;
+        }
+        archive
     };
-    retain(paths, &source, true, e)
+    let retained = retain(paths, &source, true, e)?;
+    if format!("{} {}", retained.name, retained.version) != installed {
+        return Err(invalid(
+            "Signed recovery package differs from installed stock Niri; no compositor replaced",
+        ));
+    }
+    Ok(retained)
 }
 fn installed(paths: &Paths, a: &Artifact, e: &mut impl Effects) -> bool {
     hash(&paths.binary).is_ok_and(|sha| sha == a.binary_sha256)
@@ -544,6 +595,8 @@ pub fn install(
             "sudo",
             "pacman",
             "-U",
+            "--noconfirm",
+            "--ask=4",
             text(&j.candidate.archive)?,
         ]))
         .and_then(|()| {

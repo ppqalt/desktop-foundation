@@ -1,4 +1,8 @@
 packages = [
+    "paru",
+    "brave-origin-bin",
+    "chatgpt-desktop-bin",
+    "vesktop-bin",
     "nautilus",
     "papers",
     "loupe",

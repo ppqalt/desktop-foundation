@@ -12,6 +12,39 @@ bootstrap/build, and the normal-user workflow requests authentication for its
 privileged steps. The installer runs its selected doctor checks before reporting
 success; no separate validation command is needed to finish installation.
 
+## Automated Standard installation
+
+Run `./scripts/install --standard` as the login user and authenticate with sudo.
+The installer keeps that interactive sudo ticket alive only while it runs.
+Standard batches core, GNOME utilities, signed stable Brave Origin, ChatGPT,
+Vesktop, paru, recording, firmware and patched-Niri build dependencies into one
+`pacman -Syu --needed --noconfirm --ask=4` transaction when packages are missing.
+Exact equivalents from enabled CachyOS repositories are preferred in their
+configured order (preserving the configured ISA level); Foundation does not enable unsupported ISA repositories or change
+repository priority. The solver chooses providers, accepts replacements and
+removes declared conflicts atomically, retaining signature/dependency checks.
+There is no broad file overwrite or dependency bypass.
+
+A fresh checkout may first need a small compiler bootstrap transaction. Building
+patched Niri requires a later local-package transaction. EAC retains its own
+journaled kernel/driver transaction so interrupted boot preparation can resume.
+Existing stages are read back rather than blindly skipped; verified Niri builds,
+original backups and boot preparation are retained across interruptions.
+
+The first explicit Standard install selects EAC unless an existing saved boot
+choice or `--boot-profile existing` says otherwise. Older desktop deployments
+inherit their recorded hardware profile. Firmware changes, recovery-key consent
+and the first verified EAC boot remain resumable checkpoints: repeat the same
+command afterward. No automatic reboot, key clearing or claim of physical recovery
+acceptance occurs. Once signing-key trust is established, upstream EAC provisioning
+uses its noninteractive mode; initial enrollment retains upstream consent.
+
+Niri recovery first uses a readable exact signed stock package. If system cache
+permissions prevent access, it downloads the exact repository version and detached
+signature over HTTPS into private state and verifies both before replacing Niri.
+Unavailable historical stock packages or invalid signatures stop safely; cache
+permissions are never relaxed. The active compositor keeps running.
+
 A normal installation checks ownership and managed links first, bootstraps only missing compiler/build dependencies (without starting desktop services), and builds the release
 backend automatically. Bootstrap reuses the pinned Rust toolchain when both
 `rustc` and Cargo work, avoiding an unnecessary toolchain-server check on reruns.
@@ -168,8 +201,8 @@ Privileged boot helpers have separate restore commands. Follow
 
 ## EAC boot profile
 
-Fresh installations select the resumable EAC/systemd-boot + Limine/LTS recovery
-profile. Older saved selections preserve their existing stack. Use
+Fresh installations and the first explicit Standard installation select the
+resumable EAC/systemd-boot + Limine/LTS recovery profile. Older saved selections preserve their existing stack. Use
 `--boot-profile eac` or `--boot-profile existing` explicitly. See
 [Secure Boot and recovery](secure-boot.md) for firmware checkpoints, driver
 limitations, update hooks and recovery acceptance. `--clean-boot` remains a

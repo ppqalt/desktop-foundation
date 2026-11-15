@@ -5,7 +5,12 @@ set -euo pipefail
 	exit 1
 }
 if command -v paru >/dev/null; then exit 0; fi
-sudo pacman -Syu --needed base-devel git
+# CachyOS ships a signed paru package; no AUR build or recipe prompt needed.
+if pacman -Si paru >/dev/null 2>&1; then
+	sudo pacman -Syu --needed --noconfirm --ask=4 paru
+	exit 0
+fi
+sudo pacman -Syu --needed --noconfirm --ask=4 base-devel git
 build_dir=$(mktemp -d)
 trap 'rm -rf -- "$build_dir"' EXIT
 git clone --depth 1 https://aur.archlinux.org/paru.git "$build_dir/paru"

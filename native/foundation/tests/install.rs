@@ -470,12 +470,23 @@ fn signed_packages_aur_review_and_foreign_variant_rules_are_preserved() {
     install::provision(&mut signed, &f.root, "fixture", &app, false).unwrap();
     assert_eq!(
         signed.commands,
-        [vec!["sudo", "pacman", "-Syu", "--needed", "fixture"]]
+        [vec![
+            "sudo",
+            "pacman",
+            "-Syu",
+            "--needed",
+            "--noconfirm",
+            "--ask=4",
+            "fixture"
+        ]]
     );
     let mut aur = Fake::default();
     install::provision(&mut aur, &f.root, "fixture", &app, true).unwrap();
     assert!(aur.named("paru-bootstrap"));
-    assert_eq!(aur.commands[1], ["paru", "-S", "--needed", "fixture"]);
+    assert_eq!(
+        aur.commands[1],
+        ["paru", "-S", "--needed", "--noconfirm", "fixture"]
+    );
     let mut absent = Fake::default();
     assert!(install::provision(&mut absent, &f.root, "fixture", &app, false).is_err());
     assert!(absent.commands.is_empty());
@@ -656,7 +667,7 @@ fn everything_installs_recording_package() {
     assert!(
         r.commands
             .iter()
-            .any(|args| args.iter().any(|arg| arg == "recording-package")),
+            .any(|args| args.iter().any(|arg| arg == "--recording")),
         "full install must provision recording"
     );
 }

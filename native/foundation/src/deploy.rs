@@ -69,7 +69,10 @@ pub fn owned(entry: &Entry) -> bool {
     })
 }
 pub fn read(paths: &Paths) -> Result<Option<Manifest>> {
-    let path = paths.state.join("manifest.json");
+    read_state(&paths.state)
+}
+pub fn read_state(state_dir: &Path) -> Result<Option<Manifest>> {
+    let path = state_dir.join("manifest.json");
     let Some(meta) = fingerprint(&path)? else {
         return Ok(None);
     };
@@ -98,7 +101,7 @@ pub fn read(paths: &Paths) -> Result<Option<Manifest>> {
         }
         if let Some(backup) = &entry.backup {
             let name = backup.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if backup.parent() != Some(&paths.state)
+            if backup.parent() != Some(state_dir)
                 || !name
                     .strip_prefix("backup-")
                     .is_some_and(|s| !s.is_empty() && s.bytes().all(|c| c.is_ascii_digit()))

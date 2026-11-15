@@ -134,6 +134,21 @@ class BootPlanning(unittest.TestCase):
             with self.assertRaisesRegex(b.Checkpoint, 'unrelated BootNext'):
                 b.select_boot(Transaction(), {'esp': {'partuuid': PART}, 'boot_id': 'test'}, 'next')
 
+    def test_trusted_eac_setup_is_noninteractive_but_initial_enrollment_is_not(self):
+        class Transaction:
+            data = {}
+            def save(self): pass
+            def checkpoint(self, name, message): raise b.Checkpoint(message)
+        for trusted in (True, False):
+            facts = {'eac_ca_enrolled': trusted, 'setup_mode': True,
+                     'keys': {'db': {'local_enrolled': trusted}},
+                     'encryption': {'tpm_bound': False, 'bitlocker_possible': False}}
+            after = {'eac_ca_enrolled': True, 'keys': {'db': {'local_enrolled': True}}}
+            with patch.object(b, 'verify_upstream'), patch.object(b, 'scan', return_value=after), patch.object(b, 'command') as command:
+                b.run_upstream(Transaction(), facts, False)
+                arguments = command.call_args.args
+                self.assertEqual('--yes' in arguments, trusted)
+
     def test_refresh_route_has_no_enrollment_or_firmware_mutation(self):
         identity = {'root_uuid': 'root', 'esp_partuuid': PART}
         class Transaction:

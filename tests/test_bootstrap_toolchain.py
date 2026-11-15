@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BootstrapToolchain(unittest.TestCase):
-    def run_bootstrap(self, missing='', dev=False, install_fails=False, build_only=False):
+    def run_bootstrap(self, missing='', dev=False, install_fails=False, build_only=False, standard=False, packages_missing=False, catalog=""):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             scripts = base / 'repo/scripts'
@@ -21,7 +21,7 @@ class BootstrapToolchain(unittest.TestCase):
             tools.mkdir()
             log = base / 'commands'
             for name, content in {
-                'pacman': 'printf "pacman %s\\n" "$*" >> "$LOG"; exit 0',
+                'pacman': 'if [ "$1" = -Sl ]; then printf "%s\\n" "$CATALOG"; exit 0; fi; [ "$1" != -T ] || [ "$PACKAGES_MISSING" != 1 ] || exit 1; printf "pacman %s\\n" "$*" >> "$LOG"; exit 0',
                 'sudo': 'printf "sudo %s\\n" "$*" >> "$LOG"',
                 'rustup': '''printf 'rustup %s\\n' "$*" >> "$LOG"
 if [ "$1" = run ] && [ "$4" = --version ] && [ "$3" = "$MISSING" ]; then exit 1; fi
@@ -32,15 +32,39 @@ if [ "$1 $2" = 'toolchain install' ] && [ "$FAIL_INSTALL" = 1 ]; then exit 1; fi
                 path.write_text('#!/bin/sh\n' + content + '\n')
                 path.chmod(0o755)
             env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'],
-                       LOG=str(log), MISSING=missing, FAIL_INSTALL=str(int(install_fails)))
+                       LOG=str(log), MISSING=missing, FAIL_INSTALL=str(int(install_fails)), PACKAGES_MISSING=str(int(packages_missing)), CATALOG=catalog)
             # Private copy redirects only Qt executable presence probes. Actual
             # option, package and toolchain logic remains the production script.
             if dev:
                 text = (scripts / 'bootstrap').read_text().replace('test -x "/usr/lib/qt6/bin/$tool"', ': "$tool"')
                 (scripts / 'bootstrap').write_text(text)
-            result = subprocess.run(['bash', str(scripts / 'bootstrap')] + (['--dev'] if dev else []) + (['--build-only'] if build_only else []),
+            result = subprocess.run(['bash', str(scripts / 'bootstrap')] + (['--dev'] if dev else []) + (['--build-only'] if build_only else []) + (['--standard', '--firmware', '--recording', '--niri-build'] if standard else []),
                                     env=env, text=True, capture_output=True, timeout=10)
-            return result, log.read_text().splitlines()
+            return result, log.read_text().splitlines() if log.exists() else []
+
+    def test_standard_uses_one_solver_transaction_for_all_selected_packages(self):
+        result, commands = self.run_bootstrap(standard=True, packages_missing=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installs = [c for c in commands if c.startswith('sudo pacman ')]
+        self.assertEqual(len(installs), 1, installs)
+        words = installs[0].split()
+        for token in ['-Syu', '--needed', '--noconfirm', '--ask=4', 'paru',
+                      'brave-origin-bin', 'chatgpt-desktop-bin', 'vesktop-bin',
+                      'nautilus', 'mkinitcpio-firmware', 'gpu-screen-recorder',
+                      'libarchive', 'rustup']:
+            self.assertIn(token, words)
+        self.assertEqual(len(words), len(set(words)))
+
+    def test_cachyos_equivalents_follow_enabled_repository_order(self):
+        catalog = 'extra paru 1\ncachyos-v3 paru 1\ncachyos paru 1\nextra rustup 1\ncachyos rustup 1'
+        result, commands = self.run_bootstrap(standard=True, packages_missing=True, catalog=catalog)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installs = [c.split() for c in commands if c.startswith('sudo pacman ')]
+        self.assertEqual(len(installs), 1)
+        self.assertIn('cachyos-v3/paru', installs[0])
+        self.assertNotIn('cachyos/paru', installs[0])
+        self.assertIn('cachyos/rustup', installs[0])
+        self.assertIn('nautilus', installs[0])
 
     def test_build_bootstrap_does_not_install_runtime_or_start_services(self):
         result, commands = self.run_bootstrap(build_only=True)

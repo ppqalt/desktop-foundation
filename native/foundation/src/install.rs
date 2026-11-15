@@ -330,7 +330,14 @@ fn missing_packages(r: &mut impl Runtime, packages: &[String]) -> Result<()> {
         }
     }
     if !missing.is_empty() {
-        let mut args = words(&["sudo", "pacman", "-Syu", "--needed"]);
+        let mut args = words(&[
+            "sudo",
+            "pacman",
+            "-Syu",
+            "--needed",
+            "--noconfirm",
+            "--ask=4",
+        ]);
         args.extend(missing);
         r.command(&args)?;
     }
@@ -397,11 +404,13 @@ pub fn provision(
             "pacman",
             "-Syu",
             "--needed",
+            "--noconfirm",
+            "--ask=4",
             repository_package,
         ]))?;
     } else if aur {
         call(r, root, "paru-bootstrap", &[])?;
-        r.command(&words(&["paru", "-S", "--needed", package]))?;
+        r.command(&words(&["paru", "-S", "--needed", "--noconfirm", package]))?;
     } else {
         return Err(invalid(format!(
             "{package} is unavailable in configured signed repositories; no repository added"
@@ -814,13 +823,16 @@ pub fn execute(
         if o.personal || o.standard || o.clean_boot {
             bootstrap.push("--firmware");
         }
-        call(r, root, "bootstrap", &bootstrap)?;
         if o.standard {
-            missing_packages(r, &manifest(root, "standard")?)?;
+            bootstrap.push("--standard");
         }
         if recording_selected {
-            missing_packages(r, &manifest(root, "recording")?)?;
+            bootstrap.push("--recording");
         }
+        if o.patched_niri {
+            bootstrap.push("--niri-build");
+        }
+        call(r, root, "bootstrap", &bootstrap)?;
     }
     if recording_selected {
         check_recording_tools(r)?;
@@ -829,7 +841,6 @@ pub fn execute(
     call(r, root, "build-backend", &[])?;
     if o.packages {
         if o.patched_niri {
-            missing_packages(r, &manifest(root, "niri-build")?)?;
             call(r, root, "niri-package", &["install"])?;
         } else {
             call(r, root, "niri-package", &["restore"])?;
@@ -1043,10 +1054,22 @@ fn selection(root: &Path, state_dir: &Path, args: &[String]) -> Result<Options> 
         Ok(file) => file,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             let mut defaults = Vec::new();
-            if !state_dir.join("manifest.json").exists()
+            if (!state_dir.join("manifest.json").exists() || args.iter().any(|s| s == "--standard"))
                 && !args.iter().any(|s| s == "--boot-profile")
             {
                 defaults.extend(["--boot-profile".into(), "eac".into()]);
+            }
+            // Older deployments predate installation.toml. Preserve their
+            // recorded hardware profile instead of reverting to default.
+            if !args.iter().any(|s| {
+                s == "--profile"
+                    || s == "--hardware-profile"
+                    || s.starts_with("--profile=")
+                    || s.starts_with("--hardware-profile=")
+            }) && let Some(manifest) = deploy::read_state(state_dir)?
+                && let Some(profile) = manifest.profile
+            {
+                defaults.extend(["--profile".into(), profile]);
             }
             defaults.extend_from_slice(args);
             return Options::parse(root, &defaults);
@@ -1175,6 +1198,9 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
             conflicts.join(", ")
         )));
     }
+    // Persist intent before lengthy package/build work so an interrupted run
+    // resumes the same profile. Component journals retain completed effects.
+    save_selection(&paths.state, &options)?;
     execute(&root, &paths, &options, &mut runtime).map_err(|e| {
         invalid(format!(
             "Installation stopped: {e}. Backups retained; resolve the error and rerun."
@@ -1187,6 +1213,37 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod selection_tests {
     use super::*;
+    #[test]
+    fn first_standard_install_preserves_legacy_hardware_and_explicit_boot_choice() {
+        let root = std::env::temp_dir().join(format!("df-legacy-standard-{}", std::process::id()));
+        fs::create_dir_all(root.join("profiles/custom")).unwrap();
+        fs::create_dir_all(root.join("profiles/default")).unwrap();
+        fs::create_dir_all(root.join("state")).unwrap();
+        fs::write(
+            root.join("state/manifest.json"),
+            r#"{"root":"/fixture","entries":[],"profile":"custom"}"#,
+        )
+        .unwrap();
+        let automatic = selection(&root, &root.join("state"), &["--standard".into()]).unwrap();
+        assert_eq!(automatic.profile, "custom");
+        assert!(automatic.eac_boot);
+        let explicit = selection(
+            &root,
+            &root.join("state"),
+            &[
+                "--standard".into(),
+                "--boot-profile".into(),
+                "existing".into(),
+                "--profile".into(),
+                "default".into(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(explicit.profile, "default");
+        assert!(!explicit.eac_boot);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn alias_free_manager_is_preserved_and_active_beats_enabled() {
         let missing = std::env::temp_dir().join(format!("df-no-dm-alias-{}", std::process::id()));
@@ -1213,7 +1270,16 @@ mod selection_tests {
         let dir = base.join("state");
         fs::create_dir_all(&dir).unwrap();
         assert!(selection(&base, &dir, &[]).unwrap().eac_boot);
-        fs::write(dir.join("manifest.json"), "{}").unwrap();
+        fs::write(
+            dir.join("manifest.json"),
+            r#"{"root":"/fixture","entries":[],"profile":"default"}"#,
+        )
+        .unwrap();
+        assert!(
+            selection(&base, &dir, &["--standard".into()])
+                .unwrap()
+                .eac_boot
+        );
         assert!(!selection(&base, &dir, &[]).unwrap().eac_boot);
         let selected = Options::parse(
             &base,

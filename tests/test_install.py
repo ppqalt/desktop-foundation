@@ -116,9 +116,26 @@ class ParuBootstrap(unittest.TestCase):
                                     env={**os.environ, 'PATH': str(tools), 'DF_TEST_LOG': str(log)}, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             commands = log.read_text()
-            self.assertIn('sudo pacman -Syu --needed base-devel git', commands)
+            self.assertIn('sudo pacman -Syu --needed --noconfirm --ask=4 base-devel git', commands)
             self.assertIn('makepkg -si', commands)
             self.assertNotIn('sudo makepkg', commands)
+
+    def test_signed_paru_requires_no_aur_recipe_prompt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            tools = Path(temporary)
+            log = tools / 'commands'
+            for name, body in {
+                'pacman': 'exit 0',
+                'sudo': 'printf "%s\\n" "$*" > "$DF_TEST_LOG"',
+            }.items():
+                tool = tools / name
+                tool.write_text('#!/bin/bash\n' + body + '\n')
+                tool.chmod(0o755)
+            result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/paru-bootstrap')],
+                                    env={**os.environ, 'PATH': str(tools), 'DF_TEST_LOG': str(log)},
+                                    stdin=subprocess.DEVNULL, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(log.read_text().strip(), 'pacman -Syu --needed --noconfirm --ask=4 paru')
 
     def test_grub_arguments_are_idempotent(self):
         dropin = ROOT / 'session/apparmor/60-desktop-foundation.cfg'
