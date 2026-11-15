@@ -25,7 +25,7 @@ x = 0
 y = 5
 [focus]
 inactiveDim = 0.0
-borderWidth = 1
+borderWidth = 0
 activeBorder = "#5e7791"
 inactiveBorder = "#364150"
 [opacity]
