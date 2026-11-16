@@ -183,6 +183,10 @@ fn recipe(root: &Path) -> Result<String> {
     if shadows.try_exists()? {
         data.extend(bytes(&shadows, 1024 * 1024)?);
     }
+    let feather = root.join("patches/niri/overview-feather.patch");
+    if feather.try_exists()? {
+        data.extend(bytes(&feather, 1024 * 1024)?);
+    }
     Ok(digest(&data))
 }
 fn identity(e: &mut impl Effects, path: &Path) -> Result<(String, String)> {
@@ -712,7 +716,7 @@ pub fn install(
     j.phase = Phase::Installed;
     save(paths, &j)?;
     println!(
-        "Patched Niri installed; the running graphical session is preserved. Log out and back in to activate Ctrl+Scroll overview zoom."
+        "Patched Niri installed; the running graphical session is preserved. Log out and back in to activate the updated compositor."
     );
     Ok(())
 }

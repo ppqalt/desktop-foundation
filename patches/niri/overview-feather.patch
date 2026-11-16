@@ -1,0 +1,659 @@
+diff --git a/niri-config/src/lib.rs b/niri-config/src/lib.rs
+index 6856bfc..90e7537 100644
+--- a/niri-config/src/lib.rs
++++ b/niri-config/src/lib.rs
+@@ -1663,6 +1663,7 @@ mod tests {
+                 },
+             },
+             overview: Overview {
++                workspace_feather: 32.0,
+                 ctrl_scroll_workspaces: false,
+                 zoom: 0.5,
+                 backdrop_color: Color {
+diff --git a/niri-config/src/misc.rs b/niri-config/src/misc.rs
+index 368422d..bcd1691 100644
+--- a/niri-config/src/misc.rs
++++ b/niri-config/src/misc.rs
+@@ -120,6 +120,8 @@ impl MergeWith<ClipboardPart> for Clipboard {
+ 
+ #[derive(Debug, Clone, Copy, PartialEq)]
+ pub struct Overview {
++    /// Feather width in overview logical pixels; zero disables it.
++    pub workspace_feather: f64,
+     pub ctrl_scroll_workspaces: bool,
+     pub zoom: f64,
+     pub backdrop_color: Color,
+@@ -129,6 +131,7 @@ pub struct Overview {
+ impl Default for Overview {
+     fn default() -> Self {
+         Self {
++            workspace_feather: 32.,
+             ctrl_scroll_workspaces: false,
+             zoom: 0.5,
+             backdrop_color: DEFAULT_BACKDROP_COLOR,
+@@ -139,6 +142,8 @@ impl Default for Overview {
+ 
+ #[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
+ pub struct OverviewPart {
++    #[knuffel(child, unwrap(argument))]
++    pub workspace_feather: Option<FloatOrInt<0, 128>>,
+     #[knuffel(child, unwrap(argument))]
+     pub ctrl_scroll_workspaces: Option<bool>,
+     #[knuffel(child, unwrap(argument))]
+@@ -154,7 +159,7 @@ impl MergeWith<OverviewPart> for Overview {
+         if let Some(value) = part.ctrl_scroll_workspaces {
+             self.ctrl_scroll_workspaces = value;
+         }
+-        merge!((self, part), zoom, workspace_shadow);
++        merge!((self, part), zoom, workspace_shadow, workspace_feather);
+         merge_clone!((self, part), backdrop_color);
+     }
+ }
+diff --git a/src/layout/monitor.rs b/src/layout/monitor.rs
+index 53c0606..747dafa 100644
+--- a/src/layout/monitor.rs
++++ b/src/layout/monitor.rs
+@@ -1370,6 +1370,13 @@ impl<W: LayoutElement> Monitor<W> {
+         self.workspace_size(zoom) + Size::from((0., gap))
+     }
+ 
++    pub fn overview_feather_width(&self) -> f64 {
++        self.overview_progress
++            .as_ref()
++            .map_or(0., |p| p.clamped_value().clamp(0., 1.))
++            * self.options.overview.workspace_feather
++    }
++
+     pub fn overview_zoom(&self) -> f64 {
+         let progress = self.overview_progress.as_ref().map(|p| p.value());
+         compute_overview_zoom(&self.options, progress)
+diff --git a/src/layout/tests/animations.rs b/src/layout/tests/animations.rs
+index b29e0b1..836f7fb 100644
+--- a/src/layout/tests/animations.rs
++++ b/src/layout/tests/animations.rs
+@@ -1130,3 +1130,51 @@ fn overview_zoom_retargets_without_delay_or_workspace_movement() {
+     layout.overview_progress = None;
+     assert_eq!(layout.overview_zoom(), 1.);
+ }
++
++#[test]
++fn overview_feather_follows_open_close_reversal_and_reduced_motion() {
++    let mut clock = crate::animation::Clock::with_time(Duration::ZERO);
++    let mut config = Config::default();
++    let mut layout: Layout<TestWindow> = Layout::new(clock.clone(), &config);
++    check_ops_on_layout(&mut layout, [Op::AddOutput(1)]);
++    let output = layout.outputs().next().unwrap().clone();
++    let width = |layout: &Layout<TestWindow>| {
++        layout
++            .monitor_for_output(&output)
++            .unwrap()
++            .overview_feather_width()
++    };
++    assert_eq!(width(&layout), 0.);
++    layout.open_overview();
++    assert_eq!(width(&layout), 0.);
++    clock.set_unadjusted(Duration::from_millis(60));
++    layout.advance_animations();
++    let partial = width(&layout);
++    assert!(partial > 0. && partial < 32.);
++    layout.close_overview();
++    assert_eq!(
++        width(&layout),
++        partial,
++        "Closing must continue from the rendered fade"
++    );
++    clock.set_unadjusted(Duration::from_millis(100));
++    layout.advance_animations();
++    assert!(width(&layout) < partial);
++    layout.open_overview();
++    clock.set_unadjusted(Duration::from_secs(2));
++    layout.advance_animations();
++    assert_eq!(width(&layout), 32.);
++    layout.close_overview();
++    clock.set_unadjusted(Duration::from_secs(4));
++    layout.advance_animations();
++    assert_eq!(width(&layout), 0.);
++    config.animations.off = true;
++    clock.set_complete_instantly(true);
++    layout.update_config(&config);
++    layout.open_overview();
++    layout.advance_animations();
++    assert_eq!(width(&layout), 32.);
++    layout.close_overview();
++    layout.advance_animations();
++    assert_eq!(width(&layout), 0.);
++}
+diff --git a/src/layout/workspace.rs b/src/layout/workspace.rs
+index 49548a8..3e1ddda 100644
+--- a/src/layout/workspace.rs
++++ b/src/layout/workspace.rs
+@@ -7,7 +7,7 @@ use niri_config::{
+     CenterFocusedColumn, CornerRadius, OutputName, PresetSize, Workspace as WorkspaceConfig,
+ };
+ use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
+-use smithay::backend::renderer::element::Kind;
++use smithay::backend::renderer::element::{Id, Kind};
+ use smithay::backend::renderer::gles::GlesRenderer;
+ use smithay::desktop::{layer_map_for_output, Window};
+ use smithay::output::Output;
+@@ -90,6 +90,7 @@ pub struct Workspace<W: LayoutElement> {
+ 
+     /// This workspace's shadow in the overview.
+     shadow: Shadow,
++    overview_feather_id: Id,
+ 
+     /// This workspace's background.
+     background_buffer: SolidColorBuffer,
+@@ -263,6 +264,7 @@ impl<W: LayoutElement> Workspace<W> {
+             view_size,
+             working_area,
+             shadow: Shadow::new(shadow_config),
++            overview_feather_id: Id::new(),
+             background_buffer: SolidColorBuffer::new(view_size, options.layout.background_color),
+             output: Some(output),
+             clock,
+@@ -328,6 +330,7 @@ impl<W: LayoutElement> Workspace<W> {
+             view_size,
+             working_area,
+             shadow: Shadow::new(shadow_config),
++            overview_feather_id: Id::new(),
+             background_buffer: SolidColorBuffer::new(view_size, options.layout.background_color),
+             clock,
+             base_options,
+@@ -1658,6 +1661,10 @@ impl<W: LayoutElement> Workspace<W> {
+             });
+     }
+ 
++    pub fn overview_feather_id(&self) -> Id {
++        self.overview_feather_id.clone()
++    }
++
+     pub fn render_shadow<R: NiriRenderer>(
+         &self,
+         renderer: &mut R,
+diff --git a/src/niri.rs b/src/niri.rs
+index b41b80b..e477e77 100644
+--- a/src/niri.rs
++++ b/src/niri.rs
+@@ -4391,6 +4391,25 @@ impl Niri {
+ 
+             mon.render_insert_hint_between_workspaces(ctx.renderer, &mut |elem| push(elem.into()));
+ 
++            // Blend the workspace perimeter with the SAME cached backdrop used
++            // below it. Front-to-back ordering keeps overlays, drag feedback and
++            // insertion hints above the blend. No workspace/window offscreen copy.
++            if let Some(xray) = ctx.xray {
++                let width = mon.overview_feather_width();
++                if width > 0. {
++                    for (ws, geo) in mon.workspaces_with_render_geo() {
++                        crate::render_helpers::overview_feather::render(
++                            ctx.as_gles(),
++                            xray,
++                            ws.overview_feather_id(),
++                            geo,
++                            width,
++                            &mut |elem| push(elem.into()),
++                        );
++                    }
++                }
++            }
++
+             // Macro instead of closure to avoid borrowing push().
+             macro_rules! process {
+                 ($geo:expr) => {{
+@@ -6512,6 +6531,7 @@ niri_render_elements! {
+ 
+ niri_render_elements! {
+     OutputRenderElements<R> => {
++        OverviewFeather = crate::render_helpers::overview_feather::OverviewFeatherElement,
+         Monitor = MonitorRenderElement<R>,
+         RescaledTile = RescaleRenderElement<TileRenderElement<R>>,
+         LayerSurface = LayerSurfaceRenderElement<R>,
+diff --git a/src/render_helpers/mod.rs b/src/render_helpers/mod.rs
+index 474437a..185d8fa 100644
+--- a/src/render_helpers/mod.rs
++++ b/src/render_helpers/mod.rs
+@@ -37,6 +37,7 @@ pub mod framebuffer_effect;
+ pub mod gradient_fade_texture;
+ pub mod memory;
+ pub mod offscreen;
++pub mod overview_feather;
+ pub mod primary_gpu_texture;
+ pub mod render_elements;
+ pub mod renderer;
+diff --git a/src/render_helpers/overview_feather.rs b/src/render_helpers/overview_feather.rs
+new file mode 100644
+index 0000000..ba416a0
+--- /dev/null
++++ b/src/render_helpers/overview_feather.rs
+@@ -0,0 +1,350 @@
++//! Blend the whole workspace perimeter into its existing overview backdrop.
++//! Compositing B * (1-f) over opaque C equals feathering C over B. Unlike fading
++//! individual surfaces, overlapping windows keep their original composition.
++use std::cell::RefCell;
++use std::rc::Rc;
++
++use smithay::backend::renderer::element::{Element, Id, RenderElement};
++use smithay::backend::renderer::gles::{
++    GlesError, GlesFrame, GlesRenderer, GlesTexProgram, Uniform,
++};
++use smithay::backend::renderer::utils::{CommitCounter, DamageSet};
++use smithay::backend::renderer::Color32F;
++use smithay::utils::user_data::UserDataMap;
++use smithay::utils::{Buffer, Logical, Physical, Rectangle, Scale, Transform};
++
++use super::effect_buffer::EffectBuffer;
++use super::renderer::AsGlesFrame as _;
++use super::shaders::Shaders;
++use super::xray::Xray;
++use super::RenderCtx;
++use crate::backend::tty::{TtyFrame, TtyRenderer, TtyRendererError};
++
++#[derive(Debug)]
++pub struct OverviewFeatherElement {
++    id: Id,
++    buffer: Rc<RefCell<EffectBuffer>>,
++    program: GlesTexProgram,
++    geometry: Rectangle<f64, Logical>,
++    width: f64,
++    backdrop_color: Color32F,
++}
++
++pub fn render(
++    ctx: RenderCtx<GlesRenderer>,
++    xray: &Xray,
++    id: Id,
++    geometry: Rectangle<f64, Logical>,
++    width: f64,
++    push: &mut dyn FnMut(OverviewFeatherElement),
++) {
++    let Some(program) = Shaders::get(ctx.renderer).overview_feather.clone() else {
++        return;
++    };
++    // Prevent opposite fades from consuming small/strongly zoomed previews.
++    let width = width.min(geometry.size.w.min(geometry.size.h) / 4.);
++    if !width.is_finite() || width <= 0. {
++        return;
++    }
++    let buffer = xray.backdrop[ctx.target as usize].clone();
++    // Reuse the unblurred texture: DF's backdrop already contains its prepared
++    // blurred wallpaper. This must not introduce another blur or capture pass.
++    if !buffer.borrow_mut().prepare(ctx.renderer, false) {
++        return;
++    }
++    push(OverviewFeatherElement {
++        id,
++        buffer,
++        program,
++        geometry,
++        width,
++        backdrop_color: xray.backdrop_color,
++    });
++}
++
++impl Element for OverviewFeatherElement {
++    fn id(&self) -> &Id {
++        &self.id
++    }
++    fn current_commit(&self) -> CommitCounter {
++        self.buffer.borrow().commit()
++    }
++    fn geometry(&self, scale: Scale<f64>) -> Rectangle<i32, Physical> {
++        self.geometry.to_physical_precise_round(scale)
++    }
++    fn src(&self) -> Rectangle<f64, Buffer> {
++        let buffer = self.buffer.borrow();
++        self.geometry
++            .to_buffer(buffer.scale(), Transform::Normal, &buffer.logical_size())
++    }
++    fn damage_since(
++        &self,
++        scale: Scale<f64>,
++        _commit: Option<CommitCounter>,
++    ) -> DamageSet<i32, Physical> {
++        // Width changes during enter/exit even if backdrop commit stays fixed.
++        // Cover the maximum configurable perimeter, including the previous
++        // wider fade on close/reconfiguration. The center stays undamaged.
++        let size = self.geometry(scale).size;
++        if size.w <= 0 || size.h <= 0 {
++            return DamageSet::default();
++        }
++        let x = ((128. * scale.x).ceil() as i32).min((size.w + 1) / 2);
++        let y = ((128. * scale.y).ceil() as i32).min((size.h + 1) / 2);
++        DamageSet::from_slice(&[
++            Rectangle::new((0, 0).into(), (size.w, y).into()),
++            Rectangle::new((0, size.h - y).into(), (size.w, y).into()),
++            Rectangle::new((0, y).into(), (x, (size.h - 2 * y).max(0)).into()),
++            Rectangle::new((size.w - x, y).into(), (x, (size.h - 2 * y).max(0)).into()),
++        ])
++    }
++}
++
++impl RenderElement<GlesRenderer> for OverviewFeatherElement {
++    fn draw(
++        &self,
++        frame: &mut GlesFrame<'_, '_>,
++        src: Rectangle<f64, Buffer>,
++        dst: Rectangle<i32, Physical>,
++        damage: &[Rectangle<i32, Physical>],
++        _opaque_regions: &[Rectangle<i32, Physical>],
++        _cache: Option<&UserDataMap>,
++    ) -> Result<(), GlesError> {
++        let mut buffer = self.buffer.borrow_mut();
++        let texture = match buffer.render(frame, false) {
++            Ok(texture) => texture,
++            Err(err) => {
++                warn!("error rendering overview feather backdrop: {err:?}");
++                return Ok(());
++            }
++        };
++        let size = buffer.logical_size();
++        let geo = self.geometry;
++        let uniforms = [
++            Uniform::new("output_size", (size.w as f32, size.h as f32)),
++            Uniform::new(
++                "workspace",
++                (
++                    geo.loc.x as f32,
++                    geo.loc.y as f32,
++                    geo.size.w as f32,
++                    geo.size.h as f32,
++                ),
++            ),
++            Uniform::new("feather_width", self.width as f32),
++            Uniform::new("backdrop_color", self.backdrop_color.components()),
++        ];
++        frame.render_texture_from_to(
++            &texture,
++            src,
++            dst,
++            damage,
++            &[],
++            Transform::Normal,
++            1.,
++            Some(&self.program),
++            &uniforms,
++        )
++    }
++}
++
++impl<'render> RenderElement<TtyRenderer<'render>> for OverviewFeatherElement {
++    fn draw(
++        &self,
++        frame: &mut TtyFrame<'render, '_, '_>,
++        src: Rectangle<f64, Buffer>,
++        dst: Rectangle<i32, Physical>,
++        damage: &[Rectangle<i32, Physical>],
++        opaque_regions: &[Rectangle<i32, Physical>],
++        cache: Option<&UserDataMap>,
++    ) -> Result<(), TtyRendererError<'render>> {
++        RenderElement::<GlesRenderer>::draw(
++            self,
++            frame.as_gles_frame(),
++            src,
++            dst,
++            damage,
++            opaque_regions,
++            cache,
++        )?;
++        Ok(())
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::niri::OutputRenderElements;
++    use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
++    use crate::render_helpers::{render_to_vec, resources, shaders, RenderTarget};
++    use smithay::backend::allocator::Fourcc;
++    use smithay::backend::egl::{native::EGLSurfacelessDisplay, EGLContext, EGLDisplay};
++    use smithay::backend::renderer::element::Kind;
++
++    #[test]
++    fn egl_overview_feather_blends_entire_perimeter_at_fractional_scales() {
++        let display = unsafe { EGLDisplay::new(EGLSurfacelessDisplay) }.unwrap();
++        let context = EGLContext::new(&display).unwrap();
++        let mut renderer = unsafe { GlesRenderer::new(context) }.unwrap();
++        resources::init(&mut renderer);
++        shaders::init(&mut renderer);
++        assert!(Shaders::get(&mut renderer).overview_feather.is_some());
++        for scale in [1., 1.5, 2.] {
++            let mut xray = Xray::new();
++            let color = Color32F::new(0.1, 0.2, 0.4, 1.);
++            xray.backdrop_color = color;
++            let base = SolidColorBuffer::new((640., 360.), color);
++            let lower = SolidColorBuffer::new((640., 180.), Color32F::new(0.4, 0.1, 0.2, 1.));
++            let workspace = SolidColorBuffer::new((320., 180.), Color32F::new(1., 1., 1., 1.));
++            let content = SolidColorBuffer::new((160., 180.), Color32F::new(0., 1., 0., 1.));
++            {
++                let mut buffer = xray.backdrop[0].borrow_mut();
++                buffer.update_size(
++                    ((640. * scale) as i32, (360. * scale) as i32).into(),
++                    scale.into(),
++                );
++                buffer.elements().push(
++                    SolidColorRenderElement::from_buffer(&lower, (0., 180.), 1., Kind::Unspecified)
++                        .into(),
++                );
++                buffer.elements().push(
++                    SolidColorRenderElement::from_buffer(&base, (0., 0.), 1., Kind::Unspecified)
++                        .into(),
++                );
++            }
++            let mut elements: Vec<OutputRenderElements<GlesRenderer>> = Vec::new();
++            render(
++                RenderCtx {
++                    renderer: &mut renderer,
++                    target: RenderTarget::Output,
++                    xray: None,
++                },
++                &xray,
++                Id::new(),
++                Rectangle::new((160., 90.).into(), (320., 180.).into()),
++                32.,
++                &mut |elem| elements.push(elem.into()),
++            );
++            assert_eq!(elements.len(), 1);
++            elements.push(
++                SolidColorRenderElement::from_buffer(&content, (160., 90.), 1., Kind::Unspecified)
++                    .into(),
++            );
++            elements.push(
++                SolidColorRenderElement::from_buffer(
++                    &workspace,
++                    (160., 90.),
++                    1.,
++                    Kind::Unspecified,
++                )
++                .into(),
++            );
++            elements.push(
++                SolidColorRenderElement::from_buffer(&lower, (0., 180.), 1., Kind::Unspecified)
++                    .into(),
++            );
++            elements.push(
++                SolidColorRenderElement::from_buffer(&base, (0., 0.), 1., Kind::Unspecified).into(),
++            );
++            let pixels = render_to_vec(
++                &mut renderer,
++                ((640. * scale) as i32, (360. * scale) as i32).into(),
++                scale.into(),
++                Transform::Normal,
++                Fourcc::Abgr8888,
++                elements.iter().rev(),
++            )
++            .unwrap();
++            let pixel = |x: f64, y: f64| {
++                let x = (x * scale) as usize;
++                let y = (y * scale) as usize;
++                let index = (y * (640. * scale) as usize + x) * 4;
++                &pixels[index..index + 4]
++            };
++            assert_eq!(
++                pixel(10., 10.),
++                pixel(639., 10.),
++                "Outside backdrop changed"
++            );
++            assert_eq!(
++                pixel(360., 180.),
++                &[255, 255, 255, 255],
++                "Center must remain sharp"
++            );
++            assert_eq!(
++                pixel(240., 180.),
++                &[0, 255, 0, 255],
++                "Inner content must remain intact"
++            );
++            // Both the wallpaper and a window reaching the edge must fade to B.
++            for point in [(160., 180.), (479., 180.), (360., 90.), (360., 269.)] {
++                for (actual, expected) in pixel(point.0, point.1).iter().zip(pixel(10., point.1)) {
++                    assert!(
++                        actual.abs_diff(*expected) <= 2,
++                        "Hard edge at {point:?}: {:?}",
++                        pixel(point.0, point.1)
++                    );
++                }
++            }
++            let quarter = pixel(164., 180.);
++            let half = pixel(176., 180.);
++            let inner = pixel(191., 180.);
++            assert!(
++                quarter[1] < half[1] && half[1] < inner[1],
++                "Fade must be gradual"
++            );
++            assert!(
++                half[0] > 0 && half[0] < 70,
++                "Window edge must blend, not just wallpaper"
++            );
++            if scale == 1. {
++                if let Some(path) = std::env::var_os("DF_FEATHER_ARTIFACT") {
++                    let mut encoder =
++                        png::Encoder::new(std::fs::File::create(path).unwrap(), 640, 360);
++                    encoder.set_color(png::ColorType::Rgba);
++                    encoder.set_depth(png::BitDepth::Eight);
++                    encoder
++                        .write_header()
++                        .unwrap()
++                        .write_image_data(&pixels)
++                        .unwrap();
++                }
++            }
++            elements.clear();
++            // Zero width creates no mask and leaves ordinary desktop rendering untouched.
++            render(
++                RenderCtx {
++                    renderer: &mut renderer,
++                    target: RenderTarget::Output,
++                    xray: None,
++                },
++                &xray,
++                Id::new(),
++                Rectangle::new((160., 90.).into(), (320., 180.).into()),
++                0.,
++                &mut |elem| elements.push(elem.into()),
++            );
++            assert!(elements.is_empty());
++        }
++    }
++
++    #[test]
++    fn overview_feather_configuration_validates_bounds() {
++        assert_eq!(
++            niri_config::Config::parse_mem("overview { workspace-feather 0; }")
++                .unwrap()
++                .overview
++                .workspace_feather,
++            0.
++        );
++        assert_eq!(
++            niri_config::Config::parse_mem("overview { workspace-feather 48; }")
++                .unwrap()
++                .overview
++                .workspace_feather,
++            48.
++        );
++        assert!(niri_config::Config::parse_mem("overview { workspace-feather -1; }").is_err());
++        assert!(niri_config::Config::parse_mem("overview { workspace-feather 129; }").is_err());
++    }
++}
+diff --git a/src/render_helpers/shaders/mod.rs b/src/render_helpers/shaders/mod.rs
+index 7be9b15..cfd13bb 100644
+--- a/src/render_helpers/shaders/mod.rs
++++ b/src/render_helpers/shaders/mod.rs
+@@ -17,6 +17,7 @@ pub struct Shaders {
+     pub postprocess_and_clip: Option<GlesTexProgram>,
+     pub resize: Option<ShaderProgram>,
+     pub gradient_fade: Option<GlesTexProgram>,
++    pub overview_feather: Option<GlesTexProgram>,
+     pub blur: Option<BlurProgram>,
+     pub custom_resize: RefCell<Option<ShaderProgram>>,
+     pub custom_close: RefCell<Option<ShaderProgram>>,
+@@ -142,6 +143,19 @@ impl Shaders {
+             })
+             .ok();
+ 
++        let overview_feather = renderer
++            .compile_custom_texture_shader(
++                include_str!("overview_feather.frag"),
++                &[
++                    UniformName::new("output_size", UniformType::_2f),
++                    UniformName::new("workspace", UniformType::_4f),
++                    UniformName::new("feather_width", UniformType::_1f),
++                    UniformName::new("backdrop_color", UniformType::_4f),
++                ],
++            )
++            .map_err(|err| warn!("error compiling overview feather shader: {err:?}"))
++            .ok();
++
+         let blur = BlurProgram::compile(renderer)
+             .map_err(|err| {
+                 warn!("error compiling blur shaders: {err:?}");
+@@ -155,6 +169,7 @@ impl Shaders {
+             postprocess_and_clip,
+             resize,
+             gradient_fade,
++            overview_feather,
+             blur,
+             custom_resize: RefCell::new(None),
+             custom_close: RefCell::new(None),
+diff --git a/src/render_helpers/shaders/overview_feather.frag b/src/render_helpers/shaders/overview_feather.frag
+new file mode 100644
+index 0000000..6a2d9b2
+--- /dev/null
++++ b/src/render_helpers/shaders/overview_feather.frag
+@@ -0,0 +1,34 @@
++#version 100
++//_DEFINES_
++#if defined(EXTERNAL)
++#extension GL_OES_EGL_image_external : require
++#endif
++precision highp float;
++#if defined(EXTERNAL)
++uniform samplerExternalOES tex;
++#else
++uniform sampler2D tex;
++#endif
++uniform float alpha;
++varying vec2 v_coords;
++#if defined(DEBUG_FLAGS)
++uniform float tint;
++#endif
++uniform vec2 output_size;
++uniform vec4 workspace;
++uniform float feather_width;
++uniform vec4 backdrop_color;
++void main() {
++    vec2 point = v_coords * output_size - workspace.xy;
++    vec2 distance_to_edge = min(point, workspace.zw - point);
++    vec2 fade = smoothstep(vec2(0.0), vec2(feather_width), distance_to_edge);
++    float coverage = 1.0 - fade.x * fade.y;
++    if (coverage <= 0.0) discard;
++    vec4 color = texture2D(tex, v_coords);
++#if defined(NO_ALPHA)
++    color.a = 1.0;
++#endif
++    // Match Niri's backdrop composition, including the no-wallpaper fallback.
++    color += backdrop_color * (1.0 - color.a);
++    gl_FragColor = color * coverage * alpha;
++}

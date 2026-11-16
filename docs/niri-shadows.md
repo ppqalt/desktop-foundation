@@ -2,16 +2,37 @@
 
 ## Overview workspace previews
 
-`compositor/niri/config.kdl` independently styles the whole workspace preview's
-shadow: softness 80, spread -8, centered offset and black at 16% opacity. Niri
-normalizes these dimensions to output height and scales them with overview zoom.
-This replaces the default expanded, downward-offset dark rectangle with a wider,
-quieter transition into the overview backdrop. Individual window shadows, full-size
-wallpaper, workspace content and Ctrl+Scroll behavior remain unchanged.
+`patches/niri/overview-feather.patch` blends the entire workspace preview's edge
+into its actual overview backdrop. It composites the cached backdrop over the
+perimeter using the inverse of a smooth alpha mask. This is equivalent to fading
+the composed workspace over that backdrop; overlapping windows remain composed
+together, rather than fading every individual window separately.
 
-This is shadow blending, not an alpha feather applied to workspace content: the
-wallpaper itself still ends at the workspace bounds. It uses existing compositor
-configuration, without another blur pass or a compositor package replacement.
+The default width is 32 logical pixels in the overview, capped at a quarter of
+the preview's shorter side. The mask follows the existing overview animation,
+including reversal and reduced motion. The preview center, full-size desktop,
+individual window appearance, hit testing and Ctrl+Scroll remain unchanged.
+The shared config disables the external workspace shadow to avoid a rectangular
+rim around the feather. Normal window shadows remain independent.
+
+The compositor accepts `overview { workspace-feather 0; }` to disable it, or a
+width up to 128. This is a managed-compositor extension; stock Niri does not
+accept that option. The shared config does not emit it, so stock recovery remains
+valid. The patch defaults to 32 without requiring a new config node.
+
+The effect reuses Niri's existing per-output/per-capture-target backdrop cache
+and does not add a blur pass, full-workspace offscreen copy, polling or a service.
+Damage covers the maximum feather perimeter, including the previous wider mask
+when the animation closes. Missing shader/cache preparation falls back to the
+existing sharp-edge rendering with the compositor's error log.
+
+The package is 26.04-4. Its build checks include software EGL pixel tests at 100%,
+150% and 200% scale with an asymmetric backdrop, window content reaching an edge,
+all four edges and an unchanged center. Layout checks cover open, close, reversal
+and reduced motion; parser checks cover disabled, custom and invalid widths.
+These are actual shader renders, not physical-session visual acceptance.
+Install through `scripts/niri-package install --gui-auth`; a normal fresh login
+activates new compositor code. Never restart the active session for this test.
 
 The owner-requested window-shadow experiment keeps outlines off and uses equal
 active/inactive black shadows. UI cards and sidebars retain their existing style.
@@ -35,7 +56,8 @@ shadows from individual-window captures.
 
 The package recipe applies this independently of the Ctrl+Scroll overview patch.
 Both patches are checksum-verified and contribute to the managed recipe identity.
-The managed package release is 26.04-3. Existing signed stock recovery is retained.
+The stacking correction first shipped in 26.04-3 and remains in 26.04-4. Existing
+signed stock recovery is retained.
 
 ## Evidence and activation
 

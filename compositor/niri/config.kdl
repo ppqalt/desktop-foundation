@@ -4,13 +4,11 @@ include "bindings.kdl"
 hotkey-overlay { skip-at-startup; }
 prefer-no-csd
 
-// Workspace previews have their own shadow, separate from window shadows.
-// Avoid the default dark, expanded rectangle against the overview backdrop.
+// The managed compositor feathers workspace edges into the overview backdrop.
+// An external workspace shadow would leave a rectangular rim around that fade.
+// Ordinary window shadows remain independent.
 overview {
     workspace-shadow {
-        softness 80
-        spread -8
-        offset x=0 y=0
-        color "#00000028"
+        off
     }
 }

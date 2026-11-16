@@ -3,7 +3,7 @@
 # replace the compositor with a build that rejects the Foundation config.
 pkgname=niri-foundation
 pkgver=26.04
-pkgrel=3
+pkgrel=4
 pkgdesc='Niri with Desktop Foundation overview input and shadow rendering fixes'
 arch=('x86_64' 'x86_64_v3')
 url='https://github.com/niri-wm/niri'
@@ -19,10 +19,12 @@ depends=('cairo' 'glib2' 'glibc' 'libdisplay-info' 'libgcc' 'libinput'
 makedepends=('git' 'rustup' 'pkgconf' 'clang')
 source=('niri::git+https://github.com/niri-wm/niri.git#commit=8ed0da44d974c32c6877d2f4630c314da0717ecb'
         'overview-ctrl-scroll.patch'
-        'shadow-stacking.patch')
+        'shadow-stacking.patch'
+        'overview-feather.patch')
 sha256sums=('SKIP'
             '31262c362bdc02c8d6e2f9d16efa50732d40ae0dc5ea39f24e85a9a6de25b17f'
-            '644d5767d76c79334065da9960c185d90c7f2827b52f87f86703ee5bdce6e256')
+            '644d5767d76c79334065da9960c185d90c7f2827b52f87f86703ee5bdce6e256'
+            '53620e051b8ae1d625a4f07b316342cf650db5c3ad74aefc0650dd228cf7e322')
 
 prepare() {
   cd "$srcdir/niri"
@@ -30,6 +32,8 @@ prepare() {
   git apply "$srcdir/overview-ctrl-scroll.patch"
   git apply --check "$srcdir/shadow-stacking.patch"
   git apply "$srcdir/shadow-stacking.patch"
+  git apply --check "$srcdir/overview-feather.patch"
+  git apply "$srcdir/overview-feather.patch"
 }
 
 build() {
@@ -41,6 +45,9 @@ check() {
   cd "$srcdir/niri"
   cargo +1.98.1 test --locked -p niri-config --lib
   cargo +1.98.1 test --locked --lib overview_zoom_retargets
+  LIBGL_ALWAYS_SOFTWARE=1 EGL_PLATFORM=surfaceless \
+    __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json \
+    cargo +1.98.1 test --locked --lib overview_feather
   LIBGL_ALWAYS_SOFTWARE=1 EGL_PLATFORM=surfaceless \
     __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json \
     cargo +1.98.1 test --locked --lib egl_shadow_pixels

@@ -56,8 +56,11 @@ verify measurements through Google's official implementation rather than guessin
 ### Explicit desktop adaptations
 
 - Logical QML pixels are the desktop counterpart of dp; let Qt/Niri handle scaling.
-- No drop shadows or simulated elevation shadows. Tonal surfaces, spacing and
-  outlines express hierarchy. Niri window and layer shadows remain off.
+- No QML drop shadows or simulated elevation shadows. Tonal surfaces, spacing and
+  outlines express hierarchy. The owner's Niri window-shadow experiment is
+  documented in `niri-shadows.md`; layer and overview workspace shadows stay off.
+  Managed Niri feathers whole workspace previews into the overview backdrop;
+  this compositor effect does not change individual component styling.
 - Outer QML cards/readouts and Control Center groups use a quiet 1px
   `primary` border at 65% opacity, with a faint tonal halo. It follows the
   wallpaper palette; selection and keyboard focus remain separate, stronger states.

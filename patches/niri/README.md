@@ -1,5 +1,25 @@
 # Overview-only Ctrl+wheel
 
+## Workspace edge feather
+
+`overview-feather.patch` is applied after the input and shadow-stacking patches
+in managed package 26.04-4. It fades the perimeter of the whole workspace preview
+into the existing cached overview backdrop, leaving individual window rendering
+and the normal desktop unchanged. The default is 32 overview logical pixels;
+`overview { workspace-feather 0; }` disables it, and widths up to 128 are accepted.
+That optional setting requires the patched compositor. Foundation's shared config
+does not emit the extension, keeping stock recovery valid.
+
+The blend follows overview progress (including reversal and reduced motion),
+uses each output/capture target's own backdrop and damages the previous fade
+extent on close. It adds no blur pass or full-workspace offscreen buffer. Shader
+failure falls back to existing rendering. The package check stage runs actual
+software EGL pixel tests; see [workspace rendering](../../docs/niri-shadows.md)
+for the test and activation limits. A fresh normal login activates a newly
+installed compositor; configuration reload cannot replace its code.
+
+## Ctrl+wheel input
+
 `overview-ctrl-scroll.patch` adds an opt-in setting to Niri's native overview
 wheel handler. It was prepared against upstream commit `8ed0da4`, the source
 revision reported by Niri 26.04. The corrected zoom behavior requires the
