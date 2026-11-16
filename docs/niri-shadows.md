@@ -1,5 +1,18 @@
 # Window shadows and focus
 
+## Overview workspace previews
+
+`compositor/niri/config.kdl` independently styles the whole workspace preview's
+shadow: softness 80, spread -8, centered offset and black at 16% opacity. Niri
+normalizes these dimensions to output height and scales them with overview zoom.
+This replaces the default expanded, downward-offset dark rectangle with a wider,
+quieter transition into the overview backdrop. Individual window shadows, full-size
+wallpaper, workspace content and Ctrl+Scroll behavior remain unchanged.
+
+This is shadow blending, not an alpha feather applied to workspace content: the
+wallpaper itself still ends at the workspace bounds. It uses existing compositor
+configuration, without another blur pass or a compositor package replacement.
+
 The owner-requested window-shadow experiment keeps outlines off and uses equal
 active/inactive black shadows. UI cards and sidebars retain their existing style.
 The broad, soft shadow configuration is restored; the narrow-gap workaround was
