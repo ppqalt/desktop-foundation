@@ -4,8 +4,8 @@ include "bindings.kdl"
 hotkey-overlay { skip-at-startup; }
 prefer-no-csd
 
-// The managed compositor feathers workspace edges into the overview backdrop.
-// An external workspace shadow would leave a rectangular rim around that fade.
+// Managed Niri rounds workspace previews and feathers fullscreen content.
+// An external workspace shadow would leave a rectangular rim around those edges.
 // Ordinary window shadows remain independent.
 overview {
     workspace-shadow {

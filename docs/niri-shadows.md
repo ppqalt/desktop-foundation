@@ -2,23 +2,41 @@
 
 ## Overview workspace previews
 
-`patches/niri/overview-feather.patch` blends the entire workspace preview's edge
-into its actual overview backdrop. It composites the cached backdrop over the
-perimeter using the inverse of a smooth alpha mask. This is equivalent to fading
-the composed workspace over that backdrop; overlapping windows remain composed
-together, rather than fading every individual window separately.
+`patches/niri/overview-feather.patch` rounds all workspace previews in overview.
+Ordinary and maximized content has a crisp rounded edge with one physical pixel
+of antialiasing. Only a preview containing confirmed fullscreen content also
+feathers inward from that rounded boundary into its actual overview backdrop.
+The policy follows each workspace's displayed scrolling column, independently
+of global focus and overview/view movement. A fullscreen request alone does not
+activate feathering; the client must commit its fullscreen state.
 
-The default width is 32 logical pixels in the overview, capped at a quarter of
-the preview's shorter side. The mask follows the existing overview animation,
-including reversal and reduced motion. The preview center, full-size desktop,
-individual window appearance, hit testing and Ctrl+Scroll remain unchanged.
-The shared config disables the external workspace shadow to avoid a rectangular
-rim around the feather. Normal window shadows remain independent.
+The default corner radius is 24 logical pixels in the overview; the fullscreen
+feather width is 32. Both are capped at a quarter of the preview's shorter side
+and follow the existing overview animation, including reversal and reduced motion.
+The preview center, full-size desktop, individual window appearance, hit testing
+and Ctrl+Scroll remain unchanged. The shared config disables the external
+workspace shadow to avoid a rectangular rim. Normal window shadows stay independent.
 
-The compositor accepts `overview { workspace-feather 0; }` to disable it, or a
-width up to 128. This is a managed-compositor extension; stock Niri does not
-accept that option. The shared config does not emit it, so stock recovery remains
-valid. The patch defaults to 32 without requiring a new config node.
+For fullscreen content, the outer rounding grows by the feather width so the
+opaque core keeps rounded corners instead of becoming square as the fade widens.
+
+The mask composites the cached backdrop over the perimeter using the inverse of
+the rounded/feathered alpha mask. Overlapping windows therefore remain composed
+together, rather than fading or rounding every individual window separately.
+
+Optional managed-compositor settings accept values from 0 to 128:
+
+```kdl
+overview {
+    workspace-corner-radius 24
+    workspace-feather 32
+}
+```
+
+`workspace-feather 0` disables fullscreen feathering while retaining rounding;
+`workspace-corner-radius 0` disables rounding. Setting both to zero disables the
+mask. Stock Niri does not accept these extensions. The shared config omits them,
+keeping stock recovery valid; defaults live in the patched compositor.
 
 The effect reuses Niri's existing per-output/per-capture-target backdrop cache
 and does not add a blur pass, full-workspace offscreen copy, polling or a service.
@@ -26,10 +44,12 @@ Damage covers the maximum feather perimeter, including the previous wider mask
 when the animation closes. Missing shader/cache preparation falls back to the
 existing sharp-edge rendering with the compositor's error log.
 
-The package is 26.04-4. Its build checks include software EGL pixel tests at 100%,
+The package is 26.04-5. Its build checks include software EGL pixel tests at 100%,
 150% and 200% scale with an asymmetric backdrop, window content reaching an edge,
-all four edges and an unchanged center. Layout checks cover open, close, reversal
-and reduced motion; parser checks cover disabled, custom and invalid widths.
+rounded corners, sharp ordinary edges, feathered fullscreen edges and an unchanged
+center. The complete compositor library suite runs during packaging. Layout checks
+cover open, close, reversal, reduced motion, maximized versus fullscreen state and
+client acknowledgement; parser checks cover disabled, custom and invalid settings.
 These are actual shader renders, not physical-session visual acceptance.
 Install through `scripts/niri-package install --gui-auth`; a normal fresh login
 activates new compositor code. Never restart the active session for this test.
@@ -56,7 +76,7 @@ shadows from individual-window captures.
 
 The package recipe applies this independently of the Ctrl+Scroll overview patch.
 Both patches are checksum-verified and contribute to the managed recipe identity.
-The stacking correction first shipped in 26.04-3 and remains in 26.04-4. Existing
+The stacking correction first shipped in 26.04-3 and remains in 26.04-5. Existing
 signed stock recovery is retained.
 
 ## Evidence and activation

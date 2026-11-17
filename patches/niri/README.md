@@ -1,14 +1,22 @@
 # Overview-only Ctrl+wheel
 
-## Workspace edge feather
+## Rounded workspace previews and fullscreen feather
 
 `overview-feather.patch` is applied after the input and shadow-stacking patches
-in managed package 26.04-4. It fades the perimeter of the whole workspace preview
-into the existing cached overview backdrop, leaving individual window rendering
-and the normal desktop unchanged. The default is 32 overview logical pixels;
-`overview { workspace-feather 0; }` disables it, and widths up to 128 are accepted.
-That optional setting requires the patched compositor. Foundation's shared config
-does not emit the extension, keeping stock recovery valid.
+in managed package 26.04-5. Every workspace preview has rounded corners (default
+24 overview logical pixels). Only confirmed fullscreen content also receives a
+32px feather from that rounded boundary into the cached overview backdrop.
+Maximized windows retain the ordinary crisp rounded edge; each workspace selects
+its own style from its committed content, without depending on view movement.
+Individual window rendering and the normal desktop remain unchanged.
+
+`overview { workspace-feather 0; }` disables fullscreen feathering while retaining
+rounding. `workspace-corner-radius 0` disables rounding. Both accept values up to
+128; zero for both disables the mask. These optional settings require patched
+Niri. Foundation's shared config omits them, keeping stock recovery valid.
+
+For fullscreen content, the outer rounding grows by the feather width so the
+opaque core keeps rounded corners instead of becoming square as the fade widens.
 
 The blend follows overview progress (including reversal and reduced motion),
 uses each output/capture target's own backdrop and damages the previous fade
