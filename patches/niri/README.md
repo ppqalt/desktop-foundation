@@ -3,7 +3,7 @@
 ## Rounded workspace previews and fullscreen feather
 
 `overview-feather.patch` is applied after the input and shadow-stacking patches
-in managed package 26.04-5. Every workspace preview has rounded corners (default
+in managed package 26.04-6. Every workspace preview has rounded corners (default
 24 overview logical pixels). Only confirmed fullscreen content also receives a
 32px feather from that rounded boundary into the cached overview backdrop.
 Maximized windows retain the ordinary crisp rounded edge; each workspace selects
@@ -25,6 +25,16 @@ failure falls back to existing rendering. The package check stage runs actual
 software EGL pixel tests; see [workspace rendering](../../docs/niri-shadows.md)
 for the test and activation limits. A fresh normal login activates a newly
 installed compositor; configuration reload cannot replace its code.
+
+## Overview shadow containment
+
+The workspace patch also bounds static tiled/floating window shadows to the
+workspace wallpaper rectangle. Normal window content remains horizontally
+unbounded, as in Niri's overview. Shader output is not globally cropped, and
+ordinary desktop shadows keep their current settings. The real EGL regression
+checks outside pixels, retained interior shadows and retained outside window
+content across display scales and zoom values. Atomic window-animation snapshots
+keep their existing behavior. See [shadow boundaries](../../docs/niri-shadows.md).
 
 ## Ctrl+wheel input
 

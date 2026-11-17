@@ -62,7 +62,7 @@ index 368422d..d40dec5 100644
      }
  }
 diff --git a/src/layout/monitor.rs b/src/layout/monitor.rs
-index 53c0606..1393390 100644
+index 53c0606..8d8773d 100644
 --- a/src/layout/monitor.rs
 +++ b/src/layout/monitor.rs
 @@ -1370,6 +1370,20 @@ impl<W: LayoutElement> Monitor<W> {
@@ -86,6 +86,58 @@ index 53c0606..1393390 100644
      pub fn overview_zoom(&self) -> f64 {
          let progress = self.overview_progress.as_ref().map(|p| p.value());
          compute_overview_zoom(&self.options, progress)
+@@ -1702,6 +1716,18 @@ impl<W: LayoutElement> Monitor<W> {
+             )
+         };
+ 
++        // Keep ordinary content horizontally scrollable in overview, but
++        // contain static window shadows within the workspace wallpaper plane.
++        let shadow_bounds = Rectangle::from_size(self.view_size.to_physical_precise_round(scale));
++        let workspace_bounds = |elem: &WorkspaceRenderElement<R>| {
++            if self.overview_progress.is_some() && elem.is_window_shadow() {
++                shadow_bounds
++            } else {
++                crop_bounds
++            }
++        };
++        let hint_bounds = |_: &InsertHintRenderElement| crop_bounds;
++
+         let zoom = self.overview_zoom();
+ 
+         let insert_hint_render_loc = self
+@@ -1723,9 +1749,10 @@ impl<W: LayoutElement> Monitor<W> {
+         for (ws, geo) in self.workspaces_with_render_geo() {
+             // Macro instead of closure because ws and insert hint have different elem types.
+             macro_rules! push {
+-                () => {{
++                ($bounds:expr) => {{
+                     &mut |elem| {
+-                        let elem = CropRenderElement::from_element(elem, scale, crop_bounds);
++                        let bounds = $bounds(&elem);
++                        let elem = CropRenderElement::from_element(elem, scale, bounds);
+                         if let Some(elem) = elem {
+                             let elem = MonitorInnerRenderElement::from(elem);
+                             push(scale_relocate(geo, elem));
+@@ -1736,16 +1763,16 @@ impl<W: LayoutElement> Monitor<W> {
+ 
+             let xray_pos = XrayPos::new(geo.loc, zoom);
+ 
+-            ws.render_floating(ctx.r(), xray_pos, focus_ring, push!());
++            ws.render_floating(ctx.r(), xray_pos, focus_ring, push!(workspace_bounds));
+ 
+             if let Some(loc) = insert_hint_render_loc {
+                 if loc.workspace == InsertWorkspace::Existing(ws.id()) {
+                     self.insert_hint_element
+-                        .render(ctx.renderer, loc.location, push!());
++                        .render(ctx.renderer, loc.location, push!(hint_bounds));
+                 }
+             }
+ 
+-            ws.render_scrolling(ctx.r(), xray_pos, focus_ring, push!());
++            ws.render_scrolling(ctx.r(), xray_pos, focus_ring, push!(workspace_bounds));
+         }
+     }
+ 
 diff --git a/src/layout/scrolling.rs b/src/layout/scrolling.rs
 index efb1e77..af2d536 100644
 --- a/src/layout/scrolling.rs
@@ -245,8 +297,135 @@ index b29e0b1..ec3cbd6 100644
 +        .unwrap()
 +        .overview_has_fullscreen_content());
 +}
+diff --git a/src/layout/tests/shadows.rs b/src/layout/tests/shadows.rs
+index f3a470f..5b6cc49 100644
+--- a/src/layout/tests/shadows.rs
++++ b/src/layout/tests/shadows.rs
+@@ -23,8 +23,8 @@ fn frame(layout: &mut Layout<TestWindow>, renderer: &mut GlesRenderer) -> Vec<u8
+         );
+     render_to_vec(
+         renderer,
+-        (1920, 1080).into(),
+-        1.0.into(),
++        output.current_mode().unwrap().size,
++        output.current_scale().fractional_scale().into(),
+         Transform::Normal,
+         Fourcc::Abgr8888,
+         elements.iter().rev(),
+@@ -139,3 +139,111 @@ fn egl_shadow_pixels_stay_stable_for_translucent_tiled_windows() {
+ fn egl_shadow_pixels_do_not_change_between_adjacent_floating_windows() {
+     run_case(true, 1.);
+ }
++
++#[test]
++fn egl_shadow_pixels_stay_inside_overview_wallpaper_without_hiding_window_content() {
++    let display = unsafe { EGLDisplay::new(EGLSurfacelessDisplay) }.unwrap();
++    let context = EGLContext::new(&display).unwrap();
++    let mut renderer = unsafe { GlesRenderer::new(context) }.unwrap();
++    resources::init(&mut renderer);
++    shaders::init(&mut renderer);
++    for scale in [1., 1.5, 2.] {
++        for zoom in [0.2, 0.5, 0.75] {
++            let mut config = Config::parse_mem(r##"
++                layout {
++                    focus-ring { off; }
++                    border { off; }
++                    shadow { on; softness 24; spread 8; color "#000000b3"; inactive-color "#000000b3"; }
++                }
++                animations { off; }
++            "##).unwrap();
++            config.overview.zoom = zoom;
++            let mut clock = Clock::with_time(Duration::ZERO);
++            clock.set_complete_instantly(true);
++            let mut layout = Layout::new(clock, &config);
++            check_ops_on_layout(
++                &mut layout,
++                [
++                    Op::AddScaledOutput {
++                        id: 1,
++                        scale,
++                        layout_config: None,
++                    },
++                    Op::AddWindow {
++                        params: TestWindowParams {
++                            is_floating: true,
++                            bbox: Rectangle::from_size((200, 120).into()),
++                            ..TestWindowParams::new(1)
++                        },
++                    },
++                    Op::Communicate(1),
++                    Op::AddWindow {
++                        params: TestWindowParams {
++                            is_floating: true,
++                            bbox: Rectangle::from_size((200, 120).into()),
++                            ..TestWindowParams::new(2)
++                        },
++                    },
++                    Op::Communicate(2),
++                ],
++            );
++            let output = layout.outputs().next().unwrap().clone();
++            let width = layout.monitor_for_output(&output).unwrap().view_size().w;
++            layout.move_floating_window(
++                Some(&1),
++                PositionChange::SetFixed(-25.),
++                PositionChange::SetFixed(50.),
++                false,
++            );
++            layout.move_floating_window(
++                Some(&2),
++                PositionChange::SetFixed(width - 100.),
++                PositionChange::SetFixed(50.),
++                false,
++            );
++            layout.open_overview();
++            layout.advance_animations();
++            let bounds = layout
++                .monitor_for_output(&output)
++                .unwrap()
++                .workspaces_with_render_geo()
++                .find(|(workspace, _)| workspace.has_windows())
++                .unwrap()
++                .1
++                .to_physical_precise_round(scale);
++            let with_shadow = frame(&mut layout, &mut renderer);
++            config.layout.shadow.on = false;
++            layout.update_config(&config);
++            let without_shadow = frame(&mut layout, &mut renderer);
++            let output_width = output.current_mode().unwrap().size.w as usize;
++            let mut interior_shadow = 0;
++            let mut outside_content = 0;
++            for (index, (before, after)) in with_shadow
++                .chunks_exact(4)
++                .zip(without_shadow.chunks_exact(4))
++                .enumerate()
++            {
++                let point =
++                    Point::from(((index % output_width) as i32, (index / output_width) as i32));
++                if bounds.contains(point) {
++                    if before != after {
++                        interior_shadow += 1;
++                    }
++                } else {
++                    assert_eq!(
++                        before, after,
++                        "Shadow escaped wallpaper at scale {scale}, zoom {zoom}, {point:?}"
++                    );
++                    if after[3] != 0 {
++                        outside_content += 1;
++                    }
++                }
++            }
++            assert!(interior_shadow > 0, "Interior shadows were removed");
++            assert!(
++                outside_content > 0,
++                "Horizontal window content was clipped along with shadows"
++            );
++        }
++    }
++}
 diff --git a/src/layout/workspace.rs b/src/layout/workspace.rs
-index 49548a8..a5a46d8 100644
+index 49548a8..c9dc3a7 100644
 --- a/src/layout/workspace.rs
 +++ b/src/layout/workspace.rs
 @@ -7,7 +7,7 @@ use niri_config::{
@@ -266,7 +445,27 @@ index 49548a8..a5a46d8 100644
  
      /// This workspace's background.
      background_buffer: SolidColorBuffer,
-@@ -263,6 +264,7 @@ impl<W: LayoutElement> Workspace<W> {
+@@ -149,6 +150,19 @@ niri_render_elements! {
+     }
+ }
+ 
++impl<R: NiriRenderer> WorkspaceRenderElement<R> {
++    pub fn is_window_shadow(&self) -> bool {
++        matches!(
++            self,
++            Self::Scrolling(ScrollingSpaceRenderElement::Tile(
++                super::tile::TileRenderElement::Shadow(_)
++            )) | Self::Floating(FloatingSpaceRenderElement::Tile(
++                super::tile::TileRenderElement::Shadow(_)
++            ))
++        )
++    }
++}
++
+ #[derive(Debug)]
+ pub(super) struct InteractiveResize<W: LayoutElement> {
+     pub window: W::Id,
+@@ -263,6 +277,7 @@ impl<W: LayoutElement> Workspace<W> {
              view_size,
              working_area,
              shadow: Shadow::new(shadow_config),
@@ -274,7 +473,7 @@ index 49548a8..a5a46d8 100644
              background_buffer: SolidColorBuffer::new(view_size, options.layout.background_color),
              output: Some(output),
              clock,
-@@ -328,6 +330,7 @@ impl<W: LayoutElement> Workspace<W> {
+@@ -328,6 +343,7 @@ impl<W: LayoutElement> Workspace<W> {
              view_size,
              working_area,
              shadow: Shadow::new(shadow_config),
@@ -282,7 +481,7 @@ index 49548a8..a5a46d8 100644
              background_buffer: SolidColorBuffer::new(view_size, options.layout.background_color),
              clock,
              base_options,
-@@ -1658,6 +1661,14 @@ impl<W: LayoutElement> Workspace<W> {
+@@ -1658,6 +1674,14 @@ impl<W: LayoutElement> Workspace<W> {
              });
      }
  

@@ -476,6 +476,13 @@ ShellRoot {
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.titleMedium
                     }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Screen corners"
+                        color: Material.colors.on_surface_variant
+                        font.family: Theme.typography.family
+                        font.pixelSize: Material.type.labelLarge
+                    }
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: Material.control.target * 2

@@ -44,7 +44,7 @@ Damage covers the maximum feather perimeter, including the previous wider mask
 when the animation closes. Missing shader/cache preparation falls back to the
 existing sharp-edge rendering with the compositor's error log.
 
-The package is 26.04-5. Its build checks include software EGL pixel tests at 100%,
+The package is 26.04-6. Its build checks include software EGL pixel tests at 100%,
 150% and 200% scale with an asymmetric backdrop, window content reaching an edge,
 rounded corners, sharp ordinary edges, feathered fullscreen edges and an unchanged
 center. The complete compositor library suite runs during packaging. Layout checks
@@ -53,6 +53,24 @@ client acknowledgement; parser checks cover disabled, custom and invalid setting
 These are actual shader renders, not physical-session visual acceptance.
 Install through `scripts/niri-package install --gui-auth`; a normal fresh login
 activates new compositor code. Never restart the active session for this test.
+
+## Overview shadow containment
+
+Niri intentionally leaves normal workspace content horizontally unbounded in
+its overview. Reusing that bound for window shadows allowed dark rims beyond
+the workspace wallpaper. The 26.04-6 update gives static tiled and floating shadow
+elements their own finite workspace bound during overview entry, display and
+exit. It preserves ordinary window content outside that bound, scrollability,
+shadow strength, normal-desktop rendering and existing shadow stacking.
+
+Only shadow elements receive this crop, avoiding Niri's documented problems
+when general pixel-shader content is cropped horizontally. The EGL regression
+compares shadow-on and shadow-off frames at 100%, 150% and 200% scale and 20%,
+50% and 75% zoom: no shadow difference is allowed outside the wallpaper;
+inside shadows and out-of-wallpaper window content must both remain present.
+Disabling the fix reproduces the outside-pixel failure. Opening/closing and
+alpha-animation snapshots remain atomic, retaining their existing renderer path
+rather than clipping the application content embedded in those snapshots.
 
 The owner-requested window-shadow experiment keeps outlines off and uses equal
 active/inactive black shadows. UI cards and sidebars retain their existing style.
@@ -76,7 +94,7 @@ shadows from individual-window captures.
 
 The package recipe applies this independently of the Ctrl+Scroll overview patch.
 Both patches are checksum-verified and contribute to the managed recipe identity.
-The stacking correction first shipped in 26.04-3 and remains in 26.04-5. Existing
+The stacking correction first shipped in 26.04-3 and remains in 26.04-6. Existing
 signed stock recovery is retained.
 
 ## Evidence and activation
