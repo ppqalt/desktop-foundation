@@ -476,6 +476,22 @@ ShellRoot {
                         font.family: Theme.typography.family
                         font.pixelSize: Material.type.titleMedium
                     }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: Material.control.target * 2
+                        color: Material.colors.primary_container
+                        Repeater {
+                            model: 4
+                            ScreenCornerMask {
+                                required property int index
+                                corner: index
+                                anchors.top: index < 2 ? parent.top : undefined
+                                anchors.bottom: index >= 2 ? parent.bottom : undefined
+                                anchors.left: index === 0 || index === 3 ? parent.left : undefined
+                                anchors.right: index === 1 || index === 2 ? parent.right : undefined
+                            }
+                        }
+                    }
                     ApplicationRow {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0

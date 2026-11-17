@@ -23,6 +23,10 @@ ShellRoot {
         active: Quickshell.env("DF_COMPOSITOR") === "niri"
         OverviewBackdrop {}
     }
+    LazyLoader {
+        active: Quickshell.env("DF_COMPOSITOR") === "niri"
+        ScreenCorners {}
+    }
     Volume {
         id: volumeReadout
         targetScreen: root.launcherScreen

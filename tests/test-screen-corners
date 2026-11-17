@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+fixture=$(mktemp "$root/.screen-corner-test.XXXXXX.qml")
+surface=$(mktemp "$root/.screen-corner-surface.XXXXXX.qml")
+log=$(mktemp)
+state=$(mktemp -d)
+trap 'rm -f -- "$fixture" "$surface" "$log"; rmdir -- "$state"' EXIT
+# Keep production mask, Variants and anchoring decisions; replace only Wayland
+# transport in this offscreen host. Live layer geometry is checked after reload.
+perl -0pe 's/PanelWindow \{/Window {/; s/import QtQuick\n/import QtQuick\nimport QtQuick.Window\n/; s/^                    (?:anchors\.|screen:|exclusionMode:|mask:|WlrLayershell\.).*\n//mg; s/implicitWidth:/width:/; s/implicitHeight:/height:/; s#import "../components"#import "shell/components"#; s#import "../theme"#import "shell/theme"#' "$root/shell/surfaces/ScreenCorners.qml" >"$surface"
+sed "s@CORNER_SURFACE_FIXTURE@$(basename "$surface")@" "$root/tests/qml/screen-corners.qml" >"$fixture"
+if ! env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
+	QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic QT_QUICK_BACKEND=software \
+	DF_FOUNDATION_ROOT="$root" XDG_STATE_HOME="$state" \
+	timeout 12s quickshell -p "$fixture" >"$log" 2>&1; then
+	cat "$log" >&2
+	exit 1
+fi
+if ! rg -q SCREEN_CORNERS_TEST_OK "$log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|TypeError|ReferenceError|QtQuickTest::fail' "$log"; then
+	cat "$log" >&2
+	exit 1
+fi
+printf '%s\n' 'PASS screen-corner pixels, orientations and panel transport fixture'
