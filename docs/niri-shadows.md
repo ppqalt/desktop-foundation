@@ -11,7 +11,7 @@ of global focus and overview/view movement. A fullscreen request alone does not
 activate feathering; the client must commit its fullscreen state.
 
 The default corner radius is 24 logical pixels in the overview; the fullscreen
-feather width is 32. Both are capped at a quarter of the preview's shorter side
+feather width is 16. Both are capped at a quarter of the preview's shorter side
 and follow the existing overview animation, including reversal and reduced motion.
 The preview center, full-size desktop, individual window appearance, hit testing
 and Ctrl+Scroll remain unchanged. The shared config disables the external
@@ -29,7 +29,7 @@ Optional managed-compositor settings accept values from 0 to 128:
 ```kdl
 overview {
     workspace-corner-radius 24
-    workspace-feather 32
+    workspace-feather 16
 }
 ```
 
@@ -44,7 +44,7 @@ Damage covers the maximum feather perimeter, including the previous wider mask
 when the animation closes. Missing shader/cache preparation falls back to the
 existing sharp-edge rendering with the compositor's error log.
 
-The package is 26.04-6. Its build checks include software EGL pixel tests at 100%,
+The package is 26.04-7. Its build checks include software EGL pixel tests at 100%,
 150% and 200% scale with an asymmetric backdrop, window content reaching an edge,
 rounded corners, sharp ordinary edges, feathered fullscreen edges and an unchanged
 center. The complete compositor library suite runs during packaging. Layout checks
@@ -94,7 +94,7 @@ shadows from individual-window captures.
 
 The package recipe applies this independently of the Ctrl+Scroll overview patch.
 Both patches are checksum-verified and contribute to the managed recipe identity.
-The stacking correction first shipped in 26.04-3 and remains in 26.04-6. Existing
+The stacking correction first shipped in 26.04-3 and remains in 26.04-7. Existing
 signed stock recovery is retained.
 
 ## Evidence and activation

@@ -1,5 +1,5 @@
 diff --git a/niri-config/src/lib.rs b/niri-config/src/lib.rs
-index 6856bfc..bf3d709 100644
+index 6856bfc..a3c85fe 100644
 --- a/niri-config/src/lib.rs
 +++ b/niri-config/src/lib.rs
 @@ -1663,6 +1663,8 @@ mod tests {
@@ -7,12 +7,12 @@ index 6856bfc..bf3d709 100644
              },
              overview: Overview {
 +                workspace_corner_radius: 24.0,
-+                workspace_feather: 32.0,
++                workspace_feather: 16.0,
                  ctrl_scroll_workspaces: false,
                  zoom: 0.5,
                  backdrop_color: Color {
 diff --git a/niri-config/src/misc.rs b/niri-config/src/misc.rs
-index 368422d..d40dec5 100644
+index 368422d..31055db 100644
 --- a/niri-config/src/misc.rs
 +++ b/niri-config/src/misc.rs
 @@ -120,6 +120,10 @@ impl MergeWith<ClipboardPart> for Clipboard {
@@ -31,7 +31,7 @@ index 368422d..d40dec5 100644
      fn default() -> Self {
          Self {
 +            workspace_corner_radius: 24.,
-+            workspace_feather: 32.,
++            workspace_feather: 16.,
              ctrl_scroll_workspaces: false,
              zoom: 0.5,
              backdrop_color: DEFAULT_BACKDROP_COLOR,
@@ -157,7 +157,7 @@ index efb1e77..af2d536 100644
          // Render above the top layer if we're on a fullscreen window and the view is stationary.
          if self.columns.is_empty() {
 diff --git a/src/layout/tests/animations.rs b/src/layout/tests/animations.rs
-index b29e0b1..ec3cbd6 100644
+index b29e0b1..99f6814 100644
 --- a/src/layout/tests/animations.rs
 +++ b/src/layout/tests/animations.rs
 @@ -1130,3 +1130,136 @@ fn overview_zoom_retargets_without_delay_or_workspace_movement() {
@@ -191,7 +191,7 @@ index b29e0b1..ec3cbd6 100644
 +    clock.set_unadjusted(Duration::from_millis(60));
 +    layout.advance_animations();
 +    let partial = width(&layout);
-+    assert!(partial > 0. && partial < 32.);
++    assert!(partial > 0. && partial < 16.);
 +    layout.close_overview();
 +    assert_eq!(
 +        width(&layout),
@@ -204,7 +204,7 @@ index b29e0b1..ec3cbd6 100644
 +    layout.open_overview();
 +    clock.set_unadjusted(Duration::from_secs(2));
 +    layout.advance_animations();
-+    assert_eq!(width(&layout), 32.);
++    assert_eq!(width(&layout), 16.);
 +    assert_eq!(
 +        layout
 +            .monitor_for_output(&output)
@@ -221,7 +221,7 @@ index b29e0b1..ec3cbd6 100644
 +    layout.update_config(&config);
 +    layout.open_overview();
 +    layout.advance_animations();
-+    assert_eq!(width(&layout), 32.);
++    assert_eq!(width(&layout), 16.);
 +    layout.close_overview();
 +    layout.advance_animations();
 +    assert_eq!(width(&layout), 0.);
