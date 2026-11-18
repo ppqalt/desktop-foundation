@@ -1,5 +1,9 @@
 # Shared compositor appearance, in logical pixels.
 rounding = 14
+[overview]
+corner_radius = 24
+feather_enabled = false
+feather_width = 16
 [spacing]
 betweenWindows = 12
 desktopEdge = 18
@@ -19,6 +23,7 @@ color = "#000000"
 activeOpacity = 1.0
 inactiveOpacity = 1.0
 range = 32
+spread = 12
 falloffPower = 3
 [shadow.offset]
 x = 0

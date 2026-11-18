@@ -1,0 +1,9 @@
+# User overrides: ~/.config/desktop-foundation/desktop.toml (partial tables).
+[media]
+# Home prefers this MPRIS player, then falls back to the secondary player.
+# Empty string keeps secondary-only behavior. End/Insert/Delete are unchanged.
+home_player = "spotify"
+
+[screen_corners]
+enabled = true
+radius = 28

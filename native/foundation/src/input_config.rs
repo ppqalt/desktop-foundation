@@ -31,6 +31,8 @@ struct Override {
 pub struct EffectiveInput {
     pub settings: Input,
     pub sources: Vec<PathBuf>,
+    #[serde(skip)]
+    pub managed_overview: Option<bool>,
 }
 fn overlay(path: &Path, result: &mut EffectiveInput) -> Result<()> {
     let file = match fs::File::open(path) {
@@ -79,6 +81,7 @@ pub fn load(
     let mut result = EffectiveInput {
         settings,
         sources: vec![base_path.to_owned()],
+        managed_overview: None,
     };
     let capability_path = config.join("desktop-foundation/niri-package-input.toml");
     let capability = match fs::File::open(&capability_path) {
@@ -102,6 +105,7 @@ pub fn load(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(error.into()),
     };
+    result.managed_overview = capability;
     overlay(&profile.join("input.toml"), &mut result)?;
     let directory = config.join("desktop-foundation/input.d");
     match fs::read_dir(&directory) {

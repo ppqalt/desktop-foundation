@@ -11,7 +11,10 @@ of global focus and overview/view movement. A fullscreen request alone does not
 activate feathering; the client must commit its fullscreen state.
 
 The default corner radius is 24 logical pixels in the overview; the fullscreen
-feather width is 16. Both are capped at a quarter of the preview's shorter side
+feather width is 16 when enabled. DF now disables feathering by default through
+`[overview] feather_enabled = false` in `window-appearance.toml`; it remains
+optional via personal TOML overrides. See [configuration](configuration.md).
+Both are capped at a quarter of the preview's shorter side
 and follow the existing overview animation, including reversal and reduced motion.
 The preview center, full-size desktop, individual window appearance, hit testing
 and Ctrl+Scroll remain unchanged. The shared config disables the external
@@ -24,7 +27,8 @@ The mask composites the cached backdrop over the perimeter using the inverse of
 the rounded/feathered alpha mask. Overlapping windows therefore remain composed
 together, rather than fading or rounding every individual window separately.
 
-Optional managed-compositor settings accept values from 0 to 128:
+The low-level managed-compositor settings accept values from 0 to 128;
+prefer the TOML settings above so reload and stock recovery preserve your intent:
 
 ```kdl
 overview {

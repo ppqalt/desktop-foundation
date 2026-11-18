@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+fixture=$(mktemp "$root/.media-control-test.XXXXXX.qml")
+log=$(mktemp)
+trap 'rm -f -- "$fixture" "$log"' EXIT
+cp "$root/tests/qml/media-control.qml" "$fixture"
+if ! env -u WAYLAND_DISPLAY -u DISPLAY -u NIRI_SOCKET \
+	DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent-foundation-test-bus \
+	QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic QT_QUICK_BACKEND=software \
+	timeout 12s quickshell -p "$fixture" >"$log" 2>&1; then
+	cat "$log" >&2
+	exit 1
+fi
+if ! rg -q MEDIA_CONTROL_TEST_OK "$log" || rg -q 'FAIL!|ERROR|QML (Warning|Error)|TypeError|ReferenceError' "$log"; then
+	cat "$log" >&2
+	exit 1
+fi
+printf '%s\n' 'PASS Spotify preference, secondary fallback, independent primary and rapid media toggles'

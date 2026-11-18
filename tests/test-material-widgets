@@ -59,3 +59,4 @@ DF_CONTROL_MEMORY_TEST=1 "$root/tests/test-control-center"
 DF_CONTROL_LIVE_TEST=1 "$root/tests/test-control-center"
 
 "$root/tests/test-screen-corners"
+"$root/tests/test-media-control"

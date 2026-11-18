@@ -38,7 +38,7 @@ fn renderer_uses_partial_input_override_and_rejects_invalid_values() {
     let result = run();
     assert!(result.status.success());
     let rendered = String::from_utf8(result.stdout).unwrap();
-    assert!(rendered.contains("overview { ctrl-scroll-workspaces true; }"));
+    assert!(rendered.contains("overview { ctrl-scroll-workspaces true;"));
     assert!(!rendered.contains("Ctrl+WheelScroll"));
     fs::write(&input, "overview_ctrl_scroll = 'true'\n").unwrap();
     assert!(!run().status.success());

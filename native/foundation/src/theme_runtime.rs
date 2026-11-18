@@ -379,7 +379,9 @@ fn retention(root: &Path) {
         eprintln!("Theme cache maintenance deferred: {error}");
     }
 }
-pub fn ensure(root: &Path, selected: &str) -> Result<()> {
+fn configure(root: &Path, selected: &str, live: bool) -> Result<()> {
+    // Reject bad shell settings before staging or publishing any theme files.
+    crate::config_layers::desktop(root)?;
     let home = directory()?;
     state::private_directory(home.parent().expect("theme parent"))?;
     {
@@ -400,11 +402,18 @@ pub fn ensure(root: &Path, selected: &str) -> Result<()> {
             (render::read(&root.join("theme/generated.json"))?, false)
         };
         let target = stage(root, &home, &p, &c.image, &c.mode, reset, selected)?;
-        publish(root, &home, &target, false, false)?;
+        publish(root, &home, &target, false, live)?;
         render::write_json(&home.join("profile.json"), &json!({"profile":selected}))?;
     }
     retention(root);
     Ok(())
+}
+pub fn ensure(root: &Path, selected: &str) -> Result<()> {
+    configure(root, selected, false)
+}
+/// Re-render settings using the active wallpaper/palette, without regenerating colors.
+pub fn reconfigure(root: &Path) -> Result<()> {
+    configure(root, &profile(&directory()?)?, true)
 }
 fn equal_palette(a: &Value, b: &Value) -> bool {
     let mut a = a.clone();
@@ -522,6 +531,8 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
                     == backdrop::hash(&selected_image)?
                 && selected_mode == c.mode
                 && render::read(&old.join("metadata.json"))?["renderer"] == render::VERSION
+                && fs::read_to_string(old.join("niri.kdl"))?
+                    == render::niri(root, &profile(&home)?, Some(&p))?
                 && crate::qt_theme::ready(&crate::deploy::Paths::environment()?, &p)
         } else {
             false

@@ -12,8 +12,12 @@ ShellRoot {
     id: root
     ReloadNotice {}
     Component.onCompleted: Quickshell.watchFiles = false
+    Services.DesktopSettings {
+        id: desktopSettings
+    }
     Services.MediaControl {
         id: mediaControl
+        homePlayer: desktopSettings.settings.media.home_player
     }
     Services.RecordingState {
         id: recordingState
@@ -24,8 +28,10 @@ ShellRoot {
         OverviewBackdrop {}
     }
     LazyLoader {
-        active: Quickshell.env("DF_COMPOSITOR") === "niri"
-        ScreenCorners {}
+        active: Quickshell.env("DF_COMPOSITOR") === "niri" && desktopSettings.settings.screen_corners.enabled && desktopSettings.settings.screen_corners.radius > 0
+        ScreenCorners {
+            cornerRadius: desktopSettings.settings.screen_corners.radius
+        }
     }
     Volume {
         id: volumeReadout
@@ -231,6 +237,14 @@ ShellRoot {
         function toggleOtherMedia(): string {
             return mediaControl.toggle(true);
         }
+        function configurationStatus(): string {
+            return JSON.stringify({
+                settings: desktopSettings.settings,
+                error: desktopSettings.error,
+                homeTarget: mediaControl.preferredHomePlayer()?.dbusName ?? "",
+                primaryPlayer: mediaControl.primaryName
+            });
+        }
         function nextMedia(): string {
             return mediaControl.skip(true);
         }
@@ -246,6 +260,7 @@ ShellRoot {
         }
         function reloadTheme(): void {
             Theme.reload();
+            desktopSettings.refresh();
             if (backdropLoader.item)
                 backdropLoader.item.reload();
         }

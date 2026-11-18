@@ -5,7 +5,10 @@
 `overview-feather.patch` is applied after the input and shadow-stacking patches
 in managed package 26.04-7. Every workspace preview has rounded corners (default
 24 overview logical pixels). Only confirmed fullscreen content also receives a
-16px feather from that rounded boundary into the cached overview backdrop.
+16px feather from that rounded boundary into the cached overview backdrop when
+enabled. DF's generated config disables feathering by default; enable it through
+`[overview] feather_enabled` in `window-appearance.toml` (see
+[configuration](../../docs/configuration.md)). The compiled fallback is unchanged.
 Maximized windows retain the ordinary crisp rounded edge; each workspace selects
 its own style from its committed content, without depending on view movement.
 Individual window rendering and the normal desktop remain unchanged.

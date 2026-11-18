@@ -47,7 +47,7 @@ df-update
 ./scripts/wallpaper-set /path/to/image
 ```
 
-[All shortcuts](docs/input-bindings.md) · [Theme](theme/README.md) · [Updates](docs/updating.md) · [Recovery](docs/recovery.md)
+[All shortcuts](docs/input-bindings.md) · [Configuration](docs/configuration.md) · [Theme](theme/README.md) · [Updates](docs/updating.md) · [Recovery](docs/recovery.md)
 
 ### Automatic Lucky38 performance policy
 

@@ -6,7 +6,8 @@ import Quickshell.Services.Mpris
 // Native MPRIS events in the existing shell; no polling or extra media daemon.
 QtObject {
     id: root
-    readonly property var players: Mpris.players.values
+    property var players: Mpris.players.values
+    property string homePlayer: "spotify"
     property var ranks: ({})
     property var states: ({})
     property int sequence: 0
@@ -23,7 +24,7 @@ QtObject {
         const request = requestFor(name);
         if (player.playbackState === MprisPlaybackState.Playing && states[name] !== MprisPlaybackState.Playing) {
             ranks[name] = ++sequence;
-            // Home resumes the secondary player without swapping the two keys.
+            // Home must not reassign End's primary player.
             if (!request?.other)
                 primaryName = name;
         }
@@ -66,6 +67,15 @@ QtObject {
             primaryName = primary.dbusName;
         return primary;
     }
+    function preferredHomePlayer() {
+        const name = homePlayer.toLowerCase();
+        if (!name)
+            return null;
+        return players.find(player => {
+            const bus = player.dbusName.replace(/^org\.mpris\.MediaPlayer2\./, "").toLowerCase();
+            return player.canControl && player.canTogglePlaying && (bus === name || bus.startsWith(name + ".") || player.identity.toLowerCase() === name);
+        }) ?? null;
+    }
     function skip(forward): string {
         const player = primaryPlayer();
         if (!player)
@@ -79,12 +89,11 @@ QtObject {
         return player.identity;
     }
     function toggle(other = false): string {
-        const primary = primaryPlayer();
-        if (!primary)
-            return "No controllable media player";
-        const selected = other ? latest(primaryName) : primary;
+        const preferred = other ? preferredHomePlayer() : null;
+        const primary = preferred ? null : primaryPlayer();
+        const selected = preferred ?? (other ? (primary ? latest(primaryName) : null) : primary);
         if (!selected)
-            return "No other controllable media player";
+            return other ? "No other controllable media player" : "No controllable media player";
         const previous = requestFor(selected.dbusName);
         const playing = !(previous ? previous.playing : selected.isPlaying);
         pending[selected.dbusName] = {

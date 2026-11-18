@@ -9,6 +9,7 @@ pub mod browser_policy;
 pub mod cache;
 pub mod clipboard;
 pub mod clipboard_transport;
+pub mod config_layers;
 pub mod control_center;
 pub mod deploy;
 pub mod deploy_units;

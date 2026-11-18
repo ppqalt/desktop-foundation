@@ -261,6 +261,26 @@ fn ensure_has_no_python_dependency_or_live_reloads() {
         render::read(&revision.join("metadata.json")).unwrap()["input"],
         owner.join("wallpapers/test.png").to_string_lossy().as_ref()
     );
+    // A bad personal preference must fail before touching the active bundle or
+    // invoking any live reload adapter (including unrelated applications).
+    let config = f.path("isolated-config/desktop-foundation");
+    fs::create_dir_all(&config).unwrap();
+    fs::write(config.join("desktop.toml"), "[screen_corners]\nradius=-1\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_desktop-foundationctl"))
+        .arg("--root")
+        .arg(&owner)
+        .args(["config", "reload"])
+        .env("HOME", &f.0)
+        .env("XDG_CONFIG_HOME", config.parent().unwrap())
+        .env("XDG_STATE_HOME", f.path("state"))
+        .env("XDG_CACHE_HOME", f.path("cache"))
+        .env("PATH", &bin)
+        .env_remove("NIRI_SOCKET")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Screen corner radius"));
+    assert_eq!(runtime::current(&home).unwrap(), Some(revision));
 }
 
 #[test]

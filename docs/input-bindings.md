@@ -47,7 +47,7 @@ new configuration is published.
 | Super+1…9 / Super+Ctrl+1…9 | Focus workspace / move window to workspace |
 | PageUp / PageDown | Volume +3% / −3% |
 | End | Play/pause most recently playing media player |
-| Home | Play/pause another available media player |
+| Home | Play/pause Spotify when available; otherwise the secondary media player |
 | Ctrl+Shift+F12 | Start recording with separate desktop/microphone tracks; press again to save |
 | Ctrl+Shift+Alt+F12 | Record desktop audio only; press again to save |
 | Ctrl+Shift+F11 | Save instant replay, or start its buffer if inactive |

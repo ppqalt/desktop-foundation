@@ -1,8 +1,9 @@
 # Physical screen corners
 
 `ScreenCorners` keeps four small black cutouts at each output's physical corners.
-The radius uses `Material.shape.extraLarge` (28 logical pixels), with Qt handling
-output scaling. The component gallery and desktop render the same independent
+The default radius follows `Material.shape.extraLarge` (28 logical pixels), with Qt handling
+output scaling. Override `[screen_corners] enabled` and `radius` in user
+`desktop.toml`; see [configuration](configuration.md). The component gallery and desktop render the same independent
 `ScreenCornerMask` component; there is no copied gallery drawing.
 
 This follows the approach examined in iNiR's

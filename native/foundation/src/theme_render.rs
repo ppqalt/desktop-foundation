@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
-pub const VERSION: &str = "rust-v3-qt-colors";
+pub const VERSION: &str = "rust-v4-configurable-appearance";
 
 pub fn read(path: &Path) -> Result<Value> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
@@ -106,6 +106,39 @@ pub fn effective_input(root: &Path, profile: &str) -> Result<input_config::Effec
         &input_config::user_config()?,
     )
 }
+pub fn effective_appearance(root: &Path, profile: &str) -> Result<crate::config_layers::Effective> {
+    guard_legacy(
+        &root.join("config/window-appearance.lua"),
+        "63c236a4357d46bc0ae3813a03ec7f23e2111139b08dd56a400643390f4317dd",
+        "config/window-appearance.toml",
+    )?;
+    let result = crate::config_layers::load(root, "window-appearance", Some(profile))?;
+    let v = &result.settings;
+    for (value, name, max) in [
+        (
+            &v["overview"]["corner_radius"],
+            "overview.corner_radius",
+            128.0,
+        ),
+        (
+            &v["overview"]["feather_width"],
+            "overview.feather_width",
+            128.0,
+        ),
+        (&v["shadow"]["spread"], "shadow.spread", 128.0),
+    ] {
+        if !value
+            .as_f64()
+            .is_some_and(|n| n.is_finite() && (0.0..=max).contains(&n))
+        {
+            return Err(invalid(format!("{name} must be from 0 to {max}")));
+        }
+    }
+    if !v["overview"]["feather_enabled"].is_boolean() {
+        return Err(invalid("overview.feather_enabled must be boolean"));
+    }
+    Ok(result)
+}
 pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<String> {
     if profile.is_empty()
         || !profile
@@ -114,13 +147,9 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
     {
         return Err(invalid("Invalid profile name"));
     }
-    guard_legacy(
-        &root.join("config/window-appearance.lua"),
-        "63c236a4357d46bc0ae3813a03ec7f23e2111139b08dd56a400643390f4317dd",
-        "config/window-appearance.toml",
-    )?;
-    let v = toml_config(&root.join("config/window-appearance.toml"))?;
-    let keyboard = effective_input(root, profile)?.settings;
+    let v = effective_appearance(root, profile)?.settings;
+    let input = effective_input(root, profile)?;
+    let keyboard = input.settings;
     let monitor: toml::Value =
         toml::from_str(&fs::read_to_string(root.join("config/monitor.toml"))?)
             .map_err(|e| invalid(e.to_string()))?;
@@ -224,6 +253,7 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
             },
         ),
         ("shadow_range", number(&v["shadow"]["range"])?),
+        ("shadow_spread", number(&v["shadow"]["spread"])?),
         ("shadow_x", number(&v["shadow"]["offset"]["x"])?),
         ("shadow_left_x", (-shadow_x).to_string()),
         ("shadow_y", number(&v["shadow"]["offset"]["y"])?),
@@ -240,11 +270,30 @@ pub fn niri(root: &Path, profile: &str, semantic: Option<&Value>) -> Result<Stri
     for (key, value) in entries {
         text = text.replace(&format!("@{key}@"), &value);
     }
+    let mut overview = String::new();
     if keyboard.overview_ctrl_scroll {
         // This setting requires the scoped compositor capability. Stock Niri
         // rejects it during deployment validation; never replace it with a
         // global wheel binding that would intercept application zoom.
-        text.push_str("overview { ctrl-scroll-workspaces true; }\n");
+        overview.push_str("ctrl-scroll-workspaces true; ");
+    }
+    // The owned package capability is independent of the user's wheel shortcut.
+    // Stock recovery masks custom nodes while preserving their TOML preferences.
+    if input.managed_overview == Some(true)
+        || (input.managed_overview.is_none() && keyboard.overview_ctrl_scroll)
+    {
+        let width = if v["overview"]["feather_enabled"] == true {
+            number(&v["overview"]["feather_width"])?
+        } else {
+            "0".into()
+        };
+        overview.push_str(&format!(
+            "workspace-corner-radius {}; workspace-feather {width}; ",
+            number(&v["overview"]["corner_radius"])?
+        ));
+    }
+    if !overview.is_empty() {
+        text.push_str(&format!("overview {{ {overview}}}\n"));
     }
     text.push_str(&crate::recording::bindings(root)?);
     let host = root.join("profiles").join(profile).join("niri.kdl");

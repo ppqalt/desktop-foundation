@@ -1,9 +1,12 @@
 # Window appearance
 
 Shared settings are in `config/window-appearance.toml`. The Niri renderer produces
-native KDL.
+native KDL. Partial personal overrides now live in
+`~/.config/desktop-foundation/window-appearance.toml`, with optional sorted
+`window-appearance.d/*.toml` fragments and profile-specific overrides. See
+[configuration](configuration.md) for precedence, available settings and reload.
 
-The default uses 14-pixel corners, 94% window opacity and narrow focus borders.
+The default uses 14-pixel corners, 94% window opacity and no focus border.
 Kitty uses its own background opacity so text remains opaque.
 Niri centers a single tiled column; multiple columns retain scrolling behavior.
 Super+C centers the current column manually.

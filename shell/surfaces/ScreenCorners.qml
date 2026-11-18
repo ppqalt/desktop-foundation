@@ -8,6 +8,8 @@ import "../theme"
 // Four tiny, input-transparent surfaces per output. Top is naturally below
 // native fullscreen content and the secure session lock; no polling is needed.
 Scope {
+    id: root
+    property real cornerRadius: Material.shape.extraLarge
     Variants {
         model: Quickshell.screens
         Scope {
@@ -16,11 +18,12 @@ Scope {
             Variants {
                 model: [0, 1, 2, 3]
                 PanelWindow {
+                    id: cornerWindow
                     required property int modelData
                     screen: output.modelData
                     color: "transparent"
-                    implicitWidth: Material.shape.extraLarge
-                    implicitHeight: Material.shape.extraLarge
+                    implicitWidth: root.cornerRadius
+                    implicitHeight: root.cornerRadius
                     anchors.top: modelData < 2
                     anchors.bottom: modelData >= 2
                     anchors.left: modelData === 0 || modelData === 3
@@ -32,7 +35,8 @@ Scope {
                     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
                     ScreenCornerMask {
                         anchors.fill: parent
-                        corner: modelData
+                        corner: cornerWindow.modelData
+                        cornerRadius: root.cornerRadius
                     }
                 }
             }

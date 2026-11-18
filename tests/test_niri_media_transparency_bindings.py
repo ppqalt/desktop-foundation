@@ -20,6 +20,8 @@ class NiriMediaTransparencyBindings(unittest.TestCase):
             commands.setdefault(key, []).append(command.replace(r'\"', '"'))
         self.assertEqual(commands.get("Insert"), ['exec "$DF_FOUNDATION_ROOT/scripts/foundation" shell call nextMedia'])
         self.assertEqual(commands.get("Delete"), ['exec "$DF_FOUNDATION_ROOT/scripts/foundation" shell call previousMedia'])
+        self.assertEqual(commands.get("Home"), ['exec "$DF_FOUNDATION_ROOT/scripts/foundation" shell call toggleOtherMedia'])
+        self.assertEqual(commands.get("End"), ['exec "$DF_FOUNDATION_ROOT/scripts/foundation" shell call toggleMedia'])
         self.assertEqual(commands.get("Pause"), ['exec "$DF_FOUNDATION_ROOT/scripts/transparency" toggle'])
         self.assertEqual(commands.get("Shift+Pause"), ['exec "$DF_FOUNDATION_ROOT/scripts/transparency" monitor'])
         self.assertNotIn("Shift+Insert", commands)
