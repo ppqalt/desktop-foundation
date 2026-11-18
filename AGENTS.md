@@ -141,7 +141,8 @@ as its documentation when changing behavior.
 | `theme/adapters.json` | Adapter refresh-mode descriptions; verify native implementation when changing |
 | `profiles/` | Default hardware intent and example output overrides |
 | `packages/` | Installer package manifests; not updater package actions |
-| `scripts/` | Public command wrappers plus remaining legacy provisioning helpers |
+| `scripts/` | Shared runtime/developer dispatchers, compatibility links and provisioning helpers; see `scripts/README.md` |
+| `tools/` | Development-only benchmarks, explicit live checks and inert gallery fixtures |
 | `session/` | Greetd/PAM/keyring and other session integration assets |
 | `terminal/` | Kitty, Fish, Fastfetch and monitor shader configuration |
 | `audio/` | WirePlumber Bluetooth configuration |
@@ -190,6 +191,13 @@ builds the main executable and scoped helpers with Cargo's lockfile; it currentl
 pins toolchain `1.98.1`, while `rust-toolchain.toml` selects stable developer tools.
 Check both before changing toolchain policy. Build Nothing separately with
 `scripts/build-nothing`. Keep callers and release binaries from the same source.
+
+Simple command names in `scripts/` are relative symlinks to the shared
+`foundation` dispatcher. Preserve their mappings and installed symlink chains;
+do not copy a link target's contents into a differently named executable unless
+the fixture intentionally tests basename routing. Prefer existing native
+subcommands over adding another wrapper. `scripts/dev --help` is the workflow
+entry point; tooling with no runtime caller belongs under `tools/`.
 
 `native/nothing/src/main.rs`, `protocol.rs`, `settings.rs` and `input.rs` own the
 earbud protocol. Its line-oriented JSON commands/events and bounded transport

@@ -45,7 +45,7 @@ ShellRoot {
             id: wallpapers
             y: 900
             width: 500
-            backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/component-gallery-fixture"
+            backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/tools/fixtures/gallery-backend"
         }
         StateLayer {
             id: pulseExample

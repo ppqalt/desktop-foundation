@@ -3,10 +3,10 @@
 Install development tools with `scripts/bootstrap --dev`.
 
 ```sh
-scripts/build-backend
-scripts/build-nothing
-scripts/check
-scripts/test
+scripts/dev build
+scripts/dev check
+scripts/dev test
+scripts/dev test-python
 ```
 
 Niri handles layout, input and window effects. Quickshell provides the QML
@@ -18,4 +18,6 @@ Tests use temporary state and command fixtures. Display-dependent tests are
 opt-in with `DF_TEST_NIRI_IPC=1`. Exercise power routing with `--check`.
 
 See [workflow](docs/workflow.md), [tooling](docs/tooling.md) and
-[backend commands](docs/backend.md). Preserve upstream licenses and attribution.
+[backend commands](docs/backend.md). The [command map](scripts/README.md) explains
+shared aliases and the [tools map](tools/README.md) separates development-only
+utilities. Preserve upstream licenses and attribution.

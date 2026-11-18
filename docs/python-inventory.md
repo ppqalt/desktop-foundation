@@ -1,113 +1,74 @@
 # First-party Python inventory
 
-Python is permitted where it is the best engineering choice. This inventory is
-for dependency and caller tracking; it is not a requirement to remove Python.
+Python remains where it has functional callers. This is a caller map, not a
+requirement to port working code or delete regression coverage.
 
-Snapshot: after the native startup and failure diagnostics and QML test-runner migrations. Paths below are repository files; build artifacts and third-party code are excluded. Update this inventory after each migration. Python imports and legacy test coverage must be checked before deleting compatibility modules.
+## Installation and application integration
 
-## Runtime entry points without a `.py` suffix
+| Entry point | Python implementation / caller |
+| --- | --- |
+| `scripts/apparmor-setup`, `boot-optimize`, `boot-setup`, `browser-policy-setup`, `greeter-console-setup`, `plymouth-setup` | Extensionless Python policy writers; boot helpers use `boot_policy.py` |
+| `scripts/boot-integrate` | `scripts/boot_integration.py`; protected standalone boot planner/writer |
+| `scripts/performance-profile` | `scripts/performance_profile.py`; reversible privileged profile writer |
+| `scripts/brave-config` | `browser/brave/config.py`; browser provisioning, not profile resets |
+| `scripts/spotify-setup` | `scripts/spotify_setup.py`; native `check` route remains separate |
+| `scripts/install` | Embedded bounded ownership/selection checks before native/bootstrap operations |
+| `terminal/kitty/kitty.conf` | Kitty's `terminal/kitty/select_all.py` kitten |
+| Native monitor preparation | Kitty's own `+runpy` shader compiler interface |
 
-These are Python executables used for privileged setup or policy. The shell wrappers listed below also dispatch to Python.
+These still need Python; combining runtime wrappers does not remove that package
+dependency. `scripts/brave_policy.py` is also imported by the retained Python
+theme compatibility route.
 
-```
-scripts/apparmor-setup
-scripts/boot-optimize
-scripts/boot-setup
-scripts/browser-policy-setup
-scripts/greeter-console-setup
-```
+## Imported compatibility modules
 
-## Executable tools and entry points
+The active desktop uses Rust for normal deployment/theme/session operations.
+Existing Python tests and older adapters still import these modules:
 
-Python files with a Python shebang or a `__main__` entry point. Some are legacy compatibility entry points whose active replacements are already Rust; inspect callers and tests before removal.
+- Deployment/preferences: `scripts/application_roles.py`, `deploy.py`,
+  `preferences.py`, `session_units.py`, `local_ai_launcher.py`.
+- Theme/rendering: `scripts/gtk_theme.py`, `render_niri.py`, `render_terminal.py`,
+  `spotify_theme.py`, `theme_pipeline.py`, `theme_runtime.py`, and
+  `theme/adapters/` (`__init__.py`, `btop.py`).
+- Wallpaper/session helpers: `scripts/niri_wallpaper.py`, `niri_notifications.py`.
+- Clipboard: `scripts/clipboard.py`; also usable as the explicit isolated QML
+  fixture backend, while the normal worker is Rust.
+- Executable compatibility bridges: `scripts/bluetooth-action.py` and
+  `scripts/screenshot.py`; their forwarding contracts are regression tested.
 
-```
-browser/brave/config.py
-scripts/application_roles.py
-scripts/bluetooth-action.py
-scripts/bluetooth-actions-bench.py
-scripts/bluetooth-bench.py
-scripts/bluetooth-power.py
-scripts/clipboard-smoke.py
-scripts/clipboard.py
-scripts/deploy.py
-scripts/launcher-smoke.py
-scripts/niri_notifications.py
-scripts/niri_wallpaper.py
-scripts/preferences.py
-scripts/quality_bench.py
-scripts/render_terminal.py
-scripts/screenshot-bench.py
-scripts/screenshot.py
-scripts/smoke.py
-scripts/spotify_setup.py
-scripts/spotify_theme.py
-scripts/theme-generation-bench.py
-scripts/theme_pipeline.py
-```
+Do not remove an import-compatible module until its callers and coverage have a
+replacement. The unused `bluetooth-power.py` forwarding shim was removed; its
+only remaining mentions are inside frozen Git-baseline benchmarks.
 
-## Libraries and compatibility modules
+## Development-only tools
 
-```
-scripts/boot_policy.py
-scripts/brave_policy.py
-scripts/gtk_theme.py
-scripts/local_ai_launcher.py
-scripts/render_niri.py
-scripts/session_units.py
-scripts/theme_runtime.py
-terminal/kitty/select_all.py
-theme/__init__.py
-theme/adapters/__init__.py
-theme/adapters/btop.py
-```
+Located under `tools/` rather than mixed with installed commands:
 
-## Tests and fixtures
+- `tools/benchmarks/`: Bluetooth action/power, screenshot, theme-generation and
+  clipboard quality comparisons. They extract historical sources through
+  `git show`; those historical filenames are not current runtime dependencies.
+- `tools/live/compositor.py`: explicit focus/window acceptance check.
+- `tools/fixtures/gallery-backend`: inert sample data shared by the gallery and
+  motion tests.
 
-```
-tests/live_nothing_surface.py
-tests/live_session_surface.py
-tests/preference_fixture.py
-tests/test_application_roles.py
-tests/test_backdrop.py
-tests/test_backend.py
-tests/test_backend_bluetooth.py
-tests/test_boot_optimization.py
-tests/test_boot_policy.py
-tests/test_brave_config.py
-tests/test_clipboard.py
-tests/test_clipboard_qml_focus.py
-tests/test_clipboard_qml_mouse.py
-tests/test_deploy.py
-tests/test_gtk_theme.py
-tests/test_install.py
-tests/test_menu_lifecycle.py
-tests/test_native_bluetooth_actions.py
-tests/test_native_preferences.py
-tests/test_native_screenshot.py
-tests/test_native_session.py
-tests/test_native_theme.py
-tests/test_niri_adapter.py
-tests/test_nothing_qml_qol.py
-tests/test_preferences.py
-tests/test_session_startup.py
-tests/test_spotify_theme.py
-tests/test_spotify_upgrade.py
-tests/test_surface_keyboard.py
-tests/test_theme_pipeline.py
-tests/test_theme_runtime.py
-tests/test_update.py
+The obsolete Hyprland-only clipboard and launcher smoke scripts were removed.
+Current clipboard/launcher mouse, focus, lifecycle and keyboard tests remain in
+`tests/`; no CI checks or regression tests were disabled for this cleanup.
+
+## Tests and discovery
+
+Python tests and fixtures live in `tests/`. CI compiles `scripts/` and `tools/`,
+runs Python discovery, native Rust checks, and the required isolated lock UI job.
+`./scripts/dev test-python` runs the Python suite locally after building debug
+binaries. `./scripts/dev test` runs native and shared offscreen QML tests.
+
+Find actual files rather than maintaining another duplicate filename list:
+
+```sh
+rg --files scripts tools tests theme browser terminal -g '*.py'
+rg -l '^#!.*python' scripts tools
 ```
 
-## Runtime and tooling invocations
-
-- `scripts/apparmor-setup`, `scripts/boot-optimize`, `scripts/boot-setup`, `scripts/browser-policy-setup` and `scripts/greeter-console-setup` invoke Python through their shebangs.
-- `scripts/brave-config` and `scripts/spotify-setup` invoke Python explicitly; Spotify's native `check` path is separate.
-- `terminal/kitty/kitty.conf` invokes the Python Kitty kitten `select_all.py`.
-- The monitor shader preparation in `native/foundation/src/monitor.rs` invokes
-  Kitty's `+runpy` interface for Kitty's own shader pipeline compiler.
-- `shell/services/ClipboardHistory.qml` supports an optional Python fixture override; its normal backend is Rust.
-- `packages/core.toml` still includes `python` and `python-pillow`; `.github/workflows/check.yml` installs Python tooling and compiles/runs the remaining Python tests.
-- Some Python benchmark tools load historical Python baselines. Migrate their measurements and baseline strategy before removing their runtime requirement.
-
-Find current Python source with `rg --files -g '*.py'`; find extensionless entry points with `rg -l '^#!.*python' scripts`. Search invocation and import sites, not just filenames, when updating this list.
+Inspect imports, subprocess calls and tests before removing a file. Package
+manifests still include `python` and `python-pillow`; this cleanup does not claim
+a Python-free installer or desktop toolchain.

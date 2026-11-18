@@ -5,6 +5,39 @@ cd "$root"
 action=${1:-check}
 shift || true
 case $action in
+help | -h | --help)
+	cat <<'HELP'
+Desktop Foundation development
+  scripts/dev build [all|foundation|nothing]  Build release backends
+  scripts/dev check                         Formatting, lint and native checks
+  scripts/dev test                          Native and offscreen QML tests
+  scripts/dev test-python                   Python regression suite
+  scripts/dev format                        Format Bash, QML and Rust
+  scripts/dev bench [ARGS]                  Finite runtime measurements
+  scripts/dev bootstrap --dev               Install development dependencies
+  scripts/dev doctor                       Inspect installation
+
+Runtime commands: scripts/foundation --help
+Installation: scripts/install --help
+Repository map and compatibility aliases: scripts/README.md
+HELP
+	;;
+build)
+	target=${1:-all}
+	if (($#)); then shift; fi
+	case $target in
+	foundation) exec "$root/scripts/build-backend" "$@" ;;
+	nothing) exec "$root/scripts/build-nothing" "$@" ;;
+	all)
+		"$root/scripts/build-backend" "$@"
+		exec "$root/scripts/build-nothing" "$@"
+		;;
+	*)
+		printf 'Unknown build target: %s\n' "$target" >&2
+		exit 2
+		;;
+	esac
+	;;
 bootstrap | check | doctor | shell-start | shell-stop) exec "$root/scripts/$action" "$@" ;;
 deploy) exec "$root/scripts/deploy" install "$@" ;;
 restore) exec "$root/scripts/deploy" restore "$@" ;;
@@ -22,11 +55,18 @@ test)
 	cargo test --locked --manifest-path native/foundation/Cargo.toml "$@"
 	exec "$root/tests/test-material-widgets"
 	;;
+test-python)
+	cargo build --locked --manifest-path native/foundation/Cargo.toml --bins
+	python3 -m compileall -q scripts tools
+	exec python3 -m unittest discover -s tests "$@"
+	;;
 format)
 	while IFS= read -r file; do
 		if head -n 1 "$file" | rg -q '^#!/usr/bin/env bash'; then shfmt -w "$file"; fi
 	done < <(rg --files scripts terminal/fastfetch)
 	while IFS= read -r file; do /usr/lib/qt6/bin/qmlformat -i "$file"; done < <(rg --files shell -g '*.qml')
+	cargo fmt --manifest-path native/foundation/Cargo.toml
+	cargo fmt --manifest-path native/nothing/Cargo.toml
 	;;
 lint) exec "$root/scripts/check" "$@" ;;
 *)

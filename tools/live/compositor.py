@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import time
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 def hypr(code):
     result = subprocess.run(['hyprctl', 'dispatch', code], capture_output=True, text=True, check=True)

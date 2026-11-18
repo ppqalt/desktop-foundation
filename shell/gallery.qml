@@ -635,7 +635,7 @@ ShellRoot {
                     WallpaperGrid {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
-                        backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/scripts/component-gallery-fixture"
+                        backend: Quickshell.env("DF_FOUNDATION_ROOT") + "/tools/fixtures/gallery-backend"
                         onFailed: message => console.warn("Gallery wallpaper example: " + message)
                     }
                     ControlAction {

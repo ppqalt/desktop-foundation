@@ -1,5 +1,1 @@
-#!/usr/bin/env bash
-set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-# The finite native check leaves another notification provider alone.
-exec "$root/native/foundation/target/release/desktop-foundationctl" --root "$root" notifications check-owner
+foundation

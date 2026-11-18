@@ -2,7 +2,72 @@
 set -euo pipefail
 source_path=${BASH_SOURCE[0]}
 [[ $source_path == */* ]] || source_path=./$source_path
+# The last link name is the compatibility command, even through ~/.local/bin.
+command_name=${source_path##*/}
+links=0
+while [[ -L $source_path && $links -lt 40 ]]; do
+	links=$((links + 1))
+	command_name=${source_path##*/}
+	target=$(readlink -- "$source_path")
+	if [[ $target == /* ]]; then source_path=$target; else source_path=${source_path%/*}/$target; fi
+done
+if [[ -L $source_path ]]; then
+	printf '%s\n' 'Foundation command has too many symbolic links.' >&2
+	exit 1
+fi
 root=$(cd -- "${source_path%/*}/.." && pwd)
+# Runtime aliases only select arguments. Domain behavior stays in Rust; the
+# installer, updater and privileged writers retain their own reviewed lifecycle.
+case $command_name in
+foundation) ;;
+bench | format | lint | reload | restore | test) exec "$root/scripts/dev" "$command_name" "$@" ;;
+applications)
+	if [[ ${1:-} == launch ]]; then
+		shift
+		set -- apps launch "$@"
+	else set -- app-roles "$@"; fi
+	;;
+bluetooth-popup) set -- shell call toggleBluetooth ;;
+clipboard) set -- shell call toggleClipboard ;;
+clock) set -- shell call toggleClock ;;
+launcher) set -- shell call toggleLauncher ;;
+power-menu) set -- shell call togglePower ;;
+shell-ipc)
+	if (($# == 0)); then
+		printf '%s\n' 'IPC method required.' >&2
+		exit 1
+	fi
+	set -- shell call "$@"
+	;;
+control-center | monitor | transparency)
+	if (($# == 0)); then set -- toggle; fi
+	set -- "$command_name" "$@"
+	;;
+local-ai)
+	if (($# == 0)); then set -- start; fi
+	set -- local-ai "$@"
+	;;
+install-app-mods)
+	if (($# == 0)); then set -- install --skip-unavailable; fi
+	set -- app-mods "$@"
+	;;
+clipboard-watch) set -- clipboard watch ;;
+niri-notifications-start) set -- notifications start ;;
+niri-wallpaper-start) set -- wallpaper start ;;
+notification-owner-check) set -- notifications check-owner ;;
+power-action) set -- power "$@" ;;
+preferences) set -- preferences-setup "$@" ;;
+failure) set -- failure-check "$@" ;;
+geode-setup) set -- geode "$@" ;;
+record) set -- recording "$@" ;;
+theme-apply | theme-generate | theme-promote | theme-reset | theme-rollback) set -- theme-runtime "${command_name#theme-}" "$@" ;;
+wallpaper-set) set -- theme-runtime wallpaper "$@" ;;
+baseline | boot-report | deploy | dns | doctor | launcher-bench | lock-screen | niri-package | preflight | session-acceptance | shell-profile | startup | system-setup | trace | volume) set -- "$command_name" "$@" ;;
+*)
+	printf 'Unknown Foundation command alias: %s\n' "$command_name" >&2
+	exit 2
+	;;
+esac
 binary="$root/native/foundation/target/release/desktop-foundationctl"
 if [[ ! -x $binary ]]; then
 	printf '%s\n' 'Foundation backend is not built. Run scripts/build-backend in this checkout.' >&2

@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BASELINE = 'v0.12-1'
 ADDRESS = 'AB:CD:EF:01:02:03'
 DEVICE = '/org/bluez/hci7/dev_' + ADDRESS.replace(':', '_')

@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BASELINE = '1ca553c842d4dc56577f56dbcb0f6ac69c448457'
 MATERIAL = {'primary': '#98ccf9', 'secondary': '#bdc7d5'}
 

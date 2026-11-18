@@ -1,10 +1,1 @@
-#!/usr/bin/env bash
-set -euo pipefail
-source_path=${BASH_SOURCE[0]}
-[[ $source_path == */* ]] || source_path=./$source_path
-root=$(cd -- "${source_path%/*}/.." && pwd)
-if [[ ${1:-} == launch ]]; then
-	shift
-	exec "$root/native/foundation/target/release/desktop-foundationctl" --root "$root" apps launch "$@"
-fi
-exec "$root/native/foundation/target/release/desktop-foundationctl" --root "$root" app-roles "$@"
+foundation

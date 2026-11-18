@@ -13,7 +13,7 @@ import tempfile
 import time
 import zlib
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BASELINE = '1394382fc87ad737f62973675a61c99a64aeabd8'
 
 
