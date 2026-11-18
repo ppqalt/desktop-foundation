@@ -145,6 +145,7 @@ pub fn desktop(root: &Path) -> Result<Effective> {
         .as_u64()
         .is_some_and(|n| n <= 128)
         || !v["screen_corners"]["enabled"].is_boolean()
+        || !v["screen_corners"]["cover_fullscreen"].is_boolean()
     {
         return Err(invalid(
             "Screen corner radius must be an integer from 0 to 128",

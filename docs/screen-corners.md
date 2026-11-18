@@ -3,7 +3,8 @@
 `ScreenCorners` keeps four small black cutouts at each output's physical corners.
 The default radius follows `Material.shape.extraLarge` (28 logical pixels), with Qt handling
 output scaling. Override `[screen_corners] enabled` and `radius` in user
-`desktop.toml`; see [configuration](configuration.md). The component gallery and desktop render the same independent
+`desktop.toml`; `cover_fullscreen=true` also covers fullscreen apps. See
+[configuration](configuration.md). The component gallery and desktop render the same independent
 `ScreenCornerMask` component; there is no copied gallery drawing.
 
 This follows the approach examined in iNiR's
@@ -15,12 +16,12 @@ No iNiR shell, services, configuration or interactive corner actions are install
 
 The surfaces have empty input regions, no keyboard focus and no exclusive zone.
 They do not cover Niri's hot-corner input. Output Variants create and retire them
-on display changes without polling or a new service. They use the Top layer:
-normal windows are rounded visually at the physical screen edge, while native
-fullscreen content and the secure lock screen cover them. This keeps the
-conventional fullscreen/direct-scanout path rather than adding a permanent
-Overlay-layer obstruction. Borderless apps that do not request compositor
-fullscreen retain the ordinary desktop corner treatment.
+on display changes without polling or a new service. They use Overlay by default,
+rounding physical screen edges for ordinary, borderless and native fullscreen
+apps. Secure session-lock surfaces remain above them. An overlay can prevent
+fullscreen direct scanout: set `cover_fullscreen=false` to use Top instead,
+allowing native fullscreen to cover the masks. This is a visual/performance
+choice, independent of the compositor's per-window geometry rounding.
 
 This is separate from the compositor's rounded overview workspace previews and
 fullscreen-only feathering. The screen corners stay at the physical output edge
@@ -32,5 +33,5 @@ checks black outer corners, unobstructed inner pixels and passive focus behavior
 It also loads the production output/corner Variants with only Wayland transport
 replaced in an offscreen fixture. `tests/test-component-gallery` checks the shared
 example in wide and narrow layouts. These fixtures do not establish physical
-pointer passthrough or game scanout; the empty-region/Top-layer contract and live
+pointer passthrough or game scanout; the empty-region/layer-choice contract and live
 layer placement must be distinguished from those hardware acceptance checks.

@@ -1,5 +1,5 @@
 diff --git a/niri-config/src/lib.rs b/niri-config/src/lib.rs
-index 6856bfc..a3c85fe 100644
+index 6856bfcd..a3c85feb 100644
 --- a/niri-config/src/lib.rs
 +++ b/niri-config/src/lib.rs
 @@ -1663,6 +1663,8 @@ mod tests {
@@ -12,7 +12,7 @@ index 6856bfc..a3c85fe 100644
                  zoom: 0.5,
                  backdrop_color: Color {
 diff --git a/niri-config/src/misc.rs b/niri-config/src/misc.rs
-index 368422d..31055db 100644
+index 368422d5..31055db8 100644
 --- a/niri-config/src/misc.rs
 +++ b/niri-config/src/misc.rs
 @@ -120,6 +120,10 @@ impl MergeWith<ClipboardPart> for Clipboard {
@@ -61,8 +61,34 @@ index 368422d..31055db 100644
          merge_clone!((self, part), backdrop_color);
      }
  }
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index d95657cd..8f92571c 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -4317,6 +4317,21 @@ impl<W: LayoutElement> Layout<W> {
+                             InsertWorkspace::Existing(_) => {
+                                 if let Some(offset) = offset {
+                                     let pos = (tile_render_loc - offset).downscale(zoom);
++                                    // Overview drops can place the pointer inside a workspace
++                                    // while most of the grabbed window is above/below it. Those
++                                    // parts are cropped during overview rendering. Keep the
++                                    // dropped tile reachable, using normal floating placement
++                                    // policy; ordinary desktop dragging remains unrestricted.
++                                    let pos = if zoom < 1. {
++                                        let mut rect = Rectangle::new(pos, tile.tile_size());
++                                        crate::utils::clamp_preferring_top_left_in_area(
++                                            mon.workspaces[ws_idx].working_area(),
++                                            &mut rect,
++                                        );
++                                        rect.loc
++                                    } else {
++                                        pos
++                                    };
+                                     let pos =
+                                         mon.workspaces[ws_idx].floating_logical_to_size_frac(pos);
+                                     tile.floating_pos = Some(pos);
 diff --git a/src/layout/monitor.rs b/src/layout/monitor.rs
-index 53c0606..8d8773d 100644
+index 53c06069..8d8773d1 100644
 --- a/src/layout/monitor.rs
 +++ b/src/layout/monitor.rs
 @@ -1370,6 +1370,20 @@ impl<W: LayoutElement> Monitor<W> {
@@ -139,7 +165,7 @@ index 53c0606..8d8773d 100644
      }
  
 diff --git a/src/layout/scrolling.rs b/src/layout/scrolling.rs
-index efb1e77..af2d536 100644
+index efb1e776..af2d5365 100644
 --- a/src/layout/scrolling.rs
 +++ b/src/layout/scrolling.rs
 @@ -2883,6 +2883,13 @@ impl<W: LayoutElement> ScrollingSpace<W> {
@@ -157,10 +183,10 @@ index efb1e77..af2d536 100644
          // Render above the top layer if we're on a fullscreen window and the view is stationary.
          if self.columns.is_empty() {
 diff --git a/src/layout/tests/animations.rs b/src/layout/tests/animations.rs
-index b29e0b1..99f6814 100644
+index b29e0b18..4c53575f 100644
 --- a/src/layout/tests/animations.rs
 +++ b/src/layout/tests/animations.rs
-@@ -1130,3 +1130,136 @@ fn overview_zoom_retargets_without_delay_or_workspace_movement() {
+@@ -1130,3 +1130,193 @@ fn overview_zoom_retargets_without_delay_or_workspace_movement() {
      layout.overview_progress = None;
      assert_eq!(layout.overview_zoom(), 1.);
  }
@@ -297,8 +323,65 @@ index b29e0b1..99f6814 100644
 +        .unwrap()
 +        .overview_has_fullscreen_content());
 +}
++
++#[test]
++fn overview_floating_drop_keeps_the_entire_window_reachable() {
++    for zoom in [0.2, 0.5, 0.85] {
++        let mut config = Config::default();
++        config.animations.off = true;
++        config.overview.zoom = zoom;
++        let mut layout: Layout<TestWindow> = Layout::new(Clock::with_time(Duration::ZERO), &config);
++        let mut params = TestWindowParams::new(1);
++        params.is_floating = true;
++        params.bbox = Rectangle::from_size((900, 600).into());
++        check_ops_on_layout(
++            &mut layout,
++            [
++                Op::AddOutput(1),
++                Op::AddWindow { params },
++                Op::Communicate(1),
++                Op::CompleteAnimations,
++            ],
++        );
++        layout.open_overview();
++        Op::CompleteAnimations.apply(&mut layout);
++        let output = layout.outputs().next().unwrap().clone();
++        let mon = layout.monitor_for_output(&output).unwrap();
++        let (ws, geo) = mon
++            .workspaces_with_render_geo()
++            .find(|(ws, _)| ws.has_window(&1))
++            .unwrap();
++        let ws_id = ws.id();
++        let (_, pos, _) = ws
++            .tiles_with_render_positions()
++            .find(|(t, _, _)| t.window().id() == &1)
++            .unwrap();
++        let start = geo.loc + (pos + Point::from((450., 550.))).upscale(zoom);
++        let end = geo.loc + Point::from((450., 20.)).upscale(zoom);
++        assert!(layout.interactive_move_begin(1, &output, start));
++        assert!(layout.interactive_move_update(&1, end - start, output.clone(), end));
++        layout.interactive_move_end(&1);
++        Op::CompleteAnimations.apply(&mut layout);
++        let (_, _, ws) = layout
++            .workspaces()
++            .find(|(_, _, ws)| ws.id() == ws_id)
++            .unwrap();
++        let (tile, pos, _) = ws
++            .tiles_with_render_positions()
++            .find(|(t, _, _)| t.window().id() == &1)
++            .unwrap();
++        let area = ws.working_area();
++        assert!(
++            pos.y >= area.loc.y,
++            "Dropped above workspace at zoom {zoom}: {pos:?}"
++        );
++        assert!(pos.x >= area.loc.x);
++        assert!(pos.y + tile.tile_size().h <= area.loc.y + area.size.h);
++        assert!(pos.x + tile.tile_size().w <= area.loc.x + area.size.w);
++    }
++}
 diff --git a/src/layout/tests/shadows.rs b/src/layout/tests/shadows.rs
-index f3a470f..5b6cc49 100644
+index f3a470fb..5b6cc49c 100644
 --- a/src/layout/tests/shadows.rs
 +++ b/src/layout/tests/shadows.rs
 @@ -23,8 +23,8 @@ fn frame(layout: &mut Layout<TestWindow>, renderer: &mut GlesRenderer) -> Vec<u8
@@ -425,7 +508,7 @@ index f3a470f..5b6cc49 100644
 +    }
 +}
 diff --git a/src/layout/workspace.rs b/src/layout/workspace.rs
-index 49548a8..c9dc3a7 100644
+index 49548a83..c9dc3a72 100644
 --- a/src/layout/workspace.rs
 +++ b/src/layout/workspace.rs
 @@ -7,7 +7,7 @@ use niri_config::{
@@ -497,7 +580,7 @@ index 49548a8..c9dc3a7 100644
          &self,
          renderer: &mut R,
 diff --git a/src/niri.rs b/src/niri.rs
-index b41b80b..c1498f8 100644
+index b41b80b1..c1498f86 100644
 --- a/src/niri.rs
 +++ b/src/niri.rs
 @@ -4391,6 +4391,31 @@ impl Niri {
@@ -541,7 +624,7 @@ index b41b80b..c1498f8 100644
          RescaledTile = RescaleRenderElement<TileRenderElement<R>>,
          LayerSurface = LayerSurfaceRenderElement<R>,
 diff --git a/src/render_helpers/mod.rs b/src/render_helpers/mod.rs
-index 474437a..185d8fa 100644
+index 474437af..185d8fad 100644
 --- a/src/render_helpers/mod.rs
 +++ b/src/render_helpers/mod.rs
 @@ -37,6 +37,7 @@ pub mod framebuffer_effect;
@@ -554,7 +637,7 @@ index 474437a..185d8fa 100644
  pub mod renderer;
 diff --git a/src/render_helpers/overview_feather.rs b/src/render_helpers/overview_feather.rs
 new file mode 100644
-index 0000000..eac0f5f
+index 00000000..eac0f5f2
 --- /dev/null
 +++ b/src/render_helpers/overview_feather.rs
 @@ -0,0 +1,434 @@
@@ -993,7 +1076,7 @@ index 0000000..eac0f5f
 +    }
 +}
 diff --git a/src/render_helpers/shaders/mod.rs b/src/render_helpers/shaders/mod.rs
-index 7be9b15..3111113 100644
+index 7be9b159..31111130 100644
 --- a/src/render_helpers/shaders/mod.rs
 +++ b/src/render_helpers/shaders/mod.rs
 @@ -17,6 +17,7 @@ pub struct Shaders {
@@ -1036,7 +1119,7 @@ index 7be9b15..3111113 100644
              custom_close: RefCell::new(None),
 diff --git a/src/render_helpers/shaders/overview_feather.frag b/src/render_helpers/shaders/overview_feather.frag
 new file mode 100644
-index 0000000..be459cf
+index 00000000..be459cff
 --- /dev/null
 +++ b/src/render_helpers/shaders/overview_feather.frag
 @@ -0,0 +1,46 @@

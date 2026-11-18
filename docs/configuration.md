@@ -13,6 +13,7 @@ home_player = "spotify"
 [screen_corners]
 enabled = true
 radius = 28
+cover_fullscreen = true
 ```
 
 Home prefers the named controllable MPRIS session, even when paused or stopped.
@@ -27,8 +28,8 @@ their existing primary-player behavior. No new media service or polling is used.
 rounding = 14
 [overview]
 corner_radius = 24
-feather_enabled = false
-feather_width = 16
+feather_enabled = true
+feather_width = 4
 [shadow]
 spread = 12
 range = 32
@@ -38,11 +39,15 @@ inactiveOpacity = 1.0
 active = 0.94
 ```
 
-Feathering is **off by default**. Enabling it affects confirmed fullscreen
+Feathering defaults to a subtle **4 logical pixels**. It affects confirmed fullscreen
 workspace previews only. Corner radius and feather width accept 0–128 logical
 pixels. Physical screen-corner radius accepts integers 0–128; zero disables the
 cutouts. Shadow spread accepts 0–128. These are desktop adaptations, not new
 Material tokens.
+
+`feather_enabled=false` retains crisp rounding without feathering.
+`screen_corners.cover_fullscreen=false` keeps corner masks below native fullscreen
+apps, favoring direct scanout; the default covers fullscreen too.
 
 Appearance precedence, lowest first:
 

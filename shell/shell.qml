@@ -31,6 +31,7 @@ ShellRoot {
         active: Quickshell.env("DF_COMPOSITOR") === "niri" && desktopSettings.settings.screen_corners.enabled && desktopSettings.settings.screen_corners.radius > 0
         ScreenCorners {
             cornerRadius: desktopSettings.settings.screen_corners.radius
+            coverFullscreen: desktopSettings.settings.screen_corners.cover_fullscreen
         }
     }
     Volume {

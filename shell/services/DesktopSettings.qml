@@ -12,7 +12,8 @@ QtObject {
             },
             screen_corners: {
                 enabled: true,
-                radius: 28
+                radius: 28,
+                cover_fullscreen: true
             }
         })
     readonly property string error: request.phase === "error" ? request.failure : ""

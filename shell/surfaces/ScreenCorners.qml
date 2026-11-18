@@ -5,11 +5,12 @@ import Quickshell.Wayland
 import "../components"
 import "../theme"
 
-// Four tiny, input-transparent surfaces per output. Top is naturally below
-// native fullscreen content and the secure session lock; no polling is needed.
+// Four tiny, input-transparent surfaces per output. The secure session lock
+// covers both layer choices; fullscreen rounding is an explicit preference.
 Scope {
     id: root
     property real cornerRadius: Material.shape.extraLarge
+    property bool coverFullscreen: true
     Variants {
         model: Quickshell.screens
         Scope {
@@ -31,7 +32,7 @@ Scope {
                     exclusionMode: ExclusionMode.Ignore
                     mask: Region {}
                     WlrLayershell.namespace: "desktop-foundation-screen-corner"
-                    WlrLayershell.layer: WlrLayer.Top
+                    WlrLayershell.layer: root.coverFullscreen ? WlrLayer.Overlay : WlrLayer.Top
                     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
                     ScreenCornerMask {
                         anchors.fill: parent

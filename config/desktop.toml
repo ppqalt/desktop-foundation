@@ -7,3 +7,5 @@ home_player = "spotify"
 [screen_corners]
 enabled = true
 radius = 28
+# Disable only when preferring fullscreen direct scanout over visible corners.
+cover_fullscreen = true

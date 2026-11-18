@@ -2,8 +2,8 @@
 rounding = 14
 [overview]
 corner_radius = 24
-feather_enabled = false
-feather_width = 16
+feather_enabled = true
+feather_width = 4
 [spacing]
 betweenWindows = 12
 desktopEdge = 18

@@ -105,6 +105,12 @@ fn appearance_and_desktop_commands_validate_preferences_and_stock_recovery() {
         "overview_ctrl_scroll=true\n",
     )
     .unwrap();
+    assert!(render().contains("workspace-feather 4;"));
+    fs::write(
+        config.join("window-appearance.toml"),
+        "[overview]\nfeather_enabled=false\n",
+    )
+    .unwrap();
     assert!(render().contains("workspace-feather 0;"));
     // The custom appearance capability survives disabling the zoom shortcut.
     fs::write(config.join("input.toml"), "overview_ctrl_scroll=false\n").unwrap();
@@ -145,6 +151,10 @@ fn appearance_and_desktop_commands_validate_preferences_and_stock_recovery() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["settings"]["media"]["home_player"], "vlc");
     assert_eq!(value["settings"]["screen_corners"]["enabled"], true);
+    assert_eq!(
+        value["settings"]["screen_corners"]["cover_fullscreen"],
+        true
+    );
     for bad in [
         "[screen_corners]\nradius=-1",
         "[screen_corners]\nradius=129",

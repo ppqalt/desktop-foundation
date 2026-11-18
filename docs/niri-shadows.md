@@ -10,10 +10,11 @@ The policy follows each workspace's displayed scrolling column, independently
 of global focus and overview/view movement. A fullscreen request alone does not
 activate feathering; the client must commit its fullscreen state.
 
-The default corner radius is 24 logical pixels in the overview; the fullscreen
-feather width is 16 when enabled. DF now disables feathering by default through
-`[overview] feather_enabled = false` in `window-appearance.toml`; it remains
-optional via personal TOML overrides. See [configuration](configuration.md).
+The default corner radius is 24 logical pixels in the overview. DF's generated
+configuration uses a subtle 4px fullscreen feather. Set `[overview]
+feather_enabled = false` in `window-appearance.toml` to disable it; the compiled
+compositor fallback remains 16px when no managed settings are supplied.
+See [configuration](configuration.md).
 Both are capped at a quarter of the preview's shorter side
 and follow the existing overview animation, including reversal and reduced motion.
 The preview center, full-size desktop, individual window appearance, hit testing
@@ -48,7 +49,7 @@ Damage covers the maximum feather perimeter, including the previous wider mask
 when the animation closes. Missing shader/cache preparation falls back to the
 existing sharp-edge rendering with the compositor's error log.
 
-The package is 26.04-7. Its build checks include software EGL pixel tests at 100%,
+The package is 26.04-8. Its build checks include software EGL pixel tests at 100%,
 150% and 200% scale with an asymmetric backdrop, window content reaching an edge,
 rounded corners, sharp ordinary edges, feathered fullscreen edges and an unchanged
 center. The complete compositor library suite runs during packaging. Layout checks
@@ -57,6 +58,26 @@ client acknowledgement; parser checks cover disabled, custom and invalid setting
 These are actual shader renders, not physical-session visual acceptance.
 Install through `scripts/niri-package install --gui-auth`; a normal fresh login
 activates new compositor code. Never restart the active session for this test.
+
+## Floating windows disappearing after overview drops
+
+Overview rendering clips workspace content vertically. Previously, a floating
+drop stored the cursor-relative position directly, even when grabbing near the
+bottom of a window and dropping near a workspace's top put most of that window
+above the visible workspace. The app remained alive but appeared chopped off.
+Lucky38's affected CS2 window was observed at y=-538 before changing state.
+
+The 26.04-8 patch clamps floating overview drops with Niri's existing
+top-left-preferring working-area placement policy before storing the position.
+It does not alter ordinary desktop dragging, capture geometry, workspace crops,
+window size or fullscreen state. Oversized windows retain an accessible top-left
+corner rather than being shrunk. A regression fails before the fix (y=-210 at
+20% zoom) and passes at 20%, 50% and 85% zoom afterward. The complete 205-test
+compositor library suite passes, including existing rendering/shadow tests.
+
+The fix prevents future bad drops once the new compositor starts. It does not
+silently move arbitrary existing windows. Physical screen corners are a separate
+shell setting and now cover fullscreen by default; see [screen corners](screen-corners.md).
 
 ## Overview shadow containment
 
@@ -98,7 +119,7 @@ shadows from individual-window captures.
 
 The package recipe applies this independently of the Ctrl+Scroll overview patch.
 Both patches are checksum-verified and contribute to the managed recipe identity.
-The stacking correction first shipped in 26.04-3 and remains in 26.04-7. Existing
+The stacking correction first shipped in 26.04-3 and remains in 26.04-8. Existing
 signed stock recovery is retained.
 
 ## Evidence and activation

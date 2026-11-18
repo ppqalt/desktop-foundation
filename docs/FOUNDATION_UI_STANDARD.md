@@ -62,9 +62,11 @@ verify measurements through Google's official implementation rather than guessin
   Managed Niri rounds workspace previews and feathers them into the overview
   backdrop only for confirmed fullscreen content. This compositor effect does
   not change individual component styling.
-- Physical screen corners use four small, black, input-transparent Top-layer
-  cutouts per output. This is an explicit display-edge adaptation, not a UI
-  surface color or shadow. Fullscreen and the secure lock cover them natively.
+- Physical screen corners use four small, black, input-transparent cutouts
+  per output. By default they use Overlay so fullscreen apps retain rounding;
+  `screen_corners.cover_fullscreen=false` selects Top for native fullscreen
+  scanout. This is an explicit display-edge adaptation, not a UI
+  surface color or shadow. The secure lock covers either layer natively.
   The gallery uses the same `ScreenCornerMask`; see `screen-corners.md`.
 - Outer QML cards/readouts and Control Center groups use a quiet 1px
   `primary` border at 65% opacity, with a faint tonal halo. It follows the

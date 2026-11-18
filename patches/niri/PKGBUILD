@@ -3,7 +3,7 @@
 # replace the compositor with a build that rejects the Foundation config.
 pkgname=niri-foundation
 pkgver=26.04
-pkgrel=7
+pkgrel=8
 pkgdesc='Niri with Desktop Foundation overview input, workspace edges and shadow fixes'
 arch=('x86_64' 'x86_64_v3')
 url='https://github.com/niri-wm/niri'
@@ -24,7 +24,7 @@ source=('niri::git+https://github.com/niri-wm/niri.git#commit=8ed0da44d974c32c68
 sha256sums=('SKIP'
             '31262c362bdc02c8d6e2f9d16efa50732d40ae0dc5ea39f24e85a9a6de25b17f'
             '644d5767d76c79334065da9960c185d90c7f2827b52f87f86703ee5bdce6e256'
-            '491071015552eac3d4575825e15dd71c4aec36f45c6d954eb2d788c6f33129ac')
+            '1e20f2691aa9bbb5b1bacfe1d9cebeaa687837003b09c04bdf6c12a28834ee48')
 
 prepare() {
   cd "$srcdir/niri"
