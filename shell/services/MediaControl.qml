@@ -60,9 +60,12 @@ QtObject {
         return selected;
     }
     function primaryPlayer() {
-        let primary = players.find(player => player.dbusName === primaryName && player.canControl && player.canTogglePlaying && player.playbackState !== MprisPlaybackState.Stopped);
+        // Reserve Home's preferred session when another playback is available.
+        const home = preferredHomePlayer();
+        const alternative = home ? latest(home.dbusName) : null;
+        let primary = players.find(player => player.dbusName === primaryName && player.canControl && player.canTogglePlaying && player.playbackState !== MprisPlaybackState.Stopped && (!alternative || player.dbusName !== home.dbusName));
         if (!primary)
-            primary = latest("");
+            primary = alternative ?? latest("");
         if (primary)
             primaryName = primary.dbusName;
         return primary;
