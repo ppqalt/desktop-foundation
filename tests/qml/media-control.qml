@@ -81,10 +81,31 @@ ShellRoot {
             compare(control.primaryName, browser.dbusName);
             compare(control.toggle(), "Chromium");
             compare(browser.pauses, 1);
+            compare(control.skip(true), "Spotify");
+            compare(spotify.nexts, 1);
+            compare(control.skip(false), "Spotify");
+            compare(spotify.previouses, 1);
+            compare(control.primaryName, browser.dbusName);
+        }
+        function test_navigation_fallback_and_unavailable_tracks() {
+            control.players = [browser, second];
             compare(control.skip(true), "Chromium");
             compare(browser.nexts, 1);
+            control.players = [browser, spotify];
+            spotify.canControl = false;
             compare(control.skip(false), "Chromium");
             compare(browser.previouses, 1);
+            spotify.canControl = true;
+            spotify.playbackState = MprisPlaybackState.Stopped;
+            compare(control.skip(true), "Spotify");
+            compare(spotify.nexts, 1);
+            spotify.canGoPrevious = false;
+            compare(control.skip(false), "Track navigation unavailable");
+            compare(browser.previouses, 1);
+            control.homePlayer = "vlc";
+            compare(control.skip(true), "Spotify");
+            control.players = [];
+            compare(control.skip(true), "No controllable media player");
         }
         function test_missing_or_uncontrollable_spotify_falls_back() {
             spotify.canControl = false;

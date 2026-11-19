@@ -31,7 +31,7 @@ new configuration is published.
 | Super+X | System monitor |
 | Super+Z | Control Center |
 | Super+Y | Local AI |
-| Insert / Delete | Next / previous track in End's media player |
+| Insert / Delete | Next / previous track in Spotify, falling back to End's media player |
 | Pause/Break | Toggle full Transparency Mode with playback ducking |
 | Shift+Pause/Break | Toggle microphone monitoring without ducking |
 | Super+Shift+Q | Session menu |

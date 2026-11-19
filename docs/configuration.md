@@ -19,8 +19,10 @@ cover_fullscreen = true
 Home prefers the named controllable MPRIS session, even when paused or stopped.
 If it is unavailable, Home selects the most recently used player other than
 End's primary player. An empty `home_player` restores secondary-only selection.
-Instance-suffixed Spotify sessions are supported. End and Insert/Delete keep
-their existing primary-player behavior. No new media service or polling is used.
+Instance-suffixed Spotify sessions are supported. Insert/Delete prefer Spotify
+for next/previous track and fall back to the primary player when Spotify is
+unavailable. End retains its primary-player behavior. No new media service or
+polling is used.
 
 `window-appearance.toml`:
 

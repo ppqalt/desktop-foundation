@@ -67,8 +67,8 @@ QtObject {
             primaryName = primary.dbusName;
         return primary;
     }
-    function preferredHomePlayer() {
-        const name = homePlayer.toLowerCase();
+    function preferredPlayer(preference) {
+        const name = preference.toLowerCase();
         if (!name)
             return null;
         return players.find(player => {
@@ -76,8 +76,11 @@ QtObject {
             return player.canControl && player.canTogglePlaying && (bus === name || bus.startsWith(name + ".") || player.identity.toLowerCase() === name);
         }) ?? null;
     }
+    function preferredHomePlayer() {
+        return preferredPlayer(homePlayer);
+    }
     function skip(forward): string {
-        const player = primaryPlayer();
+        const player = preferredPlayer("spotify") ?? primaryPlayer();
         if (!player)
             return "No controllable media player";
         if (forward ? !player.canGoNext : !player.canGoPrevious)
